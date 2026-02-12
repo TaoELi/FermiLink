@@ -1,0 +1,29 @@
+FermiLink_oldversion
+public
+.chainlit
+.pytest_cache
+workspaces/
+scientific_packages/
+
+# Generated uploads
+.files/
+web/.files/
+public/.files/
+
+# Python/runtime caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+*.egg-info/
+build/
+
+# OS/log noise
+.DS_Store
+*.log
+*.pid
+*.sock
