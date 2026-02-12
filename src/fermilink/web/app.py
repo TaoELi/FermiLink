@@ -26,16 +26,6 @@ from fermilink.runner.scientific_packages import (
 from sqlalchemy.engine import make_url
 
 
-def find_project_root(start: Path) -> Path:
-    cur = start.resolve()
-    for p in [cur.parent, *cur.parents]:
-        if (p / "pyproject.toml").exists() or (p / ".git").exists():
-            return p
-    # Installed wheel/sdist layouts may not include project markers.
-    return Path.cwd()
-
-
-BASE_DIR = find_project_root(Path(__file__))
 app_root_raw = os.getenv("CHAINLIT_APP_ROOT")
 if not app_root_raw or not app_root_raw.strip():
     app_root_raw = str(resolve_fermilink_home())

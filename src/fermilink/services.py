@@ -409,14 +409,3 @@ def stop_service(runtime_root: Path, service: str) -> dict[str, Any]:
         "pid": pid,
         "reason": stop_mode,
     }
-
-
-def restart_service(runtime_root: Path, spec: ServiceSpec) -> dict[str, Any]:
-    stopped = stop_service(runtime_root, spec.name)
-    started = start_service(runtime_root, spec)
-    return {
-        "service": spec.name,
-        "action": "restart",
-        "stopped": stopped,
-        "started": started,
-    }

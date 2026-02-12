@@ -70,12 +70,3 @@ def resolve_runtime_root() -> Path:
         root = resolve_fermilink_home() / "runtime"
     root.mkdir(parents=True, exist_ok=True)
     return root
-
-
-def resolve_software_template_root() -> Path:
-    """Resolve baseline software template directory used to seed workspaces."""
-
-    fallback = Path(__file__).resolve().parent / "software"
-    root = _resolve_path(os.getenv("SOFTWARE_ROOT"), default=fallback)
-    root.mkdir(parents=True, exist_ok=True)
-    return root
