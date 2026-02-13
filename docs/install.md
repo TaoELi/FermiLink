@@ -6,6 +6,7 @@
 pip install .
 codex login
 fermilink install maxwelllink --activate
+fermilink agent --sandbox
 fermilink start
 ```
 
@@ -22,6 +23,36 @@ Codex CLI install example:
 ```bash
 npm i -g @openai/codex
 ```
+
+## Agent Runtime Policy (Sandbox + Provider)
+
+Configure global runtime policy once; it applies to web, runner, and `exec`:
+
+```bash
+# show current policy
+fermilink agent --json
+
+# enforce sandbox using current sandbox mode (default: workspace-write)
+fermilink agent --sandbox
+
+# bypass sandbox for scientific workloads that conflict with sandbox constraints
+fermilink agent --bypass-sandbox
+
+# provider selector (currently codex is implemented)
+fermilink agent codex
+```
+
+Notes:
+
+- Policy is persisted in `FERMILINK_HOME/agent_runtime.json`.
+- `fermilink exec --sandbox <mode>` is a per-run override and forces sandbox
+  enforcement for that run.
+- In bypass mode, Codex is launched with
+  `--dangerously-bypass-approvals-and-sandbox`.
+- Bypass affects Codex internal sandboxing only; external host/container
+  restrictions (for example blocked socket bind) still apply.
+- `claude` and `gemini` provider values are accepted for forward compatibility,
+  but execution remains codex-only until those providers are implemented.
 
 ## Runtime Roots (Optional But Recommended)
 
@@ -87,6 +118,9 @@ Notes:
 
 - If the package id already exists, compile stops immediately.
 - Known benign Codex rollout-path noise is filtered from compile output.
+- Compile inherits provider from `fermilink agent` policy.
+- Compile sandbox behavior remains controlled by `FERMILINK_COMPILE_SANDBOX`
+  (default `workspace-write`) for safety.
 - Use `--json` to print full structured results.
 
 ## Start, Check, Stop
@@ -117,7 +151,7 @@ Behavior:
 Useful flags:
 
 - `--package <id>`: pin package id and bypass auto routing.
-- `--sandbox <mode>`: override Codex sandbox mode (default `workspace-write`).
+- `--sandbox <mode>`: per-run sandbox override; enforces sandbox for that run.
 - `--init-git`: non-interactively initialize git repo if missing.
 - `--no-init-git`: fail immediately if git repo is missing.
 

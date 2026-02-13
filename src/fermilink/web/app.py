@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 import aiofiles
 from passlib.hash import pbkdf2_sha256
+from fermilink.agent_runtime import resolve_agent_runtime_policy
 from fermilink.config import (
     resolve_fermilink_home,
     resolve_workspaces_root as resolve_default_workspaces_root,
@@ -1137,12 +1138,15 @@ async def _run_package_second_guess(
         package_catalog=package_catalog,
     )
 
+    runtime_policy = resolve_agent_runtime_policy()
     payload: dict[str, Any] = {
         "session_id": session_id,
         "user_prompt": preflight_prompt,
-        "sandbox": "read-only",
         "package_id": base_package_id,
+        "provider": runtime_policy.provider,
     }
+    if runtime_policy.sandbox_policy != "bypass":
+        payload["sandbox"] = "read-only"
     if isinstance(user_id, str) and user_id.strip():
         payload["user_id"] = user_id
 
@@ -4337,11 +4341,14 @@ async def on_message(message: cl.Message):
 
     history: list[tuple[str, str]] = cl.user_session.get("chat_history") or []
     prompt = _build_prompt(history, message.content)
+    runtime_policy = resolve_agent_runtime_policy()
     payload = {
         "session_id": session_id,
         "user_prompt": prompt,
-        "sandbox": "workspace-write",
+        "provider": runtime_policy.provider,
     }
+    if runtime_policy.sandbox_policy != "bypass":
+        payload["sandbox"] = runtime_policy.sandbox_mode
     if isinstance(user_identifier, str) and user_identifier:
         payload["user_id"] = user_identifier
     if isinstance(selected_package_id, str) and selected_package_id:

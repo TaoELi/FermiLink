@@ -11,6 +11,12 @@ import threading
 import urllib.error
 from pathlib import Path
 
+from fermilink.agent_runtime import (
+    SUPPORTED_PROVIDERS,
+    load_agent_runtime_policy,
+    resolve_agent_runtime_policy,
+    save_agent_runtime_policy,
+)
 from fermilink.config import resolve_runtime_root, resolve_scipkg_root
 from fermilink.curated_channels import normalize_channel_id, resolve_curated_package
 from fermilink.package_registry import (
@@ -26,6 +32,11 @@ from fermilink.package_registry import (
     normalize_package_id,
     set_package_dependency_ids,
     set_package_overlay_entries,
+)
+from fermilink.providers import (
+    build_exec_command,
+    provider_bin_env_key,
+    resolve_provider_binary,
 )
 from fermilink.router_rules import sync_router_rules
 from fermilink.services import (
@@ -271,7 +282,9 @@ def _run_exec_second_guess(
     package_ids: list[str],
     active_package_id: str | None,
     base_package_id: str,
-    codex_bin: str,
+    provider: str = "codex",
+    provider_bin: str | None = None,
+    sandbox_policy: str = "enforce",
 ) -> dict[str, object]:
     web_app = _load_web_router_module()
     package_catalog = web_app._build_package_catalog(
@@ -284,7 +297,25 @@ def _run_exec_second_guess(
         current_package_id=base_package_id,
         package_catalog=package_catalog,
     )
-    cmd = [codex_bin, "exec", "--json", "--cd", str(repo_dir), "--sandbox", "read-only", prompt]
+    provider_bin_value = resolve_provider_binary(provider, codex_bin=provider_bin)
+    preflight_sandbox_mode = "read-only" if sandbox_policy == "enforce" else None
+    try:
+        cmd = build_exec_command(
+            provider=provider,
+            provider_bin=provider_bin_value,
+            repo_dir=repo_dir,
+            prompt=prompt,
+            sandbox_policy=sandbox_policy,
+            sandbox_mode=preflight_sandbox_mode,
+            json_output=True,
+        )
+    except NotImplementedError:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": "second_guess_provider_not_implemented",
+        }
     timeout = EXEC_SECOND_GUESS_TIMEOUT_SECONDS
     timeout_value = timeout if timeout > 0 else None
     runner_app = _load_runner_app_module()
@@ -308,8 +339,10 @@ def _run_exec_second_guess(
             "note": "second_guess_timeout",
         }
     except FileNotFoundError as exc:
+        env_key = provider_bin_env_key(provider)
         raise PackageError(
-            f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+            f"{provider} CLI not found: {provider_bin_value}. "
+            f"Install the provider CLI or set {env_key}."
         ) from exc
 
     if completed.returncode != 0:
@@ -406,7 +439,9 @@ def _resolve_exec_package_selection(
     scipkg_root: Path,
     repo_dir: Path,
     requested_package_id: str | None,
-    codex_bin: str,
+    provider: str = "codex",
+    provider_bin: str | None = None,
+    sandbox_policy: str = "enforce",
 ) -> dict[str, object]:
     web_app = _load_web_router_module()
     registry = load_registry(scipkg_root)
@@ -480,7 +515,9 @@ def _resolve_exec_package_selection(
             package_ids=package_ids,
             active_package_id=active_package_id,
             base_package_id=selected_package_id,
-            codex_bin=codex_bin,
+            provider=provider,
+            provider_bin=provider_bin,
+            sandbox_policy=sandbox_policy,
         )
         switched = bool(second_guess.get("switched"))
         second_package = second_guess.get("package_id")
@@ -564,6 +601,73 @@ def _overlay_exec_package(
     return overlay
 
 
+def _cleanup_exec_overlay_symlinks(*, repo_dir: Path, workspace_root: Path) -> None:
+    from fermilink.runner import scientific_packages as scipkg
+
+    manifest = scipkg.load_workspace_manifest(workspace_root)
+    if not isinstance(manifest, dict):
+        return
+
+    linked_entries = manifest.get("linked_entries")
+    if isinstance(linked_entries, list):
+        for item in linked_entries:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            mode = item.get("mode")
+            source = item.get("source")
+            if not isinstance(name, str) or not name:
+                continue
+            if mode != "symlink":
+                continue
+            target = repo_dir / name
+            if not target.is_symlink():
+                continue
+            if isinstance(source, str) and source:
+                source_path = Path(source).expanduser()
+                if not source_path.is_absolute():
+                    source_path = (repo_dir / source_path).resolve()
+                try:
+                    if target.resolve() != source_path.resolve():
+                        continue
+                except OSError:
+                    continue
+            target.unlink(missing_ok=True)
+
+    linked_dependencies = manifest.get("linked_dependency_packages")
+    dependency_root = repo_dir / scipkg.PACKAGE_DEPENDENCIES_DIRNAME
+    if isinstance(linked_dependencies, list):
+        for item in linked_dependencies:
+            if not isinstance(item, dict):
+                continue
+            package_id = item.get("package_id")
+            mode = item.get("mode")
+            source = item.get("source")
+            if not isinstance(package_id, str) or not package_id:
+                continue
+            if mode != "symlink":
+                continue
+            target = dependency_root / package_id
+            if not target.is_symlink():
+                continue
+            if isinstance(source, str) and source:
+                source_path = Path(source).expanduser()
+                if not source_path.is_absolute():
+                    source_path = (repo_dir / source_path).resolve()
+                try:
+                    if target.resolve() != source_path.resolve():
+                        continue
+                except OSError:
+                    continue
+            target.unlink(missing_ok=True)
+
+    if dependency_root.is_dir():
+        try:
+            next(dependency_root.iterdir())
+        except StopIteration:
+            dependency_root.rmdir()
+
+
 def _stream_exec_process_output(process: subprocess.Popen[str]) -> int:
     def _pump(stream: object, *, is_stderr: bool) -> None:
         if stream is None:
@@ -609,15 +713,24 @@ def _run_exec_codex_prompt(
     *,
     repo_dir: Path,
     prompt: str,
-    sandbox: str,
-    codex_bin: str,
+    sandbox: str | None,
+    codex_bin: str | None,
+    provider: str = "codex",
+    sandbox_policy: str = "enforce",
 ) -> int:
-    cmd = [codex_bin, "exec", "--cd", str(repo_dir)]
-    if sandbox:
-        cmd.extend(["--sandbox", sandbox])
-        if sandbox == "workspace-write":
-            cmd.append("--full-auto")
-    cmd.append(prompt)
+    provider_bin = resolve_provider_binary(provider, codex_bin=codex_bin)
+    try:
+        cmd = build_exec_command(
+            provider=provider,
+            provider_bin=provider_bin,
+            repo_dir=repo_dir,
+            prompt=prompt,
+            sandbox_policy=sandbox_policy,
+            sandbox_mode=sandbox,
+            json_output=False,
+        )
+    except NotImplementedError as exc:
+        raise PackageError(str(exc)) from exc
     runner_app = _load_runner_app_module()
     env = os.environ.copy()
     env = runner_app._sanitize_env(env)
@@ -631,8 +744,10 @@ def _run_exec_codex_prompt(
                 env=env,
             )
         except FileNotFoundError as exc:
+            env_key = provider_bin_env_key(provider)
             raise PackageError(
-                f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+                f"{provider} CLI not found: {provider_bin}. "
+                f"Install the provider CLI or set {env_key}."
             ) from exc
         return int(completed.returncode)
 
@@ -647,8 +762,10 @@ def _run_exec_codex_prompt(
             env=env,
         )
     except FileNotFoundError as exc:
+        env_key = provider_bin_env_key(provider)
         raise PackageError(
-            f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+            f"{provider} CLI not found: {provider_bin}. "
+            f"Install the provider CLI or set {env_key}."
         ) from exc
     return _stream_exec_process_output(process)
 
@@ -669,13 +786,23 @@ def _cmd_exec(args: argparse.Namespace) -> int:
     _ensure_exec_repo_ready(repo_dir, args)
 
     scipkg_root = resolve_scipkg_root()
-    codex_bin = args.codex_bin or DEFAULT_COMPILE_CODEX_BIN
+    runtime_policy = resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    sandbox_policy = runtime_policy.sandbox_policy
+    sandbox_mode = runtime_policy.sandbox_mode
+    if isinstance(args.sandbox, str) and args.sandbox.strip():
+        sandbox_policy = "enforce"
+        sandbox_mode = args.sandbox.strip()
+
+    provider_bin = args.codex_bin if provider == "codex" else None
     selection = _resolve_exec_package_selection(
         user_prompt=prompt,
         scipkg_root=scipkg_root,
         repo_dir=repo_dir,
         requested_package_id=args.package_id,
-        codex_bin=codex_bin,
+        provider=provider,
+        provider_bin=provider_bin,
+        sandbox_policy=sandbox_policy,
     )
     package_id = selection.get("package_id")
     if not isinstance(package_id, str) or not package_id:
@@ -686,6 +813,12 @@ def _cmd_exec(args: argparse.Namespace) -> int:
     print(f"[package] Using {package_id} (selection: {source})")
     if note and note not in {"manual_pin", "default_fallback", "matched"}:
         print(f"[router] {note}")
+    sandbox_text = (
+        f"enforce({sandbox_mode})"
+        if sandbox_policy == "enforce"
+        else "bypass"
+    )
+    print(f"[agent] provider: {provider}, sandbox: {sandbox_text}")
 
     overlay = _overlay_exec_package(
         repo_dir=repo_dir,
@@ -706,12 +839,17 @@ def _cmd_exec(args: argparse.Namespace) -> int:
         f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
     )
 
-    return _run_exec_codex_prompt(
-        repo_dir=repo_dir,
-        prompt=prompt,
-        sandbox=args.sandbox,
-        codex_bin=codex_bin,
-    )
+    try:
+        return _run_exec_codex_prompt(
+            repo_dir=repo_dir,
+            prompt=prompt,
+            sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+            codex_bin=provider_bin,
+            provider=provider,
+            sandbox_policy=sandbox_policy,
+        )
+    finally:
+        _cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
 
 
 def _run_codex_compile_pass(
@@ -720,22 +858,34 @@ def _run_codex_compile_pass(
     prompt: str,
     pass_index: int,
     total_passes: int,
+    provider: str,
+    provider_bin: str,
 ) -> dict[str, object]:
-    codex_bin = DEFAULT_COMPILE_CODEX_BIN
     sandbox = DEFAULT_COMPILE_SANDBOX
-    cmd = [codex_bin, "exec", "--cd", str(project_root)]
-    if sandbox:
-        cmd.extend(["--sandbox", sandbox])
-        if sandbox == "workspace-write":
-            cmd.append("--full-auto")
-    cmd.append(prompt)
+    try:
+        cmd = build_exec_command(
+            provider=provider,
+            provider_bin=provider_bin,
+            repo_dir=project_root,
+            prompt=prompt,
+            sandbox_policy="enforce",
+            sandbox_mode=sandbox,
+            json_output=False,
+        )
+    except NotImplementedError as exc:
+        raise PackageError(
+            f"Compile provider '{provider}' is not implemented yet. "
+            "Switch to codex via `fermilink agent codex`."
+        ) from exc
 
-    print(f"[compile] pass {pass_index}/{total_passes}: codex exec")
+    print(f"[compile] pass {pass_index}/{total_passes}: {provider} exec")
     try:
         completed = subprocess.run(cmd, check=False)
     except FileNotFoundError as exc:
+        env_key = provider_bin_env_key(provider)
         raise PackageError(
-            f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+            f"{provider} CLI not found: {provider_bin}. "
+            f"Install {provider} or set {env_key}."
         ) from exc
 
     if completed.returncode != 0:
@@ -770,6 +920,13 @@ def _cmd_compile(args: argparse.Namespace) -> int:
     if not tool_source.is_dir():
         raise PackageError(f"Missing compile tool source: {tool_source}")
 
+    runtime_policy = resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    provider_bin = resolve_provider_binary(
+        provider,
+        codex_bin=DEFAULT_COMPILE_CODEX_BIN if provider == "codex" else None,
+    )
+
     tool_dest = project_root / "sci-skills-generator"
     if tool_dest.exists():
         raise PackageError(
@@ -783,12 +940,22 @@ def _cmd_compile(args: argparse.Namespace) -> int:
     try:
         compile_runs.append(
             _run_codex_compile_pass(
-                project_root, prompt=COMPILE_PROMPT_1, pass_index=1, total_passes=3
+                project_root,
+                prompt=COMPILE_PROMPT_1,
+                pass_index=1,
+                total_passes=3,
+                provider=provider,
+                provider_bin=provider_bin,
             )
         )
         compile_runs.append(
             _run_codex_compile_pass(
-                project_root, prompt=COMPILE_PROMPT_2, pass_index=2, total_passes=3
+                project_root,
+                prompt=COMPILE_PROMPT_2,
+                pass_index=2,
+                total_passes=3,
+                provider=provider,
+                provider_bin=provider_bin,
             )
         )
     finally:
@@ -799,7 +966,12 @@ def _cmd_compile(args: argparse.Namespace) -> int:
 
     compile_runs.append(
         _run_codex_compile_pass(
-            project_root, prompt=COMPILE_PROMPT_3, pass_index=3, total_passes=3
+            project_root,
+            prompt=COMPILE_PROMPT_3,
+            pass_index=3,
+            total_passes=3,
+            provider=provider,
+            provider_bin=provider_bin,
         )
     )
 
@@ -1225,6 +1397,48 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_agent(args: argparse.Namespace) -> int:
+    desired_provider = args.provider
+    desired_sandbox_policy = None
+    if args.sandbox:
+        desired_sandbox_policy = "enforce"
+    elif args.bypass_sandbox:
+        desired_sandbox_policy = "bypass"
+
+    if desired_provider is None and desired_sandbox_policy is None:
+        policy = load_agent_runtime_policy()
+        payload = policy.as_dict()
+        lines = [
+            f"Provider: {policy.provider}.",
+            (
+                f"Sandbox: enabled ({policy.sandbox_mode})."
+                if policy.sandbox_policy == "enforce"
+                else "Sandbox: bypassed."
+            ),
+        ]
+        _emit_output(args, payload, lines)
+        return 0
+
+    updated = save_agent_runtime_policy(
+        provider=desired_provider,
+        sandbox_policy=desired_sandbox_policy,
+    )
+    payload = updated.as_dict()
+    lines = [
+        f"Provider set to {updated.provider}.",
+        (
+            f"Sandbox enforced with mode {updated.sandbox_mode}."
+            if updated.sandbox_policy == "enforce"
+            else (
+                "Sandbox bypass enabled (Codex internal sandbox only; "
+                "external host restrictions may still apply)."
+            )
+        ),
+    ]
+    _emit_output(args, payload, lines)
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fermilink",
@@ -1329,13 +1543,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     exec_parser.add_argument(
         "--sandbox",
-        default="workspace-write",
-        help="Codex sandbox mode (default: workspace-write).",
+        default=None,
+        help=(
+            "Override sandbox mode for this run. "
+            "When omitted, uses `fermilink agent` policy."
+        ),
     )
     exec_parser.add_argument(
         "--codex-bin",
         default=DEFAULT_COMPILE_CODEX_BIN,
-        help=f"Codex executable path (default: {DEFAULT_COMPILE_CODEX_BIN}).",
+        help=(
+            f"Codex executable path (default: {DEFAULT_COMPILE_CODEX_BIN}). "
+            "Ignored when provider is not codex."
+        ),
     )
     exec_parser.add_argument(
         "--init-git",
@@ -1348,6 +1568,33 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Fail instead of prompting/initializing when git repository is missing.",
     )
     exec_parser.set_defaults(func=_cmd_exec)
+
+    agent_parser = subparsers.add_parser(
+        "agent",
+        help=(
+            "Manage global agent runtime policy for provider and sandbox behavior "
+            "used by runner/web/exec."
+        ),
+    )
+    _add_json_option(agent_parser)
+    agent_parser.add_argument(
+        "provider",
+        nargs="?",
+        choices=SUPPORTED_PROVIDERS,
+        help="Agent provider selection (codex, claude, gemini).",
+    )
+    sandbox_group = agent_parser.add_mutually_exclusive_group(required=False)
+    sandbox_group.add_argument(
+        "--sandbox",
+        action="store_true",
+        help="Enforce sandbox mode.",
+    )
+    sandbox_group.add_argument(
+        "--bypass-sandbox",
+        action="store_true",
+        help="Bypass sandbox mode.",
+    )
+    agent_parser.set_defaults(func=_cmd_agent)
 
     list_parser = subparsers.add_parser("list", help="List installed scientific packages.")
     _add_json_option(list_parser)

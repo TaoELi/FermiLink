@@ -18,6 +18,36 @@ codex login
 fermilink start
 ```
 
+## Agent Runtime Policy (Global)
+
+FermiLink resolves provider and sandbox behavior from three layers:
+
+1. Environment overrides: `FERMILINK_AGENT_PROVIDER`,
+   `FERMILINK_AGENT_SANDBOX_POLICY`, `FERMILINK_AGENT_SANDBOX_MODE`
+2. Persisted config file: `FERMILINK_HOME/agent_runtime.json`
+3. Built-in defaults: provider=`codex`, sandbox policy=`enforce`,
+   sandbox mode=`workspace-write`
+
+Update the persisted policy with:
+
+```bash
+fermilink agent --sandbox
+fermilink agent --bypass-sandbox
+fermilink agent codex
+```
+
+Notes:
+
+- `fermilink exec --sandbox <mode>` is a per-run override that enforces sandbox
+  for that run.
+- Under codex provider, bypass mode maps to
+  `--dangerously-bypass-approvals-and-sandbox`.
+- Bypass mode does not remove OS/container-level restrictions outside Codex.
+- `fermilink compile` also inherits provider from this policy, but keeps compile
+  sandbox enforcement via `FERMILINK_COMPILE_SANDBOX`.
+- `claude` and `gemini` policy values are accepted for future expansion; current
+  execution support is codex-only.
+
 ## Path Resolution
 
 | Variable | Default | Purpose |
@@ -34,16 +64,22 @@ fermilink start
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SCIPKG_MAX_ZIP_BYTES` | `838860800` | Max zip download size for `fermilink install`. |
+| `FERMILINK_COMPILE_SANDBOX` | `workspace-write` | Sandbox mode used by `fermilink compile` passes (always enforced). |
 | `FERMILINK_RUNNER_CMD` | `uvicorn fermilink.runner.app:app --host 0.0.0.0 --port 8000` | Override runner start command used by `fermilink start`. |
 | `FERMILINK_WEB_CMD` | `chainlit run <packaged_web_app.py> --host 0.0.0.0 --port 7860` | Override web start command used by `fermilink start`. |
 | `RUNNER_URL` | `http://127.0.0.1:8000` (service manager env) | Runner URL injected into web when launched by `fermilink start`. |
 | `CODEX_HOME` | inherited/unset | Passed to both services only if explicitly set. |
+| `FERMILINK_AGENT_PROVIDER` | from `agent_runtime.json` or `codex` | Force provider at runtime without editing persisted policy. |
+| `FERMILINK_AGENT_SANDBOX_POLICY` | from `agent_runtime.json` or `enforce` | Force sandbox policy (`enforce` or `bypass`) at runtime. |
+| `FERMILINK_AGENT_SANDBOX_MODE` | from `agent_runtime.json` or `workspace-write` | Sandbox mode used when policy is `enforce`. |
 
 ## Runner (`src/fermilink/runner/app.py`)
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `CODEX_BIN` | `codex` | Codex executable path. |
+| `CODEX_BIN` | `codex` | Codex executable path (used when provider is `codex`). |
+| `CLAUDE_BIN` | `claude` | Claude executable path (future provider support). |
+| `GEMINI_BIN` | `gemini` | Gemini executable path (future provider support). |
 | `RUNNER_MAX_RUNTIME_SECONDS` | `600` | Hard timeout per run. |
 | `RUNNER_GLOBAL_CONCURRENT_RUNS` | `200` | Max active runs in one runner process. |
 | `RUNNER_PER_USER_CONCURRENT_RUNS` | `10` | Max active runs per user key. |
@@ -58,6 +94,9 @@ Notes:
 
 - Runner has a hard request-size limit of 10,000 characters per `user_prompt`.
 - Runner normalizes `CODEX_HOME` to a writable directory if provided.
+- Runner resolves effective provider/sandbox policy per request from
+  `FERMILINK_AGENT_*` (or persisted defaults), then applies request-level
+  sandbox narrowing only when policy is `enforce`.
 
 ## Package Resolver (`src/fermilink/runner/scientific_packages.py`)
 

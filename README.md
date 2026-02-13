@@ -37,6 +37,10 @@ fermilink install maxwelllink --activate
 
 # 4) Start web service for ChatGPT-like experience
 fermilink start
+
+# 5) (Optional) Configure agent runtime policy
+fermilink agent codex --sandbox
+# or: fermilink agent --bypass-sandbox
 ```
 
 ## Compile Local Projects Into Packages
@@ -78,6 +82,14 @@ Optional flags:
 - `--package <id>`: pin a package and skip auto routing
 - `--init-git`: auto-run `git init` when current directory is not a git repo
 - `--no-init-git`: fail instead of prompting for git init
+
+Global runtime policy:
+
+- `fermilink agent --sandbox`: enforce sandbox (uses configured mode)
+- `fermilink agent --bypass-sandbox`: bypass sandbox
+- `fermilink agent codex|claude|gemini`: set provider for runner/web/exec
+- `fermilink compile` also inherits provider from `fermilink agent`, while keeping compile sandbox safety defaults.
+- Current execution support is `codex`; `claude`/`gemini` are forward-compatible policy values.
 
 ## Core Runtime Paths
 

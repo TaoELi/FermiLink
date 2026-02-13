@@ -42,9 +42,13 @@ Detailed information of this scientific package can be seen in the README or REA
 
 - Tell the users in detail where you get the parameters/settings of your employed simulation, and if you are uncertain about some parts of the simulations.
 
+## Simulations in Sandbox environment
+
+- If you work under sandbox environment, always run single CPU serial job, NEVER run MPI and socket jobs.
+
 ## Requests regarding HPC SLRUM jobs
 
-- Do not perform SLURM jobs in this machine, but do provide the HPC-ready input files to the users.
+- If SLURM environment is not available (such as no sbatch), do not perform SLURM jobs in this machine, but do provide the HPC-ready input files to the users.
 
 - The SLRUM bash script should be generated according to the HPC setting given at skills, if available.
 

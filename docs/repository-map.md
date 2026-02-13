@@ -16,10 +16,12 @@ This map covers maintained source files and docs for the current layout.
 | Path | Purpose |
 | --- | --- |
 | `src/fermilink/__init__.py` | Package version export. |
-| `src/fermilink/cli.py` | Unified CLI for package install/activate/overlay/dependencies/delete and service start/stop/status/restart. |
+| `src/fermilink/agent_runtime.py` | Persisted/global agent runtime policy model (provider + sandbox policy/mode). |
+| `src/fermilink/cli.py` | Unified CLI for package install/activate/overlay/dependencies/delete, `agent` policy control, and service start/stop/status/restart. |
 | `src/fermilink/config.py` | Shared root/path resolution (`FERMILINK_HOME`, `SCIPKG_ROOT`, etc.). |
 | `src/fermilink/curated_channels.py` | Curated package-channel catalog (`tel-research-group`) and resolution helpers. |
 | `src/fermilink/package_registry.py` | Package registry CRUD, zip/local install, router sync hooks, overlay manifest helpers. |
+| `src/fermilink/providers.py` | Provider CLI abstraction and command assembly (codex implemented, others stubbed). |
 | `src/fermilink/router_rules.py` | Auto-generation/synchronization of `router_rules.json` from installed packages. |
 | `src/fermilink/services.py` | Service specs and process lifecycle helpers used by CLI (`runner`, `web`). |
 
@@ -55,6 +57,7 @@ This map covers maintained source files and docs for the current layout.
 | `docs/scientific-packages.md` | Scientific package lifecycle and overlay/dependency configuration. |
 | `docs/architecture.md` | End-to-end request and overlay architecture. |
 | `docs/configuration.md` | Environment variables and operational configuration. |
+| `docs/test-plan.md` | Regression and validation test plan for policy/provider/runtime behavior. |
 | `docs/repository-map.md` | This file. |
 | `docs/privacy.md` | Privacy policy for deployed service operators. |
 | `docs/terms.md` | Terms of use for deployed service operators. |
@@ -63,14 +66,18 @@ This map covers maintained source files and docs for the current layout.
 
 | Path | Purpose |
 | --- | --- |
+| `tests/test_agent_runtime.py` | Runtime policy persistence and precedence checks. |
 | `tests/test_cli.py` | CLI package-management behavior. |
+| `tests/test_cli_agent.py` | `fermilink agent` command behavior and persistence. |
 | `tests/test_cli_services.py` | CLI start/restart failure and rollback behavior. |
 | `tests/test_cli_services_live.py` | Live process start/restart/stop lifecycle behavior. |
 | `tests/test_package_registry.py` | Registry operations and dependency validation. |
 | `tests/test_package_registry_zip.py` | Zip install safety and size checks. |
+| `tests/test_providers.py` | Provider command builder behavior and non-implemented provider guards. |
 | `tests/test_router_rules.py` | Router rule synchronization from installed packages. |
 | `tests/test_runner_admission.py` | Admission queue scheduling and limits. |
 | `tests/test_runner_overlay_manifest.py` | Overlay manifest update and stale-link cleanup behavior. |
+| `tests/test_runner_policy.py` | Runner-side request policy resolution semantics. |
 | `tests/test_runner_run_cleanup.py` | Admission-slot cleanup on cancellation paths. |
 | `tests/test_web_app_router.py` | Router parsing/scoring and branding defaults in web layer. |
 | `tests/test_web_auth_signup.py` | Signup and password auth behavior. |

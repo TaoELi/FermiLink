@@ -6,6 +6,7 @@ Start here:
 - [Scientific Package Management](scientific-packages.md)
 - [Architecture](architecture.md)
 - [Configuration](configuration.md)
+- [Test Plan](test-plan.md)
 - [Repository Map](repository-map.md)
 - [Privacy Policy](privacy.md)
 - [Terms of Use](terms.md)

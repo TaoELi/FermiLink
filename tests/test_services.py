@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from fermilink.agent_runtime import save_agent_runtime_policy
 from fermilink import services
 from fermilink.services import (
     ServiceSpec,
@@ -124,3 +125,25 @@ def test_start_service_reports_port_in_use(monkeypatch: pytest.MonkeyPatch, tmp_
     status = service_status(runtime_root, "web")
     assert status["running"] is False
     assert status["reason"] == "no_state"
+
+
+def test_default_service_specs_propagates_agent_runtime_policy(
+    monkeypatch, tmp_path: Path
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    monkeypatch.delenv("FERMILINK_AGENT_PROVIDER", raising=False)
+    monkeypatch.delenv("FERMILINK_AGENT_SANDBOX_POLICY", raising=False)
+    monkeypatch.delenv("FERMILINK_AGENT_SANDBOX_MODE", raising=False)
+
+    save_agent_runtime_policy(
+        provider="gemini",
+        sandbox_policy="bypass",
+        sandbox_mode="workspace-write",
+    )
+    specs = default_service_specs(web_app_path=tmp_path / "web" / "app.py")
+
+    assert specs["runner"].env["FERMILINK_AGENT_PROVIDER"] == "gemini"
+    assert specs["runner"].env["FERMILINK_AGENT_SANDBOX_POLICY"] == "bypass"
+    assert specs["runner"].env["FERMILINK_AGENT_SANDBOX_MODE"] == "workspace-write"
+    assert specs["web"].env["FERMILINK_AGENT_PROVIDER"] == "gemini"

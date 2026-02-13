@@ -11,7 +11,13 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from fermilink.agent_runtime import resolve_agent_runtime_policy
 from fermilink.config import resolve_workspaces_root as resolve_default_workspaces_root
+from fermilink.providers import (
+    build_exec_command,
+    provider_bin_env_key,
+    resolve_provider_binary,
+)
 from fermilink.runner.admission import QueueFullError, RunAdmissionController
 from fermilink.runner.scientific_packages import (
     PackageNotFoundError,
@@ -87,6 +93,7 @@ PLACEHOLDER_KEYS = {
     "YOUR_KEY*HERE",
     "CHANGEME",
 }
+ALLOWED_REQUEST_SANDBOXES = {"read-only", "workspace-write"}
 
 app = FastAPI()
 
@@ -106,22 +113,27 @@ class RunRequest(BaseModel):
     user_id: str | None = None
     user_prompt: str = Field(..., min_length=1)
     package_id: str | None = None
-    sandbox: str = "workspace-write"
+    sandbox: str | None = None
+    provider: str | None = None
 
 
 @app.on_event("startup")
-def verify_codex_bin() -> None:
-    """Validate that the Codex CLI binary is available.
+def verify_provider_bin() -> None:
+    """Validate that the configured provider CLI binary is available.
 
     Raises
     ------
     RuntimeError
-        Raised when `CODEX_BIN` cannot be resolved on `PATH`.
+        Raised when provider CLI binary cannot be resolved on `PATH`.
     """
 
-    if shutil.which(CODEX_BIN) is None:
+    policy = resolve_agent_runtime_policy()
+    provider_bin = resolve_provider_binary(policy.provider, codex_bin=CODEX_BIN)
+    if shutil.which(provider_bin) is None:
+        env_key = provider_bin_env_key(policy.provider)
         raise RuntimeError(
-            "codex CLI not found. Install it in the runner image or set CODEX_BIN to its path."
+            f"{policy.provider} CLI not found. Install it in the runner image or set "
+            f"{env_key} to its path."
         )
 
 
@@ -598,6 +610,31 @@ def _resolve_run_user_key(user_id: str | None, session_id: str) -> str:
     return f"session:{session_id}"
 
 
+def _resolve_run_policy(req: RunRequest) -> tuple[str, str, str | None]:
+    """Resolve effective provider and sandbox policy for one run request."""
+
+    policy = resolve_agent_runtime_policy()
+    provider = policy.provider
+
+    if isinstance(req.provider, str) and req.provider.strip():
+        requested_provider = req.provider.strip().lower()
+        if requested_provider != provider:
+            # Provider is admin-controlled via policy/config.
+            _ = requested_provider
+
+    sandbox_policy = policy.sandbox_policy
+    sandbox_mode: str | None = policy.sandbox_mode if sandbox_policy == "enforce" else None
+
+    requested_sandbox = (req.sandbox or "").strip()
+    if sandbox_policy == "enforce" and requested_sandbox:
+        lowered = requested_sandbox.lower()
+        if lowered in ALLOWED_REQUEST_SANDBOXES:
+            if lowered == "read-only" or lowered == policy.sandbox_mode:
+                sandbox_mode = lowered
+
+    return provider, sandbox_policy, sandbox_mode
+
+
 async def _read_stream(
     stream: asyncio.StreamReader, event_type: str, queue: asyncio.Queue
 ) -> None:
@@ -727,12 +764,20 @@ async def run(req: RunRequest):
 
         (repo_dir / "outputs").mkdir(parents=True, exist_ok=True)
 
-        cmd = [CODEX_BIN, "exec", "--json", "--cd", str(repo_dir)]
-        if req.sandbox:
-            cmd += ["--sandbox", req.sandbox]
-            if req.sandbox == "workspace-write":
-                cmd.append("--full-auto")
-        cmd.append(req.user_prompt)
+        provider, sandbox_policy, sandbox_mode = _resolve_run_policy(req)
+        provider_bin = resolve_provider_binary(provider, codex_bin=CODEX_BIN)
+        try:
+            cmd = build_exec_command(
+                provider=provider,
+                provider_bin=provider_bin,
+                repo_dir=repo_dir,
+                prompt=req.user_prompt,
+                sandbox_policy=sandbox_policy,
+                sandbox_mode=sandbox_mode,
+                json_output=True,
+            )
+        except NotImplementedError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
 
         env = os.environ.copy()
         env = _sanitize_env(env)
@@ -774,6 +819,11 @@ async def run(req: RunRequest):
             meta_payload: dict[str, object] = {"session_id": session_id}
             if package_overlay:
                 meta_payload["package"] = package_overlay
+            meta_payload["agent"] = {
+                "provider": provider,
+                "sandbox_policy": sandbox_policy,
+                "sandbox_mode": sandbox_mode,
+            }
             yield sse("meta", meta_payload)
 
             while True:

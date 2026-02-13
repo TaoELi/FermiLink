@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from fermilink import cli
+
+
+def _parse_stdout_json(capsys) -> dict[str, str]:
+    out = capsys.readouterr().out.strip()
+    assert out
+    return json.loads(out)
+
+
+def test_agent_shows_defaults_when_unconfigured(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+
+    code = cli.main(["agent", "--json"])
+    assert code == 0
+
+    payload = _parse_stdout_json(capsys)
+    assert payload["provider"] == "codex"
+    assert payload["sandbox_policy"] == "enforce"
+    assert payload["sandbox_mode"] == "workspace-write"
+
+
+def test_agent_updates_provider_and_sandbox_policy(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+
+    code = cli.main(["agent", "gemini", "--bypass-sandbox", "--json"])
+    assert code == 0
+    payload = _parse_stdout_json(capsys)
+    assert payload["provider"] == "gemini"
+    assert payload["sandbox_policy"] == "bypass"
+
+    code = cli.main(["agent", "--json"])
+    assert code == 0
+    persisted = _parse_stdout_json(capsys)
+    assert persisted["provider"] == "gemini"
+    assert persisted["sandbox_policy"] == "bypass"
+
+
+def test_agent_enables_sandbox_without_changing_mode(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+
+    assert cli.main(["agent", "--bypass-sandbox"]) == 0
+    capsys.readouterr()
+
+    assert cli.main(["agent", "--sandbox", "--json"]) == 0
+    payload = _parse_stdout_json(capsys)
+    assert payload["sandbox_policy"] == "enforce"
+    assert payload["sandbox_mode"] == "workspace-write"

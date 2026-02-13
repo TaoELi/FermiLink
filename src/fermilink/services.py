@@ -12,6 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fermilink.agent_runtime import (
+    ENV_PROVIDER,
+    ENV_SANDBOX_MODE,
+    ENV_SANDBOX_POLICY,
+    load_agent_runtime_policy,
+)
 from fermilink.config import resolve_fermilink_home
 
 
@@ -220,6 +226,17 @@ def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
             codex_home = (Path.cwd() / codex_home).resolve()
         runner_env["CODEX_HOME"] = str(codex_home)
         web_env["CODEX_HOME"] = str(codex_home)
+
+    runtime_policy = load_agent_runtime_policy()
+    if ENV_PROVIDER not in os.environ:
+        runner_env[ENV_PROVIDER] = runtime_policy.provider
+        web_env[ENV_PROVIDER] = runtime_policy.provider
+    if ENV_SANDBOX_POLICY not in os.environ:
+        runner_env[ENV_SANDBOX_POLICY] = runtime_policy.sandbox_policy
+        web_env[ENV_SANDBOX_POLICY] = runtime_policy.sandbox_policy
+    if ENV_SANDBOX_MODE not in os.environ:
+        runner_env[ENV_SANDBOX_MODE] = runtime_policy.sandbox_mode
+        web_env[ENV_SANDBOX_MODE] = runtime_policy.sandbox_mode
 
     return {
         "runner": ServiceSpec(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink import cli
 
 
@@ -143,3 +144,121 @@ def test_compile_cleans_up_tool_on_pass_failure(
     assert not (project_root / "sci-skills-generator").exists()
     err = capsys.readouterr().err
     assert "compile pass 2/3" in err
+
+
+def test_compile_inherits_provider_from_runtime_policy(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    scipkg_root = tmp_path / "scientific_packages"
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(
+        cli,
+        "load_registry",
+        lambda _root: {"packages": {}, "active_package": "newpkg"},
+    )
+    monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="gemini",
+            sandbox_policy="bypass",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_provider_binary",
+        lambda provider, codex_bin=None: f"{provider}-bin",
+    )
+
+    build_calls: list[dict[str, object]] = []
+
+    def fake_build_exec_command(
+        *,
+        provider: str,
+        provider_bin: str,
+        repo_dir: Path,
+        prompt: str,
+        sandbox_policy: str,
+        sandbox_mode: str | None,
+        json_output: bool,
+    ) -> list[str]:
+        build_calls.append(
+            {
+                "provider": provider,
+                "provider_bin": provider_bin,
+                "repo_dir": repo_dir,
+                "prompt": prompt,
+                "sandbox_policy": sandbox_policy,
+                "sandbox_mode": sandbox_mode,
+                "json_output": json_output,
+            }
+        )
+        return [provider_bin, "exec", prompt]
+
+    monkeypatch.setattr(cli, "build_exec_command", fake_build_exec_command)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda _cmd, check=False: SimpleNamespace(returncode=0),
+    )
+    monkeypatch.setattr(
+        cli,
+        "install_from_local_path",
+        lambda *_a, **_k: {"id": "newpkg"},
+    )
+
+    code = cli.main(["compile", "newpkg", str(project_root)])
+    assert code == 0
+    assert len(build_calls) == 3
+    assert all(call["provider"] == "gemini" for call in build_calls)
+    assert all(call["provider_bin"] == "gemini-bin" for call in build_calls)
+    assert all(call["sandbox_policy"] == "enforce" for call in build_calls)
+    assert all(call["sandbox_mode"] == cli.DEFAULT_COMPILE_SANDBOX for call in build_calls)
+    assert all(call["json_output"] is False for call in build_calls)
+
+
+def test_compile_errors_for_unimplemented_runtime_provider(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    scipkg_root = tmp_path / "scientific_packages"
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="gemini",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_provider_binary",
+        lambda provider, codex_bin=None: f"{provider}-bin",
+    )
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("subprocess should not run")),
+    )
+
+    code = cli.main(["compile", "newpkg", str(project_root)])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "not implemented yet" in err
+    assert "fermilink agent codex" in err

@@ -43,7 +43,9 @@ def test_exec_runs_with_routing_overlay_and_codex(
         },
     )
 
-    def fake_run_exec(*, repo_dir: Path, prompt: str, sandbox: str, codex_bin: str) -> int:
+    def fake_run_exec(
+        *, repo_dir: Path, prompt: str, sandbox: str, codex_bin: str, **_kwargs
+    ) -> int:
         calls["repo_dir"] = repo_dir
         calls["prompt"] = prompt
         calls["sandbox"] = sandbox
@@ -331,7 +333,9 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
         package_ids=["maxwelllink", "otherpkg"],
         active_package_id="maxwelllink",
         base_package_id="maxwelllink",
-        codex_bin="codex",
+        provider="codex",
+        provider_bin="codex",
+        sandbox_policy="enforce",
     )
     assert result["package_id"] == "maxwelllink"
     assert result["switched"] is False
