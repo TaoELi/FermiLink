@@ -87,7 +87,7 @@ EXEC_ROUTER_AUTO_DEFAULT = (
     in {"1", "true", "yes", "on"}
 )
 EXEC_SECOND_GUESS_ENABLED = (
-    os.getenv("CHAINLIT_PACKAGE_SECOND_GUESS_ENABLED", "true").strip().lower()
+    os.getenv("FERMILINK_PACKAGE_SECOND_GUESS_ENABLED", "true").strip().lower()
     in {"1", "true", "yes", "on"}
 )
 try:

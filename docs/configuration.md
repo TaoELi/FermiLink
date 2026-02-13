@@ -186,7 +186,7 @@ Notes:
 | `CHAINLIT_PACKAGE_ROUTER_MIN_MARGIN` | `1` | Minimum lead over second candidate. |
 | `CHAINLIT_PACKAGE_ROUTER_SWITCH_MARGIN` | `2` | Margin required to switch from current package. |
 | `CHAINLIT_PACKAGE_ROUTER_RULES` | `router_rules.json` | Router rules file under `SCIPKG_ROOT`. |
-| `CHAINLIT_PACKAGE_SECOND_GUESS_ENABLED` | `true` | Enable read-only Codex second-guess preflight. |
+| `FERMILINK_PACKAGE_SECOND_GUESS_ENABLED` | `true` | Enable read-only Codex second-guess preflight. |
 | `CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE` | `0.75` | Confidence threshold for accepting switch. |
 | `CHAINLIT_PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS` | `25.0` | Timeout for second-guess run. |
 
