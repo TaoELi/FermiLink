@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from fermilink import cli
+from fermilink.runner import scientific_packages as scipkg
 
 
 def test_exec_runs_with_routing_overlay_and_codex(
@@ -87,9 +88,79 @@ def test_exec_propagates_codex_exit_code(
         lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
     )
     monkeypatch.setattr(cli, "_run_exec_codex_prompt", lambda **_kwargs: 7)
+    cleanup_calls: list[tuple[Path, Path]] = []
+    monkeypatch.setattr(
+        cli,
+        "_cleanup_exec_overlay_symlinks",
+        lambda *, repo_dir, workspace_root: cleanup_calls.append((repo_dir, workspace_root)),
+    )
 
     code = cli.main(["exec", "hello"])
     assert code == 7
+    assert cleanup_calls == [(repo_dir, repo_dir)]
+
+
+def test_cleanup_exec_overlay_symlinks_removes_only_manifest_symlinks(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    managed_entry_source = tmp_path / "managed-entry"
+    managed_entry_source.mkdir(parents=True, exist_ok=True)
+    managed_dependency_source = tmp_path / "managed-dependency"
+    managed_dependency_source.mkdir(parents=True, exist_ok=True)
+    foreign_manifest_source = tmp_path / "foreign-manifest-source"
+    foreign_manifest_source.mkdir(parents=True, exist_ok=True)
+    foreign_actual_source = tmp_path / "foreign-actual-source"
+    foreign_actual_source.mkdir(parents=True, exist_ok=True)
+    user_source = tmp_path / "user-source"
+    user_source.mkdir(parents=True, exist_ok=True)
+
+    managed_entry_link = repo_dir / "skills"
+    managed_entry_link.symlink_to(managed_entry_source, target_is_directory=True)
+    foreign_link = repo_dir / "foreign-link"
+    foreign_link.symlink_to(foreign_actual_source, target_is_directory=True)
+    user_link = repo_dir / "user-link"
+    user_link.symlink_to(user_source, target_is_directory=True)
+
+    dependency_root = repo_dir / scipkg.PACKAGE_DEPENDENCIES_DIRNAME
+    dependency_root.mkdir(parents=True, exist_ok=True)
+    managed_dependency_link = dependency_root / "deppkg"
+    managed_dependency_link.symlink_to(managed_dependency_source, target_is_directory=True)
+
+    scipkg.save_workspace_manifest(
+        repo_dir,
+        {
+            "version": 1,
+            "package_id": "maxwelllink",
+            "linked_entries": [
+                {
+                    "name": "skills",
+                    "mode": "symlink",
+                    "source": str(managed_entry_source.resolve()),
+                },
+                {
+                    "name": "foreign-link",
+                    "mode": "symlink",
+                    "source": str(foreign_manifest_source.resolve()),
+                },
+            ],
+            "linked_dependency_packages": [
+                {
+                    "package_id": "deppkg",
+                    "mode": "symlink",
+                    "source": str(managed_dependency_source.resolve()),
+                }
+            ],
+        },
+    )
+
+    cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+
+    assert not managed_entry_link.exists()
+    assert foreign_link.is_symlink()
+    assert user_link.is_symlink()
+    assert not managed_dependency_link.exists()
+    assert not dependency_root.exists()
 
 
 def test_ensure_exec_repo_ready_fails_when_git_missing_and_no_init(

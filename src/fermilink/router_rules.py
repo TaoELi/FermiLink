@@ -211,7 +211,28 @@ FAMILY_HINTS: dict[str, dict[str, list[str]]] = {
     "psi4": {
         "strong_keywords": ["psi4", "electronic structure", "quantum chemistry", "ab initio"],
         "keywords": ["scf", "mp2", "ccsd", "basis set", "hartree fock", "dft"],
-        "negative_keywords": ["fdtd", "lammps", "gromacs"],
+        "negative_keywords": ["fdtd", "lammps", "gromacs", "pyscf"],
+    },
+    "pyscf": {
+        "strong_keywords": [
+            "pyscf",
+            "python-based simulations of chemistry framework",
+            "electronic structure",
+            "quantum chemistry",
+        ],
+        "keywords": [
+            "scf",
+            "hartree fock",
+            "dft",
+            "mp2",
+            "ccsd",
+            "casscf",
+            "active space",
+            "basis set",
+            "molecular orbital",
+            "density fitting",
+        ],
+        "negative_keywords": ["fdtd", "lammps", "gromacs", "psi4"],
     },
     "gromacs": {
         "strong_keywords": ["gromacs", "gmx", "classical md", "molecular dynamics"],

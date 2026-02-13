@@ -36,6 +36,11 @@ TEL_RESEARCH_GROUP_PACKAGES: dict[str, ChannelPackage] = {
         title="Psi4",
         zip_url="https://github.com/TEL-Research-Group/psi4/archive/refs/heads/master.zip",
     ),
+    "pyscf": ChannelPackage(
+        package_id="pyscf",
+        title="PySCF",
+        zip_url="https://github.com/TEL-Research-Group/pyscf/archive/refs/heads/master.zip",
+    ),
     "ase": ChannelPackage(
         package_id="ase",
         title="ASE",

@@ -54,13 +54,11 @@ def test_compile_runs_three_passes_then_installs(
 
     call_state = {"calls": 0, "tool_exists": []}
 
-    def fake_subprocess_run(cmd, check=False, capture_output=False, text=False):
+    def fake_subprocess_run(cmd, check=False):
         _ = check
-        _ = capture_output
-        _ = text
         call_state["calls"] += 1
         call_state["tool_exists"].append((project_root / "sci-skills-generator").exists())
-        return SimpleNamespace(returncode=0, cmd=cmd, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, cmd=cmd)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_subprocess_run)
 
@@ -126,13 +124,11 @@ def test_compile_cleans_up_tool_on_pass_failure(
 
     call_count = {"value": 0}
 
-    def fake_subprocess_run(_cmd, check=False, capture_output=False, text=False):
+    def fake_subprocess_run(_cmd, check=False):
         _ = check
-        _ = capture_output
-        _ = text
         call_count["value"] += 1
         returncode = 1 if call_count["value"] == 2 else 0
-        return SimpleNamespace(returncode=returncode, stdout="", stderr="")
+        return SimpleNamespace(returncode=returncode)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_subprocess_run)
     monkeypatch.setattr(
@@ -147,50 +143,3 @@ def test_compile_cleans_up_tool_on_pass_failure(
     assert not (project_root / "sci-skills-generator").exists()
     err = capsys.readouterr().err
     assert "compile pass 2/3" in err
-
-
-def test_compile_suppresses_rollout_missing_path_lines(
-    monkeypatch, tmp_path: Path, capsys
-) -> None:
-    project_root = tmp_path / "project"
-    project_root.mkdir(parents=True, exist_ok=True)
-    tool_source = tmp_path / "tool-source"
-    _make_tool_source(tool_source)
-    scipkg_root = tmp_path / "scientific_packages"
-
-    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
-    monkeypatch.setattr(
-        cli,
-        "load_registry",
-        lambda _root: {"packages": {}, "active_package": "newpkg"},
-    )
-    monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
-
-    def fake_subprocess_run(_cmd, check=False, capture_output=False, text=False):
-        _ = check
-        _ = capture_output
-        _ = text
-        return SimpleNamespace(
-            returncode=0,
-            stdout="thinking\n",
-            stderr=(
-                "2026-02-13T01:06:00Z ERROR codex_core::rollout::list: "
-                "state db missing rollout path for thread abc\n"
-                "some real stderr line\n"
-            ),
-        )
-
-    monkeypatch.setattr(cli.subprocess, "run", fake_subprocess_run)
-    monkeypatch.setattr(
-        cli,
-        "install_from_local_path",
-        lambda *_a, **_k: {"id": "newpkg"},
-    )
-
-    code = cli.main(["compile", "newpkg", str(project_root)])
-    assert code == 0
-    captured = capsys.readouterr()
-    combined = f"{captured.out}\n{captured.err}"
-    assert "missing rollout path" not in combined.lower()
-    assert "some real stderr line" in combined
