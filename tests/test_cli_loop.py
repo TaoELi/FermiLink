@@ -142,6 +142,7 @@ def test_loop_parser_supports_package_pin_and_git_flags() -> None:
     assert args.sandbox == "workspace-write"
     assert args.max_iterations == 10
     assert args.wait_seconds == 0.0
+    assert args.max_wait_seconds == 600.0
 
 
 def test_resolve_exec_like_user_prompt_accepts_long_single_token_text() -> None:
@@ -207,3 +208,80 @@ def test_loop_wait_seconds_sleeps_between_iterations(
     assert code == 0
     assert len(run_calls) == 2
     assert slept == [3.0]
+
+
+def test_loop_wait_seconds_uses_agent_tag_and_caps_by_max_wait(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "pkg-a",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+    )
+
+    run_results = [
+        {
+            "assistant_text": "working\n<wait_seconds>120</wait_seconds>\n",
+            "return_code": 0,
+            "stderr": "",
+        },
+        {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""},
+    ]
+    run_calls: list[dict[str, object]] = []
+
+    def fake_run_chat_turn(**kwargs):
+        run_calls.append(kwargs)
+        return run_results[len(run_calls) - 1]
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    slept: list[float] = []
+    monkeypatch.setattr(cli.time, "sleep", lambda seconds: slept.append(float(seconds)))
+
+    code = cli.main(
+        [
+            "loop",
+            "--max-iterations",
+            "2",
+            "--wait-seconds",
+            "5",
+            "--max-wait-seconds",
+            "30",
+            "finish it",
+        ]
+    )
+    assert code == 0
+    assert slept == [30.0]
+
+
+def test_extract_loop_wait_seconds_returns_none_for_invalid_values() -> None:
+    assert cli._extract_loop_wait_seconds("no token here") is None
+    assert cli._extract_loop_wait_seconds("<wait_seconds>-1</wait_seconds>") is None
+    assert cli._extract_loop_wait_seconds("<wait_seconds>abc</wait_seconds>") is None
+    assert cli._extract_loop_wait_seconds("<wait_seconds>15</wait_seconds>") == 15.0

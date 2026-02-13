@@ -4,7 +4,9 @@ import argparse
 import functools
 import importlib
 import json
+import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -115,6 +117,10 @@ WEB_ROUTER_ONLY_IMPORT_ENV = "FERMILINK_ROUTER_ONLY_IMPORT"
 LOOP_MEMORY_DIRNAME = "projects"
 LOOP_MEMORY_FILENAME = "memory.md"
 LOOP_DONE_TOKEN = "<promise>DONE</promise>"
+LOOP_WAIT_TOKEN_RE = re.compile(
+    r"^\s*<wait_seconds>\s*([0-9]+(?:\.[0-9]+)?)\s*</wait_seconds>\s*$",
+    re.MULTILINE,
+)
 LOOP_PROMPT_PREFIX = (
     "You are running in **FermiLink loop mode**.\n"
     "\n"
@@ -133,6 +139,11 @@ LOOP_PROMPT_PREFIX = (
     "   - Append a short progress log entry (what changed + files touched).\n"
     "   - Append a short pending simulation log entry if you have submitted a long-running job, including job id and expected duration.\n"
     "   - Append a short additional notes log entry for the pitfalls you have avoided or key problems encountered.\n"
+    "\n"
+    "If the task is not complete, provide one machine-readable wait hint on its own line:\n"
+    "<wait_seconds>NUMBER</wait_seconds>\n"
+    "where NUMBER is a non-negative number of seconds (no units, no extra text).\n"
+    "Do not include this wait tag once you are done.\n"
     "\n"
     f"When (and only when) ALL steps are complete and the request is satisfied, output exactly:\n"
     f"{LOOP_DONE_TOKEN}\n"
@@ -1308,6 +1319,22 @@ def _ensure_loop_memory(
     return memory_path
 
 
+def _extract_loop_wait_seconds(assistant_text: str) -> float | None:
+    if not isinstance(assistant_text, str) or not assistant_text.strip():
+        return None
+    matches = LOOP_WAIT_TOKEN_RE.findall(assistant_text)
+    if not matches:
+        return None
+    raw = matches[-1]
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if value < 0 or not math.isfinite(value):
+        return None
+    return value
+
+
 def _cmd_loop(args: argparse.Namespace) -> int:
     repo_dir = Path.cwd().resolve()
     _ensure_exec_repo_ready(repo_dir, args)
@@ -1338,6 +1365,14 @@ def _cmd_loop(args: argparse.Namespace) -> int:
         raise PackageError("--wait-seconds must be a number.") from exc
     if wait_seconds < 0:
         raise PackageError("--wait-seconds must be >= 0.")
+
+    max_wait_seconds_raw = getattr(args, "max_wait_seconds", 600.0)
+    try:
+        max_wait_seconds = float(max_wait_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise PackageError("--max-wait-seconds must be a number.") from exc
+    if max_wait_seconds < 0:
+        raise PackageError("--max-wait-seconds must be >= 0.")
 
     scipkg_root = resolve_scipkg_root()
     runtime_policy = resolve_agent_runtime_policy()
@@ -1417,9 +1452,33 @@ def _cmd_loop(args: argparse.Namespace) -> int:
             if return_code != 0:
                 return return_code
 
-            if iteration < max_iterations and wait_seconds > 0:
-                _print_tagged("loop", f"sleeping {wait_seconds:.1f}s before next iteration")
-                time.sleep(wait_seconds)
+            if iteration < max_iterations:
+                suggested_wait = _extract_loop_wait_seconds(assistant_text)
+                wait_source = "agent" if suggested_wait is not None else "default"
+                requested_wait = (
+                    suggested_wait if suggested_wait is not None else wait_seconds
+                )
+                effective_wait = min(requested_wait, max_wait_seconds)
+                if effective_wait > 0:
+                    if requested_wait > max_wait_seconds:
+                        _print_tagged(
+                            "loop",
+                            (
+                                "sleeping "
+                                f"{effective_wait:.1f}s before next iteration "
+                                f"(source: {wait_source}, capped by --max-wait-seconds)"
+                            ),
+                        )
+                    else:
+                        _print_tagged(
+                            "loop",
+                            (
+                                "sleeping "
+                                f"{effective_wait:.1f}s before next iteration "
+                                f"(source: {wait_source})"
+                            ),
+                        )
+                    time.sleep(effective_wait)
     finally:
         _cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
 
@@ -2345,7 +2404,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--wait-seconds",
         type=float,
         default=0.0,
-        help="Seconds to sleep between iterations (default: 0).",
+        help=(
+            "Fallback sleep seconds between iterations when no valid "
+            "<wait_seconds> tag is returned (default: 0)."
+        ),
+    )
+    loop_parser.add_argument(
+        "--max-wait-seconds",
+        type=float,
+        default=600.0,
+        help=(
+            "Hard cap on per-iteration sleep seconds after applying agent "
+            "wait hints (default: 600)."
+        ),
     )
     loop_parser.add_argument(
         "--init-git",

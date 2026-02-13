@@ -94,7 +94,10 @@ Optional flags:
 
 Use `loop` to run up to `--max-iterations` autonomous iterations (default: 10)
 that persist long-term state to `projects/memory.md`. It stops early when it
-prints `<promise>DONE</promise>`.
+prints `<promise>DONE</promise>`. When not done, the agent can suggest the next
+poll interval via `<wait_seconds>...</wait_seconds>`; loop applies
+`min(agent_wait, --max-wait-seconds)` and falls back to `--wait-seconds` when
+the wait tag is missing/invalid.
 
 ```bash
 # Prompt as a file
@@ -108,6 +111,9 @@ fermilink loop --max-iterations 50 prompt.md
 
 # Sleep between iterations (useful for long-running jobs)
 fermilink loop --wait-seconds 30 prompt.md
+
+# Cap dynamic waits from agent hints
+fermilink loop --wait-seconds 30 --max-wait-seconds 300 prompt.md
 ```
 
 ## Run Interactive Multi-Turn Chat From CLI
