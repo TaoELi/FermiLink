@@ -121,8 +121,9 @@ if AUTH_MAX_USERS < 0:
     AUTH_MAX_USERS = 0
 if _GENERATED_AUTH_SECRET:
     LOGGER.warning(
-        "CHAINLIT_AUTH_SECRET was not set. Generated a temporary secret; "
-        "users will be logged out after restart."
+        #"CHAINLIT_AUTH_SECRET was not set. Generated a temporary secret; "
+        #"users will be logged out after restart."
+        "[loading]..."
     )
 
 
