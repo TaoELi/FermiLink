@@ -39,6 +39,46 @@ fermilink install maxwelllink --activate
 fermilink start
 ```
 
+## Compile Local Projects Into Packages
+
+Use `compile` to generate an enriched `skills/` folder for a local scientific
+codebase (via 3 Codex passes) and install it into FermiLink package storage:
+
+```bash
+fermilink compile pyscf .
+```
+
+This command:
+
+- checks package-id conflicts in the registry;
+- copies `sci-skills-generator` into your project root;
+- runs Codex twice to generate/audit `skills/`;
+- removes `sci-skills-generator`;
+- runs Codex a third time to validate and enrich `skills/`;
+- installs the project to `scientific_packages/packages/<package-id>`.
+
+## Run One Prompt Locally (Web-Like Routing)
+
+Use `exec` to mirror the web routing + overlay flow directly in your current
+repository:
+
+```bash
+fermilink exec "run a single-mode cavity coupled to a weakly excited two-level system"
+```
+
+What `exec` does:
+
+- routes your prompt to the best installed package (keyword router + second guess);
+- overlays that package into the current directory via symlinks;
+- syncs `AGENTS.md` from `software/`;
+- runs `codex exec` with your prompt.
+
+Optional flags:
+
+- `--package <id>`: pin a package and skip auto routing
+- `--init-git`: auto-run `git init` when current directory is not a git repo
+- `--no-init-git`: fail instead of prompting for git init
+
 ## Core Runtime Paths
 
 When not overridden, FermiLink stores runtime data under:

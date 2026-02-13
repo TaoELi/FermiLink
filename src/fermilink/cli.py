@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import shutil
 import subprocess
 import sys
+import threading
 import urllib.error
 from pathlib import Path
 
@@ -66,6 +68,30 @@ COMPILE_PROMPT_3 = (
 SUPPRESSED_COMPILE_OUTPUT_MARKERS = (
     "codex_core::rollout::list: state db missing rollout path for thread",
 )
+EXEC_ROUTER_ENABLED = (
+    os.getenv("CHAINLIT_PACKAGE_ROUTER_ENABLED", "true").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+EXEC_ROUTER_AUTO_DEFAULT = (
+    os.getenv("CHAINLIT_PACKAGE_ROUTER_AUTO", "true").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+EXEC_SECOND_GUESS_ENABLED = (
+    os.getenv("CHAINLIT_PACKAGE_SECOND_GUESS_ENABLED", "true").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+try:
+    EXEC_SECOND_GUESS_MIN_CONFIDENCE = float(
+        os.getenv("CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE", "0.75")
+    )
+except ValueError:
+    EXEC_SECOND_GUESS_MIN_CONFIDENCE = 0.75
+try:
+    EXEC_SECOND_GUESS_TIMEOUT_SECONDS = float(
+        os.getenv("CHAINLIT_PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS", "25.0")
+    )
+except ValueError:
+    EXEC_SECOND_GUESS_TIMEOUT_SECONDS = 25.0
 
 
 def _print_json(payload: dict) -> None:
@@ -215,11 +241,507 @@ def _emit_compile_process_output(completed: object) -> None:
             print(line, file=sys.stderr)
 
 
+@functools.lru_cache(maxsize=1)
+def _load_web_router_module():
+    from fermilink.web import app as web_app
+
+    return web_app
+
+
+@functools.lru_cache(maxsize=1)
+def _load_runner_app_module():
+    from fermilink.runner import app as runner_app
+
+    return runner_app
+
+
+def _normalize_installed_package_ids(
+    registry_packages: object, *, web_app: object
+) -> list[str]:
+    package_ids: list[str] = []
+    if isinstance(registry_packages, dict):
+        for raw_id in registry_packages.keys():
+            normalized = web_app._normalize_package_id_safe(str(raw_id))
+            if normalized:
+                package_ids.append(normalized)
+    return sorted(set(package_ids))
+
+
+def _collect_second_guess_assistant_text(raw_stream_text: str, *, web_app: object) -> str:
+    chunks: list[str] = []
+    for line in raw_stream_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        item = event.get("item")
+        if not isinstance(item, dict):
+            item = {}
+        item_type = item.get("type") or event.get("type") or ""
+        if not isinstance(item_type, str) or not item_type.startswith("agent_message"):
+            continue
+        text = web_app._extract_text(event) or ""
+        if text:
+            chunks.append(text)
+    return "".join(chunks).strip()
+
+
+def _run_exec_second_guess(
+    *,
+    user_text: str,
+    repo_dir: Path,
+    scipkg_root: Path,
+    package_ids: list[str],
+    active_package_id: str | None,
+    base_package_id: str,
+    codex_bin: str,
+) -> dict[str, object]:
+    web_app = _load_web_router_module()
+    package_catalog = web_app._build_package_catalog(
+        package_ids=package_ids,
+        active_package_id=active_package_id,
+        scipkg_root=scipkg_root,
+    )
+    prompt = web_app._build_second_guess_prompt(
+        user_text=user_text,
+        current_package_id=base_package_id,
+        package_catalog=package_catalog,
+    )
+    cmd = [codex_bin, "exec", "--json", "--cd", str(repo_dir), "--sandbox", "read-only", prompt]
+    timeout = EXEC_SECOND_GUESS_TIMEOUT_SECONDS
+    timeout_value = timeout if timeout > 0 else None
+    runner_app = _load_runner_app_module()
+    env = os.environ.copy()
+    env = runner_app._sanitize_env(env)
+    env = runner_app._normalize_codex_home(env)
+    try:
+        completed = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_value,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": "second_guess_timeout",
+        }
+    except FileNotFoundError as exc:
+        raise PackageError(
+            f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+        ) from exc
+
+    if completed.returncode != 0:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": f"second_guess_error:exit_code_{completed.returncode}",
+        }
+
+    raw_text = _collect_second_guess_assistant_text(completed.stdout or "", web_app=web_app)
+    if not raw_text:
+        raw_text = "\n".join(
+            part
+            for part in ((completed.stdout or "").strip(), (completed.stderr or "").strip())
+            if part
+        )
+    decision = web_app._extract_first_json_object(raw_text)
+    if not isinstance(decision, dict):
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": "second_guess_invalid_json",
+        }
+
+    route_raw = decision.get("route")
+    route = str(route_raw).strip().lower() if route_raw is not None else ""
+    suggested_package = web_app._normalize_package_id_safe(decision.get("package_id"))
+    confidence = web_app._coerce_confidence(decision.get("confidence"))
+    reason_raw = decision.get("reason")
+    reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""
+    reason_short = reason[:240] if reason else ""
+    package_set = set(package_ids)
+
+    if route not in {"keep", "switch"}:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": "second_guess_invalid_route",
+        }
+
+    if route == "keep":
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": (
+                f"second_guess_keep(conf={confidence:.2f}, reason={reason_short})"
+                if reason_short
+                else f"second_guess_keep(conf={confidence:.2f})"
+            ),
+        }
+
+    if suggested_package not in package_set:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": "second_guess_invalid_target",
+        }
+    if suggested_package == base_package_id:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": "second_guess_same_target",
+        }
+    if confidence < EXEC_SECOND_GUESS_MIN_CONFIDENCE:
+        return {
+            "package_id": base_package_id,
+            "source": "default",
+            "switched": False,
+            "note": f"second_guess_low_confidence({confidence:.2f})",
+        }
+
+    return {
+        "package_id": suggested_package,
+        "source": web_app.PACKAGE_SOURCE_SECOND_GUESS,
+        "switched": True,
+        "note": (
+            f"second_guess_switch({base_package_id}->{suggested_package}, "
+            f"conf={confidence:.2f}, reason={reason_short})"
+            if reason_short
+            else f"second_guess_switch({base_package_id}->{suggested_package}, conf={confidence:.2f})"
+        ),
+    }
+
+
+def _resolve_exec_package_selection(
+    *,
+    user_prompt: str,
+    scipkg_root: Path,
+    repo_dir: Path,
+    requested_package_id: str | None,
+    codex_bin: str,
+) -> dict[str, object]:
+    web_app = _load_web_router_module()
+    registry = load_registry(scipkg_root)
+    packages_payload = registry.get("packages", {})
+    package_ids = _normalize_installed_package_ids(packages_payload, web_app=web_app)
+    active_raw = registry.get("active_package")
+    active_package_id = (
+        web_app._normalize_package_id_safe(active_raw) if isinstance(active_raw, str) else None
+    )
+    package_set = set(package_ids)
+    if active_package_id not in package_set:
+        active_package_id = None
+
+    if not package_ids:
+        raise PackageError(
+            "No installed scientific packages found. Run `fermilink install <package> --activate` first."
+        )
+
+    if requested_package_id:
+        normalized_requested = normalize_package_id(requested_package_id)
+        if normalized_requested not in package_set:
+            available = ", ".join(package_ids)
+            raise PackageError(
+                f"Unknown package '{normalized_requested}'. Available: {available}"
+            )
+        return {
+            "package_id": normalized_requested,
+            "source": "manual",
+            "reason": "manual_pin",
+            "note": "manual_pin",
+        }
+
+    config = web_app._load_router_config(scipkg_root)
+    selected_package_id: str | None = None
+    selected_source = "none"
+    selected_reason = "no_selection"
+
+    if EXEC_ROUTER_ENABLED and EXEC_ROUTER_AUTO_DEFAULT:
+        decision = web_app._route_package_candidate(
+            user_text=user_prompt,
+            package_ids=package_ids,
+            current_package_id=None,
+            config=config,
+        )
+        candidate = decision.get("selected_package_id")
+        if isinstance(candidate, str) and candidate in package_set:
+            selected_package_id = candidate
+            selected_source = "auto"
+            selected_reason = str(decision.get("reason", "matched"))
+
+    if not selected_package_id:
+        fallback = web_app._resolve_default_package_id(
+            package_ids=package_ids,
+            active_package_id=active_package_id,
+            config=config,
+        )
+        if not fallback:
+            raise PackageError(
+                "No default package could be resolved from registry/router rules."
+            )
+        selected_package_id = fallback
+        selected_source = "default"
+        selected_reason = "default_fallback"
+
+    note = selected_reason
+    if EXEC_SECOND_GUESS_ENABLED and selected_source != "manual" and len(package_ids) >= 2:
+        second_guess = _run_exec_second_guess(
+            user_text=user_prompt,
+            repo_dir=repo_dir,
+            scipkg_root=scipkg_root,
+            package_ids=package_ids,
+            active_package_id=active_package_id,
+            base_package_id=selected_package_id,
+            codex_bin=codex_bin,
+        )
+        switched = bool(second_guess.get("switched"))
+        second_package = second_guess.get("package_id")
+        if switched and isinstance(second_package, str) and second_package in package_set:
+            selected_package_id = second_package
+            selected_source = str(second_guess.get("source") or "second_guess")
+        note = str(second_guess.get("note") or note)
+
+    return {
+        "package_id": selected_package_id,
+        "source": selected_source,
+        "reason": selected_reason,
+        "note": note,
+    }
+
+
+def _ensure_exec_repo_ready(repo_dir: Path, args: argparse.Namespace) -> None:
+    runner_app = _load_runner_app_module()
+    if args.init_git and args.no_init_git:
+        raise PackageError("Cannot combine --init-git and --no-init-git.")
+
+    if not runner_app._is_valid_git_repo(repo_dir):
+        if args.no_init_git:
+            raise PackageError(
+                "Current directory is not a git repository. Run `git init` or use --init-git."
+            )
+        initialize = bool(args.init_git)
+        if not initialize:
+            if not sys.stdin.isatty():
+                raise PackageError(
+                    "Current directory is not a git repository. Re-run with --init-git."
+                )
+            answer = input("Current directory is not a git repo. Run `git init` now? [y/N]: ")
+            initialize = answer.strip().lower() in {"y", "yes"}
+        if not initialize:
+            raise PackageError("Aborted: git repository required for fermilink exec.")
+        runner_app._ensure_git_repo(repo_dir)
+
+    source_dir = runner_app._resolve_source_dir()
+    runner_app._ensure_template_agents_file(source_dir, repo_dir)
+
+
+def _overlay_exec_package(
+    *,
+    repo_dir: Path,
+    scipkg_root: Path,
+    package_id: str,
+) -> dict[str, object]:
+    from fermilink.runner.scientific_packages import (
+        overlay_package_into_repo,
+        resolve_session_package,
+    )
+
+    try:
+        resolved_id, package_meta = resolve_session_package(
+            scipkg_root=scipkg_root,
+            workspace_root=repo_dir,
+            requested_package_id=package_id,
+        )
+    except Exception as exc:
+        raise PackageError(str(exc)) from exc
+
+    if not resolved_id or not isinstance(package_meta, dict):
+        raise PackageError(f"Package '{package_id}' could not be resolved for overlay.")
+
+    try:
+        overlay = overlay_package_into_repo(
+            repo_dir=repo_dir,
+            workspace_root=repo_dir,
+            package_id=resolved_id,
+            package_meta=package_meta,
+            scipkg_root=scipkg_root,
+            allow_replace_existing=False,
+        )
+    except Exception as exc:
+        raise PackageError(str(exc)) from exc
+
+    runner_app = _load_runner_app_module()
+    source_dir = runner_app._resolve_source_dir()
+    runner_app._ensure_template_agents_file(source_dir, repo_dir)
+    return overlay
+
+
+def _stream_exec_process_output(process: subprocess.Popen[str]) -> int:
+    def _pump(stream: object, *, is_stderr: bool) -> None:
+        if stream is None:
+            return
+        for line in iter(stream.readline, ""):
+            text = line.rstrip("\n")
+            if _should_suppress_compile_output_line(text):
+                continue
+            print(text, file=sys.stderr if is_stderr else sys.stdout, flush=True)
+        stream.close()
+
+    stdout_thread = threading.Thread(
+        target=_pump, args=(process.stdout,), kwargs={"is_stderr": False}, daemon=True
+    )
+    stderr_thread = threading.Thread(
+        target=_pump, args=(process.stderr,), kwargs={"is_stderr": True}, daemon=True
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+    return_code = process.wait()
+    stdout_thread.join()
+    stderr_thread.join()
+    return return_code
+
+
+def _should_use_direct_terminal_stream() -> bool:
+    """Return whether Codex output should stream directly to the terminal.
+
+    Direct passthrough preserves Codex's native rich TTY rendering (colors,
+    sections, progress updates). Fallback piping is used in non-interactive
+    contexts (tests, redirected output, background jobs).
+    """
+
+    try:
+        return bool(
+            sys.stdin.isatty()
+            and sys.stdout.isatty()
+            and sys.stderr.isatty()
+        )
+    except Exception:
+        return False
+
+
+def _run_exec_codex_prompt(
+    *,
+    repo_dir: Path,
+    prompt: str,
+    sandbox: str,
+    codex_bin: str,
+) -> int:
+    cmd = [codex_bin, "exec", "--cd", str(repo_dir)]
+    if sandbox:
+        cmd.extend(["--sandbox", sandbox])
+        if sandbox == "workspace-write":
+            cmd.append("--full-auto")
+    cmd.append(prompt)
+    runner_app = _load_runner_app_module()
+    env = os.environ.copy()
+    env = runner_app._sanitize_env(env)
+    env = runner_app._normalize_codex_home(env)
+    if _should_use_direct_terminal_stream():
+        try:
+            completed = subprocess.run(
+                cmd,
+                cwd=str(repo_dir),
+                check=False,
+                env=env,
+            )
+        except FileNotFoundError as exc:
+            raise PackageError(
+                f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+            ) from exc
+        return int(completed.returncode)
+
+    try:
+        process = subprocess.Popen(
+            cmd,
+            cwd=str(repo_dir),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+    except FileNotFoundError as exc:
+        raise PackageError(
+            f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+        ) from exc
+    return _stream_exec_process_output(process)
+
+
 def _resolve_project_path(raw_path: str) -> Path:
     path = Path(raw_path).expanduser()
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
     return path
+
+
+def _cmd_exec(args: argparse.Namespace) -> int:
+    prompt = " ".join(args.prompt).strip()
+    if not prompt:
+        raise PackageError("Prompt is required for fermilink exec.")
+
+    repo_dir = Path.cwd().resolve()
+    _ensure_exec_repo_ready(repo_dir, args)
+
+    scipkg_root = resolve_scipkg_root()
+    codex_bin = args.codex_bin or DEFAULT_COMPILE_CODEX_BIN
+    selection = _resolve_exec_package_selection(
+        user_prompt=prompt,
+        scipkg_root=scipkg_root,
+        repo_dir=repo_dir,
+        requested_package_id=args.package_id,
+        codex_bin=codex_bin,
+    )
+    package_id = selection.get("package_id")
+    if not isinstance(package_id, str) or not package_id:
+        raise PackageError("No package selected for execution.")
+
+    source = str(selection.get("source") or "default")
+    note = str(selection.get("note") or "").strip()
+    print(f"[package] Using {package_id} (selection: {source})")
+    if note and note not in {"manual_pin", "default_fallback", "matched"}:
+        print(f"[router] {note}")
+
+    overlay = _overlay_exec_package(
+        repo_dir=repo_dir,
+        scipkg_root=scipkg_root,
+        package_id=package_id,
+    )
+    linked = int(overlay.get("linked_count", 0)) if isinstance(overlay, dict) else 0
+    collisions = (
+        int(overlay.get("collision_count", 0)) if isinstance(overlay, dict) else 0
+    )
+    linked_deps = (
+        int(overlay.get("linked_dependency_count", 0))
+        if isinstance(overlay, dict)
+        else 0
+    )
+    print(
+        "[overlay] linked entries: "
+        f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+    )
+
+    return _run_exec_codex_prompt(
+        repo_dir=repo_dir,
+        prompt=prompt,
+        sandbox=args.sandbox,
+        codex_bin=codex_bin,
+    )
 
 
 def _run_codex_compile_pass(
@@ -824,6 +1346,45 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip automatic router_rules.json synchronization.",
     )
     compile_parser.set_defaults(func=_cmd_compile)
+
+    exec_parser = subparsers.add_parser(
+        "exec",
+        help=(
+            "Run one prompt locally with web-like package routing, second guess, "
+            "package overlay symlinks, and AGENTS template sync."
+        ),
+    )
+    exec_parser.add_argument(
+        "prompt",
+        nargs="+",
+        help="Prompt text to run via codex.",
+    )
+    exec_parser.add_argument(
+        "--package",
+        dest="package_id",
+        help="Pin one installed package id and skip auto routing.",
+    )
+    exec_parser.add_argument(
+        "--sandbox",
+        default="workspace-write",
+        help="Codex sandbox mode (default: workspace-write).",
+    )
+    exec_parser.add_argument(
+        "--codex-bin",
+        default=DEFAULT_COMPILE_CODEX_BIN,
+        help=f"Codex executable path (default: {DEFAULT_COMPILE_CODEX_BIN}).",
+    )
+    exec_parser.add_argument(
+        "--init-git",
+        action="store_true",
+        help="Auto-run git init when current directory is not a git repository.",
+    )
+    exec_parser.add_argument(
+        "--no-init-git",
+        action="store_true",
+        help="Fail instead of prompting/initializing when git repository is missing.",
+    )
+    exec_parser.set_defaults(func=_cmd_exec)
 
     list_parser = subparsers.add_parser("list", help="List installed scientific packages.")
     _add_json_option(list_parser)

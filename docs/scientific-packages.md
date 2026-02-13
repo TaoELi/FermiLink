@@ -54,12 +54,43 @@ fermilink install mypkg \
 fermilink install mypkg --local-path /absolute/path/to/package --activate
 ```
 
+### Compile Local Repository (Auto Skills Generation)
+
+```bash
+fermilink compile <package_id> <path>
+```
+
+Examples:
+
+```bash
+fermilink compile pyscf .
+fermilink compile mypkg /absolute/path/to/project --activate
+```
+
+`compile` runs a 3-pass Codex workflow to generate and refine `skills/`:
+
+1. map source/examples/docs/tests/tutorials and generate initial `skills/`;
+2. audit whether `skills/` is sufficient for advanced scientific workflows;
+3. verify links/path consistency and enrich `skills/` again.
+
+Implementation details:
+
+- temporary tool directory: `<path>/sci-skills-generator/`
+- removed automatically before pass 3
+- resulting project is installed via local-path flow into
+  `SCIPKG_ROOT/packages/<package_id>`
+- compile fails fast on package-id conflict with existing registry entry
+- compile output suppresses known benign Codex rollout-path noise
+
 Notes:
 
 - `--activate` sets default package for new sessions.
+- `--active` is supported as an alias for `--activate`.
 - `--force` allows overwrite when managed package folder already exists.
 - Zip installs remove `AGENTS.md`/`CLAUDE.md` files and top-level `projects/`.
 - `install` and `delete` auto-sync `router_rules.json` unless `--no-router-sync`.
+- `compile` also auto-syncs `router_rules.json` unless `--no-router-sync`.
+- Add `--json` to any CLI command for full structured output.
 
 ## Package Lifecycle
 
@@ -136,6 +167,13 @@ Runner resolves package in this order:
 2. Workspace manifest pin (`.package_manifest.json`).
 3. `SCIPKG_ACTIVE` env override.
 4. Registry `active_package`.
+
+`fermilink exec` resolves package with web-like routing:
+
+1. `--package <id>` manual pin (if provided).
+2. Router keyword scoring (`router_rules.json`) when auto-router is enabled.
+3. Default fallback (`default_package_id`, active package, first installed).
+4. Optional AGENTS-guided second-guess switch when confidence threshold is met.
 
 ## Authoring Checklist for New Packages
 

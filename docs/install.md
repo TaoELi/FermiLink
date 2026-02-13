@@ -59,6 +59,36 @@ Install from local package directory:
 fermilink install mypkg --local-path /absolute/path/to/package --activate
 ```
 
+## Compile a Local Codebase Into a FermiLink Package
+
+`compile` is the fastest way to convert an existing scientific repository into
+a FermiLink package with an enriched `skills/` directory.
+
+```bash
+# compile current directory as package "pyscf"
+fermilink compile pyscf .
+
+# compile another path and activate immediately
+fermilink compile mypkg /absolute/path/to/project --activate
+```
+
+Compile workflow:
+
+1. Validate package id does not already exist in `registry.json`.
+2. Copy `sci-skills-generator/` into project root.
+3. Run `codex exec` pass 1 (generate `skills/`).
+4. Run `codex exec` pass 2 (audit/refine `skills/`).
+5. Delete `sci-skills-generator/`.
+6. Run `codex exec` pass 3 (consistency + enrichment check).
+7. Install local project to `SCIPKG_ROOT/packages/<package_id>`.
+8. Sync `router_rules.json` (unless `--no-router-sync`).
+
+Notes:
+
+- If the package id already exists, compile stops immediately.
+- Known benign Codex rollout-path noise is filtered from compile output.
+- Use `--json` to print full structured results.
+
 ## Start, Check, Stop
 
 ```bash
@@ -66,6 +96,30 @@ fermilink start
 fermilink status
 fermilink stop
 ```
+
+## Exec One Prompt From CLI (Web-Mirror Mode)
+
+Run one-shot Codex execution in the current repository while reusing the same
+package-routing and overlay logic as the web app:
+
+```bash
+fermilink exec "simulate weakly excited cavity QED dynamics and plot results"
+```
+
+Behavior:
+
+1. Ensure current directory is a git repo (prompt for `git init` if missing).
+2. Sync `AGENTS.md` template into current directory.
+3. Select package via keyword router + second-guess preflight.
+4. Overlay selected package entries as symlinks into current directory.
+5. Run `codex exec` with your prompt.
+
+Useful flags:
+
+- `--package <id>`: pin package id and bypass auto routing.
+- `--sandbox <mode>`: override Codex sandbox mode (default `workspace-write`).
+- `--init-git`: non-interactively initialize git repo if missing.
+- `--no-init-git`: fail immediately if git repo is missing.
 
 ## Manual Startup (Without Service Manager)
 
