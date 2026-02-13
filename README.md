@@ -34,6 +34,9 @@ codex login
 
 # 3) Install at least one scientific package as background knowledge
 fermilink install maxwelllink --activate
+# or install multiple at once (cannot combine with --activate):
+# fermilink install ase meep qutip
+# fermilink activate ase
 
 # 4) Start web service for ChatGPT-like experience
 fermilink start
@@ -75,6 +78,7 @@ What `exec` does:
 - routes your prompt to the best installed package (keyword router + second guess);
 - overlays that package into the current directory via symlinks;
 - syncs `AGENTS.md` from `software/`;
+- does not copy web UI assets (`public/`) into your repo (those are seeded only for `fermilink start`);
 - runs `codex exec` with your prompt.
 
 Optional flags:
@@ -96,6 +100,7 @@ What `chat` does each turn:
 - builds the same simplified transcript-style prompt as web mode;
 - re-runs package routing (plus second guess) and can switch package when needed;
 - overlays selected package content via symlinks into the current directory;
+- does not copy web UI assets (`public/`) into your repo (those are seeded only for `fermilink start`);
 - streams provider stdout/stderr live to the terminal;
 - runs provider execution and appends the assistant reply to local chat history.
 
@@ -121,6 +126,8 @@ When not overridden, FermiLink stores runtime data under:
 - `~/.fermilink/scientific_packages`
 - `~/.fermilink/workspaces`
 - `~/.fermilink/runtime`
+- `~/.fermilink/public` (Chainlit static assets + local artifact storage for web UI)
+- `~/.fermilink/.chainlit` (Chainlit sqlite DBs and internal state)
 
 ## Documentation
 

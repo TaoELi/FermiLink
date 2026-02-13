@@ -9,7 +9,6 @@ This map covers maintained source files and docs for the current layout.
 | `README.md` | Project overview and quick-start flow. |
 | `pyproject.toml` | Package metadata, dependencies, and CLI entrypoint (`fermilink`). |
 | `.gitignore` | Excludes generated runtime roots, caches, and build artifacts. |
-| `FermiLink_oldversion/` | Archived previous implementation and docs used as migration reference. |
 
 ## Source Package (`src/fermilink`)
 
@@ -46,7 +45,7 @@ This map covers maintained source files and docs for the current layout.
 | Path | Purpose |
 | --- | --- |
 | `src/fermilink/software/AGENTS.md` | Baseline agent instructions copied into each workspace repo root. |
-| `src/fermilink/public/` | Bundled Chainlit static assets (`custom.css`, `custom.js`, logos, landing markdown). |
+| `src/fermilink/public/` | Bundled Chainlit static assets (`custom.css`, `custom.js`, logos, landing markdown). Seeded into `$CHAINLIT_APP_ROOT/public/` by web UI only. |
 
 ## Documentation (`docs`)
 

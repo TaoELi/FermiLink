@@ -36,6 +36,13 @@ Per-session overlays are materialized in:
 fermilink install ase --activate
 ```
 
+Install multiple curated packages at once (no activation during multi-install):
+
+```bash
+fermilink install ase meep qutip
+fermilink activate ase
+```
+
 Default channel is `tel-research-group`. Supported curated package ids:
 `maxwelllink`, `meep`, `lammps`, `qutip`, `psi4`, `ase`, `oqupy`, `packmol`,
 `kwant`, `tkwant`, `elk`.

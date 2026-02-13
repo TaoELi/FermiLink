@@ -58,6 +58,8 @@ Expected:
   granted to the process (for example local socket bind for MPI launchers).
 - `--sandbox` forces `enforce(read-only)` for that run.
 - Overlay symlink cleanup still runs after completion.
+- `fermilink exec` does not seed/copy Chainlit web assets into the repo
+  (`public/` should not appear in the current directory).
 
 ## 4. Chat Behavior
 
@@ -79,6 +81,8 @@ Expected:
   (validated in `tests/test_cli_chat.py`).
 - `--sandbox read-only` forces `enforce(read-only)` for that chat session.
 - Overlay symlink cleanup runs after every turn.
+- `fermilink chat` does not seed/copy Chainlit web assets into the repo
+  (`public/` should not appear in the current directory).
 
 ## 5. Runner/Web Policy Propagation
 

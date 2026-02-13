@@ -45,3 +45,77 @@ def test_cli_dependencies(monkeypatch, tmp_path: Path) -> None:
     registry = load_registry(scipkg_root)
     deps = registry["packages"]["maxwelllink"].get("dependency_package_ids")
     assert deps == ["meep"]
+
+
+def test_cli_install_multiple_packages_installs_each_and_syncs_once(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+
+    install_calls: list[dict[str, object]] = []
+
+    def fake_install_from_zip(
+        root: Path,
+        package_id: str,
+        *,
+        zip_url: str,
+        title: str | None,
+        activate: bool,
+        force: bool,
+        max_zip_bytes: int,
+    ) -> dict[str, object]:
+        install_calls.append(
+            {
+                "root": root,
+                "package_id": package_id,
+                "zip_url": zip_url,
+                "title": title,
+                "activate": activate,
+                "force": force,
+                "max_zip_bytes": max_zip_bytes,
+            }
+        )
+        return {"id": package_id}
+
+    monkeypatch.setattr(cli, "install_from_zip", fake_install_from_zip)
+
+    class _Curated:
+        def __init__(self, zip_url: str, title: str) -> None:
+            self.zip_url = zip_url
+            self.title = title
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_curated_package",
+        lambda package_id, channel: _Curated(
+            zip_url=f"https://example.invalid/{package_id}.zip", title=f"title-{package_id}"
+        ),
+    )
+
+    sync_calls: list[Path] = []
+    monkeypatch.setattr(cli, "sync_router_rules", lambda root: sync_calls.append(root) or {})
+    monkeypatch.setattr(cli, "load_registry", lambda _root: {"active_package": "maxwelllink"})
+
+    code = cli.main(["install", "ase", "meep"])
+    assert code == 0
+
+    assert [call["package_id"] for call in install_calls] == ["ase", "meep"]
+    assert all(call["activate"] is False for call in install_calls)
+    assert len(sync_calls) == 1
+
+    output = capsys.readouterr().out
+    assert "Installed 2 packages" in output
+
+
+def test_cli_install_multiple_packages_rejects_activate(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+
+    code = cli.main(["install", "ase", "meep", "--activate"])
+    assert code == 2
+
+    err = capsys.readouterr().err
+    assert "--activate" in err

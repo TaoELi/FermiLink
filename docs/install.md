@@ -79,6 +79,14 @@ fermilink install maxwelllink --activate
 fermilink install meep
 ```
 
+Install multiple curated packages at once (note: `--activate/--active` is not
+allowed in multi-install):
+
+```bash
+fermilink install ase meep qutip
+fermilink activate ase
+```
+
 Install from custom zip URL:
 
 ```bash
@@ -149,7 +157,8 @@ Behavior:
 2. Sync `AGENTS.md` template into current directory.
 3. Select package via keyword router + second-guess preflight.
 4. Overlay selected package entries as symlinks into current directory.
-5. Run `codex exec` with your prompt.
+5. Keep your repo clean: do not seed/copy Chainlit web assets (`public/`).
+6. Run `codex exec` with your prompt.
 
 Useful flags:
 
@@ -190,6 +199,23 @@ You can also run services directly:
 uvicorn fermilink.runner.app:app --host 0.0.0.0 --port 8000
 RUNNER_URL=http://127.0.0.1:8000 chainlit run src/fermilink/web/app.py --host 0.0.0.0 --port 7860
 ```
+
+## Where Do Web Static Assets Live?
+
+Chainlit serves static files (CSS/JS/logos) from a `public/` directory under
+`CHAINLIT_APP_ROOT`. FermiLink ships its own branding assets in
+`src/fermilink/public/` and seeds them into `$CHAINLIT_APP_ROOT/public/` when
+you run the web UI (`fermilink start` or `chainlit run ...`).
+
+Notes:
+
+- This is web-only behavior. `fermilink exec` and `fermilink chat` do not copy
+  those web assets into your current repository.
+- If you do not want runtime folders in your repo, set `CHAINLIT_APP_ROOT` (and
+  optionally `FERMILINK_HOME`) to a dedicated directory such as `./.fermilink`
+  or `~/.fermilink`.
+- In this repository layout, `public/` and `.chainlit/` are already listed in
+  `.gitignore` as runtime-generated folders.
 
 ## Smoke Test
 

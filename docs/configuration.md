@@ -59,7 +59,7 @@ Notes:
 | `SCIENTIFIC_PACKAGES_ROOT` | alias of `SCIPKG_ROOT` | Backward-compatible alias. |
 | `WORKSPACES_ROOT` | `$FERMILINK_HOME/workspaces` | Session workspace root. |
 | `FERMILINK_RUNTIME_ROOT` | `$FERMILINK_HOME/runtime` | Service state/log root for `fermilink start/stop/status`. |
-| `CHAINLIT_APP_ROOT` | `$FERMILINK_HOME` | Chainlit app root used for default DB and `chainlit.md`. |
+| `CHAINLIT_APP_ROOT` | `$FERMILINK_HOME` | Chainlit app root for web UI state: `.chainlit/` sqlite DBs, `chainlit.md`, and `public/` assets. |
 
 ## CLI and Service Manager
 
@@ -155,6 +155,25 @@ Notes:
 | `CHAINLIT_MAX_ATTACHMENT_BYTES` | `52428800` | Per-file attachment size limit. |
 | `CHAINLIT_ZIP_MIN_COUNT` | `3` | Auto-zip when at least this many artifacts are detected. |
 | `CHAINLIT_LOCAL_STORAGE_SUBDIR` | `.chainlit/artifacts` | Artifact storage subdirectory under public root. |
+
+### Web Static Assets (`public/`)
+
+FermiLink bundles Chainlit UI assets (CSS/JS/logos/landing markdown) in
+`src/fermilink/public/`. When you run the web UI (`fermilink start` or
+`chainlit run src/fermilink/web/app.py ...`), the app ensures
+`$CHAINLIT_APP_ROOT/public/` exists and seeds any missing packaged assets
+there. Chainlit then serves those files at `/public/...`.
+
+Notes:
+
+- This is intentionally a web-only side effect. `fermilink exec` and
+  `fermilink chat` reuse the web routing logic but do not seed/copy `public/`
+  into your current working repository.
+- If you want web runtime folders to live somewhere other than your repo root,
+  set `CHAINLIT_APP_ROOT` to a dedicated directory (for example `./.fermilink`
+  or `~/.fermilink`).
+- In this repository layout, `public/` and `.chainlit/` are listed in
+  `.gitignore` as runtime-generated folders.
 
 ### Package Router and Second Guess
 

@@ -1430,7 +1430,75 @@ def _cmd_compile(args: argparse.Namespace) -> int:
 
 def _cmd_install(args: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
-    package_id = normalize_package_id(args.package_id)
+    raw_package_id = getattr(args, "package_id", None)
+    if isinstance(raw_package_id, list):
+        requested_ids = [item for item in raw_package_id if isinstance(item, str) and item.strip()]
+    elif isinstance(raw_package_id, str) and raw_package_id.strip():
+        requested_ids = [raw_package_id.strip()]
+    else:
+        requested_ids = []
+    if not requested_ids:
+        raise PackageError("Package id is required for fermilink install.")
+
+    package_ids = [normalize_package_id(item) for item in requested_ids]
+    if len(package_ids) > 1:
+        if args.activate:
+            raise PackageError(
+                "Cannot combine multiple package ids with --activate/--active. "
+                "Install them first, then run `fermilink activate <package_id>`."
+            )
+        if args.local_path:
+            raise PackageError("Cannot combine multiple package ids with --local-path.")
+        if args.zip_url:
+            raise PackageError("Cannot combine multiple package ids with --zip-url.")
+        if args.title:
+            raise PackageError("Cannot combine multiple package ids with --title.")
+
+        installed: list[dict[str, object]] = []
+        sources: dict[str, str] = {}
+        for package_id in package_ids:
+            curated = resolve_curated_package(
+                package_id,
+                channel=normalize_channel_id(args.channel),
+            )
+            meta = install_from_zip(
+                scipkg_root,
+                package_id,
+                zip_url=curated.zip_url,
+                title=curated.title,
+                activate=False,
+                force=args.force,
+                max_zip_bytes=args.max_zip_bytes,
+            )
+            installed.append(meta)
+            sources[str(meta.get("id") or package_id)] = str(curated.zip_url)
+
+        router = None
+        if not args.no_router_sync:
+            router = sync_router_rules(scipkg_root)
+
+        active = load_registry(scipkg_root).get("active_package")
+        payload = {
+            "installed": installed,
+            "sources": sources,
+            "scipkg_root": str(scipkg_root),
+            "router_sync": router,
+            "active_package": active,
+        }
+        summary = ", ".join(str(item.get("id") or "") for item in installed if isinstance(item, dict))
+        summary = summary or ", ".join(package_ids)
+        lines = [
+            f"Installed {len(installed)} packages: {summary}.",
+            (
+                f"Active package: {active}."
+                if isinstance(active, str) and active
+                else "Active package unchanged."
+            ),
+        ]
+        _emit_output(args, payload, lines)
+        return 0
+
+    package_id = package_ids[0]
 
     title = args.title
     source: str
@@ -1876,7 +1944,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Install scientific package from curated channel, zip URL, or local path.",
     )
     _add_json_option(install_parser)
-    install_parser.add_argument("package_id", help="Package id to install, e.g. ase")
+    install_parser.add_argument(
+        "package_id",
+        nargs="+",
+        help="One or more package ids to install, e.g. ase meep qutip",
+    )
     install_parser.add_argument(
         "--channel",
         default="tel-research-group",
