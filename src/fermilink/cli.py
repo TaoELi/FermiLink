@@ -42,6 +42,120 @@ def _print_json(payload: dict) -> None:
     print(json.dumps(payload, indent=2))
 
 
+def _print_lines(lines: list[str]) -> None:
+    for line in lines:
+        text = line.strip()
+        if text:
+            print(text)
+
+
+def _emit_output(args: argparse.Namespace, payload: dict, lines: list[str]) -> None:
+    if getattr(args, "json", False):
+        _print_json(payload)
+        return
+    _print_lines(lines)
+
+
+def _extract_flag_value(command: list[str], flag: str) -> str | None:
+    for index, token in enumerate(command):
+        if token == flag:
+            if index + 1 < len(command):
+                return command[index + 1]
+            return None
+        if token.startswith(flag + "="):
+            return token.split("=", 1)[1]
+    return None
+
+
+def _extract_port_from_command(command: object) -> int | None:
+    if not isinstance(command, list):
+        return None
+    raw = _extract_flag_value(command, "--port")
+    if not isinstance(raw, str):
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
+
+
+def _service_start_line(result: dict[str, object]) -> str:
+    service = str(result.get("service", "service"))
+    status = str(result.get("status", "unknown"))
+    port = result.get("port")
+    if not isinstance(port, int):
+        port = _extract_port_from_command(result.get("command"))
+    pid = result.get("pid")
+    pid_text = f", pid {pid}" if isinstance(pid, int) else ""
+    port_text = f", port {port}" if isinstance(port, int) else ""
+
+    if status == "started":
+        return f"{service}: started{port_text}{pid_text}."
+    if status == "already_running":
+        return f"{service}: already running{port_text}{pid_text}."
+    if status == "port_in_use":
+        return f"{service}: blocked, port {port} is already in use."
+    if status == "failed_to_start":
+        exit_code = result.get("exit_code")
+        if isinstance(exit_code, int):
+            return f"{service}: failed to start (exit code {exit_code})."
+        return f"{service}: failed to start."
+    if status == "error":
+        return f"{service}: error while starting."
+    return f"{service}: status={status}."
+
+
+def _service_stop_line(result: dict[str, object]) -> str:
+    service = str(result.get("service", "service"))
+    status = str(result.get("status", "unknown"))
+    pid = result.get("pid")
+    pid_text = f" (pid {pid})" if isinstance(pid, int) else ""
+
+    if status == "stopped":
+        return f"{service}: stopped{pid_text}."
+    if status == "not_running":
+        return f"{service}: not running."
+    if status == "error":
+        return f"{service}: failed to stop{pid_text}."
+    return f"{service}: status={status}."
+
+
+def _service_status_line(result: dict[str, object]) -> str:
+    service = str(result.get("service", "service"))
+    running = bool(result.get("running"))
+    if running:
+        port = _extract_port_from_command(result.get("command"))
+        pid = result.get("pid")
+        pid_text = f", pid {pid}" if isinstance(pid, int) else ""
+        port_text = f", port {port}" if isinstance(port, int) else ""
+        return f"{service}: running{port_text}{pid_text}."
+    reason = result.get("reason")
+    if isinstance(reason, str) and reason:
+        return f"{service}: not running ({reason})."
+    return f"{service}: not running."
+
+
+def _bootstrap_line(payload: object) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    status = payload.get("status")
+    if status == "installed":
+        package_id = payload.get("package_id")
+        if isinstance(package_id, str) and package_id:
+            return (
+                f"[bootstrap] No package detected. Auto-installed and activated "
+                f"'{package_id}'."
+            )
+        return "[bootstrap] No package detected. Auto-installed default package."
+    if status == "failed":
+        package_id = payload.get("package_id")
+        error = payload.get("error")
+        package_text = f" '{package_id}'" if isinstance(package_id, str) and package_id else ""
+        error_text = f": {error}" if isinstance(error, str) and error else "."
+        return f"[bootstrap] Failed to auto-install default package{package_text}{error_text}"
+    return None
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
     package_id = normalize_package_id(args.package_id)
@@ -84,27 +198,42 @@ def _cmd_install(args: argparse.Namespace) -> int:
     if not args.no_router_sync:
         router = sync_router_rules(scipkg_root)
 
-    _print_json(
-        {
-            "installed": meta,
-            "source": source,
-            "scipkg_root": str(scipkg_root),
-            "router_sync": router,
-        }
-    )
+    payload = {
+        "installed": meta,
+        "source": source,
+        "scipkg_root": str(scipkg_root),
+        "router_sync": router,
+    }
+    active = load_registry(scipkg_root).get("active_package")
+    lines = [
+        f"Installed package '{meta.get('id', package_id)}' from {source}.",
+        (
+            f"Active package: {active}."
+            if isinstance(active, str) and active
+            else "Active package unchanged."
+        ),
+    ]
+    _emit_output(args, payload, lines)
     return 0
 
 
 def _cmd_list(_: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
     registry = load_registry(scipkg_root)
-    _print_json(
-        {
-            "scipkg_root": str(scipkg_root),
-            "active_package": registry.get("active_package"),
-            "packages": list_packages(scipkg_root),
-        }
-    )
+    packages = list_packages(scipkg_root)
+    package_ids = sorted(packages.keys()) if isinstance(packages, dict) else []
+    active = registry.get("active_package")
+    payload = {
+        "scipkg_root": str(scipkg_root),
+        "active_package": active,
+        "packages": packages,
+    }
+    summary = ", ".join(package_ids) if package_ids else "(none)"
+    lines = [
+        f"Installed packages: {len(package_ids)}. Active: {active or 'none'}.",
+        f"Packages: {summary}.",
+    ]
+    _emit_output(args, payload, lines)
     return 0
 
 
@@ -112,13 +241,12 @@ def _cmd_activate(args: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
     package_id = normalize_package_id(args.package_id)
     meta = activate_package(scipkg_root, package_id)
-    _print_json(
-        {
-            "active_package": package_id,
-            "meta": meta,
-            "scipkg_root": str(scipkg_root),
-        }
-    )
+    payload = {
+        "active_package": package_id,
+        "meta": meta,
+        "scipkg_root": str(scipkg_root),
+    }
+    _emit_output(args, payload, [f"Active package set to '{package_id}'."])
     return 0
 
 
@@ -149,14 +277,18 @@ def _cmd_overlay(args: argparse.Namespace) -> int:
         entries = collected
 
     meta = set_package_overlay_entries(scipkg_root, package_id, entries)
-    _print_json(
-        {
-            "package_id": package_id,
-            "overlay_entries": meta.get("overlay_entries"),
-            "meta": meta,
-            "scipkg_root": str(scipkg_root),
-        }
-    )
+    overlay_entries = meta.get("overlay_entries")
+    if isinstance(overlay_entries, list) and overlay_entries:
+        entry_text = ", ".join(str(item) for item in overlay_entries)
+    else:
+        entry_text = "(all exportable entries)"
+    payload = {
+        "package_id": package_id,
+        "overlay_entries": overlay_entries,
+        "meta": meta,
+        "scipkg_root": str(scipkg_root),
+    }
+    _emit_output(args, payload, [f"Overlay entries for '{package_id}': {entry_text}."])
     return 0
 
 
@@ -178,14 +310,18 @@ def _cmd_dependencies(args: argparse.Namespace) -> int:
         dependency_ids = collected
 
     meta = set_package_dependency_ids(scipkg_root, package_id, dependency_ids)
-    _print_json(
-        {
-            "package_id": package_id,
-            "dependency_package_ids": meta.get("dependency_package_ids"),
-            "meta": meta,
-            "scipkg_root": str(scipkg_root),
-        }
-    )
+    dependency_ids = meta.get("dependency_package_ids")
+    if isinstance(dependency_ids, list) and dependency_ids:
+        deps_text = ", ".join(str(item) for item in dependency_ids)
+    else:
+        deps_text = "(none)"
+    payload = {
+        "package_id": package_id,
+        "dependency_package_ids": dependency_ids,
+        "meta": meta,
+        "scipkg_root": str(scipkg_root),
+    }
+    _emit_output(args, payload, [f"Dependencies for '{package_id}': {deps_text}."])
     return 0
 
 
@@ -202,13 +338,22 @@ def _cmd_delete(args: argparse.Namespace) -> int:
     if not args.no_router_sync:
         router = sync_router_rules(scipkg_root)
 
-    _print_json(
-        {
-            "deleted": result,
-            "router_sync": router,
-            "scipkg_root": str(scipkg_root),
-        }
-    )
+    payload = {
+        "deleted": result,
+        "router_sync": router,
+        "scipkg_root": str(scipkg_root),
+    }
+    removed_files = bool(result.get("removed_files"))
+    active = result.get("active_package")
+    lines = [
+        f"Deleted package '{package_id}' from registry. Removed files: {'yes' if removed_files else 'no'}.",
+        (
+            f"Active package: {active}."
+            if isinstance(active, str) and active
+            else "No active package set."
+        ),
+    ]
+    _emit_output(args, payload, lines)
     return 0
 
 
@@ -327,7 +472,14 @@ def _cmd_start(args: argparse.Namespace) -> int:
     }
     if rollback:
         payload["rollback"] = rollback
-    _print_json(payload)
+    lines: list[str] = []
+    bootstrap_text = _bootstrap_line(bootstrap)
+    if bootstrap_text:
+        lines.append(bootstrap_text)
+    lines.extend(_service_start_line(result) for result in results)
+    if rollback:
+        lines.append("Rollback executed for previously started services.")
+    _emit_output(args, payload, lines)
     return 2 if failed else 0
 
 
@@ -339,7 +491,9 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     for name in names:
         results.append(stop_service(runtime_root, name))
 
-    _print_json({"runtime_root": str(runtime_root), "results": results})
+    payload = {"runtime_root": str(runtime_root), "results": results}
+    lines = [_service_stop_line(result) for result in results]
+    _emit_output(args, payload, lines)
     return 0
 
 
@@ -361,7 +515,17 @@ def _cmd_restart(args: argparse.Namespace) -> int:
     }
     if rollback:
         payload["rollback"] = rollback
-    _print_json(payload)
+    lines: list[str] = []
+    bootstrap_text = _bootstrap_line(bootstrap)
+    if bootstrap_text:
+        lines.append(bootstrap_text)
+    lines.extend(_service_start_line(result) for result in start_results)
+    failed_stops = [item for item in stop_results if item.get("status") == "error"]
+    if failed_stops:
+        lines.append("Warning: one or more services failed to stop cleanly before restart.")
+    if rollback:
+        lines.append("Rollback executed for previously started services.")
+    _emit_output(args, payload, lines)
     return 2 if failed else 0
 
 
@@ -373,7 +537,9 @@ def _cmd_status(args: argparse.Namespace) -> int:
     for name in names:
         results.append(service_status(runtime_root, name))
 
-    _print_json({"runtime_root": str(runtime_root), "results": results})
+    payload = {"runtime_root": str(runtime_root), "results": results}
+    lines = [_service_status_line(result) for result in results]
+    _emit_output(args, payload, lines)
     return 0
 
 
@@ -384,10 +550,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    def _add_json_option(subparser: argparse.ArgumentParser) -> None:
+        subparser.add_argument(
+            "--json",
+            action="store_true",
+            help="Print full JSON output instead of concise human-readable lines.",
+        )
+
     install_parser = subparsers.add_parser(
         "install",
         help="Install scientific package from curated channel, zip URL, or local path.",
     )
+    _add_json_option(install_parser)
     install_parser.add_argument("package_id", help="Package id to install, e.g. ase")
     install_parser.add_argument(
         "--channel",
@@ -423,9 +597,11 @@ def _build_parser() -> argparse.ArgumentParser:
     install_parser.set_defaults(func=_cmd_install)
 
     list_parser = subparsers.add_parser("list", help="List installed scientific packages.")
+    _add_json_option(list_parser)
     list_parser.set_defaults(func=_cmd_list)
 
     activate_parser = subparsers.add_parser("activate", help="Set active package.")
+    _add_json_option(activate_parser)
     activate_parser.add_argument("package_id")
     activate_parser.set_defaults(func=_cmd_activate)
 
@@ -433,6 +609,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "overlay",
         help="Set which top-level package entries are exposed in workspace repo.",
     )
+    _add_json_option(overlay_parser)
     overlay_parser.add_argument("package_id")
     overlay_parser.add_argument(
         "--entry",
@@ -455,6 +632,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "dependencies",
         help="Set dependency package links under repo/external_packages/.",
     )
+    _add_json_option(dependencies_parser)
     dependencies_parser.add_argument("package_id")
     dependencies_parser.add_argument(
         "--package",
@@ -474,6 +652,7 @@ def _build_parser() -> argparse.ArgumentParser:
     dependencies_parser.set_defaults(func=_cmd_dependencies)
 
     delete_parser = subparsers.add_parser("delete", help="Delete installed scientific package.")
+    _add_json_option(delete_parser)
     delete_parser.add_argument("package_id")
     delete_parser.add_argument(
         "--keep-files",
@@ -491,6 +670,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "start",
         help="Start one or more services: runner, web. Default starts both.",
     )
+    _add_json_option(start_parser)
     start_parser.add_argument("components", nargs="*", help="runner and/or web")
     start_parser.set_defaults(func=_cmd_start)
 
@@ -498,6 +678,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "stop",
         help="Stop one or more services: runner, web. Default stops both.",
     )
+    _add_json_option(stop_parser)
     stop_parser.add_argument("components", nargs="*", help="runner and/or web")
     stop_parser.set_defaults(func=_cmd_stop)
 
@@ -505,6 +686,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "restart",
         help="Restart one or more services: runner, web. Default restarts both.",
     )
+    _add_json_option(restart_parser)
     restart_parser.add_argument("components", nargs="*", help="runner and/or web")
     restart_parser.set_defaults(func=_cmd_restart)
 
@@ -512,6 +694,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "status",
         help="Show service status for runner/web. Default checks both.",
     )
+    _add_json_option(status_parser)
     status_parser.add_argument("components", nargs="*", help="runner and/or web")
     status_parser.set_defaults(func=_cmd_status)
 

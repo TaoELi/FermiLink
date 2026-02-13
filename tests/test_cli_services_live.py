@@ -29,13 +29,13 @@ def test_cli_start_restart_stop_with_real_processes(
     monkeypatch.setattr(cli, "_print_json", lambda payload: captured_payloads.append(payload))
 
     try:
-        assert cli.main(["start"]) == 0
+        assert cli.main(["start", "--json"]) == 0
         runner_status = service_status(runtime_root, "runner")
         web_status = service_status(runtime_root, "web")
         assert runner_status["running"] is True
         assert web_status["running"] is True
 
-        assert cli.main(["restart"]) == 0
+        assert cli.main(["restart", "--json"]) == 0
         restart_payload = captured_payloads[-1]
         started = restart_payload.get("started")
         assert isinstance(started, list)
@@ -47,7 +47,7 @@ def test_cli_start_restart_stop_with_real_processes(
         assert runner_status["running"] is True
         assert web_status["running"] is True
 
-        assert cli.main(["stop"]) == 0
+        assert cli.main(["stop", "--json"]) == 0
         assert service_status(runtime_root, "runner")["running"] is False
         assert service_status(runtime_root, "web")["running"] is False
     finally:

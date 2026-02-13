@@ -111,7 +111,7 @@ def test_start_continues_when_bootstrap_fails(monkeypatch, tmp_path: Path) -> No
     )
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
 
-    code = cli.main(["start"])
+    code = cli.main(["start", "--json"])
     assert code == 0
     assert payloads
     assert payloads[0]["bootstrap"]["status"] == "failed"

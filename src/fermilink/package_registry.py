@@ -621,7 +621,7 @@ def install_from_zip(
     if target_dir.exists():
         if not force:
             raise PackageError(
-                f"Target package directory already exists: {target_dir}. Use --force."
+                f"Target package directory already exists: {target_dir}. Use --force to download again."
             )
         shutil.rmtree(target_dir)
 
@@ -675,7 +675,7 @@ def install_from_local_path(
     if target_dir.exists():
         if not force:
             raise PackageError(
-                f"Target package directory already exists: {target_dir}. Use --force."
+                f"Target package directory already exists: {target_dir}. Use --force to download again."
             )
         shutil.rmtree(target_dir)
 

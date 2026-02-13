@@ -32,7 +32,7 @@ def test_start_aborts_after_first_failed_component(
     monkeypatch.setattr(cli, "start_service", fake_start)
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
 
-    code = cli.main(["start"])
+    code = cli.main(["start", "--json"])
 
     assert code == 2
     assert start_calls == ["runner"]
@@ -76,7 +76,7 @@ def test_start_rolls_back_started_components_on_later_failure(
     monkeypatch.setattr(cli, "stop_service", fake_stop)
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
 
-    code = cli.main(["start"])
+    code = cli.main(["start", "--json"])
 
     assert code == 2
     assert start_calls == ["runner", "web"]
@@ -119,7 +119,7 @@ def test_restart_stops_all_before_starting_and_aborts_on_failure(
     monkeypatch.setattr(cli, "start_service", fake_start)
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
 
-    code = cli.main(["restart"])
+    code = cli.main(["restart", "--json"])
 
     assert code == 2
     assert stop_calls == ["runner", "web"]
