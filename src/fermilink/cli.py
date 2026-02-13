@@ -65,9 +65,6 @@ COMPILE_PROMPT_3 = (
     "for ai agents to optimally use this package for advanced scientific simulations or "
     "computing, and please enrich the skills/ folder if not."
 )
-SUPPRESSED_COMPILE_OUTPUT_MARKERS = (
-    "codex_core::rollout::list: state db missing rollout path for thread",
-)
 EXEC_ROUTER_ENABLED = (
     os.getenv("CHAINLIT_PACKAGE_ROUTER_ENABLED", "true").strip().lower()
     in {"1", "true", "yes", "on"}
@@ -214,31 +211,6 @@ def _bootstrap_line(payload: object) -> str | None:
 
 def _resolve_compile_tool_source() -> Path:
     return Path(__file__).resolve().parent / "tools" / "sci-skills-generator"
-
-
-def _should_suppress_compile_output_line(text: str) -> bool:
-    lowered = (text or "").strip().lower()
-    if not lowered:
-        return False
-    for marker in SUPPRESSED_COMPILE_OUTPUT_MARKERS:
-        if marker in lowered:
-            return True
-    return False
-
-
-def _emit_compile_process_output(completed: object) -> None:
-    stdout_text = getattr(completed, "stdout", "")
-    stderr_text = getattr(completed, "stderr", "")
-    if isinstance(stdout_text, str) and stdout_text:
-        for line in stdout_text.splitlines():
-            if _should_suppress_compile_output_line(line):
-                continue
-            print(line)
-    if isinstance(stderr_text, str) and stderr_text:
-        for line in stderr_text.splitlines():
-            if _should_suppress_compile_output_line(line):
-                continue
-            print(line, file=sys.stderr)
 
 
 @functools.lru_cache(maxsize=1)
@@ -598,8 +570,6 @@ def _stream_exec_process_output(process: subprocess.Popen[str]) -> int:
             return
         for line in iter(stream.readline, ""):
             text = line.rstrip("\n")
-            if _should_suppress_compile_output_line(text):
-                continue
             print(text, file=sys.stderr if is_stderr else sys.stdout, flush=True)
         stream.close()
 
@@ -762,18 +732,11 @@ def _run_codex_compile_pass(
 
     print(f"[compile] pass {pass_index}/{total_passes}: codex exec")
     try:
-        completed = subprocess.run(
-            cmd,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        completed = subprocess.run(cmd, check=False)
     except FileNotFoundError as exc:
         raise PackageError(
             f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
         ) from exc
-
-    _emit_compile_process_output(completed)
 
     if completed.returncode != 0:
         raise PackageError(
