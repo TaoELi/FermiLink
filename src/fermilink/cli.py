@@ -284,7 +284,15 @@ def _resolve_compile_tool_source() -> Path:
 def _load_web_router_module():
     # CLI exec/chat only need routing helpers; avoid web-only filesystem setup.
     os.environ.setdefault(WEB_ROUTER_ONLY_IMPORT_ENV, "1")
-    return importlib.import_module("fermilink.web.app")
+    # Some HPC systems export PROJECT as a filesystem path (e.g. /anvil/projects/...).
+    # Chainlit parses PROJECT for a structured settings field named "project",
+    # which can raise pydantic SettingsError during import when the value is not JSON.
+    saved_project = os.environ.pop("PROJECT", None)
+    try:
+        return importlib.import_module("fermilink.web.app")
+    finally:
+        if saved_project is not None:
+            os.environ["PROJECT"] = saved_project
 
 
 @functools.lru_cache(maxsize=1)
