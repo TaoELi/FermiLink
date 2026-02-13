@@ -224,6 +224,44 @@ def test_exec_parser_supports_package_pin_and_git_flags() -> None:
     assert args.sandbox == "read-only"
 
 
+def test_exec_accepts_prompt_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "prompt.md").write_text("simulate one cavity", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scipkg")
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "maxwelllink",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        cli,
+        "_run_exec_codex_prompt",
+        lambda **kwargs: captured.update(kwargs) or 0,
+    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    code = cli.main(["exec", "prompt.md"])
+    assert code == 0
+    assert captured["prompt"] == "simulate one cavity"
+
+
 def test_run_exec_codex_prompt_uses_runner_sanitized_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

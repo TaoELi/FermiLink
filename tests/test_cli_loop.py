@@ -144,10 +144,10 @@ def test_loop_parser_supports_package_pin_and_git_flags() -> None:
     assert args.wait_seconds == 0.0
 
 
-def test_resolve_loop_user_prompt_accepts_long_single_token_text() -> None:
+def test_resolve_exec_like_user_prompt_accepts_long_single_token_text() -> None:
     long_prompt = "x" * 5000
-    text, prompt_file = cli._resolve_loop_user_prompt(
-        cli.argparse.Namespace(prompt=[long_prompt])
+    text, prompt_file = cli._resolve_exec_like_user_prompt(
+        cli.argparse.Namespace(prompt=[long_prompt], command="loop")
     )
     assert text == long_prompt
     assert prompt_file is None

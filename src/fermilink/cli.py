@@ -131,6 +131,7 @@ LOOP_PROMPT_PREFIX = (
     "4) Update `projects/memory.md`:\n"
     "   - Check off the completed step.\n"
     "   - Append a short progress log entry (what changed + files touched).\n"
+    "   - Append a short pending simulation log entry if you have submitted a long-running job, including job id and expected duration.\n"
     "   - Append a short additional notes log entry for the pitfalls you have avoided or key problems encountered.\n"
     "\n"
     f"When (and only when) ALL steps are complete and the request is satisfied, output exactly:\n"
@@ -1230,10 +1231,11 @@ def _resolve_project_path(raw_path: str) -> Path:
     return path
 
 
-def _resolve_loop_user_prompt(args: argparse.Namespace) -> tuple[str, str | None]:
+def _resolve_exec_like_user_prompt(args: argparse.Namespace) -> tuple[str, str | None]:
     prompt_tokens = getattr(args, "prompt", None)
+    command_name = str(getattr(args, "command", "command"))
     if not isinstance(prompt_tokens, list) or not prompt_tokens:
-        raise PackageError("Prompt is required for fermilink loop.")
+        raise PackageError(f"Prompt is required for fermilink {command_name}.")
 
     if len(prompt_tokens) == 1:
         candidate_path = Path(str(prompt_tokens[0])).expanduser()
@@ -1256,7 +1258,7 @@ def _resolve_loop_user_prompt(args: argparse.Namespace) -> tuple[str, str | None
 
     text = " ".join(str(token) for token in prompt_tokens).strip()
     if not text:
-        raise PackageError("Prompt is required for fermilink loop.")
+        raise PackageError(f"Prompt is required for fermilink {command_name}.")
     return text, None
 
 
@@ -1313,7 +1315,7 @@ def _cmd_loop(args: argparse.Namespace) -> int:
     # Best-effort cleanup from previously interrupted overlays.
     _cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
 
-    user_prompt, prompt_file = _resolve_loop_user_prompt(args)
+    user_prompt, prompt_file = _resolve_exec_like_user_prompt(args)
     memory_path = _ensure_loop_memory(
         repo_dir=repo_dir,
         user_prompt=user_prompt,
@@ -1430,9 +1432,7 @@ def _cmd_loop(args: argparse.Namespace) -> int:
 
 
 def _cmd_exec(args: argparse.Namespace) -> int:
-    prompt = " ".join(args.prompt).strip()
-    if not prompt:
-        raise PackageError("Prompt is required for fermilink exec.")
+    prompt, _ = _resolve_exec_like_user_prompt(args)
 
     repo_dir = Path.cwd().resolve()
     _ensure_exec_repo_ready(repo_dir, args)
@@ -2261,7 +2261,10 @@ def _build_parser() -> argparse.ArgumentParser:
     exec_parser.add_argument(
         "prompt",
         nargs="+",
-        help="Prompt text to run via codex.",
+        help=(
+            "Either prompt text, or a path to a markdown/text file containing "
+            "the prompt (e.g. prompt.md)."
+        ),
     )
     exec_parser.add_argument(
         "--package",

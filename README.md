@@ -71,6 +71,9 @@ repository:
 
 ```bash
 fermilink exec "run a single-mode cavity coupled to a weakly excited two-level system"
+
+# Or provide prompt from a file
+fermilink exec prompt.md
 ```
 
 What `exec` does:
