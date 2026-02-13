@@ -34,6 +34,8 @@ from fermilink.services import (
 
 
 DEFAULT_MAX_ZIP_BYTES = int(os.getenv("SCIPKG_MAX_ZIP_BYTES", str(800 * 1024 * 1024)))
+DEFAULT_BOOTSTRAP_PACKAGE_ID = "maxwelllink"
+DEFAULT_BOOTSTRAP_CHANNEL = "tel-research-group"
 
 
 def _print_json(payload: dict) -> None:
@@ -217,6 +219,68 @@ def _resolve_specs(component_names: list[str] | None) -> tuple[list[str], dict[s
     return names, specs
 
 
+def _installed_package_count(registry: dict[str, object]) -> int:
+    packages = registry.get("packages")
+    if isinstance(packages, dict):
+        return len(packages)
+    return 0
+
+
+def _ensure_bootstrap_package_for_services() -> dict[str, object]:
+    """Ensure at least one scientific package exists before service startup."""
+
+    scipkg_root = resolve_scipkg_root()
+    registry = load_registry(scipkg_root)
+    package_count = _installed_package_count(registry)
+
+    if package_count > 0:
+        return {
+            "status": "skipped",
+            "reason": "packages_present",
+            "package_count": package_count,
+            "scipkg_root": str(scipkg_root),
+        }
+
+    warning = (
+        "No scientific package is installed yet. "
+        "Auto-installing maxwelllink and activating it."
+    )
+    print(f"[warning] {warning}", file=sys.stderr)
+
+    channel = normalize_channel_id(DEFAULT_BOOTSTRAP_CHANNEL)
+    try:
+        curated = resolve_curated_package(DEFAULT_BOOTSTRAP_PACKAGE_ID, channel=channel)
+        installed = install_from_zip(
+            scipkg_root,
+            DEFAULT_BOOTSTRAP_PACKAGE_ID,
+            zip_url=curated.zip_url,
+            title=curated.title,
+            activate=True,
+            force=False,
+            max_zip_bytes=DEFAULT_MAX_ZIP_BYTES,
+        )
+        router_sync = sync_router_rules(scipkg_root)
+    except Exception as exc:  # pragma: no cover - defensive fail-open branch
+        return {
+            "status": "failed",
+            "warning": warning,
+            "error": str(exc),
+            "package_id": DEFAULT_BOOTSTRAP_PACKAGE_ID,
+            "channel": channel,
+            "scipkg_root": str(scipkg_root),
+        }
+
+    return {
+        "status": "installed",
+        "warning": warning,
+        "package_id": DEFAULT_BOOTSTRAP_PACKAGE_ID,
+        "channel": channel,
+        "installed": installed,
+        "router_sync": router_sync,
+        "scipkg_root": str(scipkg_root),
+    }
+
+
 def _is_start_result_failed(result: dict[str, object]) -> bool:
     status = result.get("status")
     if status in {"port_in_use", "failed_to_start", "error"}:
@@ -253,10 +317,12 @@ def _start_sequence(
 def _cmd_start(args: argparse.Namespace) -> int:
     runtime_root = resolve_runtime_root()
     names, specs = _resolve_specs(args.components)
+    bootstrap = _ensure_bootstrap_package_for_services()
 
     results, rollback, failed = _start_sequence(runtime_root, names, specs)
     payload: dict[str, object] = {
         "runtime_root": str(runtime_root),
+        "bootstrap": bootstrap,
         "results": results,
     }
     if rollback:
@@ -280,6 +346,7 @@ def _cmd_stop(args: argparse.Namespace) -> int:
 def _cmd_restart(args: argparse.Namespace) -> int:
     runtime_root = resolve_runtime_root()
     names, specs = _resolve_specs(args.components)
+    bootstrap = _ensure_bootstrap_package_for_services()
 
     stop_results = []
     for name in names:
@@ -288,6 +355,7 @@ def _cmd_restart(args: argparse.Namespace) -> int:
     start_results, rollback, failed = _start_sequence(runtime_root, names, specs)
     payload: dict[str, object] = {
         "runtime_root": str(runtime_root),
+        "bootstrap": bootstrap,
         "stopped": stop_results,
         "started": start_results,
     }
@@ -332,6 +400,7 @@ def _build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument("--title", help="Display title for package metadata.")
     install_parser.add_argument(
         "--activate",
+        "--active",
         action="store_true",
         help="Activate package for new sessions after install.",
     )

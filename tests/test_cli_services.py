@@ -16,6 +16,11 @@ def test_start_aborts_after_first_failed_component(
 
     monkeypatch.setattr(cli, "resolve_runtime_root", lambda: runtime_root)
     monkeypatch.setattr(cli, "_resolve_specs", lambda _components: (names, specs))
+    monkeypatch.setattr(
+        cli,
+        "_ensure_bootstrap_package_for_services",
+        lambda: {"status": "skipped", "reason": "test"},
+    )
 
     def fake_start(_runtime_root: Path, spec: object) -> dict[str, object]:
         service = "runner" if spec is specs["runner"] else "web"
@@ -50,6 +55,11 @@ def test_start_rolls_back_started_components_on_later_failure(
 
     monkeypatch.setattr(cli, "resolve_runtime_root", lambda: runtime_root)
     monkeypatch.setattr(cli, "_resolve_specs", lambda _components: (names, specs))
+    monkeypatch.setattr(
+        cli,
+        "_ensure_bootstrap_package_for_services",
+        lambda: {"status": "skipped", "reason": "test"},
+    )
 
     def fake_start(_runtime_root: Path, spec: object) -> dict[str, object]:
         service = "runner" if spec is specs["runner"] else "web"
@@ -88,6 +98,11 @@ def test_restart_stops_all_before_starting_and_aborts_on_failure(
 
     monkeypatch.setattr(cli, "resolve_runtime_root", lambda: runtime_root)
     monkeypatch.setattr(cli, "_resolve_specs", lambda _components: (names, specs))
+    monkeypatch.setattr(
+        cli,
+        "_ensure_bootstrap_package_for_services",
+        lambda: {"status": "skipped", "reason": "test"},
+    )
 
     def fake_stop(_runtime_root: Path, service: str) -> dict[str, object]:
         stop_calls.append(service)

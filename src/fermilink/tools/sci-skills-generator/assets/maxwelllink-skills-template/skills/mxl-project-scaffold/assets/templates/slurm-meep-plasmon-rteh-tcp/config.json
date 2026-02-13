@@ -1,0 +1,50 @@
+{
+  "template_id": "slurm-meep-plasmon-rteh-tcp",
+  "host_port_file": "tcp_host_port_info.txt",
+  "run": {
+    "include_dielectric": true,
+    "include_molecules": true,
+    "until": 60.0,
+    "nmol": 256,
+    "lattice_a_um": 2.79,
+    "rod_radius_fraction": 0.4,
+    "theta_deg": 0.0,
+    "save_molecule_npz": true
+  },
+  "units": {
+    "time_units_fs": 3.33564
+  },
+  "meep": {
+    "resolution": 40,
+    "tabs_um": 5.0,
+    "tair_um": 4.0,
+    "h_um": 0.2,
+    "tmet_um": 0.3,
+    "tsub_um": 2.0,
+    "wavelength_min_um": 2.0,
+    "wavelength_max_um": 5.0,
+    "source_amplitude": 50000.0
+  },
+  "molecule": {
+    "cube_length_um": 0.25,
+    "sigma_fraction": 0.1,
+    "dimensions": 3,
+    "rescaling_factor": 1.0
+  },
+  "rtehrenfest": {
+    "molecule_xyz": "HCN_benchmark/hcn.xyz",
+    "functional": "b3lyp",
+    "dft_grid_name": "SG1",
+    "basis": "cc-pvdz",
+    "dt_rttddft_au": 0.04788,
+    "memory": "2GB",
+    "num_threads": 1,
+    "n_fock_per_nuc": 6,
+    "n_elec_per_fock": 6
+  },
+  "driver_launch": {
+    "clients_per_job": 128,
+    "wait_timeout_s": 180
+  }
+}
+

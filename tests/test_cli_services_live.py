@@ -19,6 +19,11 @@ def test_cli_start_restart_stop_with_real_processes(
     monkeypatch.setenv("CHAINLIT_APP_ROOT", str(fermilink_home))
     monkeypatch.setenv("FERMILINK_RUNNER_CMD", sleep_cmd)
     monkeypatch.setenv("FERMILINK_WEB_CMD", sleep_cmd)
+    monkeypatch.setattr(
+        cli,
+        "_ensure_bootstrap_package_for_services",
+        lambda: {"status": "skipped", "reason": "test"},
+    )
 
     captured_payloads: list[dict[str, object]] = []
     monkeypatch.setattr(cli, "_print_json", lambda payload: captured_payloads.append(payload))

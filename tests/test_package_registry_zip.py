@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import shutil
 import zipfile
 from pathlib import Path
@@ -11,8 +12,9 @@ from fermilink.package_registry import PackageError, install_from_zip, load_regi
 
 
 class _FakeResponse:
-    def __init__(self, chunks: list[bytes]) -> None:
+    def __init__(self, chunks: list[bytes], *, headers: dict[str, str] | None = None) -> None:
         self._chunks = list(chunks)
+        self.headers = headers or {}
 
     def read(self, _size: int = -1) -> bytes:
         if not self._chunks:
@@ -25,6 +27,11 @@ class _FakeResponse:
     def __exit__(self, exc_type, exc, tb) -> bool:
         _ = (exc_type, exc, tb)
         return False
+
+
+class _TTYBuffer(io.StringIO):
+    def isatty(self) -> bool:
+        return True
 
 
 def test_download_zip_enforces_max_size(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -42,6 +49,87 @@ def test_download_zip_enforces_max_size(monkeypatch: pytest.MonkeyPatch, tmp_pat
             destination,
             max_bytes=5,
         )
+
+
+def test_download_zip_shows_progress_bar_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "package.zip"
+    stderr_buffer = _TTYBuffer()
+
+    monkeypatch.setenv("FERMILINK_PROGRESS", "1")
+    monkeypatch.delenv("FERMILINK_NO_PROGRESS", raising=False)
+    monkeypatch.setattr(
+        package_registry.urllib.request,
+        "urlopen",
+        lambda _req: _FakeResponse(
+            [b"12345", b"67890", b""],
+            headers={"Content-Length": "10"},
+        ),
+    )
+    monkeypatch.setattr(package_registry.sys, "stderr", stderr_buffer)
+
+    written = package_registry._download_zip(
+        "https://example.invalid/package.zip",
+        destination,
+        max_bytes=100,
+    )
+    assert written == 10
+    output = stderr_buffer.getvalue()
+    assert "Downloading [" in output
+    assert "100.00%" in output
+    assert output.endswith("\n")
+
+
+def test_download_zip_hides_progress_bar_when_disabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "package.zip"
+    stderr_buffer = _TTYBuffer()
+
+    monkeypatch.setenv("FERMILINK_PROGRESS", "1")
+    monkeypatch.setenv("FERMILINK_NO_PROGRESS", "1")
+    monkeypatch.setattr(
+        package_registry.urllib.request,
+        "urlopen",
+        lambda _req: _FakeResponse([b"abc", b""]),
+    )
+    monkeypatch.setattr(package_registry.sys, "stderr", stderr_buffer)
+
+    written = package_registry._download_zip(
+        "https://example.invalid/package.zip",
+        destination,
+        max_bytes=100,
+    )
+    assert written == 3
+    assert stderr_buffer.getvalue() == ""
+
+
+def test_download_zip_shows_running_dots_when_content_length_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "package.zip"
+    stderr_buffer = _TTYBuffer()
+
+    monkeypatch.setenv("FERMILINK_PROGRESS", "1")
+    monkeypatch.delenv("FERMILINK_NO_PROGRESS", raising=False)
+    monkeypatch.setattr(
+        package_registry.urllib.request,
+        "urlopen",
+        lambda _req: _FakeResponse([b"abcdef", b""]),
+    )
+    monkeypatch.setattr(package_registry.sys, "stderr", stderr_buffer)
+
+    written = package_registry._download_zip(
+        "https://example.invalid/package.zip",
+        destination,
+        max_bytes=100,
+    )
+    assert written == 6
+    output = stderr_buffer.getvalue()
+    assert "Downloading." in output
+    assert "[" not in output
+    assert output.endswith("\n")
 
 
 def test_safe_extract_zip_rejects_unsafe_paths(tmp_path: Path) -> None:

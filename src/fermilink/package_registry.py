@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from datetime import datetime, timezone
@@ -30,6 +32,10 @@ SKIP_ENTRY_NAMES = {
 TEMPLATE_RESERVED_ENTRY_NAMES = {"agents.md"}
 REMOVED_INSTRUCTION_FILENAMES = {"agents.md", "claude.md"}
 REMOVED_ROOT_DIRECTORIES = {"projects"}
+PROGRESS_REFRESH_SECONDS = 0.1
+PROGRESS_BAR_WIDTH = 24
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+PROGRESS_DOT_FRAMES = (".  ", ".. ", "...")
 
 
 class PackageError(RuntimeError):
@@ -433,6 +439,60 @@ def set_package_dependency_ids(
 
 
 def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
+    def _truthy_env(name: str) -> bool:
+        raw = os.getenv(name)
+        if not isinstance(raw, str):
+            return False
+        return raw.strip().lower() in TRUTHY_ENV_VALUES
+
+    def _should_show_progress() -> bool:
+        if _truthy_env("FERMILINK_NO_PROGRESS"):
+            return False
+        if _truthy_env("FERMILINK_PROGRESS"):
+            return True
+        try:
+            return bool(sys.stderr.isatty())
+        except Exception:
+            return False
+
+    def _format_size(value: int) -> str:
+        units = ("B", "KB", "MB", "GB", "TB")
+        size = float(max(0, value))
+        for unit in units:
+            if size < 1024.0 or unit == units[-1]:
+                if unit == "B":
+                    return f"{int(size)} {unit}"
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{int(size)} B"
+
+    def _render_progress(downloaded: int, total_bytes: int | None, started_at: float) -> str:
+        elapsed = max(time.monotonic() - started_at, 1e-6)
+        speed = int(downloaded / elapsed)
+        speed_text = f"{_format_size(speed)}/s"
+        downloaded_text = _format_size(downloaded)
+        if isinstance(total_bytes, int) and total_bytes > 0:
+            progress = min(downloaded / total_bytes, 1.0)
+            filled = int(progress * PROGRESS_BAR_WIDTH)
+            bar = ("#" * filled) + ("-" * max(0, PROGRESS_BAR_WIDTH - filled))
+            total_text = _format_size(total_bytes)
+            return (
+                f"Downloading [{bar}] {progress * 100:6.2f}% "
+                f"{downloaded_text}/{total_text} {speed_text}"
+            )
+        dot_index = int(elapsed / 0.25) % len(PROGRESS_DOT_FRAMES)
+        dots = PROGRESS_DOT_FRAMES[dot_index]
+        return f"Downloading{dots} {downloaded_text} {speed_text}"
+
+    def _write_progress_line(line: str, *, previous_length: int) -> int:
+        padding = " " * max(0, previous_length - len(line))
+        sys.stderr.write("\r")
+        sys.stderr.write(line)
+        if padding:
+            sys.stderr.write(padding)
+        sys.stderr.flush()
+        return len(line)
+
     req = urllib.request.Request(
         url,
         headers={
@@ -441,15 +501,62 @@ def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
         },
     )
     total = 0
+    show_progress = _should_show_progress()
+    progress_length = 0
+    progress_rendered = False
+    started_at = time.monotonic()
+    last_progress_emit = 0.0
     with urllib.request.urlopen(req) as response, destination.open("wb") as handle:
-        while True:
-            chunk = response.read(1024 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if max_bytes > 0 and total > max_bytes:
-                raise PackageError(f"Zip download exceeded max size {max_bytes} bytes.")
-            handle.write(chunk)
+        total_bytes: int | None = None
+        headers = getattr(response, "headers", None)
+        if headers is not None and hasattr(headers, "get"):
+            raw = headers.get("Content-Length")
+            if isinstance(raw, str):
+                raw = raw.strip()
+                if raw:
+                    try:
+                        parsed = int(raw)
+                    except ValueError:
+                        parsed = 0
+                    if parsed > 0:
+                        total_bytes = parsed
+        try:
+            if show_progress:
+                progress_length = _write_progress_line(
+                    _render_progress(0, total_bytes, started_at),
+                    previous_length=progress_length,
+                )
+                progress_rendered = True
+
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if max_bytes > 0 and total > max_bytes:
+                    raise PackageError(f"Zip download exceeded max size {max_bytes} bytes.")
+                handle.write(chunk)
+
+                if show_progress:
+                    now = time.monotonic()
+                    if now - last_progress_emit >= PROGRESS_REFRESH_SECONDS:
+                        progress_length = _write_progress_line(
+                            _render_progress(total, total_bytes, started_at),
+                            previous_length=progress_length,
+                        )
+                        progress_rendered = True
+                        last_progress_emit = now
+
+            if show_progress:
+                progress_length = _write_progress_line(
+                    _render_progress(total, total_bytes, started_at),
+                    previous_length=progress_length,
+                )
+                progress_rendered = True
+        finally:
+            if show_progress and progress_rendered:
+                sys.stderr.write("\n")
+                sys.stderr.flush()
     return total
 
 
