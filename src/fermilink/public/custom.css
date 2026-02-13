@@ -1,0 +1,795 @@
+:root,
+:host,
+body,
+.cl-root {
+  --primary: 199 95% 74% !important;
+  --primary-foreground: 0 0% 100% !important;
+  --ring: 199 95% 74% !important;
+  --destructive: 199 95% 74% !important;
+  --destructive-foreground: 0 0% 100% !important;
+  --sidebar-primary: 199 95% 74% !important;
+  --sidebar-primary-foreground: 0 0% 100% !important;
+  --sidebar-ring: 199 95% 74% !important;
+}
+
+.dark,
+.dark :host,
+.dark body,
+.dark .cl-root {
+  --primary: 199 95% 74% !important;
+  --primary-foreground: 0 0% 100% !important;
+  --ring: 199 95% 74% !important;
+  --destructive: 199 95% 74% !important;
+  --destructive-foreground: 0 0% 100% !important;
+  --sidebar-primary: 199 95% 74% !important;
+  --sidebar-primary-foreground: 0 0% 100% !important;
+  --sidebar-ring: 199 95% 74% !important;
+}
+
+html.cl-chat-active img.logo,
+html.cl-chat-active img[alt="logo"] {
+  display: none !important;
+}
+
+html.cl-login-active,
+html.cl-login-active body {
+  min-height: 100%;
+  background:
+    radial-gradient(
+      88% 120% at -4% -8%,
+      rgba(59, 130, 246, 0.16) 0%,
+      rgba(59, 130, 246, 0.04) 50%,
+      rgba(59, 130, 246, 0) 72%
+    ),
+    radial-gradient(
+      78% 105% at 104% 108%,
+      rgba(45, 212, 191, 0.12) 0%,
+      rgba(45, 212, 191, 0.03) 48%,
+      rgba(45, 212, 191, 0) 70%
+    ),
+    linear-gradient(154deg, #0a1322 0%, #101c2d 52%, #0f1828 100%);
+  background-color: #0a1322;
+}
+
+html.cl-login-active body {
+  color: #dbe6f5;
+}
+
+html.cl-login-active .cl-login-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  overflow: hidden;
+  grid-template-columns: 1fr;
+}
+
+html.cl-login-active .cl-login-shell::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(148, 163, 184, 0.07) 0 1px,
+      transparent 1px 38px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(148, 163, 184, 0.07) 0 1px,
+      transparent 1px 38px
+    );
+  opacity: 0.2;
+  transform: rotate(-6deg);
+  animation: cl-login-grid-pan 36s linear infinite;
+  z-index: 0;
+}
+
+html.cl-login-active .cl-login-shell::after {
+  content: "";
+  position: absolute;
+  inset: clamp(10px, 2vw, 26px);
+  border: 1px solid rgba(148, 163, 184, 0.17);
+  border-radius: clamp(12px, 2vw, 20px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+html.cl-login-active .cl-login-shell.cl-login-shell-solo {
+  grid-template-columns: 1fr;
+}
+
+html.cl-login-active .cl-login-panel {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 14, 24, 0.82) 0%,
+    rgba(9, 16, 29, 0.84) 100%
+  );
+}
+
+html.cl-login-active .cl-login-brand-strip {
+  align-items: center;
+}
+
+html.cl-login-active img.logo,
+html.cl-login-active img[alt="logo"] {
+  content: url("/public/fermilink_wordmark.svg") !important;
+  width: clamp(190px, 19vw, 238px) !important;
+  height: auto !important;
+  max-width: 100%;
+}
+
+html.cl-login-active .cl-login-form-shell {
+  width: min(460px, 100%) !important;
+  max-width: min(460px, 100%) !important;
+}
+
+html.cl-login-active .cl-login-subtitle {
+  margin: 0 0 1rem;
+  color: rgba(214, 226, 244, 0.84);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+html.cl-login-active .cl-login-form {
+  padding: clamp(1.15rem, 1.5vw + 0.75rem, 1.85rem);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: linear-gradient(
+    180deg,
+    rgba(11, 18, 31, 0.8) 0%,
+    rgba(8, 14, 25, 0.9) 100%
+  );
+  box-shadow:
+    0 18px 44px rgba(2, 6, 23, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  gap: 0.95rem !important;
+}
+
+html.cl-login-active .cl-login-form h1,
+html.cl-login-active .cl-login-hero-content h2 {
+  font-family: "IBM Plex Serif", "Georgia", "Times New Roman", serif;
+  letter-spacing: 0.01em;
+}
+
+html.cl-login-active .cl-login-form h1 {
+  font-size: clamp(1.23rem, 1vw + 1rem, 1.58rem);
+  color: #edf4ff;
+  line-height: 1.2;
+}
+
+html.cl-login-active .cl-login-form label {
+  color: rgba(220, 233, 249, 0.95);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+html.cl-login-active .cl-login-form input {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.29);
+  background: rgba(7, 12, 22, 0.85);
+  color: #e2ecf9;
+}
+
+html.cl-login-active .cl-login-form input::placeholder {
+  color: rgba(160, 174, 196, 0.8);
+}
+
+html.cl-login-active .cl-login-form input:focus,
+html.cl-login-active .cl-login-form input:focus-visible {
+  border-color: rgba(96, 165, 250, 0.92);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  outline: none;
+}
+
+html.cl-login-active .cl-login-form button[type="submit"] {
+  border-radius: 10px;
+  border: 1px solid #7dd3fc;
+  background: #7dd3fc;
+  color: #0b2538;
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
+}
+
+html.cl-login-active .cl-login-form button[type="submit"]:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+html.cl-login-active .cl-login-form .relative button[type="button"] {
+  color: rgba(210, 226, 244, 0.88);
+}
+
+html.cl-login-active .cl-login-signup-row {
+  margin-top: 0.55rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+}
+
+html.cl-login-active .cl-login-signup-or {
+  margin: 0;
+  color: rgba(203, 217, 236, 0.86);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+html.cl-login-active .cl-login-signup-note {
+  margin: 0;
+  color: rgba(203, 217, 236, 0.86);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+html.cl-login-active .cl-login-form button.cl-login-signup-button {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  background: rgba(10, 18, 31, 0.7);
+  color: rgba(224, 234, 248, 0.95);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+html.cl-login-active .cl-login-form button.cl-login-signup-button:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+html.cl-login-active .cl-login-form button.cl-login-signup-button:hover {
+  border-color: rgba(148, 163, 184, 0.52);
+  background: rgba(12, 22, 37, 0.82);
+}
+
+html.cl-login-active .cl-login-form button.cl-login-signup-launch-button {
+  border-color: hsl(var(--primary) / 0.82);
+  min-width: 10.5rem;
+  padding-left: 1.35rem;
+  padding-right: 1.35rem;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.3) 0%,
+    hsl(var(--primary) / 0.16) 100%
+  );
+  color: hsl(var(--primary));
+  box-shadow:
+    inset 0 1px 0 hsl(var(--primary-foreground) / 0.24),
+    0 8px 18px hsl(var(--primary) / 0.22);
+}
+
+html.cl-login-active .cl-login-form button.cl-login-signup-launch-button:hover {
+  border-color: hsl(var(--primary));
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.4) 0%,
+    hsl(var(--primary) / 0.24) 100%
+  );
+  transform: translateY(-1px);
+}
+
+html.cl-login-active .cl-signup-view {
+  margin-top: 0;
+}
+
+html.cl-login-active .cl-signup-view[hidden] {
+  display: none !important;
+}
+
+html.cl-login-active .cl-signup-policy {
+  margin: 0 0 0.35rem;
+  color: rgba(214, 226, 244, 0.84);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.48;
+}
+
+html.cl-login-active .cl-signup-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+html.cl-login-active .cl-signup-field {
+  display: grid;
+  gap: 0.36rem;
+}
+
+html.cl-login-active .cl-signup-actions {
+  margin-top: 0.15rem;
+  display: grid;
+  gap: 0.56rem;
+}
+
+html.cl-login-active .cl-signup-status {
+  margin: 0;
+  min-height: 1.35rem;
+  color: rgba(203, 217, 236, 0.9);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+html.cl-login-active .cl-signup-status[data-kind="error"] {
+  color: #fda4af;
+}
+
+html.cl-login-active .cl-signup-status[data-kind="success"] {
+  color: #86efac;
+}
+
+html.cl-login-active .cl-login-hero {
+  position: relative;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2.1rem, 3.8vw, 3.5rem);
+  background:
+    radial-gradient(
+      80% 85% at 18% 22%,
+      rgba(59, 130, 246, 0.1) 0%,
+      rgba(59, 130, 246, 0) 60%
+    ),
+    radial-gradient(
+      70% 70% at 84% 82%,
+      rgba(56, 189, 248, 0.08) 0%,
+      rgba(45, 212, 191, 0) 60%
+    ),
+    linear-gradient(160deg, rgba(10, 16, 28, 0.92) 0%, rgba(12, 21, 35, 0.9) 100%);
+  z-index: 2;
+}
+
+html.cl-login-active .cl-login-hero-image,
+html.cl-login-active .login-page-image img,
+html.cl-login-active img[alt="Image"] {
+  display: none !important;
+}
+
+html.cl-login-active .cl-login-hero-content {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: 1rem;
+  align-content: center;
+  width: min(580px, 100%);
+  padding: clamp(1.7rem, 2.3vw, 2.5rem);
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 14, 25, 0.75) 0%,
+    rgba(8, 14, 25, 0.64) 100%
+  );
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.26);
+  backdrop-filter: blur(2px);
+}
+
+html.cl-login-active .cl-login-hero-content h2 {
+  margin: 0;
+  color: #eff5ff;
+  font-size: clamp(1.8rem, 1.7vw + 1.05rem, 2.5rem);
+  line-height: 1.16;
+  max-width: 18ch;
+}
+
+html.cl-login-active .cl-login-hero-description {
+  margin: 0;
+  color: rgba(212, 225, 242, 0.84);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  line-height: 1.52;
+  font-size: 0.97rem;
+  max-width: 54ch;
+}
+
+html.cl-login-active .cl-login-feature-list {
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.78rem;
+}
+
+html.cl-login-active .cl-login-feature-list li {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.56rem 0 0.68rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+html.cl-login-active .cl-login-feature-list li:last-child {
+  border-bottom: 0;
+}
+
+html.cl-login-active .cl-login-feature-title {
+  color: rgba(233, 241, 252, 0.97);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.32;
+}
+
+html.cl-login-active .cl-login-feature-detail {
+  color: rgba(194, 210, 230, 0.9);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.42;
+}
+
+html.cl-login-active.cl-login-theme-light,
+html.cl-login-active.cl-login-theme-light body {
+  background:
+    radial-gradient(
+      85% 110% at -2% -14%,
+      rgba(41, 98, 255, 0.18) 0%,
+      rgba(41, 98, 255, 0.05) 45%,
+      rgba(41, 98, 255, 0) 72%
+    ),
+    radial-gradient(
+      75% 95% at 104% 106%,
+      rgba(6, 151, 167, 0.15) 0%,
+      rgba(6, 151, 167, 0.04) 42%,
+      rgba(6, 151, 167, 0) 70%
+    ),
+    linear-gradient(160deg, #ffffff 0%, #f8f9fb 46%, #f0f3f8 100%);
+  background-color: #f8f9fb;
+}
+
+html.cl-login-active.cl-login-theme-light body {
+  color: #3f4550;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-shell::before {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(104, 118, 141, 0.1) 0 1px,
+      transparent 1px 38px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(104, 118, 141, 0.1) 0 1px,
+      transparent 1px 38px
+    );
+  opacity: 0.26;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-shell::after {
+  border-color: rgba(104, 118, 141, 0.25);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-panel {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(248, 249, 251, 0.86) 100%
+  );
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-subtitle {
+  color: rgba(63, 69, 80, 0.82);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form {
+  border-color: rgba(104, 118, 141, 0.3);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(248, 249, 251, 0.92) 100%
+  );
+  box-shadow:
+    0 22px 44px rgba(79, 97, 124, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form h1 {
+  color: #232831;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form label {
+  color: rgba(60, 76, 102, 0.88);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form input {
+  border-color: rgba(104, 118, 141, 0.36);
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2735;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form input::placeholder {
+  color: rgba(104, 118, 141, 0.9);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form input:focus,
+html.cl-login-active.cl-login-theme-light .cl-login-form input:focus-visible {
+  border-color: rgba(41, 98, 255, 0.9);
+  box-shadow: 0 0 0 3px rgba(41, 98, 255, 0.2);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form button[type="submit"] {
+  border-color: #7dd3fc;
+  background: #7dd3fc;
+  color: #0b2538;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form button[type="submit"]:hover {
+  filter: brightness(1.05);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form .relative button[type="button"] {
+  color: rgba(60, 76, 102, 0.8);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-signup-note {
+  color: rgba(67, 82, 106, 0.86);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-signup-or {
+  color: rgba(67, 82, 106, 0.84);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-form button.cl-login-signup-button {
+  border-color: rgba(104, 118, 141, 0.35);
+  background: rgba(246, 248, 251, 0.95);
+  color: rgba(42, 52, 66, 0.9);
+}
+
+html.cl-login-active.cl-login-theme-light
+  .cl-login-form
+  button.cl-login-signup-button:hover {
+  border-color: rgba(104, 118, 141, 0.52);
+  background: rgba(238, 243, 249, 0.95);
+}
+
+html.cl-login-active.cl-login-theme-light
+  .cl-login-form
+  button.cl-login-signup-launch-button {
+  border-color: hsl(var(--primary) / 0.82);
+  min-width: 10.5rem;
+  padding-left: 1.35rem;
+  padding-right: 1.35rem;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.24) 0%,
+    hsl(var(--primary) / 0.14) 100%
+  );
+  color: #0b2538;
+  box-shadow:
+    inset 0 1px 0 hsl(var(--primary-foreground) / 0.72),
+    0 8px 16px hsl(var(--primary) / 0.16);
+}
+
+html.cl-login-active.cl-login-theme-light
+  .cl-login-form
+  button.cl-login-signup-launch-button:hover {
+  border-color: hsl(var(--primary));
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.34) 0%,
+    hsl(var(--primary) / 0.22) 100%
+  );
+}
+
+html.cl-login-active.cl-login-theme-light .cl-signup-policy {
+  color: rgba(67, 82, 106, 0.88);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-signup-status {
+  color: rgba(67, 82, 106, 0.88);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-signup-status[data-kind="error"] {
+  color: #b91c1c;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-signup-status[data-kind="success"] {
+  color: #166534;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-hero {
+  background:
+    radial-gradient(
+      84% 88% at 16% 20%,
+      rgba(41, 98, 255, 0.14) 0%,
+      rgba(41, 98, 255, 0) 62%
+    ),
+    radial-gradient(
+      78% 82% at 86% 78%,
+      rgba(6, 151, 167, 0.12) 0%,
+      rgba(6, 151, 167, 0) 62%
+    ),
+    linear-gradient(160deg, rgba(251, 253, 255, 0.96) 0%, rgba(240, 246, 254, 0.92) 100%);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-hero-content {
+  border-color: rgba(104, 118, 141, 0.24);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.93) 0%,
+    rgba(248, 249, 251, 0.9) 100%
+  );
+  box-shadow:
+    0 18px 36px rgba(79, 97, 124, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(0);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-hero-content h2 {
+  color: #232831;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-hero-description {
+  color: rgba(67, 82, 106, 0.88);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-feature-list li {
+  border-bottom-color: rgba(104, 118, 141, 0.3);
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-feature-title {
+  color: #2a3342;
+}
+
+html.cl-login-active.cl-login-theme-light .cl-login-feature-detail {
+  color: rgba(67, 82, 106, 0.88);
+}
+
+@keyframes cl-login-grid-pan {
+  0% {
+    transform: rotate(-6deg) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: rotate(-6deg) translate3d(14px, -10px, 0);
+  }
+  100% {
+    transform: rotate(-6deg) translate3d(0, 0, 0);
+  }
+}
+
+@media (min-width: 1024px) {
+  html.cl-login-active .cl-login-shell {
+    grid-template-columns: minmax(380px, 0.92fr) minmax(520px, 1.08fr);
+  }
+
+  html.cl-login-active .cl-login-shell.cl-login-shell-solo {
+    grid-template-columns: minmax(380px, 1fr);
+  }
+
+  html.cl-login-active .cl-login-panel {
+    border-right: 1px solid rgba(148, 163, 184, 0.22);
+  }
+
+  html.cl-login-active .cl-login-hero {
+    display: flex;
+  }
+}
+
+@media (max-width: 1023px) {
+  html.cl-login-active .cl-login-panel {
+    background: transparent;
+  }
+
+  html.cl-login-active .cl-login-form-shell {
+    width: min(520px, 100%) !important;
+    max-width: min(520px, 100%) !important;
+  }
+
+  html.cl-login-active .cl-login-subtitle {
+    text-align: center;
+  }
+
+  html.cl-login-active .cl-login-brand-strip {
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 640px) {
+  html.cl-login-active .cl-login-form {
+    border-radius: 12px;
+    padding: 1rem;
+  }
+
+  html.cl-login-active .cl-login-subtitle {
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.cl-login-active .cl-login-shell::before {
+    animation: none;
+  }
+
+  html.cl-login-active .cl-login-form button[type="submit"] {
+    transition: none;
+  }
+}
+
+html.cl-chat-active aside [data-cl-thread-running]:not(a),
+html.cl-chat-active [data-sidebar] [data-cl-thread-running]:not(a),
+html.cl-chat-active aside a[data-cl-thread-running],
+html.cl-chat-active [data-sidebar] a[data-cl-thread-running] {
+  position: relative;
+  padding-right: 1.85rem;
+  padding-bottom: 0.42rem;
+}
+
+html.cl-chat-active aside [data-cl-thread-running]:not(a)::after,
+html.cl-chat-active [data-sidebar] [data-cl-thread-running]:not(a)::after,
+html.cl-chat-active aside a[data-cl-thread-running]::after,
+html.cl-chat-active [data-sidebar] a[data-cl-thread-running]::after {
+  content: "...";
+  position: absolute;
+  bottom: 0.28rem;
+  right: 0.66rem;
+  width: 1.02rem;
+  overflow: hidden;
+  white-space: nowrap;
+  color: hsl(var(--primary));
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.88;
+  animation: cl-thread-dots 1.05s steps(4, end) infinite;
+}
+
+@keyframes cl-thread-dots {
+  0%,
+  24% {
+    width: 0.24rem;
+    opacity: 0.38;
+  }
+  25%,
+  49% {
+    width: 0.56rem;
+    opacity: 0.66;
+  }
+  50%,
+  74% {
+    width: 0.84rem;
+    opacity: 0.84;
+  }
+  75%,
+  100% {
+    width: 1.02rem;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.cl-chat-active aside [data-cl-thread-running]:not(a)::after,
+  html.cl-chat-active [data-sidebar] [data-cl-thread-running]:not(a)::after,
+  html.cl-chat-active aside a[data-cl-thread-running]::after,
+  html.cl-chat-active [data-sidebar] a[data-cl-thread-running]::after {
+    animation: none;
+    width: 1.02rem;
+  }
+}
+
+html.cl-chat-active button#chat-submit[data-cl-stop-fallback="true"] {
+  position: relative;
+}
+
+html.cl-chat-active button#chat-submit[data-cl-stop-fallback="true"] svg {
+  opacity: 0;
+}
+
+html.cl-chat-active button#chat-submit[data-cl-stop-fallback="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0.68rem;
+  height: 0.68rem;
+  border-radius: 0.14rem;
+  background: currentColor;
+}
+
+.step[data-step-type="system_message"] .message-content,
+.step[data-step-type="system_message"] .message-content * {
+  color: hsl(var(--muted-foreground));
+}
