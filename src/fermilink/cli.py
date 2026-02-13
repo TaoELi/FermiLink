@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import importlib
 import json
 import os
 import shutil
@@ -107,6 +108,54 @@ PACKAGE_SOURCE_AUTO = "auto"
 PACKAGE_SOURCE_DEFAULT = "default"
 PACKAGE_SOURCE_SECOND_GUESS = "second_guess"
 PACKAGE_SOURCE_NONE = "none"
+WEB_ROUTER_ONLY_IMPORT_ENV = "FERMILINK_ROUTER_ONLY_IMPORT"
+
+
+def _should_style_cli_output() -> bool:
+    if os.getenv("NO_COLOR"):
+        return False
+    if os.getenv("FERMILINK_NO_STYLE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return False
+    term = os.getenv("TERM", "").strip().lower()
+    if term in {"", "dumb"}:
+        return False
+    try:
+        return bool(sys.stdout.isatty() and sys.stderr.isatty())
+    except Exception:
+        return False
+
+
+def _style_text(text: str, *codes: str) -> str:
+    if not _should_style_cli_output() or not codes:
+        return text
+    seq = ";".join(code.strip() for code in codes if code.strip())
+    if not seq:
+        return text
+    return f"\x1b[{seq}m{text}\x1b[0m"
+
+
+def _format_cli_tag(tag: str) -> str:
+    return _style_text(f"[{tag}]", "1")
+
+
+def _format_tagged_line(tag: str, message: str) -> str:
+    return f"{_format_cli_tag(tag)} {message}"
+
+
+def _print_tagged(tag: str, message: str, *, stderr: bool = False) -> None:
+    print(_format_tagged_line(tag, message), file=sys.stderr if stderr else sys.stdout)
+
+
+def _chat_input_prompt() -> str:
+    if not _should_style_cli_output():
+        return "You> "
+    prompt = _style_text(" You> ", "1", "38;5;255", "48;5;238")
+    return f"\n{prompt} "
+
+
+def _chat_prompt_spacing_after_input() -> None:
+    if _should_style_cli_output():
+        print()
 
 
 def _print_json(payload: dict) -> None:
@@ -233,9 +282,9 @@ def _resolve_compile_tool_source() -> Path:
 
 @functools.lru_cache(maxsize=1)
 def _load_web_router_module():
-    from fermilink.web import app as web_app
-
-    return web_app
+    # CLI exec/chat only need routing helpers; avoid web-only filesystem setup.
+    os.environ.setdefault(WEB_ROUTER_ONLY_IMPORT_ENV, "1")
+    return importlib.import_module("fermilink.web.app")
 
 
 @functools.lru_cache(maxsize=1)
@@ -279,6 +328,59 @@ def _collect_second_guess_assistant_text(raw_stream_text: str, *, web_app: objec
         if text:
             chunks.append(text)
     return "".join(chunks).strip()
+
+
+def _inject_exec_option_before_prompt(command: list[str], *option_tokens: str) -> list[str]:
+    """Insert option tokens before the final prompt argument."""
+
+    if not command:
+        return command
+    prompt_arg = command[-1]
+    return [*command[:-1], *option_tokens, prompt_arg]
+
+
+def _is_public_overlay_name(name: str) -> bool:
+    return name.strip().strip("/\\").lower() == "public"
+
+
+def _filter_exec_overlay_package_meta(package_meta: dict[str, object]) -> dict[str, object]:
+    """Filter local exec/chat overlay metadata to avoid injecting `public/`."""
+
+    from fermilink.runner.scientific_packages import iter_package_entries
+
+    sanitized: dict[str, object] = dict(package_meta)
+    raw_entries = package_meta.get("overlay_entries")
+    if raw_entries is None:
+        raw_installed_path = package_meta.get("installed_path")
+        if not isinstance(raw_installed_path, str) or not raw_installed_path.strip():
+            return sanitized
+        package_root = Path(raw_installed_path).expanduser()
+        if not package_root.is_absolute():
+            package_root = (Path.cwd() / package_root).resolve()
+        try:
+            all_entries, _ = iter_package_entries(package_root, include_names=None)
+        except Exception:
+            return sanitized
+        sanitized["overlay_entries"] = [
+            entry.name
+            for entry in all_entries
+            if not _is_public_overlay_name(entry.name)
+        ]
+        return sanitized
+
+    if isinstance(raw_entries, str):
+        candidates = [segment.strip() for segment in raw_entries.split(",")]
+    elif isinstance(raw_entries, list):
+        candidates = [segment.strip() for segment in raw_entries if isinstance(segment, str)]
+    else:
+        return sanitized
+
+    sanitized["overlay_entries"] = [
+        name
+        for name in candidates
+        if name and not _is_public_overlay_name(name)
+    ]
+    return sanitized
 
 
 def _run_exec_second_guess(
@@ -615,9 +717,10 @@ def _run_exec_chat_turn(
         except NotImplementedError as exc:
             raise PackageError(str(exc)) from exc
 
-        if cmd:
-            prompt_arg = cmd[-1]
-            cmd = cmd[:-1] + ["--output-last-message", str(last_message_path), prompt_arg]
+        cmd = _inject_exec_option_before_prompt(cmd, "--color", "always")
+        cmd = _inject_exec_option_before_prompt(
+            cmd, "--output-last-message", str(last_message_path)
+        )
 
         runner_app = _load_runner_app_module()
         env = os.environ.copy()
@@ -694,8 +797,8 @@ def _cmd_chat(args: argparse.Namespace) -> int:
     sandbox_text = (
         f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
     )
-    print(f"[agent] provider: {provider}, sandbox: {sandbox_text}")
-    print("[chat] Interactive mode. Type `exit` or `quit` to leave.")
+    _print_tagged("agent", f"provider: {provider}, sandbox: {sandbox_text}")
+    _print_tagged("chat", "Interactive mode. Type `exit` or `quit` to leave.")
 
     web_app = _load_web_router_module()
     history: list[tuple[str, str]] = []
@@ -704,13 +807,14 @@ def _cmd_chat(args: argparse.Namespace) -> int:
 
     while True:
         try:
-            user_text = input("You> ")
+            user_text = input(_chat_input_prompt())
         except EOFError:
             print()
             return 0
         except KeyboardInterrupt:
             print()
             return 0
+        _chat_prompt_spacing_after_input()
 
         prompt_text = user_text.strip()
         if not prompt_text:
@@ -735,9 +839,9 @@ def _cmd_chat(args: argparse.Namespace) -> int:
             raise PackageError("No package selected for chat turn.")
         source = str(selection.get("source") or PACKAGE_SOURCE_DEFAULT)
         note = str(selection.get("note") or "").strip()
-        print(f"[package] Using {package_id} (selection: {source})")
+        _print_tagged("package", f"Using {package_id} (selection: {source})")
         if note and note not in {"manual_pin", "default_fallback", "matched"}:
-            print(f"[router] {note}")
+            _print_tagged("router", note)
 
         overlay = _overlay_exec_package(
             repo_dir=repo_dir,
@@ -753,9 +857,12 @@ def _cmd_chat(args: argparse.Namespace) -> int:
             if isinstance(overlay, dict)
             else 0
         )
-        print(
-            "[overlay] linked entries: "
-            f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+        _print_tagged(
+            "overlay",
+            (
+                "linked entries: "
+                f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+            ),
         )
 
         prompt = web_app._build_prompt(history, prompt_text)
@@ -775,13 +882,15 @@ def _cmd_chat(args: argparse.Namespace) -> int:
         return_code = int(run_result.get("return_code") or 0)
         stderr_text = str(run_result.get("stderr") or "").strip()
         if assistant_text:
-            print(f"Assistant> {assistant_text}")
+            assistant_prefix = _style_text("Assistant>", "1", "38;5;111")
+            print(f"{assistant_prefix} {assistant_text}")
         if return_code != 0:
             if stderr_text:
                 print(stderr_text, file=sys.stderr)
-            print(
-                f"[chat] provider exited with code {return_code}.",
-                file=sys.stderr,
+            _print_tagged(
+                "chat",
+                f"provider exited with code {return_code}.",
+                stderr=True,
             )
 
         history = web_app._append_history(history, "user", prompt_text)
@@ -842,13 +951,14 @@ def _overlay_exec_package(
 
     if not resolved_id or not isinstance(package_meta, dict):
         raise PackageError(f"Package '{package_id}' could not be resolved for overlay.")
+    filtered_package_meta = _filter_exec_overlay_package_meta(package_meta)
 
     try:
         overlay = overlay_package_into_repo(
             repo_dir=repo_dir,
             workspace_root=repo_dir,
             package_id=resolved_id,
-            package_meta=package_meta,
+            package_meta=filtered_package_meta,
             scipkg_root=scipkg_root,
             allow_replace_existing=False,
         )
@@ -879,6 +989,12 @@ def _cleanup_exec_overlay_symlinks(*, repo_dir: Path, workspace_root: Path) -> N
             if not isinstance(name, str) or not name:
                 continue
             if mode != "symlink":
+                target = repo_dir / name
+                if target.exists() or target.is_symlink():
+                    if target.is_symlink() or target.is_file():
+                        target.unlink(missing_ok=True)
+                    elif target.is_dir():
+                        shutil.rmtree(target, ignore_errors=True)
                 continue
             target = repo_dir / name
             if not target.is_symlink():
@@ -906,6 +1022,12 @@ def _cleanup_exec_overlay_symlinks(*, repo_dir: Path, workspace_root: Path) -> N
             if not isinstance(package_id, str) or not package_id:
                 continue
             if mode != "symlink":
+                target = dependency_root / package_id
+                if target.exists() or target.is_symlink():
+                    if target.is_symlink() or target.is_file():
+                        target.unlink(missing_ok=True)
+                    elif target.is_dir():
+                        shutil.rmtree(target, ignore_errors=True)
                 continue
             target = dependency_root / package_id
             if not target.is_symlink():
@@ -1023,6 +1145,7 @@ def _run_exec_codex_prompt(
         )
     except NotImplementedError as exc:
         raise PackageError(str(exc)) from exc
+    cmd = _inject_exec_option_before_prompt(cmd, "--color", "always")
     runner_app = _load_runner_app_module()
     env = os.environ.copy()
     env = runner_app._sanitize_env(env)
@@ -1102,15 +1225,15 @@ def _cmd_exec(args: argparse.Namespace) -> int:
 
     source = str(selection.get("source") or "default")
     note = str(selection.get("note") or "").strip()
-    print(f"[package] Using {package_id} (selection: {source})")
+    _print_tagged("package", f"Using {package_id} (selection: {source})")
     if note and note not in {"manual_pin", "default_fallback", "matched"}:
-        print(f"[router] {note}")
+        _print_tagged("router", note)
     sandbox_text = (
         f"enforce({sandbox_mode})"
         if sandbox_policy == "enforce"
         else "bypass"
     )
-    print(f"[agent] provider: {provider}, sandbox: {sandbox_text}")
+    _print_tagged("agent", f"provider: {provider}, sandbox: {sandbox_text}")
 
     overlay = _overlay_exec_package(
         repo_dir=repo_dir,
@@ -1126,9 +1249,12 @@ def _cmd_exec(args: argparse.Namespace) -> int:
         if isinstance(overlay, dict)
         else 0
     )
-    print(
-        "[overlay] linked entries: "
-        f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+    _print_tagged(
+        "overlay",
+        (
+            "linked entries: "
+            f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+        ),
     )
 
     try:

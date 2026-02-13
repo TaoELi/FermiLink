@@ -102,7 +102,7 @@ def test_exec_propagates_codex_exit_code(
     assert cleanup_calls == [(repo_dir, repo_dir)]
 
 
-def test_cleanup_exec_overlay_symlinks_removes_only_manifest_symlinks(tmp_path: Path) -> None:
+def test_cleanup_exec_overlay_symlinks_removes_only_manifest_entries(tmp_path: Path) -> None:
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -119,15 +119,23 @@ def test_cleanup_exec_overlay_symlinks_removes_only_manifest_symlinks(tmp_path: 
 
     managed_entry_link = repo_dir / "skills"
     managed_entry_link.symlink_to(managed_entry_source, target_is_directory=True)
+    managed_copy_entry = repo_dir / "public"
+    managed_copy_entry.mkdir(parents=True, exist_ok=True)
+    (managed_copy_entry / "index.html").write_text("copy", encoding="utf-8")
     foreign_link = repo_dir / "foreign-link"
     foreign_link.symlink_to(foreign_actual_source, target_is_directory=True)
     user_link = repo_dir / "user-link"
     user_link.symlink_to(user_source, target_is_directory=True)
+    unmanaged_copy_entry = repo_dir / "user-dir"
+    unmanaged_copy_entry.mkdir(parents=True, exist_ok=True)
 
     dependency_root = repo_dir / scipkg.PACKAGE_DEPENDENCIES_DIRNAME
     dependency_root.mkdir(parents=True, exist_ok=True)
     managed_dependency_link = dependency_root / "deppkg"
     managed_dependency_link.symlink_to(managed_dependency_source, target_is_directory=True)
+    managed_dependency_copy = dependency_root / "copydep"
+    managed_dependency_copy.mkdir(parents=True, exist_ok=True)
+    (managed_dependency_copy / "README.md").write_text("copy", encoding="utf-8")
 
     scipkg.save_workspace_manifest(
         repo_dir,
@@ -141,6 +149,11 @@ def test_cleanup_exec_overlay_symlinks_removes_only_manifest_symlinks(tmp_path: 
                     "source": str(managed_entry_source.resolve()),
                 },
                 {
+                    "name": "public",
+                    "mode": "copy",
+                    "source": str(managed_entry_source.resolve()),
+                },
+                {
                     "name": "foreign-link",
                     "mode": "symlink",
                     "source": str(foreign_manifest_source.resolve()),
@@ -151,7 +164,12 @@ def test_cleanup_exec_overlay_symlinks_removes_only_manifest_symlinks(tmp_path: 
                     "package_id": "deppkg",
                     "mode": "symlink",
                     "source": str(managed_dependency_source.resolve()),
-                }
+                },
+                {
+                    "package_id": "copydep",
+                    "mode": "copy",
+                    "source": str(managed_dependency_source.resolve()),
+                },
             ],
         },
     )
@@ -159,9 +177,12 @@ def test_cleanup_exec_overlay_symlinks_removes_only_manifest_symlinks(tmp_path: 
     cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
 
     assert not managed_entry_link.exists()
+    assert not managed_copy_entry.exists()
     assert foreign_link.is_symlink()
     assert user_link.is_symlink()
+    assert unmanaged_copy_entry.exists()
     assert not managed_dependency_link.exists()
+    assert not managed_dependency_copy.exists()
     assert not dependency_root.exists()
 
 
@@ -238,6 +259,8 @@ def test_run_exec_codex_prompt_uses_runner_sanitized_env(
         "--sandbox",
         "workspace-write",
         "--full-auto",
+        "--color",
+        "always",
         "hello",
     ]
     env = captured["env"]
@@ -327,6 +350,9 @@ def test_run_exec_chat_turn_streams_and_collects_assistant_text(
         "--sandbox",
         "workspace-write",
     ]
+    assert "--color" in command
+    color_index = command.index("--color")
+    assert command[color_index + 1] == "always"
     assert "--output-last-message" in command
     assert command[-1] == "hello"
     env = captured["env"]
@@ -388,6 +414,9 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
         "--sandbox",
         "read-only",
     ]
+    assert "--color" in command
+    color_index = command.index("--color")
+    assert command[color_index + 1] == "always"
     assert "--output-last-message" in command
     assert command[-1] == "hello tty"
     env = captured["env"]
@@ -435,6 +464,8 @@ def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
         str(tmp_path),
         "--sandbox",
         "read-only",
+        "--color",
+        "always",
         "hello",
     ]
     assert captured["cwd"] == str(tmp_path)
@@ -493,3 +524,57 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
     assert isinstance(env, dict)
     assert env.get("SANITIZED") == "1"
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
+
+
+def test_filter_exec_overlay_package_meta_excludes_public_from_explicit_entries() -> None:
+    package_meta = {
+        "installed_path": "/tmp/fake",
+        "overlay_entries": ["skills", "public", "docs"],
+    }
+
+    filtered = cli._filter_exec_overlay_package_meta(package_meta)
+
+    assert filtered["overlay_entries"] == ["skills", "docs"]
+
+
+def test_filter_exec_overlay_package_meta_excludes_public_when_overlay_is_unset(
+    tmp_path: Path,
+) -> None:
+    package_root = tmp_path / "pkg"
+    package_root.mkdir()
+    (package_root / "public").mkdir()
+    (package_root / "skills").mkdir()
+    (package_root / "docs").mkdir()
+
+    package_meta = {"installed_path": str(package_root)}
+    filtered = cli._filter_exec_overlay_package_meta(package_meta)
+    entries = filtered.get("overlay_entries")
+
+    assert isinstance(entries, list)
+    assert "public" not in entries
+    assert "skills" in entries
+    assert "docs" in entries
+
+
+def test_load_web_router_module_sets_router_only_import_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cli._load_web_router_module.cache_clear()
+    monkeypatch.delenv(cli.WEB_ROUTER_ONLY_IMPORT_ENV, raising=False)
+
+    sentinel = object()
+    captured: dict[str, object] = {}
+
+    def fake_import_module(name: str) -> object:
+        captured["name"] = name
+        captured["env"] = cli.os.getenv(cli.WEB_ROUTER_ONLY_IMPORT_ENV)
+        return sentinel
+
+    monkeypatch.setattr(cli.importlib, "import_module", fake_import_module)
+
+    loaded = cli._load_web_router_module()
+
+    assert loaded is sentinel
+    assert captured["name"] == "fermilink.web.app"
+    assert captured["env"] == "1"
+    cli._load_web_router_module.cache_clear()

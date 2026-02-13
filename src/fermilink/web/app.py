@@ -42,6 +42,17 @@ DEFAULT_AUTH_DB_PATH = APP_ROOT / ".chainlit" / "auth.db"
 DEFAULT_AUTH_DB_URL = f"sqlite:///{DEFAULT_AUTH_DB_PATH.as_posix()}"
 
 
+def _is_router_only_import() -> bool:
+    """Return whether this import is for CLI router helpers only."""
+
+    return os.getenv("FERMILINK_ROUTER_ONLY_IMPORT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _sync_chainlit_markdown() -> None:
     """Force Chainlit markdown to the packaged FermiLink landing content."""
 
@@ -59,7 +70,8 @@ def _sync_chainlit_markdown() -> None:
         )
 
 
-_sync_chainlit_markdown()
+if not _is_router_only_import():
+    _sync_chainlit_markdown()
 
 if "DATABASE_URL" not in os.environ:
     os.environ["DATABASE_URL"] = DEFAULT_DB_URL
@@ -1932,6 +1944,11 @@ def _resolve_public_root() -> Path:
     if not configured.is_absolute():
         configured = (APP_ROOT / configured).resolve()
     package_public = Path(__file__).resolve().parents[1] / "public"
+
+    if _is_router_only_import():
+        if package_public.is_dir():
+            return package_public
+        return configured
 
     try:
         configured.mkdir(parents=True, exist_ok=True)

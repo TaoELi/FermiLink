@@ -32,6 +32,20 @@ def test_packaged_fermilink_markdown_is_synced_to_chainlit_md() -> None:
     assert target.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
 
 
+def test_resolve_public_root_router_only_skips_copy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    configured_public = tmp_path / "router-only-public"
+    monkeypatch.setenv("FERMILINK_ROUTER_ONLY_IMPORT", "1")
+    monkeypatch.setattr(web_app, "public_dir", str(configured_public))
+    monkeypatch.setattr(web_app, "APP_ROOT", tmp_path / "app-root")
+
+    resolved = web_app._resolve_public_root()
+
+    assert resolved.resolve() == web_app.PACKAGE_PUBLIC_ROOT.resolve()
+    assert not configured_public.exists()
+
+
 def test_normalize_rule_terms_deduplicates_and_normalizes() -> None:
     raw = [" ASE ", "ase", "Meep", "", "meep"]
     assert web_app._normalize_rule_terms(raw) == ["ase", "meep"]

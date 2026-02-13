@@ -1093,7 +1093,7 @@ def _remove_managed_symlinks(
     *,
     only_names: set[str] | None = None,
 ) -> None:
-    """Remove symlink entries previously managed by package overlay.
+    """Remove entries previously managed by package overlay.
 
     Parameters
     ----------
@@ -1107,7 +1107,7 @@ def _remove_managed_symlinks(
     Returns
     -------
     None
-        Matching symlinks are removed in place.
+        Matching managed entries are removed in place.
     """
 
     if not isinstance(manifest, dict):
@@ -1131,6 +1131,8 @@ def _remove_managed_symlinks(
         target = repo_dir / name
         if mode == "symlink" and target.is_symlink():
             target.unlink(missing_ok=True)
+        elif mode != "symlink" and target.exists():
+            _remove_existing_entry(target)
 
 
 def _remove_managed_dependency_links(

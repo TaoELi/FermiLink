@@ -93,3 +93,22 @@ def test_overlay_manifest_cleans_stale_entries_and_dependencies(tmp_path: Path) 
     manifest = scipkg.load_workspace_manifest(workspace_root)
     assert manifest is not None
     assert manifest["package_id"] == "altpkg"
+
+
+def test_remove_managed_symlinks_removes_copy_mode_entries(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    copied_entry = repo_dir / "public"
+    copied_entry.mkdir(parents=True, exist_ok=True)
+    (copied_entry / "index.html").write_text("copied", encoding="utf-8")
+
+    manifest = {
+        "linked_entries": [
+            {"name": "public", "mode": "copy", "source": str((tmp_path / "src").resolve())}
+        ]
+    }
+
+    scipkg._remove_managed_symlinks(repo_dir, manifest, only_names={"public"})
+
+    assert not copied_entry.exists()
