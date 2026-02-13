@@ -83,12 +83,35 @@ Optional flags:
 - `--init-git`: auto-run `git init` when current directory is not a git repo
 - `--no-init-git`: fail instead of prompting for git init
 
+## Run Interactive Multi-Turn Chat From CLI
+
+Use `chat` for a terminal REPL that mirrors web conversation behavior:
+
+```bash
+fermilink chat
+```
+
+What `chat` does each turn:
+
+- builds the same simplified transcript-style prompt as web mode;
+- re-runs package routing (plus second guess) and can switch package when needed;
+- overlays selected package content via symlinks into the current directory;
+- streams provider stdout/stderr live to the terminal;
+- runs provider execution and appends the assistant reply to local chat history.
+
+Optional flags:
+
+- `--package <id>`: pin one installed package for the whole session
+- `--sandbox <mode>`: enforce a sandbox mode for this chat session only
+- `--init-git`: auto-run `git init` when current directory is not a git repo
+- `--no-init-git`: fail instead of prompting for git init
+
 Global runtime policy:
 
 - `fermilink agent --sandbox`: enforce sandbox (uses configured mode)
 - `fermilink agent --bypass-sandbox`: bypass sandbox
-- `fermilink agent codex|claude|gemini`: set provider for runner/web/exec
-- `fermilink compile` also inherits provider from `fermilink agent`, while keeping compile sandbox safety defaults.
+- `fermilink agent codex|claude|gemini`: set provider for runner/web/exec/chat/compile
+- `fermilink compile` inherits provider from `fermilink agent`, while keeping compile sandbox safety defaults.
 - Current execution support is `codex`; `claude`/`gemini` are forward-compatible policy values.
 
 ## Core Runtime Paths

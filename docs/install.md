@@ -26,7 +26,8 @@ npm i -g @openai/codex
 
 ## Agent Runtime Policy (Sandbox + Provider)
 
-Configure global runtime policy once; it applies to web, runner, and `exec`:
+Configure global runtime policy once; it applies to web, runner, `exec`, `chat`,
+and provider choice for `compile`:
 
 ```bash
 # show current policy
@@ -47,6 +48,8 @@ Notes:
 - Policy is persisted in `FERMILINK_HOME/agent_runtime.json`.
 - `fermilink exec --sandbox <mode>` is a per-run override and forces sandbox
   enforcement for that run.
+- `fermilink chat --sandbox <mode>` is a per-session override and forces sandbox
+  enforcement for that interactive session.
 - In bypass mode, Codex is launched with
   `--dangerously-bypass-approvals-and-sandbox`.
 - Bypass affects Codex internal sandboxing only; external host/container
@@ -152,6 +155,30 @@ Useful flags:
 
 - `--package <id>`: pin package id and bypass auto routing.
 - `--sandbox <mode>`: per-run sandbox override; enforces sandbox for that run.
+- `--init-git`: non-interactively initialize git repo if missing.
+- `--no-init-git`: fail immediately if git repo is missing.
+
+## Interactive CLI Chat (Multi-Turn Web-Mirror Mode)
+
+Run an interactive terminal chat session:
+
+```bash
+fermilink chat
+```
+
+Per-turn behavior:
+
+1. Ensure current directory is a git repo (prompt for `git init` if missing).
+2. Select package via the same router + second-guess path used by web mode.
+3. Overlay package entries into current directory.
+4. Build a simplified conversation transcript prompt from prior turns.
+5. Stream provider stdout/stderr live in terminal while the turn runs.
+6. Append assistant output to session history.
+
+Useful flags:
+
+- `--package <id>`: pin package id for every turn in this session.
+- `--sandbox <mode>`: enforce sandbox mode for this session only.
 - `--init-git`: non-interactively initialize git repo if missing.
 - `--no-init-git`: fail immediately if git repo is missing.
 

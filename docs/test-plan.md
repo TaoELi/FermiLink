@@ -12,6 +12,7 @@ pytest -q \
   tests/test_agent_runtime.py \
   tests/test_providers.py \
   tests/test_cli_agent.py \
+  tests/test_cli_chat.py \
   tests/test_runner_policy.py \
   tests/test_services.py \
   tests/test_cli_exec.py
@@ -58,7 +59,28 @@ Expected:
 - `--sandbox` forces `enforce(read-only)` for that run.
 - Overlay symlink cleanup still runs after completion.
 
-## 4. Runner/Web Policy Propagation
+## 4. Chat Behavior
+
+1. Set bypass globally:
+   `fermilink agent --bypass-sandbox`
+2. Start interactive chat:
+   `fermilink chat`
+3. Send at least two prompts, then exit with `quit`.
+4. Repeat with session override:
+   `fermilink chat --sandbox read-only`
+
+Expected:
+
+- Console shows `[agent] provider: <provider>, sandbox: bypass` for default
+  bypass policy in the first session.
+- Package selection line appears each turn:
+  `[package] Using <id> (selection: <source>)`.
+- Second turn includes first turn context in the generated prompt path
+  (validated in `tests/test_cli_chat.py`).
+- `--sandbox read-only` forces `enforce(read-only)` for that chat session.
+- Overlay symlink cleanup runs after every turn.
+
+## 5. Runner/Web Policy Propagation
 
 1. Set policy:
    `fermilink agent --sandbox`
@@ -75,7 +97,7 @@ Expected `meta.agent` fields:
 
 And behavior matches configured policy (sandbox included only when enforced).
 
-## 5. Negative and Forward-Compat Checks
+## 6. Negative and Forward-Compat Checks
 
 1. Set forward provider:
    `fermilink agent gemini`

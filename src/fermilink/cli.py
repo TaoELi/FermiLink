@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.error
 from pathlib import Path
@@ -100,6 +101,12 @@ try:
     )
 except ValueError:
     EXEC_SECOND_GUESS_TIMEOUT_SECONDS = 25.0
+
+PACKAGE_SOURCE_MANUAL = "manual"
+PACKAGE_SOURCE_AUTO = "auto"
+PACKAGE_SOURCE_DEFAULT = "default"
+PACKAGE_SOURCE_SECOND_GUESS = "second_guess"
+PACKAGE_SOURCE_NONE = "none"
 
 
 def _print_json(payload: dict) -> None:
@@ -442,6 +449,8 @@ def _resolve_exec_package_selection(
     provider: str = "codex",
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
+    current_package_id: str | None = None,
+    current_source: str = PACKAGE_SOURCE_NONE,
 ) -> dict[str, object]:
     web_app = _load_web_router_module()
     registry = load_registry(scipkg_root)
@@ -454,6 +463,17 @@ def _resolve_exec_package_selection(
     package_set = set(package_ids)
     if active_package_id not in package_set:
         active_package_id = None
+
+    normalized_current = (
+        web_app._normalize_package_id_safe(current_package_id)
+        if isinstance(current_package_id, str)
+        else None
+    )
+    if normalized_current not in package_set:
+        normalized_current = None
+        current_source = PACKAGE_SOURCE_NONE
+    elif not isinstance(current_source, str) or not current_source.strip():
+        current_source = PACKAGE_SOURCE_NONE
 
     if not package_ids:
         raise PackageError(
@@ -469,45 +489,81 @@ def _resolve_exec_package_selection(
             )
         return {
             "package_id": normalized_requested,
-            "source": "manual",
+            "source": PACKAGE_SOURCE_MANUAL,
             "reason": "manual_pin",
             "note": "manual_pin",
         }
 
     config = web_app._load_router_config(scipkg_root)
     selected_package_id: str | None = None
-    selected_source = "none"
+    selected_source = PACKAGE_SOURCE_NONE
     selected_reason = "no_selection"
+
+    if current_source == PACKAGE_SOURCE_MANUAL and normalized_current:
+        return {
+            "package_id": normalized_current,
+            "source": PACKAGE_SOURCE_MANUAL,
+            "reason": "manual_pin",
+            "note": "manual_pin",
+        }
 
     if EXEC_ROUTER_ENABLED and EXEC_ROUTER_AUTO_DEFAULT:
         decision = web_app._route_package_candidate(
             user_text=user_prompt,
             package_ids=package_ids,
-            current_package_id=None,
+            current_package_id=normalized_current,
             config=config,
         )
         candidate = decision.get("selected_package_id")
         if isinstance(candidate, str) and candidate in package_set:
-            selected_package_id = candidate
-            selected_source = "auto"
-            selected_reason = str(decision.get("reason", "matched"))
+            if (
+                bool(getattr(web_app, "PACKAGE_ROUTER_STICKY", False))
+                and normalized_current
+                and normalized_current != candidate
+                and int(decision.get("margin", 0))
+                < int(getattr(web_app, "PACKAGE_ROUTER_SWITCH_MARGIN", 2))
+            ):
+                selected_package_id = normalized_current
+                selected_source = (
+                    current_source
+                    if current_source != PACKAGE_SOURCE_NONE
+                    else PACKAGE_SOURCE_AUTO
+                )
+                selected_reason = "sticky_keep_current"
+            else:
+                selected_package_id = candidate
+                selected_source = PACKAGE_SOURCE_AUTO
+                selected_reason = str(decision.get("reason", "matched"))
 
     if not selected_package_id:
-        fallback = web_app._resolve_default_package_id(
-            package_ids=package_ids,
-            active_package_id=active_package_id,
-            config=config,
-        )
-        if not fallback:
-            raise PackageError(
-                "No default package could be resolved from registry/router rules."
+        if normalized_current:
+            selected_package_id = normalized_current
+            selected_source = (
+                current_source
+                if current_source != PACKAGE_SOURCE_NONE
+                else PACKAGE_SOURCE_DEFAULT
             )
-        selected_package_id = fallback
-        selected_source = "default"
-        selected_reason = "default_fallback"
+            selected_reason = "keep_current"
+        else:
+            fallback = web_app._resolve_default_package_id(
+                package_ids=package_ids,
+                active_package_id=active_package_id,
+                config=config,
+            )
+            if not fallback:
+                raise PackageError(
+                    "No default package could be resolved from registry/router rules."
+                )
+            selected_package_id = fallback
+            selected_source = PACKAGE_SOURCE_DEFAULT
+            selected_reason = "default_fallback"
 
     note = selected_reason
-    if EXEC_SECOND_GUESS_ENABLED and selected_source != "manual" and len(package_ids) >= 2:
+    if (
+        EXEC_SECOND_GUESS_ENABLED
+        and selected_source != PACKAGE_SOURCE_MANUAL
+        and len(package_ids) >= 2
+    ):
         second_guess = _run_exec_second_guess(
             user_text=user_prompt,
             repo_dir=repo_dir,
@@ -523,7 +579,7 @@ def _resolve_exec_package_selection(
         second_package = second_guess.get("package_id")
         if switched and isinstance(second_package, str) and second_package in package_set:
             selected_package_id = second_package
-            selected_source = str(second_guess.get("source") or "second_guess")
+            selected_source = str(second_guess.get("source") or PACKAGE_SOURCE_SECOND_GUESS)
         note = str(second_guess.get("note") or note)
 
     return {
@@ -532,6 +588,208 @@ def _resolve_exec_package_selection(
         "reason": selected_reason,
         "note": note,
     }
+
+
+def _run_exec_chat_turn(
+    *,
+    repo_dir: Path,
+    prompt: str,
+    sandbox: str | None,
+    codex_bin: str | None,
+    provider: str = "codex",
+    sandbox_policy: str = "enforce",
+) -> dict[str, object]:
+    provider_bin = resolve_provider_binary(provider, codex_bin=codex_bin)
+    with tempfile.TemporaryDirectory(prefix="fermilink-chat-") as temp_dir:
+        last_message_path = Path(temp_dir) / "last_message.txt"
+        try:
+            cmd = build_exec_command(
+                provider=provider,
+                provider_bin=provider_bin,
+                repo_dir=repo_dir,
+                prompt=prompt,
+                sandbox_policy=sandbox_policy,
+                sandbox_mode=sandbox,
+                json_output=False,
+            )
+        except NotImplementedError as exc:
+            raise PackageError(str(exc)) from exc
+
+        if cmd:
+            prompt_arg = cmd[-1]
+            cmd = cmd[:-1] + ["--output-last-message", str(last_message_path), prompt_arg]
+
+        runner_app = _load_runner_app_module()
+        env = os.environ.copy()
+        env = runner_app._sanitize_env(env)
+        env = runner_app._normalize_codex_home(env)
+
+        stdout_text = ""
+        stderr_text = ""
+        if _should_use_direct_terminal_stream():
+            try:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=str(repo_dir),
+                    check=False,
+                    env=env,
+                )
+            except FileNotFoundError as exc:
+                env_key = provider_bin_env_key(provider)
+                raise PackageError(
+                    f"{provider} CLI not found: {provider_bin}. "
+                    f"Install the provider CLI or set {env_key}."
+                ) from exc
+            return_code = int(completed.returncode)
+        else:
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(repo_dir),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    env=env,
+                )
+            except FileNotFoundError as exc:
+                env_key = provider_bin_env_key(provider)
+                raise PackageError(
+                    f"{provider} CLI not found: {provider_bin}. "
+                    f"Install the provider CLI or set {env_key}."
+                ) from exc
+            return_code, stdout_text, stderr_text = _stream_exec_process_output_with_capture(process)
+
+        assistant_text = ""
+        try:
+            assistant_text = last_message_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            assistant_text = ""
+
+        if not assistant_text and stdout_text:
+            web_app = _load_web_router_module()
+            assistant_text = _collect_second_guess_assistant_text(stdout_text, web_app=web_app)
+
+        return {
+            "assistant_text": assistant_text,
+            "return_code": int(return_code),
+            "stderr": stderr_text.strip(),
+        }
+
+
+def _cmd_chat(args: argparse.Namespace) -> int:
+    repo_dir = Path.cwd().resolve()
+    _ensure_exec_repo_ready(repo_dir, args)
+
+    scipkg_root = resolve_scipkg_root()
+    runtime_policy = resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    sandbox_policy = runtime_policy.sandbox_policy
+    sandbox_mode = runtime_policy.sandbox_mode
+    if isinstance(args.sandbox, str) and args.sandbox.strip():
+        sandbox_policy = "enforce"
+        sandbox_mode = args.sandbox.strip()
+
+    provider_bin = args.codex_bin if provider == "codex" else None
+    sandbox_text = (
+        f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
+    )
+    print(f"[agent] provider: {provider}, sandbox: {sandbox_text}")
+    print("[chat] Interactive mode. Type `exit` or `quit` to leave.")
+
+    web_app = _load_web_router_module()
+    history: list[tuple[str, str]] = []
+    current_package_id: str | None = None
+    current_source = PACKAGE_SOURCE_NONE
+
+    while True:
+        try:
+            user_text = input("You> ")
+        except EOFError:
+            print()
+            return 0
+        except KeyboardInterrupt:
+            print()
+            return 0
+
+        prompt_text = user_text.strip()
+        if not prompt_text:
+            continue
+        lowered = prompt_text.lower()
+        if lowered in {"exit", "quit", "/exit", "/quit"}:
+            return 0
+
+        selection = _resolve_exec_package_selection(
+            user_prompt=prompt_text,
+            scipkg_root=scipkg_root,
+            repo_dir=repo_dir,
+            requested_package_id=args.package_id,
+            provider=provider,
+            provider_bin=provider_bin,
+            sandbox_policy=sandbox_policy,
+            current_package_id=current_package_id,
+            current_source=current_source,
+        )
+        package_id = selection.get("package_id")
+        if not isinstance(package_id, str) or not package_id:
+            raise PackageError("No package selected for chat turn.")
+        source = str(selection.get("source") or PACKAGE_SOURCE_DEFAULT)
+        note = str(selection.get("note") or "").strip()
+        print(f"[package] Using {package_id} (selection: {source})")
+        if note and note not in {"manual_pin", "default_fallback", "matched"}:
+            print(f"[router] {note}")
+
+        overlay = _overlay_exec_package(
+            repo_dir=repo_dir,
+            scipkg_root=scipkg_root,
+            package_id=package_id,
+        )
+        linked = int(overlay.get("linked_count", 0)) if isinstance(overlay, dict) else 0
+        collisions = (
+            int(overlay.get("collision_count", 0)) if isinstance(overlay, dict) else 0
+        )
+        linked_deps = (
+            int(overlay.get("linked_dependency_count", 0))
+            if isinstance(overlay, dict)
+            else 0
+        )
+        print(
+            "[overlay] linked entries: "
+            f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+        )
+
+        prompt = web_app._build_prompt(history, prompt_text)
+        try:
+            run_result = _run_exec_chat_turn(
+                repo_dir=repo_dir,
+                prompt=prompt,
+                sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+                codex_bin=provider_bin,
+                provider=provider,
+                sandbox_policy=sandbox_policy,
+            )
+        finally:
+            _cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+
+        assistant_text = str(run_result.get("assistant_text") or "").strip()
+        return_code = int(run_result.get("return_code") or 0)
+        stderr_text = str(run_result.get("stderr") or "").strip()
+        if assistant_text:
+            print(f"Assistant> {assistant_text}")
+        if return_code != 0:
+            if stderr_text:
+                print(stderr_text, file=sys.stderr)
+            print(
+                f"[chat] provider exited with code {return_code}.",
+                file=sys.stderr,
+            )
+
+        history = web_app._append_history(history, "user", prompt_text)
+        if assistant_text:
+            history = web_app._append_history(history, "assistant", assistant_text)
+
+        current_package_id = package_id
+        current_source = source
 
 
 def _ensure_exec_repo_ready(repo_dir: Path, args: argparse.Namespace) -> None:
@@ -553,7 +811,9 @@ def _ensure_exec_repo_ready(repo_dir: Path, args: argparse.Namespace) -> None:
             answer = input("Current directory is not a git repo. Run `git init` now? [y/N]: ")
             initialize = answer.strip().lower() in {"y", "yes"}
         if not initialize:
-            raise PackageError("Aborted: git repository required for fermilink exec.")
+            raise PackageError(
+                "Aborted: git repository required for fermilink exec/chat."
+            )
         runner_app._ensure_git_repo(repo_dir)
 
     source_dir = runner_app._resolve_source_dir()
@@ -689,6 +949,38 @@ def _stream_exec_process_output(process: subprocess.Popen[str]) -> int:
     stdout_thread.join()
     stderr_thread.join()
     return return_code
+
+
+def _stream_exec_process_output_with_capture(
+    process: subprocess.Popen[str],
+) -> tuple[int, str, str]:
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+
+    def _pump(stream: object, *, is_stderr: bool) -> None:
+        if stream is None:
+            return
+        for line in iter(stream.readline, ""):
+            if is_stderr:
+                stderr_lines.append(line)
+            else:
+                stdout_lines.append(line)
+            text = line.rstrip("\n")
+            print(text, file=sys.stderr if is_stderr else sys.stdout, flush=True)
+        stream.close()
+
+    stdout_thread = threading.Thread(
+        target=_pump, args=(process.stdout,), kwargs={"is_stderr": False}, daemon=True
+    )
+    stderr_thread = threading.Thread(
+        target=_pump, args=(process.stderr,), kwargs={"is_stderr": True}, daemon=True
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+    return_code = process.wait()
+    stdout_thread.join()
+    stderr_thread.join()
+    return return_code, "".join(stdout_lines), "".join(stderr_lines)
 
 
 def _should_use_direct_terminal_stream() -> bool:
@@ -1569,11 +1861,51 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     exec_parser.set_defaults(func=_cmd_exec)
 
+    chat_parser = subparsers.add_parser(
+        "chat",
+        help=(
+            "Run interactive multi-turn local chat with web-like package routing, "
+            "second guess, and package overlays."
+        ),
+    )
+    chat_parser.add_argument(
+        "--package",
+        dest="package_id",
+        help="Pin one installed package id for all turns and skip auto routing.",
+    )
+    chat_parser.add_argument(
+        "--sandbox",
+        default=None,
+        help=(
+            "Override sandbox mode for this chat session. "
+            "When omitted, uses `fermilink agent` policy."
+        ),
+    )
+    chat_parser.add_argument(
+        "--codex-bin",
+        default=DEFAULT_COMPILE_CODEX_BIN,
+        help=(
+            f"Codex executable path (default: {DEFAULT_COMPILE_CODEX_BIN}). "
+            "Ignored when provider is not codex."
+        ),
+    )
+    chat_parser.add_argument(
+        "--init-git",
+        action="store_true",
+        help="Auto-run git init when current directory is not a git repository.",
+    )
+    chat_parser.add_argument(
+        "--no-init-git",
+        action="store_true",
+        help="Fail instead of prompting/initializing when git repository is missing.",
+    )
+    chat_parser.set_defaults(func=_cmd_chat)
+
     agent_parser = subparsers.add_parser(
         "agent",
         help=(
             "Manage global agent runtime policy for provider and sandbox behavior "
-            "used by runner/web/exec."
+            "used by runner/web/exec/chat/compile."
         ),
     )
     _add_json_option(agent_parser)

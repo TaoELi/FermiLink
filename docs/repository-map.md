@@ -17,7 +17,7 @@ This map covers maintained source files and docs for the current layout.
 | --- | --- |
 | `src/fermilink/__init__.py` | Package version export. |
 | `src/fermilink/agent_runtime.py` | Persisted/global agent runtime policy model (provider + sandbox policy/mode). |
-| `src/fermilink/cli.py` | Unified CLI for package install/activate/overlay/dependencies/delete, `agent` policy control, and service start/stop/status/restart. |
+| `src/fermilink/cli.py` | Unified CLI for package lifecycle, `agent` runtime policy, local `exec`/`chat`, `compile`, and service start/stop/status/restart. |
 | `src/fermilink/config.py` | Shared root/path resolution (`FERMILINK_HOME`, `SCIPKG_ROOT`, etc.). |
 | `src/fermilink/curated_channels.py` | Curated package-channel catalog (`tel-research-group`) and resolution helpers. |
 | `src/fermilink/package_registry.py` | Package registry CRUD, zip/local install, router sync hooks, overlay manifest helpers. |
@@ -69,6 +69,7 @@ This map covers maintained source files and docs for the current layout.
 | `tests/test_agent_runtime.py` | Runtime policy persistence and precedence checks. |
 | `tests/test_cli.py` | CLI package-management behavior. |
 | `tests/test_cli_agent.py` | `fermilink agent` command behavior and persistence. |
+| `tests/test_cli_chat.py` | Interactive `fermilink chat` behavior and package-routing history semantics. |
 | `tests/test_cli_services.py` | CLI start/restart failure and rollback behavior. |
 | `tests/test_cli_services_live.py` | Live process start/restart/stop lifecycle behavior. |
 | `tests/test_package_registry.py` | Registry operations and dependency validation. |

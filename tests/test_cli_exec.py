@@ -246,6 +246,156 @@ def test_run_exec_codex_prompt_uses_runner_sanitized_env(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
 
+def test_stream_exec_process_output_with_capture_emits_and_captures(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    process = SimpleNamespace(
+        stdout=io.StringIO("line-1\nline-2\n"),
+        stderr=io.StringIO("err-1\n"),
+        wait=lambda: 4,
+    )
+
+    return_code, stdout_text, stderr_text = cli._stream_exec_process_output_with_capture(
+        process
+    )
+
+    assert return_code == 4
+    assert stdout_text == "line-1\nline-2\n"
+    assert stderr_text == "err-1\n"
+    captured = capsys.readouterr()
+    assert "line-1" in captured.out
+    assert "line-2" in captured.out
+    assert "err-1" in captured.err
+
+
+def test_run_exec_chat_turn_streams_and_collects_assistant_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured: dict[str, object] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
+        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_load_web_router_module", lambda: object())
+    monkeypatch.setattr(
+        cli,
+        "_collect_second_guess_assistant_text",
+        lambda raw_stream_text, *, web_app: f"assistant:{raw_stream_text.count('agent_message')}",
+    )
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdout = io.StringIO("codex streaming line\n")
+            self.stderr = io.StringIO("warning-line\n")
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["cwd"] = kwargs.get("cwd")
+        captured["env"] = kwargs.get("env")
+        output_index = cmd.index("--output-last-message")
+        Path(cmd[output_index + 1]).write_text("assistant from file\n", encoding="utf-8")
+        return FakeProcess()
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+
+    result = cli._run_exec_chat_turn(
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox="workspace-write",
+        codex_bin="codex",
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+
+    assert result["assistant_text"] == "assistant from file"
+    assert result["return_code"] == 0
+    assert result["stderr"] == "warning-line"
+    assert captured["cwd"] == str(tmp_path)
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[:6] == [
+        "codex",
+        "exec",
+        "--cd",
+        str(tmp_path),
+        "--sandbox",
+        "workspace-write",
+    ]
+    assert "--output-last-message" in command
+    assert command[-1] == "hello"
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env.get("SANITIZED") == "1"
+    assert env.get("CODEX_HOME_NORMALIZED") == "1"
+
+    streamed = capsys.readouterr()
+    assert "codex streaming line" in streamed.out
+    assert "warning-line" in streamed.err
+
+
+def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
+        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "Popen",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("Popen should not run in tty mode")),
+    )
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["cwd"] = kwargs.get("cwd")
+        captured["env"] = kwargs.get("env")
+        output_index = cmd.index("--output-last-message")
+        Path(cmd[output_index + 1]).write_text("tty assistant\n", encoding="utf-8")
+        return SimpleNamespace(returncode=3)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = cli._run_exec_chat_turn(
+        repo_dir=tmp_path,
+        prompt="hello tty",
+        sandbox="read-only",
+        codex_bin="codex",
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+    assert result["assistant_text"] == "tty assistant"
+    assert result["return_code"] == 3
+    assert result["stderr"] == ""
+    assert captured["cwd"] == str(tmp_path)
+
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[:6] == [
+        "codex",
+        "exec",
+        "--cd",
+        str(tmp_path),
+        "--sandbox",
+        "read-only",
+    ]
+    assert "--output-last-message" in command
+    assert command[-1] == "hello tty"
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env.get("SANITIZED") == "1"
+    assert env.get("CODEX_HOME_NORMALIZED") == "1"
+
+
 def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

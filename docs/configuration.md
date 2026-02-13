@@ -40,6 +40,8 @@ Notes:
 
 - `fermilink exec --sandbox <mode>` is a per-run override that enforces sandbox
   for that run.
+- `fermilink chat --sandbox <mode>` is a per-session override that enforces
+  sandbox for that interactive session.
 - Under codex provider, bypass mode maps to
   `--dangerously-bypass-approvals-and-sandbox`.
 - Bypass mode does not remove OS/container-level restrictions outside Codex.
