@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
 import urllib.error
 from pathlib import Path
@@ -36,6 +38,34 @@ from fermilink.services import (
 DEFAULT_MAX_ZIP_BYTES = int(os.getenv("SCIPKG_MAX_ZIP_BYTES", str(800 * 1024 * 1024)))
 DEFAULT_BOOTSTRAP_PACKAGE_ID = "maxwelllink"
 DEFAULT_BOOTSTRAP_CHANNEL = "tel-research-group"
+DEFAULT_COMPILE_CODEX_BIN = os.getenv("CODEX_BIN", "codex")
+DEFAULT_COMPILE_SANDBOX = os.getenv("FERMILINK_COMPILE_SANDBOX", "workspace-write")
+COMPILE_PROMPT_1 = (
+    "Please review the file structure of this scientific package, identify where the "
+    "source code, examples, docs, testing, and tutorials are. Then, apply the "
+    "sci-skills-generator skill at the project root to create the skills/ folder for "
+    "this project. We need not only a file or code map, but also enrich the generated "
+    "skills/ folder so that ai agents can start from the skills/ folder to optimally "
+    "use this package for advanced scientific simulations or computing."
+)
+COMPILE_PROMPT_2 = (
+    "Please review the file structure of this scientific package, identify where the "
+    "source code, examples, docs, testing, and tutorials are.  Then, using the skill "
+    "at sci-skills-generator/ at the project root to audit whether the skills/ folder "
+    "is sufficient for ai agents to optimally use this package for advanced scientific "
+    "simulations or computing. If not, please provide the modifications of skills/ "
+    "folder accordingly."
+)
+COMPILE_PROMPT_3 = (
+    "please examine whether the skills/ folder contains the file links that are "
+    "consistent with the file structure of this code. If not, provide the "
+    "modifications accordingly. Then, examine whether the skills/ folder is sufficient "
+    "for ai agents to optimally use this package for advanced scientific simulations or "
+    "computing, and please enrich the skills/ folder if not."
+)
+SUPPRESSED_COMPILE_OUTPUT_MARKERS = (
+    "codex_core::rollout::list: state db missing rollout path for thread",
+)
 
 
 def _print_json(payload: dict) -> None:
@@ -156,6 +186,173 @@ def _bootstrap_line(payload: object) -> str | None:
     return None
 
 
+def _resolve_compile_tool_source() -> Path:
+    return Path(__file__).resolve().parent / "tools" / "sci-skills-generator"
+
+
+def _should_suppress_compile_output_line(text: str) -> bool:
+    lowered = (text or "").strip().lower()
+    if not lowered:
+        return False
+    for marker in SUPPRESSED_COMPILE_OUTPUT_MARKERS:
+        if marker in lowered:
+            return True
+    return False
+
+
+def _emit_compile_process_output(completed: object) -> None:
+    stdout_text = getattr(completed, "stdout", "")
+    stderr_text = getattr(completed, "stderr", "")
+    if isinstance(stdout_text, str) and stdout_text:
+        for line in stdout_text.splitlines():
+            if _should_suppress_compile_output_line(line):
+                continue
+            print(line)
+    if isinstance(stderr_text, str) and stderr_text:
+        for line in stderr_text.splitlines():
+            if _should_suppress_compile_output_line(line):
+                continue
+            print(line, file=sys.stderr)
+
+
+def _resolve_project_path(raw_path: str) -> Path:
+    path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        path = (Path.cwd() / path).resolve()
+    return path
+
+
+def _run_codex_compile_pass(
+    project_root: Path,
+    *,
+    prompt: str,
+    pass_index: int,
+    total_passes: int,
+) -> dict[str, object]:
+    codex_bin = DEFAULT_COMPILE_CODEX_BIN
+    sandbox = DEFAULT_COMPILE_SANDBOX
+    cmd = [codex_bin, "exec", "--cd", str(project_root)]
+    if sandbox:
+        cmd.extend(["--sandbox", sandbox])
+        if sandbox == "workspace-write":
+            cmd.append("--full-auto")
+    cmd.append(prompt)
+
+    print(f"[compile] pass {pass_index}/{total_passes}: codex exec")
+    try:
+        completed = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise PackageError(
+            f"codex CLI not found: {codex_bin}. Install codex or set CODEX_BIN."
+        ) from exc
+
+    _emit_compile_process_output(completed)
+
+    if completed.returncode != 0:
+        raise PackageError(
+            f"codex exec failed at compile pass {pass_index}/{total_passes} "
+            f"with exit code {completed.returncode}."
+        )
+
+    return {
+        "pass": pass_index,
+        "status": "ok",
+        "return_code": completed.returncode,
+    }
+
+
+def _cmd_compile(args: argparse.Namespace) -> int:
+    scipkg_root = resolve_scipkg_root()
+    package_id = normalize_package_id(args.package_id)
+    project_root = _resolve_project_path(args.project_path)
+    if not project_root.exists() or not project_root.is_dir():
+        raise PackageError(f"Compile path is not a directory: {project_root}")
+
+    registry = load_registry(scipkg_root)
+    packages = registry.get("packages", {})
+    if isinstance(packages, dict) and package_id in packages:
+        raise PackageError(
+            f"Warning: package id '{package_id}' already exists. "
+            "Choose a new package id for compile."
+        )
+
+    tool_source = _resolve_compile_tool_source()
+    if not tool_source.is_dir():
+        raise PackageError(f"Missing compile tool source: {tool_source}")
+
+    tool_dest = project_root / "sci-skills-generator"
+    if tool_dest.exists():
+        raise PackageError(
+            f"Compile path already contains {tool_dest.name}/. "
+            "Remove it first or choose a different path."
+        )
+
+    shutil.copytree(tool_source, tool_dest)
+    compile_runs: list[dict[str, object]] = []
+
+    try:
+        compile_runs.append(
+            _run_codex_compile_pass(
+                project_root, prompt=COMPILE_PROMPT_1, pass_index=1, total_passes=3
+            )
+        )
+        compile_runs.append(
+            _run_codex_compile_pass(
+                project_root, prompt=COMPILE_PROMPT_2, pass_index=2, total_passes=3
+            )
+        )
+    finally:
+        shutil.rmtree(tool_dest, ignore_errors=True)
+
+    if tool_dest.exists():
+        raise PackageError(f"Failed to clean up temporary tool directory: {tool_dest}")
+
+    compile_runs.append(
+        _run_codex_compile_pass(
+            project_root, prompt=COMPILE_PROMPT_3, pass_index=3, total_passes=3
+        )
+    )
+
+    installed = install_from_local_path(
+        scipkg_root,
+        package_id,
+        local_path=project_root,
+        title=args.title,
+        activate=args.activate,
+        force=False,
+    )
+
+    router_sync = None
+    if not args.no_router_sync:
+        router_sync = sync_router_rules(scipkg_root)
+
+    active = load_registry(scipkg_root).get("active_package")
+    payload = {
+        "compiled_package_id": package_id,
+        "project_root": str(project_root),
+        "compile_runs": compile_runs,
+        "installed": installed,
+        "active_package": active,
+        "router_sync": router_sync,
+        "scipkg_root": str(scipkg_root),
+    }
+    lines = [
+        f"Compiled skills for '{package_id}' from {project_root}.",
+        (
+            f"Installed to scientific packages. Active package: {active}."
+            if isinstance(active, str) and active
+            else "Installed to scientific packages."
+        ),
+    ]
+    _emit_output(args, payload, lines)
+    return 0
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
     package_id = normalize_package_id(args.package_id)
@@ -217,7 +414,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_list(_: argparse.Namespace) -> int:
+def _cmd_list(args: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
     registry = load_registry(scipkg_root)
     packages = list_packages(scipkg_root)
@@ -595,6 +792,38 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip automatic router_rules.json synchronization.",
     )
     install_parser.set_defaults(func=_cmd_install)
+
+    compile_parser = subparsers.add_parser(
+        "compile",
+        help=(
+            "Compile a local scientific project into a fermilink package by running "
+            "three codex passes with sci-skills-generator, then install locally."
+        ),
+    )
+    _add_json_option(compile_parser)
+    compile_parser.add_argument("package_id", help="Target package id to register.")
+    compile_parser.add_argument(
+        "project_path",
+        nargs="?",
+        default=".",
+        help="Project root path to compile (default: current directory).",
+    )
+    compile_parser.add_argument(
+        "--title",
+        help="Optional display title for installed package metadata.",
+    )
+    compile_parser.add_argument(
+        "--activate",
+        "--active",
+        action="store_true",
+        help="Activate package after compile+install.",
+    )
+    compile_parser.add_argument(
+        "--no-router-sync",
+        action="store_true",
+        help="Skip automatic router_rules.json synchronization.",
+    )
+    compile_parser.set_defaults(func=_cmd_compile)
 
     list_parser = subparsers.add_parser("list", help="List installed scientific packages.")
     _add_json_option(list_parser)
