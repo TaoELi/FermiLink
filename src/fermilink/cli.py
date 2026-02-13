@@ -10,7 +10,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fermilink.agent_runtime import (
@@ -109,6 +111,34 @@ PACKAGE_SOURCE_DEFAULT = "default"
 PACKAGE_SOURCE_SECOND_GUESS = "second_guess"
 PACKAGE_SOURCE_NONE = "none"
 WEB_ROUTER_ONLY_IMPORT_ENV = "FERMILINK_ROUTER_ONLY_IMPORT"
+
+LOOP_MEMORY_DIRNAME = "projects"
+LOOP_MEMORY_FILENAME = "memory.md"
+LOOP_DONE_TOKEN = "<promise>DONE</promise>"
+LOOP_PROMPT_PREFIX = (
+    "You are running in **FermiLink loop mode**.\n"
+    "\n"
+    "Persistent memory lives at `projects/memory.md` (relative to the repo root).\n"
+    "\n"
+    "Long-running jobs (SLURM or similar): it is OK to submit a job, record job ids/paths\n"
+    "in `projects/memory.md`, and end the iteration without waiting. A later iteration can\n"
+    "check status and continue.\n"
+    "\n"
+    "At the start of this iteration:\n"
+    "1) Read `projects/memory.md`.\n"
+    "2) If it does not contain a clear checklist plan, create one (5-15 small steps).\n"
+    "3) Execute exactly ONE next unchecked step.\n"
+    "4) Update `projects/memory.md`:\n"
+    "   - Check off the completed step.\n"
+    "   - Append a short progress log entry (what changed + files touched).\n"
+    "   - Append a short additional notes log entry for the pitfalls you have avoided or key problems encountered.\n"
+    "\n"
+    f"When (and only when) ALL steps are complete and the request is satisfied, output exactly:\n"
+    f"{LOOP_DONE_TOKEN}\n"
+    "on its own line.\n"
+    "\n"
+    "Original request:\n"
+)
 
 
 def _should_style_cli_output() -> bool:
@@ -1200,6 +1230,205 @@ def _resolve_project_path(raw_path: str) -> Path:
     return path
 
 
+def _resolve_loop_user_prompt(args: argparse.Namespace) -> tuple[str, str | None]:
+    prompt_tokens = getattr(args, "prompt", None)
+    if not isinstance(prompt_tokens, list) or not prompt_tokens:
+        raise PackageError("Prompt is required for fermilink loop.")
+
+    if len(prompt_tokens) == 1:
+        candidate_path = Path(str(prompt_tokens[0])).expanduser()
+        if not candidate_path.is_absolute():
+            candidate_path = (Path.cwd() / candidate_path).resolve()
+        try:
+            is_file = candidate_path.is_file()
+        except OSError:
+            # Treat invalid/too-long path-like values as plain prompt text.
+            is_file = False
+        if is_file:
+            try:
+                content = candidate_path.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                raise PackageError(f"Failed to read prompt file: {candidate_path}: {exc}") from exc
+            text = content.strip()
+            if not text:
+                raise PackageError(f"Prompt file is empty: {candidate_path}")
+            return text, str(candidate_path)
+
+    text = " ".join(str(token) for token in prompt_tokens).strip()
+    if not text:
+        raise PackageError("Prompt is required for fermilink loop.")
+    return text, None
+
+
+def _ensure_loop_memory(
+    *,
+    repo_dir: Path,
+    user_prompt: str,
+    prompt_file: str | None,
+) -> Path:
+    projects_dir = repo_dir / LOOP_MEMORY_DIRNAME
+    if projects_dir.exists() and projects_dir.is_symlink():
+        raise PackageError(
+            f"{projects_dir} is a symlink. Remove it and create a real directory "
+            "so fermilink loop can persist long-term memory safely."
+        )
+    if projects_dir.exists() and not projects_dir.is_dir():
+        raise PackageError(f"{projects_dir} exists but is not a directory.")
+    projects_dir.mkdir(parents=True, exist_ok=True)
+
+    memory_path = projects_dir / LOOP_MEMORY_FILENAME
+    if memory_path.exists():
+        if memory_path.is_dir():
+            raise PackageError(f"{memory_path} exists but is a directory.")
+        return memory_path
+
+    started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    source_line = f"- prompt_source: {prompt_file}\n" if prompt_file else ""
+    initial = (
+        "# FermiLink Loop Memory\n"
+        "\n"
+        f"- started_at_utc: {started_at}\n"
+        f"{source_line}"
+        "\n"
+        "## Original request\n"
+        f"{user_prompt.strip()}\n"
+        "\n"
+        "## Plan\n"
+        "- [ ] (fill in a small checklist plan)\n"
+        "\n"
+        "## Progress log\n"
+        "- initialized\n"
+    )
+    try:
+        memory_path.write_text(initial, encoding="utf-8")
+    except OSError as exc:
+        raise PackageError(f"Failed to create loop memory file: {memory_path}: {exc}") from exc
+    return memory_path
+
+
+def _cmd_loop(args: argparse.Namespace) -> int:
+    repo_dir = Path.cwd().resolve()
+    _ensure_exec_repo_ready(repo_dir, args)
+
+    # Best-effort cleanup from previously interrupted overlays.
+    _cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+
+    user_prompt, prompt_file = _resolve_loop_user_prompt(args)
+    memory_path = _ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt=user_prompt,
+        prompt_file=prompt_file,
+    )
+    _print_tagged("loop", f"memory: {memory_path.relative_to(repo_dir)}")
+
+    max_iterations_raw = getattr(args, "max_iterations", 10)
+    try:
+        max_iterations = int(max_iterations_raw)
+    except (TypeError, ValueError) as exc:
+        raise PackageError("--max-iterations must be an integer.") from exc
+    if max_iterations < 1:
+        raise PackageError("--max-iterations must be >= 1.")
+
+    wait_seconds_raw = getattr(args, "wait_seconds", 0.0)
+    try:
+        wait_seconds = float(wait_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise PackageError("--wait-seconds must be a number.") from exc
+    if wait_seconds < 0:
+        raise PackageError("--wait-seconds must be >= 0.")
+
+    scipkg_root = resolve_scipkg_root()
+    runtime_policy = resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    sandbox_policy = runtime_policy.sandbox_policy
+    sandbox_mode = runtime_policy.sandbox_mode
+    if isinstance(args.sandbox, str) and args.sandbox.strip():
+        sandbox_policy = "enforce"
+        sandbox_mode = args.sandbox.strip()
+
+    provider_bin = args.codex_bin if provider == "codex" else None
+    selection = _resolve_exec_package_selection(
+        user_prompt=user_prompt,
+        scipkg_root=scipkg_root,
+        repo_dir=repo_dir,
+        requested_package_id=args.package_id,
+        provider=provider,
+        provider_bin=provider_bin,
+        sandbox_policy=sandbox_policy,
+    )
+    package_id = selection.get("package_id")
+    if not isinstance(package_id, str) or not package_id:
+        raise PackageError("No package selected for loop execution.")
+
+    source = str(selection.get("source") or "default")
+    note = str(selection.get("note") or "").strip()
+    _print_tagged("package", f"Using {package_id} (selection: {source})")
+    if note and note not in {"manual_pin", "default_fallback", "matched"}:
+        _print_tagged("router", note)
+    sandbox_text = (
+        f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
+    )
+    _print_tagged("agent", f"provider: {provider}, sandbox: {sandbox_text}")
+
+    overlay = _overlay_exec_package(
+        repo_dir=repo_dir,
+        scipkg_root=scipkg_root,
+        package_id=package_id,
+    )
+    linked = int(overlay.get("linked_count", 0)) if isinstance(overlay, dict) else 0
+    collisions = (
+        int(overlay.get("collision_count", 0)) if isinstance(overlay, dict) else 0
+    )
+    linked_deps = (
+        int(overlay.get("linked_dependency_count", 0))
+        if isinstance(overlay, dict)
+        else 0
+    )
+    _print_tagged(
+        "overlay",
+        (
+            "linked entries: "
+            f"{linked}, linked dependencies: {linked_deps}, collisions: {collisions}"
+        ),
+    )
+
+    prompt = f"{LOOP_PROMPT_PREFIX}{user_prompt.strip()}\n"
+    try:
+        for iteration in range(1, max_iterations + 1):
+            _print_tagged("loop", f"iteration {iteration}/{max_iterations}")
+            run_result = _run_exec_chat_turn(
+                repo_dir=repo_dir,
+                prompt=prompt,
+                sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+                codex_bin=provider_bin,
+                provider=provider,
+                sandbox_policy=sandbox_policy,
+            )
+
+            assistant_text = str(run_result.get("assistant_text") or "")
+            done = any(line.strip() == LOOP_DONE_TOKEN for line in assistant_text.splitlines())
+            if done:
+                print(LOOP_DONE_TOKEN)
+                return 0
+
+            return_code = int(run_result.get("return_code") or 0)
+            if return_code != 0:
+                return return_code
+
+            if iteration < max_iterations and wait_seconds > 0:
+                _print_tagged("loop", f"sleeping {wait_seconds:.1f}s before next iteration")
+                time.sleep(wait_seconds)
+    finally:
+        _cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+
+    _print_tagged(
+        "loop",
+        f"max iterations reached ({max_iterations}) without {LOOP_DONE_TOKEN}.",
+        stderr=True,
+    )
+    return 1
+
+
 def _cmd_exec(args: argparse.Namespace) -> int:
     prompt = " ".join(args.prompt).strip()
     if not prompt:
@@ -2066,6 +2295,66 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Fail instead of prompting/initializing when git repository is missing.",
     )
     exec_parser.set_defaults(func=_cmd_exec)
+
+    loop_parser = subparsers.add_parser(
+        "loop",
+        help=(
+            "Run one autonomous loop iteration locally (web-like routing + overlay), "
+            "persisting state in projects/memory.md until <promise>DONE</promise>."
+        ),
+    )
+    loop_parser.add_argument(
+        "prompt",
+        nargs="+",
+        help=(
+            "Either prompt text, or a path to a markdown file containing the prompt "
+            "(e.g. prompt.md)."
+        ),
+    )
+    loop_parser.add_argument(
+        "--package",
+        dest="package_id",
+        help="Pin one installed package id and skip auto routing.",
+    )
+    loop_parser.add_argument(
+        "--sandbox",
+        default=None,
+        help=(
+            "Override sandbox mode for this iteration. "
+            "When omitted, uses `fermilink agent` policy."
+        ),
+    )
+    loop_parser.add_argument(
+        "--codex-bin",
+        default=DEFAULT_COMPILE_CODEX_BIN,
+        help=(
+            f"Codex executable path (default: {DEFAULT_COMPILE_CODEX_BIN}). "
+            "Ignored when provider is not codex."
+        ),
+    )
+    loop_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=10,
+        help="Maximum loop iterations to run before stopping (default: 10).",
+    )
+    loop_parser.add_argument(
+        "--wait-seconds",
+        type=float,
+        default=0.0,
+        help="Seconds to sleep between iterations (default: 0).",
+    )
+    loop_parser.add_argument(
+        "--init-git",
+        action="store_true",
+        help="Auto-run git init when current directory is not a git repository.",
+    )
+    loop_parser.add_argument(
+        "--no-init-git",
+        action="store_true",
+        help="Fail instead of prompting/initializing when git repository is missing.",
+    )
+    loop_parser.set_defaults(func=_cmd_loop)
 
     chat_parser = subparsers.add_parser(
         "chat",

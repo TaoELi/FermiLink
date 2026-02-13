@@ -87,6 +87,26 @@ Optional flags:
 - `--init-git`: auto-run `git init` when current directory is not a git repo
 - `--no-init-git`: fail instead of prompting for git init
 
+## Run an Autonomous Loop Iteration (Exec + Persistent Memory)
+
+Use `loop` to run up to `--max-iterations` autonomous iterations (default: 10)
+that persist long-term state to `projects/memory.md`. It stops early when it
+prints `<promise>DONE</promise>`.
+
+```bash
+# Prompt as a file
+fermilink loop prompt.md
+
+# Prompt as an inline string
+fermilink loop "refactor the router and add tests"
+
+# Override iteration cap
+fermilink loop --max-iterations 50 prompt.md
+
+# Sleep between iterations (useful for long-running jobs)
+fermilink loop --wait-seconds 30 prompt.md
+```
+
 ## Run Interactive Multi-Turn Chat From CLI
 
 Use `chat` for a terminal REPL that mirrors web conversation behavior:
