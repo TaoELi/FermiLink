@@ -9,8 +9,8 @@ Development setup
 
 .. code-block:: bash
 
-   git clone https://github.com/TaoELi/FermiLink_development.git
-   cd FermiLink_development
+   git clone https://github.com/TaoELi/FermiLink.git
+   cd FermiLink/
    pip install -e ".[dev,docs]"
 
 Quality gates

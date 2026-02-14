@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 # --- Project info ---
 project = "FermiLink"
-author = "FermiLink"
+author = "Tao E. Li"
 try:
     release = pkg_version("fermilink")
     version = ".".join(release.split(".")[:2])
