@@ -1,12 +1,12 @@
 # FermiLink Docs
 
-Start here:
+Documentation source has migrated to Sphinx ``.rst`` files under
+``docs/source``.
 
-- [Install and Run](install.md)
-- [Scientific Package Management](scientific-packages.md)
-- [Architecture](architecture.md)
-- [Configuration](configuration.md)
-- [Test Plan](test-plan.md)
-- [Repository Map](repository-map.md)
-- [Privacy Policy](privacy.md)
-- [Terms of Use](terms.md)
+Build the site:
+
+```bash
+make doc html
+```
+
+Main entry page: ``docs/source/overview.rst``.

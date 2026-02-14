@@ -31,3 +31,8 @@ build/
 # Development helpers
 /AGENTS.md
 /project_history.md
+
+# Documentation build artifacts
+docs/build/
+docs/source/api/
+docs_sample/

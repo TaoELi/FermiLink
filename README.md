@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="docs/README.md">
+  <a href="docs/source/overview.rst">
     <img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge">
   </a>
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
@@ -57,7 +57,7 @@ namespace collisions, for example:
 - `FERMILINK_RUNNER_URL`
 - `FERMILINK_CODEX_BIN`
 
-See `docs/configuration.md` for the full configuration matrix.
+See `docs/source/configuration.rst` for the full configuration matrix.
 
 ## Compile Local Projects Into Packages
 
@@ -258,8 +258,9 @@ When not overridden, FermiLink stores runtime data under:
 
 ## Documentation
 
-- [Install and Run](docs/install.md)
-- [Scientific Package Management](docs/scientific-packages.md)
-- [Architecture](docs/architecture.md)
-- [Configuration](docs/configuration.md)
-- [Repository Map](docs/repository-map.md)
+- [Overview](docs/source/overview.rst)
+- [Installation](docs/source/installation.rst)
+- [Scientific Package Management](docs/source/scientific_packages.rst)
+- [Architecture](docs/source/architecture.rst)
+- [Configuration](docs/source/configuration.rst)
+- [Repository Map](docs/source/repository_map.rst)

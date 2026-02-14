@@ -1,0 +1,288 @@
+{% extends "!page.html" %}
+
+{% block content %}
+  {% if pagename == "index" %}
+    <script>
+      document.body.classList.add("mxl-landing");
+    </script>
+    <a class="mxl-skip-link" href="#mxl-main">Skip to content</a>
+
+    <header class="mxl-topbar">
+      <div class="mxl-topbar__inner">
+        <a class="mxl-brand" href="{{ pathto('index') }}" aria-label="FermiLink home">
+          <span class="mxl-brand__mark" aria-hidden="true">
+            <img src="{{ pathto('_static/img/mark.svg', 1) }}" alt="" loading="eager" decoding="async" />
+          </span>
+          <span class="mxl-brand__name">FermiLink</span>
+        </a>
+
+        <nav class="mxl-topbar__nav" aria-label="Landing page">
+          <a class="mxl-topbar__link" href="#features">Highlights</a>
+          <a class="mxl-topbar__link" href="#modes">Modes</a>
+          <a class="mxl-topbar__link" href="#packages">Packages</a>
+          <a class="mxl-topbar__link" href="#operations">Operations</a>
+        </nav>
+
+        <div class="mxl-topbar__actions">
+          <a class="mxl-topbar__cta" href="{{ pathto('overview') }}">Docs</a>
+          <a class="mxl-button mxl-button--primary mxl-button--sm" href="{{ pathto('installation') }}">
+            Get started
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="mxl-main">
+      <section class="mxl-hero" id="top">
+        <div class="mxl-hero__grid">
+          <div class="mxl-hero__copy">
+            <div class="mxl-hero__kicker">
+              <span class="mxl-hero__dot" aria-hidden="true"></span>
+              <span>Unified AI execution layer for scientific workflows</span>
+            </div>
+            <h1 class="mxl-hero__title">
+              FermiLink connects
+              <span class="mxl-gradient-text">web interactions</span>,
+              <span class="mxl-gradient-text">CLI automation</span>, and
+              <span class="mxl-gradient-text">package-aware execution</span>.
+            </h1>
+            <p class="mxl-hero__lead">
+              Route prompts to the right scientific package context, overlay deterministic workspace state,
+              and run provider-driven workflows with transparent runtime controls.
+            </p>
+            <div class="mxl-hero__actions">
+              <a class="mxl-button mxl-button--primary" href="{{ pathto('installation') }}">Install</a>
+              <a class="mxl-button mxl-button--secondary" href="{{ pathto('overview') }}">Documentation</a>
+              <a class="mxl-button mxl-button--ghost" href="{{ pathto('architecture') }}">Architecture</a>
+              <a class="mxl-button mxl-button--ghost" href="{{ pathto('privacy') }}">Privacy</a>
+              <a class="mxl-button mxl-button--ghost" href="{{ pathto('terms') }}">Terms</a>
+            </div>
+          </div>
+
+          <div class="mxl-hero__visual" aria-hidden="true">
+            <div class="mxl-glass-card">
+              <div class="mxl-glass-card__top">
+                <span class="mxl-chip mxl-chip--ok">FermiLink execution stack</span>
+              </div>
+
+              <div class="mxl-loop mxl-loop--hero">
+                <div class="mxl-loop__block">
+                  <div class="mxl-loop__name">Web + CLI</div>
+                  <div class="mxl-loop__meta">Chainlit UI, exec, chat, loop, reproduce, research</div>
+                </div>
+                <div class="mxl-loop__connector"></div>
+                <div class="mxl-loop__block mxl-loop__block--core">
+                  <div class="mxl-loop__name">Runner API</div>
+                  <div class="mxl-loop__meta">Admission control, workspace setup, SSE stream</div>
+                </div>
+                <div class="mxl-loop__connector"></div>
+                <div class="mxl-loop__block">
+                  <div class="mxl-loop__name">Scientific packages</div>
+                  <div class="mxl-loop__meta">Registry, overlays, dependencies, router rules</div>
+                </div>
+              </div>
+
+              <div class="mxl-mini">
+                <div class="mxl-mini__row">
+                  <span class="mxl-mini__label">Policy</span>
+                  <span class="mxl-mini__value">Provider + sandbox controls</span>
+                </div>
+                <div class="mxl-mini__row">
+                  <span class="mxl-mini__label">Workspaces</span>
+                  <span class="mxl-mini__value">Per-session repo overlays</span>
+                </div>
+                <div class="mxl-mini__row">
+                  <span class="mxl-mini__label">Routing</span>
+                  <span class="mxl-mini__value">Keyword + second-guess selection</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mxl-glow mxl-glow--a"></div>
+            <div class="mxl-glow mxl-glow--b"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mxl-section mxl-section--alt" id="features">
+        <div class="mxl-container">
+          <div class="mxl-section__head">
+            <h2>Platform highlights</h2>
+            <p>
+              FermiLink keeps the same package-routing and execution model across web and terminal usage,
+              so operators and researchers can move between interactive and automated flows without changing
+              core runtime assumptions.
+            </p>
+          </div>
+
+          <div class="mxl-cards">
+            <article class="mxl-card">
+              <h3>Unified runtime policy</h3>
+              <p>Global provider and sandbox controls are shared across web, runner, exec, chat, and compile flows.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">Provider policy</span>
+                <span class="mxl-pill">Sandbox policy</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>Deterministic overlays</h3>
+              <p>Session repos are materialized with manifest-tracked package entries and dependency links.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">Workspace manifests</span>
+                <span class="mxl-pill">Dependency links</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>Adaptive package routing</h3>
+              <p>Keyword scoring and optional second-guess preflight select package context per request.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">Router rules</span>
+                <span class="mxl-pill">Second guess</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>Operational transparency</h3>
+              <p>Runner SSE metadata and optional transparency reporting expose execution and artifact flow.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">SSE events</span>
+                <span class="mxl-pill">Admission metrics</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="mxl-section" id="modes">
+        <div class="mxl-container">
+          <div class="mxl-section__head">
+            <h2>Execution modes</h2>
+            <p>
+              FermiLink supports both service and local workflows, from one-shot repository execution
+              to planner-driven multi-task orchestration.
+            </p>
+          </div>
+
+          <div class="mxl-cards">
+            <article class="mxl-card">
+              <h3>Web mode</h3>
+              <p>``fermilink start`` launches runner + Chainlit with auth, quotas, and package session controls.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">Chainlit</span>
+                <span class="mxl-pill">Runner API</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>CLI sessions</h3>
+              <p>``exec`` for one prompt, ``chat`` for multi-turn sessions, ``loop`` for autonomous iteration.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">exec/chat/loop</span>
+                <span class="mxl-pill">Repo-safe</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>Planner workflows</h3>
+              <p>``reproduce`` and ``research`` use planner + auditor passes and task-loop execution.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">reproduce</span>
+                <span class="mxl-pill">research</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="mxl-section mxl-section--alt" id="packages">
+        <div class="mxl-container">
+          <div class="mxl-split">
+            <div class="mxl-split__copy">
+              <h2>Scientific package lifecycle</h2>
+              <p>
+                FermiLink package management supports curated installs, zip/local installs, and compile-time
+                conversion of existing scientific repositories into package-aware skills bundles.
+              </p>
+              <ul class="mxl-list">
+                <li><strong>Curated channels</strong> for common scientific stacks.</li>
+                <li><strong>Compile flow</strong> for turning local projects into reusable packages.</li>
+                <li><strong>Overlay controls</strong> for entry filtering and dependency links.</li>
+              </ul>
+              <div class="mxl-split__actions">
+                <a class="mxl-button mxl-button--secondary mxl-button--sm" href="{{ pathto('scientific_packages') }}">Package docs</a>
+                <a class="mxl-button mxl-button--ghost mxl-button--sm" href="{{ pathto('configuration') }}">Configuration</a>
+              </div>
+            </div>
+
+            <div class="mxl-split__panel">
+              <div class="mxl-code-card mxl-loop-card" role="group" aria-label="Conceptual package flow">
+                <div class="mxl-code-card__title mxl-loop-card__title">Package flow</div>
+                <div class="mxl-loop">
+                  <div class="mxl-loop__block">
+                    <div class="mxl-loop__name">Install source</div>
+                    <div class="mxl-loop__meta">Curated, zip URL, local path, compile</div>
+                  </div>
+                  <div class="mxl-loop__connector"></div>
+                  <div class="mxl-loop__block mxl-loop__block--core">
+                    <div class="mxl-loop__name">Registry + rules</div>
+                    <div class="mxl-loop__meta">active package, router rules, metadata</div>
+                  </div>
+                  <div class="mxl-loop__connector"></div>
+                  <div class="mxl-loop__block">
+                    <div class="mxl-loop__name">Workspace overlay</div>
+                    <div class="mxl-loop__meta">repo entries + external_packages links</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mxl-section" id="operations">
+        <div class="mxl-container">
+          <div class="mxl-section__head">
+            <h2>Operations and reliability</h2>
+            <p>
+              Runner admission and policy controls provide predictable concurrency, execution isolation,
+              and operational introspection for shared environments.
+            </p>
+          </div>
+
+          <div class="mxl-cards">
+            <article class="mxl-card">
+              <h3>Admission controls</h3>
+              <p>Global and per-user active/pending limits protect runner capacity under concurrent load.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">Queue limits</span>
+                <span class="mxl-pill">Backpressure</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>Observability endpoints</h3>
+              <p>``/ops/concurrency`` and ``/ops/admission`` expose runtime capacity and readiness.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">JSON + Prometheus</span>
+                <span class="mxl-pill">Token guard</span>
+              </div>
+            </article>
+
+            <article class="mxl-card">
+              <h3>Transparent stream contract</h3>
+              <p>``meta``, ``codex``, ``log``, and ``runner.exit`` events separate execution stages cleanly.</p>
+              <div class="mxl-card__tags">
+                <span class="mxl-pill">SSE</span>
+                <span class="mxl-pill">Traceable runs</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
