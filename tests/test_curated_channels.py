@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from fermilink.curated_channels import normalize_channel_id, resolve_curated_package
+from fermilink.curated_channels import (
+    list_curated_packages,
+    normalize_channel_id,
+    resolve_curated_package,
+)
 
 
 def test_curated_alias_resolution() -> None:
@@ -17,3 +21,9 @@ def test_resolve_curated_package() -> None:
 def test_resolve_curated_package_missing() -> None:
     with pytest.raises(ValueError):
         resolve_curated_package("not-a-real-package", channel="tel-research-group")
+
+
+def test_list_curated_packages_contains_tel_entries() -> None:
+    packages = list_curated_packages(channel="tel-research-group")
+    assert "ase" in packages
+    assert "maxwelllink" in packages

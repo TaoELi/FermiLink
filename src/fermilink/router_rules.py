@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 from pathlib import Path
 from typing import Any
@@ -8,256 +9,7 @@ from fermilink.package_registry import load_registry, normalize_package_id
 
 
 DEFAULT_ROUTER_RULES_FILENAME = "router_rules.json"
-
-FAMILY_HINTS: dict[str, dict[str, list[str]]] = {
-    "maxwelllink": {
-        "strong_keywords": [
-            "maxwelllink",
-            "light matter",
-            "maxwell bloch",
-            "quantum optics",
-            "spontaneous emission",
-            "two level system",
-            "two-level system",
-            "weakly excited",
-            "quantum emitter",
-        ],
-        "keywords": [
-            "radiative decay",
-            "driven two level",
-            "photonics",
-            "population dynamics",
-            "density matrix",
-            "dephasing",
-            "purcell",
-            "vacuum coupling",
-        ],
-        "negative_keywords": ["gromacs"],
-    },
-    "meep": {
-        "strong_keywords": ["meep", "fdtd", "finite difference time domain"],
-        "keywords": ["waveguide", "pml", "photonic crystal", "dielectric"],
-        "negative_keywords": [
-            "qchem",
-            "gaussian",
-            "lammps",
-            "gromacs",
-            "spontaneous emission",
-            "two level system",
-            "two-level system",
-            "weakly excited",
-            "density matrix",
-            "population dynamics",
-            "maxwell bloch",
-        ],
-    },
-    "qchem": {
-        "strong_keywords": ["qchem", "q-chem", "electronic structure", "dft"],
-        "keywords": ["ab initio", "hartree fock", "basis set", "scf"],
-        "negative_keywords": ["fdtd", "lammps", "gromacs"],
-    },
-    "gaussian": {
-        "strong_keywords": ["gaussian", "gaussian16", "g16", "electronic structure"],
-        "keywords": ["quantum chemistry", "basis set", "scf", "dft"],
-        "negative_keywords": ["fdtd", "lammps", "gromacs"],
-    },
-    "elk": {
-        "strong_keywords": [
-            "elk",
-            "electronic structure",
-            "density functional theory",
-            "fp-lapw",
-        ],
-        "keywords": [
-            "all-electron",
-            "full-potential linearized augmented-plane wave",
-            "band structure",
-            "k-point",
-            "muffin-tin",
-            "dft",
-            "scf",
-        ],
-        "negative_keywords": ["fdtd", "lammps", "gromacs"],
-    },
-    "lammps": {
-        "strong_keywords": ["lammps", "classical md", "molecular dynamics"],
-        "keywords": ["force field", "pair style", "nvt", "npt"],
-        "negative_keywords": ["qchem", "gaussian", "fdtd"],
-    },
-    "ase": {
-        "strong_keywords": ["ase", "atomic simulation environment", "atoms object"],
-        "keywords": [
-            "calculator",
-            "geometry optimization",
-            "structure relaxation",
-            "build surface",
-            "neb",
-            "trajectory",
-        ],
-        "negative_keywords": ["fdtd", "maxwell bloch", "gromacs"],
-    },
-    "qutip": {
-        "strong_keywords": [
-            "qutip",
-            "quantum toolbox in python",
-            "lindblad",
-            "master equation",
-        ],
-        "keywords": [
-            "open quantum system",
-            "hamiltonian",
-            "collapse operator",
-            "density matrix",
-            "bloch sphere",
-            "time evolution",
-        ],
-        "negative_keywords": ["fdtd", "lammps", "gromacs"],
-    },
-    "kwant": {
-        "strong_keywords": [
-            "kwant",
-            "quantum transport",
-            "tight-binding",
-            "tight binding",
-            "scattering matrix",
-        ],
-        "keywords": [
-            "conductance",
-            "greens function",
-            "wave function",
-            "dispersion relation",
-            "band structure",
-            "builder",
-            "smatrix",
-            "quantum hall",
-            "topological insulator",
-        ],
-        "negative_keywords": [
-            "fdtd",
-            "finite difference time domain",
-            "maxwell bloch",
-            "qchem",
-            "gaussian",
-            "hartree fock",
-            "molecular dynamics",
-            "lammps",
-            "gromacs",
-        ],
-    },
-    "tkwant": {
-        "strong_keywords": [
-            "tkwant",
-            "time-dependent quantum transport",
-            "time dependent quantum transport",
-        ],
-        "keywords": [
-            "time-dependent quantum dynamics",
-            "mesoscopic systems",
-            "time-dependent generalization of kwant",
-            "transient quantum transport",
-            "nonequilibrium dynamics",
-            "kwant",
-        ],
-        "negative_keywords": [
-            "fdtd",
-            "finite difference time domain",
-            "maxwell bloch",
-            "qchem",
-            "gaussian",
-            "hartree fock",
-            "classical md",
-            "molecular dynamics",
-            "lammps",
-            "gromacs",
-        ],
-    },
-    "oqupy": {
-        "strong_keywords": [
-            "oqupy",
-            "open quantum systems in python",
-            "process tensor",
-            "non-markovian open quantum systems",
-            "pt-tempo",
-            "pt-tebd",
-        ],
-        "keywords": [
-            "non-markovian",
-            "open quantum system",
-            "tempo",
-            "pt_tempo",
-            "pt_tebd",
-            "multi-time correlations",
-            "bath correlations",
-            "tensor network",
-            "spin-boson",
-            "gibbs tempo",
-        ],
-        "negative_keywords": [
-            "fdtd",
-            "finite difference time domain",
-            "waveguide",
-            "photonic crystal",
-            "electronic structure",
-            "quantum chemistry",
-            "hartree fock",
-            "basis set",
-            "classical md",
-            "molecular dynamics",
-            "force field",
-            "lammps",
-            "gromacs",
-        ],
-    },
-    "psi4": {
-        "strong_keywords": ["psi4", "electronic structure", "quantum chemistry", "ab initio"],
-        "keywords": ["scf", "mp2", "ccsd", "basis set", "hartree fock", "dft"],
-        "negative_keywords": ["fdtd", "lammps", "gromacs", "pyscf"],
-    },
-    "pyscf": {
-        "strong_keywords": [
-            "pyscf",
-            "python-based simulations of chemistry framework",
-            "electronic structure",
-            "quantum chemistry",
-        ],
-        "keywords": [
-            "scf",
-            "hartree fock",
-            "dft",
-            "mp2",
-            "ccsd",
-            "casscf",
-            "active space",
-            "basis set",
-            "molecular orbital",
-            "density fitting",
-        ],
-        "negative_keywords": ["fdtd", "lammps", "gromacs", "psi4"],
-    },
-    "gromacs": {
-        "strong_keywords": ["gromacs", "gmx", "classical md", "molecular dynamics"],
-        "keywords": ["mdp", "topol", "nvt", "npt"],
-        "negative_keywords": ["qchem", "gaussian", "fdtd"],
-    },
-    "packmol": {
-        "strong_keywords": [
-            "packmol",
-            "initial configurations for molecular dynamics simulations",
-            "spatial constraints",
-        ],
-        "keywords": [
-            "molecule packing",
-            "solvation box",
-            "lipid bilayer",
-            "pdb",
-            "xyz",
-            "inside box",
-            "outside sphere",
-            "tolerance",
-        ],
-        "negative_keywords": ["qchem", "gaussian", "fdtd", "meep", "qutip"],
-    },
-}
+FAMILY_HINTS_PATH = Path(__file__).resolve().parent / "data" / "router" / "family_hints.json"
 
 
 def dedupe(items: list[str]) -> list[str]:
@@ -293,13 +45,40 @@ def package_id_terms(package_id: str) -> list[str]:
     return dedupe(terms)
 
 
+@functools.lru_cache(maxsize=1)
+def load_family_hints() -> dict[str, dict[str, list[str]]]:
+    try:
+        payload = json.loads(FAMILY_HINTS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid router family hints file: {FAMILY_HINTS_PATH}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Family hints payload must be a JSON object: {FAMILY_HINTS_PATH}")
+    families_raw = payload.get("families")
+    if not isinstance(families_raw, dict):
+        raise ValueError(f"Family hints payload missing `families` map: {FAMILY_HINTS_PATH}")
+
+    parsed: dict[str, dict[str, list[str]]] = {}
+    for family, raw_terms in families_raw.items():
+        family_id = str(family).strip().lower()
+        if not family_id:
+            continue
+        if not isinstance(raw_terms, dict):
+            continue
+        parsed[family_id] = {
+            "strong_keywords": normalize_terms(raw_terms.get("strong_keywords")),
+            "keywords": normalize_terms(raw_terms.get("keywords")),
+            "negative_keywords": normalize_terms(raw_terms.get("negative_keywords")),
+        }
+    return parsed
+
+
 def infer_rule(package_id: str) -> dict[str, list[str]]:
     keywords = package_id_terms(package_id)
     strong_keywords: list[str] = []
     negative_keywords: list[str] = []
 
     lowered = package_id.lower()
-    for family, payload in FAMILY_HINTS.items():
+    for family, payload in load_family_hints().items():
         if family not in lowered:
             continue
         strong_keywords.extend(payload.get("strong_keywords", []))

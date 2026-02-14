@@ -64,6 +64,16 @@ This command:
 - runs Codex a third time to validate and enrich `skills/`;
 - installs the project to `scientific_packages/packages/<package-id>`.
 
+## Check Curated Package Availability
+
+Use `avail` to query whether a package is available in the curated
+`TEL-Research-Group` source channel:
+
+```bash
+fermilink avail ase
+fermilink avail quantum
+```
+
 ## Run One Prompt Locally (Web-Like Routing)
 
 Use `exec` to mirror the web routing + overlay flow directly in your current
@@ -115,6 +125,66 @@ fermilink loop --wait-seconds 30 prompt.md
 # Cap dynamic waits from agent hints
 fermilink loop --wait-seconds 30 --max-wait-seconds 300 prompt.md
 ```
+
+## Reproduce a Full Paper (Planner + Auditor + Multi-Task Loop)
+
+Use `reproduce` to orchestrate many `loop` runs for publication-scale workflows:
+
+```bash
+# Source from a file (tex/md/txt/pdf)
+fermilink reproduce paper.tex
+
+# Source from inline text
+fermilink reproduce "reproduce Figures 1-4 from this paper ..."
+
+# Generate plan only (no loop execution)
+fermilink reproduce paper.tex --plan-only
+
+# Generate/audit report only from existing run artifacts
+fermilink reproduce paper.tex --report-only
+
+# Override loop controls forwarded to each task run
+fermilink reproduce paper.tex --max-iterations 20 --wait-seconds 30 --max-wait-seconds 300
+```
+
+What `reproduce` does:
+
+- runs a planner pass to split the paper request into medium tasks;
+- runs an auditor pass to validate/fix that plan;
+- writes run artifacts under `projects/reproduce/<run-id>/`:
+  - `plan.json`, `state.json`, `prompts/task_*.md`, `logs/`, `archive/`, `summaries/`;
+- executes tasks sequentially via `fermilink loop` until each task prints `<promise>DONE</promise>`;
+- retries a task up to `--task-max-runs` when loop reaches its internal max-iteration bound;
+- after all tasks finish, generates and audits a polished report at `projects/reproduce/report.md`;
+- `--skip-report` skips final report generation; `--report-only` regenerates/audits report from existing artifacts;
+- supports resume by default (`--restart` starts a new run).
+
+## Research Mode (Idea -> Plan -> Multi-Task Loop)
+
+Use `research` when you start from a short idea instead of an existing paper:
+
+```bash
+# Plan + execute
+fermilink research "Design and validate a cavity QED protocol with parameter sweeps"
+
+# Plan only (then manually edit plan.json / prompts/*.md)
+fermilink research idea.md --plan-only
+
+# Report only from existing run artifacts
+fermilink research idea.md --report-only
+
+# Resume execution from edited plan artifacts
+fermilink research idea.md
+```
+
+What `research` does:
+
+- runs planner + auditor passes to produce a structured multi-task research plan;
+- writes artifacts under `projects/research/<run-id>/` (`plan.json`, `state.json`, `prompts/`, `logs/`, `archive/`);
+- executes tasks sequentially through `fermilink loop` with the same wait/iteration controls as `reproduce`;
+- after all tasks finish, generates and audits a polished report at `projects/research/report.md`;
+- `--skip-report` skips final report generation; `--report-only` regenerates/audits report from existing artifacts;
+- supports manual plan edits after `--plan-only`, then resumes from edited `plan.json`.
 
 ## Run Interactive Multi-Turn Chat From CLI
 

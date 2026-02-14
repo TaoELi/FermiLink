@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "channel_id": "tel-research-group",
+  "packages": [
+    {
+      "package_id": "maxwelllink",
+      "title": "MaxwellLink",
+      "zip_url": "https://github.com/TEL-Research-Group/MaxwellLink/archive/refs/heads/main.zip"
+    },
+    {
+      "package_id": "meep",
+      "title": "Meep",
+      "zip_url": "https://github.com/TEL-Research-Group/meep/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "lammps",
+      "title": "LAMMPS",
+      "zip_url": "https://github.com/TEL-Research-Group/lammps/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "qutip",
+      "title": "QuTiP",
+      "zip_url": "https://github.com/TEL-Research-Group/qutip/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "psi4",
+      "title": "Psi4",
+      "zip_url": "https://github.com/TEL-Research-Group/psi4/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "pyscf",
+      "title": "PySCF",
+      "zip_url": "https://github.com/TEL-Research-Group/pyscf/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "ase",
+      "title": "ASE",
+      "zip_url": "https://github.com/TEL-Research-Group/ase/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "oqupy",
+      "title": "OQuPy",
+      "zip_url": "https://github.com/TEL-Research-Group/OQuPy/archive/refs/heads/main.zip"
+    },
+    {
+      "package_id": "packmol",
+      "title": "Packmol",
+      "zip_url": "https://github.com/TEL-Research-Group/packmol/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "kwant",
+      "title": "Kwant",
+      "zip_url": "https://github.com/TEL-Research-Group/kwant/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "tkwant",
+      "title": "TKwant",
+      "zip_url": "https://github.com/TEL-Research-Group/tkwant/archive/refs/heads/master.zip"
+    },
+    {
+      "package_id": "elk",
+      "title": "ELK",
+      "zip_url": "https://github.com/TEL-Research-Group/elk/archive/refs/heads/main.zip"
+    }
+  ]
+}

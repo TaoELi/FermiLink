@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fermilink.package_registry import install_from_local_path
-from fermilink.router_rules import sync_router_rules
+from fermilink.router_rules import infer_rule, load_family_hints, sync_router_rules
 
 
 def _make_local_package(path: Path) -> None:
@@ -25,3 +25,10 @@ def test_sync_router_rules_creates_file(tmp_path: Path) -> None:
     assert payload["default_package_id"] == "ase"
     assert "ase" in payload["packages"]
     assert (scipkg_root / "router_rules.json").exists()
+
+
+def test_router_family_hints_loaded_from_json() -> None:
+    hints = load_family_hints()
+    assert "maxwelllink" in hints
+    inferred = infer_rule("maxwelllink")
+    assert "quantum optics" in inferred["strong_keywords"]
