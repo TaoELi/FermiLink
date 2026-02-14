@@ -27,6 +27,19 @@ TEMPLATE_RESERVED_ENTRY_NAMES = {"agents.md"}
 
 
 def normalize_package_id(value: str) -> str:
+    """
+    Normalize and validate a package identifier.
+
+    Parameters
+    ----------
+    value : str
+        Raw value to normalize.
+
+    Returns
+    -------
+    str
+        Normalized package id.
+    """
     cleaned = "".join(
         char.lower() if (char.isalnum() or char in {"-", "_"}) else "-"
         for char in (value or "").strip()
@@ -40,6 +53,19 @@ def normalize_package_id(value: str) -> str:
 
 
 def build_default_registry(*, updated_at: str) -> dict[str, Any]:
+    """
+    Build an empty package registry payload with standard fields.
+
+    Parameters
+    ----------
+    updated_at : str
+        Timestamp string written into normalized payload metadata.
+
+    Returns
+    -------
+    dict[str, Any]
+        Default registry payload with empty package map.
+    """
     return {
         "version": 1,
         "active_package": None,
@@ -49,6 +75,21 @@ def build_default_registry(*, updated_at: str) -> dict[str, Any]:
 
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    """
+    Write JSON payload to disk atomically.
+
+    Parameters
+    ----------
+    path : Path
+        Filesystem path to read/write.
+    payload : dict[str, Any]
+        JSON-like payload to normalize or persist.
+
+    Returns
+    -------
+    None
+        No return value.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
     with temp_path.open("w", encoding="utf-8") as handle:
@@ -67,6 +108,31 @@ def normalize_registry_payload(
     coerce_non_dict_meta_to_empty: bool = True,
     fallback_active_to_first_package: bool = True,
 ) -> dict[str, Any]:
+    """
+    Normalize and validate registry payload structure and package metadata.
+
+    Parameters
+    ----------
+    payload : Any
+        JSON-like payload to normalize or persist.
+    updated_at : str
+        Timestamp string written into normalized payload metadata.
+    normalize_package_id : Callable[[str], str]
+        Callback used to validate and normalize package ids.
+    dependency_key : str
+        Registry metadata key used for dependency id storage.
+    dependency_normalizer : Callable[[Any, str], list[str] | None] | None
+        Optional callback used to normalize dependency metadata fields.
+    coerce_non_dict_meta_to_empty : bool
+        Whether non-dict package metadata should be coerced to empty dicts.
+    fallback_active_to_first_package : bool
+        Whether to set `active_package` to first package when missing/invalid.
+
+    Returns
+    -------
+    dict[str, Any]
+        Normalized registry payload ready for persistence.
+    """
     registry = build_default_registry(updated_at=updated_at)
     if not isinstance(payload, dict):
         return registry
@@ -131,6 +197,23 @@ def load_registry_file(
     default_registry: Callable[[], dict[str, Any]],
     normalize_registry: Callable[[Any], dict[str, Any]],
 ) -> dict[str, Any]:
+    """
+    Load and normalize a package registry file from disk.
+
+    Parameters
+    ----------
+    path : Path
+        Filesystem path to read/write.
+    default_registry : Callable[[], dict[str, Any]]
+        Factory callback that returns a default registry payload.
+    normalize_registry : Callable[[Any], dict[str, Any]]
+        Callback that validates and normalizes registry payloads.
+
+    Returns
+    -------
+    dict[str, Any]
+        Normalized registry payload loaded from disk or defaults.
+    """
     if not path.exists():
         return default_registry()
     try:
@@ -148,6 +231,25 @@ def save_registry_file(
     updated_at: str,
     normalize_registry: Callable[[Any], dict[str, Any]],
 ) -> dict[str, Any]:
+    """
+    Normalize and save a package registry payload to disk.
+
+    Parameters
+    ----------
+    path : Path
+        Filesystem path to read/write.
+    payload : Any
+        JSON-like payload to normalize or persist.
+    updated_at : str
+        Timestamp string written into normalized payload metadata.
+    normalize_registry : Callable[[Any], dict[str, Any]]
+        Callback that validates and normalizes registry payloads.
+
+    Returns
+    -------
+    dict[str, Any]
+        Normalized payload that was persisted to disk.
+    """
     normalized = normalize_registry(payload)
     normalized["updated_at"] = updated_at
     atomic_write_json(path, normalized)
@@ -155,6 +257,19 @@ def save_registry_file(
 
 
 def is_exportable_entry_name(name: str) -> bool:
+    """
+    Return whether a package entry name is exportable to a workspace overlay.
+
+    Parameters
+    ----------
+    name : str
+        Candidate file/directory entry name.
+
+    Returns
+    -------
+    bool
+        Whether the entry is eligible for workspace overlay.
+    """
     if not name:
         return False
     if name.startswith("."):
@@ -167,6 +282,19 @@ def is_exportable_entry_name(name: str) -> bool:
 
 
 def extract_manifest_entry_names(manifest: dict[str, Any] | None) -> set[str]:
+    """
+    Extract managed overlay entry names from a workspace manifest.
+
+    Parameters
+    ----------
+    manifest : dict[str, Any] | None
+        Workspace manifest payload tracking managed overlays/dependencies.
+
+    Returns
+    -------
+    set[str]
+        Set of managed overlay entry names.
+    """
     names: set[str] = set()
     if not isinstance(manifest, dict):
         return names
@@ -186,6 +314,19 @@ def extract_manifest_entry_names(manifest: dict[str, Any] | None) -> set[str]:
 
 
 def extract_manifest_dependency_ids(manifest: dict[str, Any] | None) -> set[str]:
+    """
+    Extract managed dependency package ids from a workspace manifest.
+
+    Parameters
+    ----------
+    manifest : dict[str, Any] | None
+        Workspace manifest payload tracking managed overlays/dependencies.
+
+    Returns
+    -------
+    set[str]
+        Set of managed dependency package ids.
+    """
     package_ids: set[str] = set()
     if not isinstance(manifest, dict):
         return package_ids
@@ -214,6 +355,19 @@ def extract_manifest_dependency_ids(manifest: dict[str, Any] | None) -> set[str]
 
 
 def remove_existing_entry(path: Path) -> None:
+    """
+    Remove an existing file, directory, or symlink path.
+
+    Parameters
+    ----------
+    path : Path
+        Filesystem path to read/write.
+
+    Returns
+    -------
+    None
+        No return value.
+    """
     if path.is_symlink() or path.is_file():
         path.unlink(missing_ok=True)
         return
@@ -222,6 +376,21 @@ def remove_existing_entry(path: Path) -> None:
 
 
 def link_or_copy_entry(src: Path, dst: Path) -> str:
+    """
+    Materialize one package entry as a symlink or copy in the workspace.
+
+    Parameters
+    ----------
+    src : Path
+        Source path for the entry being linked or copied.
+    dst : Path
+        Destination path where the entry is materialized.
+
+    Returns
+    -------
+    str
+        Operation mode used (`symlink` or `copy`).
+    """
     if dst.is_symlink() or dst.exists():
         return "existing"
     try:
@@ -243,6 +412,27 @@ def remove_managed_entries(
     remove_non_symlink_entries: bool = False,
     remove_existing: Callable[[Path], None] = remove_existing_entry,
 ) -> None:
+    """
+    Remove managed overlay entries recorded in workspace manifest state.
+
+    Parameters
+    ----------
+    repo_dir : Path
+        Workspace repository path receiving overlaid entries.
+    manifest : dict[str, Any] | None
+        Workspace manifest payload tracking managed overlays/dependencies.
+    only_names : set[str] | None
+        Optional subset of managed entry names to remove.
+    remove_non_symlink_entries : bool
+        Whether to also remove managed non-symlink entries.
+    remove_existing : Callable[[Path], None]
+        Callback used to remove filesystem entries.
+
+    Returns
+    -------
+    None
+        No return value.
+    """
     if not isinstance(manifest, dict):
         return
     linked = manifest.get("linked_entries")
@@ -280,6 +470,29 @@ def remove_managed_dependency_links(
     dependencies_dirname: str = PACKAGE_DEPENDENCIES_DIRNAME,
     remove_existing: Callable[[Path], None] = remove_existing_entry,
 ) -> None:
+    """
+    Remove managed dependency links recorded in workspace manifest state.
+
+    Parameters
+    ----------
+    repo_dir : Path
+        Workspace repository path receiving overlaid entries.
+    manifest : dict[str, Any] | None
+        Workspace manifest payload tracking managed overlays/dependencies.
+    normalize_package_id : Callable[[str], str]
+        Callback used to validate and normalize package ids.
+    only_package_ids : set[str] | None
+        Optional subset of dependency package ids to remove.
+    dependencies_dirname : str
+        Workspace subdirectory name used for dependency overlays.
+    remove_existing : Callable[[Path], None]
+        Callback used to remove filesystem entries.
+
+    Returns
+    -------
+    None
+        No return value.
+    """
     if not isinstance(manifest, dict):
         return
     linked = manifest.get("linked_dependency_packages")
@@ -348,6 +561,59 @@ def overlay_package_into_repo_core(
     remove_existing: Callable[[Path], None] = remove_existing_entry,
     link_or_copy: Callable[[Path, Path], str] = link_or_copy_entry,
 ) -> dict[str, Any]:
+    """
+    Overlay package entries into a workspace and persist manifest ownership.
+
+    Parameters
+    ----------
+    repo_dir : Path
+        Workspace repository path receiving overlaid entries.
+    workspace_root : Path
+        Workspace root where manifest state is stored.
+    package_id : str
+        Normalized package identifier.
+    package_meta : dict[str, Any]
+        Installed package metadata record from the registry.
+    allow_replace_existing : bool
+        Whether existing destination entries may be replaced.
+    now_iso : Callable[[], str]
+        Callback that returns the current ISO timestamp.
+    resolve_package_meta_path : Callable[[dict[str, Any]], Path]
+        Callback that resolves package metadata to install directory path.
+    normalize_overlay_entries : Callable[[Any], list[str] | None]
+        Callback that normalizes overlay entry metadata.
+    normalize_dependency_ids : Callable[..., list[str] | None]
+        Callback that normalizes dependency package id metadata.
+    iter_package_entries : Callable[[Path, list[str] | None], tuple[list[Path], list[str]]]
+        Callback that lists installable package entries from package root.
+    load_workspace_manifest : Callable[[Path], dict[str, Any] | None]
+        Callback that loads workspace manifest data.
+    save_workspace_manifest : Callable[[Path, dict[str, Any]], None]
+        Callback that saves workspace manifest data.
+    normalize_package_id : Callable[[str], str]
+        Callback used to validate and normalize package ids.
+    get_package_map : Callable[[str, dict[str, Any]], dict[str, Any]]
+        Callback that retrieves package metadata mappings for dependency resolution.
+    replace_existing_entries_for_previous_names : bool
+        Whether to clear stale managed entry names from previous overlays.
+    remove_non_symlink_managed_entries : bool
+        Whether managed regular files/directories can be removed during cleanup.
+    overlay_entries_key : str
+        Package metadata key that stores overlaid entry names.
+    dependency_ids_key : str
+        Package metadata key that stores dependency package ids.
+    dependencies_dirname : str
+        Workspace subdirectory name used for dependency overlays.
+    remove_existing : Callable[[Path], None]
+        Callback used to remove filesystem entries.
+    link_or_copy : Callable[[Path, Path], str]
+        Callback that links/copies an entry into the workspace.
+
+    Returns
+    -------
+    dict[str, Any]
+        Overlay result payload with applied entries and manifest metadata.
+    """
     package_root = resolve_package_meta_path(package_meta)
     configured_entries = normalize_overlay_entries(
         package_meta.get(overlay_entries_key)

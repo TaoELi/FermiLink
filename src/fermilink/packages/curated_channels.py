@@ -138,6 +138,21 @@ def select_package_version(
     *,
     version_id: str | None = None,
 ) -> ChannelPackageVersion:
+    """
+    Select a curated package version, optionally pinned by version id.
+
+    Parameters
+    ----------
+    package : ChannelPackage
+        Curated package definition containing available versions.
+    version_id : str | None
+        Optional curated package version id to select.
+
+    Returns
+    -------
+    ChannelPackageVersion
+        Selected curated package version metadata.
+    """
     versions = package.versions
     if not versions:
         return ChannelPackageVersion(
@@ -251,11 +266,37 @@ def _load_channel_packages(channel_id: str) -> dict[str, ChannelPackage]:
 
 
 def normalize_channel_id(channel: str | None) -> str:
+    """
+    Normalize and validate a curated channel identifier.
+
+    Parameters
+    ----------
+    channel : str | None
+        Curated channel identifier used to resolve package definitions.
+
+    Returns
+    -------
+    str
+        Normalized curated channel id.
+    """
     value = (channel or "tel-research-group").strip().lower()
     return CHANNEL_ALIASES.get(value, value)
 
 
 def list_curated_packages(*, channel: str | None = None) -> dict[str, ChannelPackage]:
+    """
+    Load curated package definitions for a channel.
+
+    Parameters
+    ----------
+    channel : str | None
+        Curated channel identifier used to resolve package definitions.
+
+    Returns
+    -------
+    dict[str, ChannelPackage]
+        Curated packages keyed by normalized package id.
+    """
     normalized_channel = normalize_channel_id(channel)
     channels = _available_channel_ids()
     if normalized_channel not in channels:
@@ -269,6 +310,21 @@ def list_curated_packages(*, channel: str | None = None) -> dict[str, ChannelPac
 def resolve_curated_package(
     package_id: str, *, channel: str | None = None
 ) -> ChannelPackage:
+    """
+    Resolve one curated package definition by package id.
+
+    Parameters
+    ----------
+    package_id : str
+        Normalized package identifier.
+    channel : str | None
+        Curated channel identifier used to resolve package definitions.
+
+    Returns
+    -------
+    ChannelPackage
+        Curated package definition for `package_id`.
+    """
     packages = list_curated_packages(channel=channel)
     normalized_channel = normalize_channel_id(channel)
     package_key = package_id.strip().lower()

@@ -15,6 +15,19 @@ FAMILY_HINTS_PATH = (
 
 
 def dedupe(items: list[str]) -> list[str]:
+    """
+    Remove duplicate terms while preserving first-seen order.
+
+    Parameters
+    ----------
+    items : list[str]
+        Term list to deduplicate.
+
+    Returns
+    -------
+    list[str]
+        De-duplicated terms in stable order.
+    """
     seen: set[str] = set()
     result: list[str] = []
     for item in items:
@@ -29,6 +42,19 @@ def dedupe(items: list[str]) -> list[str]:
 
 
 def normalize_terms(raw: Any) -> list[str]:
+    """
+    Normalize router rule terms into a clean lowercase list.
+
+    Parameters
+    ----------
+    raw : Any
+        Raw value from user input or configuration.
+
+    Returns
+    -------
+    list[str]
+        Normalized term list suitable for router rule matching.
+    """
     if isinstance(raw, str):
         return dedupe(raw.split(","))
     if isinstance(raw, list):
@@ -37,6 +63,19 @@ def normalize_terms(raw: Any) -> list[str]:
 
 
 def package_id_terms(package_id: str) -> list[str]:
+    """
+    Generate default routing terms derived from a package identifier.
+
+    Parameters
+    ----------
+    package_id : str
+        Normalized package identifier.
+
+    Returns
+    -------
+    list[str]
+        Terms inferred from `package_id` tokens.
+    """
     lowered = package_id.lower()
     terms = [lowered, lowered.replace("-", " "), lowered.replace("_", " ")]
     parts: list[str] = []
@@ -49,6 +88,14 @@ def package_id_terms(package_id: str) -> list[str]:
 
 @functools.lru_cache(maxsize=1)
 def load_family_hints() -> dict[str, dict[str, list[str] | str]]:
+    """
+    Load bundled package-family hint terms for router rule generation.
+
+    Returns
+    -------
+    dict[str, dict[str, list[str] | str]]
+        Normalized family-hints payload keyed by family id.
+    """
     try:
         payload = json.loads(FAMILY_HINTS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -101,6 +148,19 @@ def load_family_hints() -> dict[str, dict[str, list[str] | str]]:
 
 
 def infer_rule(package_id: str) -> dict[str, list[str]]:
+    """
+    Infer include/exclude router terms for a package identifier.
+
+    Parameters
+    ----------
+    package_id : str
+        Normalized package identifier.
+
+    Returns
+    -------
+    dict[str, list[str]]
+        Rule fragment with inferred `include` and `exclude` terms.
+    """
     keywords = package_id_terms(package_id)
     strong_keywords: list[str] = []
     negative_keywords: list[str] = []
@@ -148,6 +208,27 @@ def build_synced_rules(
     min_score: int | None = None,
     min_margin: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Build merged router rules from registry state and existing rules.
+
+    Parameters
+    ----------
+    registry : dict[str, Any]
+        Loaded package registry payload.
+    existing_rules : dict[str, Any] | None
+        Previously loaded router rules payload, if available.
+    default_package_id : str | None
+        Optional default package id to set in router rules.
+    min_score : int | None
+        Optional minimum routing score threshold override.
+    min_margin : int | None
+        Optional minimum routing margin threshold override.
+
+    Returns
+    -------
+    tuple[dict[str, Any], dict[str, Any]]
+        Tuple of `(rules_payload, summary)` describing synced router state.
+    """
     packages_raw = registry.get("packages", {})
     installed_ids: list[str] = []
     if isinstance(packages_raw, dict):
@@ -260,6 +341,29 @@ def sync_router_rules(
     min_margin: int | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    """
+    Synchronize router rules on disk with installed package metadata.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    router_rules_filename : str
+        Router rules filename relative to `scipkg_root`.
+    default_package_id : str | None
+        Optional default package id to set in router rules.
+    min_score : int | None
+        Optional minimum routing score threshold override.
+    min_margin : int | None
+        Optional minimum routing margin threshold override.
+    dry_run : bool
+        When `True`, compute sync results without writing files.
+
+    Returns
+    -------
+    dict[str, Any]
+        Summary payload describing sync changes and output location.
+    """
     registry = load_registry(scipkg_root)
     router_rules_path = scipkg_root / router_rules_filename
 

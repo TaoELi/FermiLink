@@ -24,6 +24,19 @@ PROVIDER_BIN_DEFAULT = {
 
 
 def provider_bin_env_key(provider: str) -> str:
+    """
+    Return the provider-specific environment variable used for binary overrides.
+
+    Parameters
+    ----------
+    provider : str
+        Provider identifier (for example `codex`, `claude`, or `gemini`).
+
+    Returns
+    -------
+    str
+        Environment variable key for provider binary overrides.
+    """
     normalized = normalize_provider(provider)
     return PROVIDER_BIN_ENV[normalized]
 
@@ -33,6 +46,21 @@ def resolve_provider_binary(
     *,
     codex_bin: str | None = None,
 ) -> str:
+    """
+    Resolve the executable name/path for the selected provider.
+
+    Parameters
+    ----------
+    provider : str
+        Provider identifier (for example `codex`, `claude`, or `gemini`).
+    codex_bin : str | None
+        Optional override for the Codex executable when provider is `codex`.
+
+    Returns
+    -------
+    str
+        Resolved executable name/path for the provider.
+    """
     normalized = normalize_provider(provider)
     if normalized == "codex" and isinstance(codex_bin, str) and codex_bin.strip():
         return codex_bin.strip()
@@ -54,6 +82,31 @@ def build_exec_command(
     sandbox_mode: str | None = None,
     json_output: bool = True,
 ) -> list[str]:
+    """
+    Build a provider-specific command for one exec/chat invocation.
+
+    Parameters
+    ----------
+    provider : str
+        Provider identifier (for example `codex`, `claude`, or `gemini`).
+    provider_bin : str
+        Executable or command name used to run the provider.
+    repo_dir : Path
+        Workspace repository path receiving overlaid entries.
+    prompt : str
+        Prompt text sent to the provider process.
+    sandbox_policy : str
+        Sandbox policy override (`enforce` or `bypass`).
+    sandbox_mode : str | None
+        Sandbox mode override passed to the provider runtime.
+    json_output : bool
+        Whether to request JSON output from the provider process.
+
+    Returns
+    -------
+    list[str]
+        Argument vector ready to execute via `subprocess`.
+    """
     normalized_provider = normalize_provider(provider)
     normalized_policy = normalize_sandbox_policy(sandbox_policy)
 

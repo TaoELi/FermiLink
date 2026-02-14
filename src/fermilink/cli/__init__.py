@@ -282,6 +282,19 @@ _build_parser = parser_builder._build_parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    Run the FermiLink CLI entrypoint.
+
+    Parameters
+    ----------
+    argv : list[str] | None
+        Optional CLI argv sequence; defaults to process argv when omitted.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success).
+    """
     parser = _build_parser()
     args = parser.parse_args(argv)
 

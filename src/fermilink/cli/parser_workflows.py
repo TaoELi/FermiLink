@@ -14,6 +14,25 @@ def register_workflow_parsers(
     cmd_research: CommandHandler,
     default_codex_bin: str,
 ) -> None:
+    """
+    Register parser arguments for workflow.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    cmd_reproduce : CommandHandler
+        Command handler for `reproduce` subcommands.
+    cmd_research : CommandHandler
+        Command handler for `research` subcommands.
+    default_codex_bin : str
+        Default Codex executable to prefill parser options.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     reproduce_parser = subparsers.add_parser(
         "reproduce",
         help=(

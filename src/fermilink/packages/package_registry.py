@@ -61,6 +61,19 @@ def _now_iso() -> str:
 
 
 def normalize_package_id(value: str) -> str:
+    """
+    Normalize and validate a package identifier.
+
+    Parameters
+    ----------
+    value : str
+        Raw value to normalize.
+
+    Returns
+    -------
+    str
+        Normalized package id.
+    """
     try:
         return _normalize_package_id(value)
     except ValueError as exc:
@@ -68,16 +81,55 @@ def normalize_package_id(value: str) -> str:
 
 
 def packages_root(scipkg_root: Path) -> Path:
+    """
+    Return the package storage root and ensure it exists.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+
+    Returns
+    -------
+    Path
+        Directory path where installed packages are stored.
+    """
     root = scipkg_root / "packages"
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
 def registry_path(scipkg_root: Path) -> Path:
+    """
+    Return the package registry file path.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+
+    Returns
+    -------
+    Path
+        Path to the registry JSON file.
+    """
     return scipkg_root / REGISTRY_FILENAME
 
 
 def workspace_manifest_path(workspace_root: Path) -> Path:
+    """
+    Return the workspace manifest file path.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Workspace root where manifest state is stored.
+
+    Returns
+    -------
+    Path
+        Path to the workspace manifest JSON file.
+    """
     return workspace_root / WORKSPACE_MANIFEST_FILENAME
 
 
@@ -100,6 +152,19 @@ def _normalize_registry(payload: Any) -> dict[str, Any]:
 
 
 def load_registry(scipkg_root: Path) -> dict[str, Any]:
+    """
+    Load the package registry for a scientific package root.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+
+    Returns
+    -------
+    dict[str, Any]
+        Normalized registry payload.
+    """
     path = registry_path(scipkg_root)
     return load_registry_file(
         path,
@@ -109,6 +174,21 @@ def load_registry(scipkg_root: Path) -> dict[str, Any]:
 
 
 def save_registry(scipkg_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    Save and normalize package registry state for a scientific package root.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    payload : dict[str, Any]
+        JSON-like payload to normalize or persist.
+
+    Returns
+    -------
+    dict[str, Any]
+        Normalized registry payload after persistence.
+    """
     return save_registry_file(
         registry_path(scipkg_root),
         payload,
@@ -118,6 +198,19 @@ def save_registry(scipkg_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_packages(scipkg_root: Path) -> dict[str, Any]:
+    """
+    Return package metadata entries from the registry.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata mapping keyed by package id.
+    """
     return load_registry(scipkg_root).get("packages", {})
 
 
@@ -143,6 +236,31 @@ def register_package(
     activate: bool = False,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """
+    Register or update a package entry in the registry.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+    installed_path : Path
+        Filesystem path of the installed package content.
+    source : str
+        Source label recorded in package metadata.
+    title : str | None
+        Optional human-readable package title.
+    activate : bool
+        Whether to mark the package as active after operation completion.
+    extra : dict[str, Any] | None
+        Additional metadata fields merged into the package record.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata for the registered package.
+    """
     normalized_id = normalize_package_id(package_id)
     resolved_path = installed_path.expanduser().resolve()
     if not resolved_path.exists() or not resolved_path.is_dir():
@@ -182,6 +300,21 @@ def register_package(
 
 
 def activate_package(scipkg_root: Path, package_id: str) -> dict[str, Any]:
+    """
+    Set a package as the active package in registry state.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata for the newly active package.
+    """
     normalized_id = normalize_package_id(package_id)
     registry = load_registry(scipkg_root)
     packages = registry.get("packages", {})
@@ -199,6 +332,23 @@ def delete_package(
     *,
     remove_files: bool = True,
 ) -> dict[str, Any]:
+    """
+    Delete a package from registry state and optionally remove files.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+    remove_files : bool
+        Whether installed package files should be deleted from disk.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata for the deleted package.
+    """
     normalized_id = normalize_package_id(package_id)
     registry = load_registry(scipkg_root)
     packages = registry.get("packages", {})
@@ -339,6 +489,23 @@ def set_package_overlay_entries(
     package_id: str,
     entries: list[str] | None,
 ) -> dict[str, Any]:
+    """
+    Persist overlay entry names for an installed package.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+    entries : list[str] | None
+        Overlay entry names to persist for this package.
+
+    Returns
+    -------
+    dict[str, Any]
+        Updated package metadata after overlay entry persistence.
+    """
     normalized_id = normalize_package_id(package_id)
     normalized_entries = _normalize_overlay_entries(entries)
 
@@ -363,6 +530,23 @@ def set_package_dependency_ids(
     package_id: str,
     dependency_package_ids: list[str] | None,
 ) -> dict[str, Any]:
+    """
+    Persist dependency package ids for an installed package.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+    dependency_package_ids : list[str] | None
+        Dependency package ids to persist for this package.
+
+    Returns
+    -------
+    dict[str, Any]
+        Updated package metadata after dependency persistence.
+    """
     normalized_id = normalize_package_id(package_id)
     normalized_dependencies = _normalize_dependency_ids(
         dependency_package_ids,
@@ -642,6 +826,31 @@ def install_from_zip(
     force: bool = False,
     max_zip_bytes: int = 800 * 1024 * 1024,
 ) -> dict[str, Any]:
+    """
+    Install a package from a zip archive URL and register it.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+    zip_url : str
+        URL of the zip archive to download and install.
+    title : str | None
+        Optional human-readable package title.
+    activate : bool
+        Whether to mark the package as active after operation completion.
+    force : bool
+        Whether existing package ids may be overwritten.
+    max_zip_bytes : int
+        Maximum allowed zip size in bytes before aborting download/install.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata for the installed package.
+    """
     normalized_id = normalize_package_id(package_id)
     target_dir = packages_root(scipkg_root) / normalized_id
 
@@ -693,6 +902,29 @@ def install_from_local_path(
     activate: bool = False,
     force: bool = False,
 ) -> dict[str, Any]:
+    """
+    Install a package from a local path and register it.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier.
+    local_path : Path
+        Local package directory path to install from.
+    title : str | None
+        Optional human-readable package title.
+    activate : bool
+        Whether to mark the package as active after operation completion.
+    force : bool
+        Whether existing package ids may be overwritten.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata for the installed package.
+    """
     normalized_id = normalize_package_id(package_id)
     source = local_path.expanduser().resolve()
     if not source.exists() or not source.is_dir():
@@ -719,6 +951,19 @@ def install_from_local_path(
 
 
 def load_workspace_manifest(workspace_root: Path) -> dict[str, Any] | None:
+    """
+    Load workspace overlay manifest state from disk.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Workspace root where manifest state is stored.
+
+    Returns
+    -------
+    dict[str, Any] | None
+        Workspace manifest payload, or `None` when absent/invalid.
+    """
     path = workspace_manifest_path(workspace_root)
     if not path.exists():
         return None
@@ -733,6 +978,21 @@ def load_workspace_manifest(workspace_root: Path) -> dict[str, Any] | None:
 
 
 def save_workspace_manifest(workspace_root: Path, payload: dict[str, Any]) -> None:
+    """
+    Save workspace overlay manifest state to disk.
+
+    Parameters
+    ----------
+    workspace_root : Path
+        Workspace root where manifest state is stored.
+    payload : dict[str, Any]
+        JSON-like payload to normalize or persist.
+
+    Returns
+    -------
+    None
+        No return value.
+    """
     workspace_root.mkdir(parents=True, exist_ok=True)
     _atomic_write_json(workspace_manifest_path(workspace_root), payload)
 
@@ -742,6 +1002,23 @@ def resolve_session_package(
     workspace_root: Path,
     requested_package_id: str | None = None,
 ) -> tuple[str, dict[str, Any]] | tuple[None, None]:
+    """
+    Resolve the package to use for the current session/workspace.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    workspace_root : Path
+        Workspace root where manifest state is stored.
+    requested_package_id : str | None
+        Optional package id explicitly requested for the session.
+
+    Returns
+    -------
+    tuple[str, dict[str, Any]] | tuple[None, None]
+        Tuple containing resolved package id and metadata, or `(None, None)`.
+    """
     registry = load_registry(scipkg_root)
     packages = registry.get("packages", {})
     if not isinstance(packages, dict) or not packages:
@@ -806,6 +1083,21 @@ def iter_package_entries(
     package_root: Path,
     include_names: list[str] | None = None,
 ) -> tuple[list[Path], list[str]]:
+    """
+    Enumerate installable package entries from a package directory.
+
+    Parameters
+    ----------
+    package_root : Path
+        Root directory of one installed package.
+    include_names : list[str] | None
+        Optional allowlist of entry names to include when enumerating package contents.
+
+    Returns
+    -------
+    tuple[list[Path], list[str]]
+        Tuple of `(entries, skipped_names)` from package directory traversal.
+    """
     if not package_root.exists() or not package_root.is_dir():
         raise PackageValidationError(f"Package root is invalid: {package_root}")
 
@@ -885,6 +1177,30 @@ def overlay_package_into_repo(
     scipkg_root: Path,
     allow_replace_existing: bool = False,
 ) -> dict[str, Any]:
+    """
+    Overlay an installed package into a workspace repository.
+
+    Parameters
+    ----------
+    repo_dir : Path
+        Workspace repository path receiving overlaid entries.
+    workspace_root : Path
+        Workspace root where manifest state is stored.
+    package_id : str
+        Normalized package identifier.
+    package_meta : dict[str, Any]
+        Installed package metadata record from the registry.
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    allow_replace_existing : bool
+        Whether existing destination entries may be replaced.
+
+    Returns
+    -------
+    dict[str, Any]
+        Overlay result payload with applied entries and manifest metadata.
+    """
+
     def _load_package_map(
         _package_id: str, _package_meta: dict[str, Any]
     ) -> dict[str, Any]:

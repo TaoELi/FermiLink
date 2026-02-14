@@ -15,6 +15,27 @@ def register_package_install_compile_parsers(
     cmd_compile: CommandHandler,
     default_max_zip_bytes: int,
 ) -> None:
+    """
+    Register parser arguments for package install compile.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    add_json_option : Callable[[argparse.ArgumentParser], None]
+        Callback that adds shared `--json` output flags.
+    cmd_install : CommandHandler
+        Command handler for `install` subcommands.
+    cmd_compile : CommandHandler
+        Command handler for `compile` subcommands.
+    default_max_zip_bytes : int
+        Default maximum zip size (bytes) for package install validation.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     install_parser = subparsers.add_parser(
         "install",
         help="Install scientific package from curated channel, zip URL, or local path.",
@@ -120,6 +141,33 @@ def register_package_management_parsers(
     cmd_dependencies: CommandHandler,
     cmd_delete: CommandHandler,
 ) -> None:
+    """
+    Register parser arguments for package management.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    add_json_option : Callable[[argparse.ArgumentParser], None]
+        Callback that adds shared `--json` output flags.
+    cmd_list : CommandHandler
+        Command handler for `list` subcommands.
+    cmd_avail : CommandHandler
+        Command handler for `avail` subcommands.
+    cmd_activate : CommandHandler
+        Command handler for `activate` subcommands.
+    cmd_overlay : CommandHandler
+        Command handler for `overlay` subcommands.
+    cmd_dependencies : CommandHandler
+        Command handler for `dependencies` subcommands.
+    cmd_delete : CommandHandler
+        Command handler for `delete` subcommands.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     list_parser = subparsers.add_parser(
         "list", help="List installed scientific packages."
     )

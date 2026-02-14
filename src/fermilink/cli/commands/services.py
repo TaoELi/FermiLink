@@ -118,6 +118,19 @@ def _start_sequence(
 
 
 def cmd_start(args: argparse.Namespace) -> int:
+    """
+    Execute the `start` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     runtime_root = cli.resolve_runtime_root()
     names, specs = cli._resolve_specs(args.components)
@@ -143,6 +156,19 @@ def cmd_start(args: argparse.Namespace) -> int:
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
+    """
+    Execute the `stop` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     runtime_root = cli.resolve_runtime_root()
     names = cli.normalize_components(args.components)
@@ -158,6 +184,19 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
 
 def cmd_restart(args: argparse.Namespace) -> int:
+    """
+    Execute the `restart` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     runtime_root = cli.resolve_runtime_root()
     names, specs = cli._resolve_specs(args.components)
@@ -193,6 +232,19 @@ def cmd_restart(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
+    """
+    Execute the `status` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     runtime_root = cli.resolve_runtime_root()
     names = cli.normalize_components(args.components)

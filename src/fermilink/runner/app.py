@@ -31,6 +31,19 @@ from fermilink.runner.scientific_packages import (
 
 
 def find_project_root(start: Path) -> Path:
+    """
+    Find the repository root by walking upward from a start path.
+
+    Parameters
+    ----------
+    start : Path
+        Starting path for upward project-root discovery.
+
+    Returns
+    -------
+    Path
+        Detected repository/project root path.
+    """
     cur = start.resolve()
     for p in [cur.parent, *cur.parents]:
         if (p / "pyproject.toml").exists() or (p / ".git").exists():

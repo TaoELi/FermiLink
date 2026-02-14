@@ -51,6 +51,19 @@ def _save_curated_install_metadata(
 
 
 def cmd_compile(args: argparse.Namespace) -> int:
+    """
+    Execute the `compile` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)
@@ -163,6 +176,19 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 
 def cmd_install(args: argparse.Namespace) -> int:
+    """
+    Execute the `install` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     raw_package_id = getattr(args, "package_id", None)
@@ -402,6 +428,19 @@ def cmd_install(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
+    """
+    Execute the `list` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     registry = cli.load_registry(scipkg_root)
@@ -423,6 +462,19 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def cmd_avail(args: argparse.Namespace) -> int:
+    """
+    Execute the `avail` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     query = str(getattr(args, "query", "") or "").strip()
     if not query:
@@ -538,6 +590,19 @@ def cmd_avail(args: argparse.Namespace) -> int:
 
 
 def cmd_activate(args: argparse.Namespace) -> int:
+    """
+    Execute the `activate` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)
@@ -563,6 +628,19 @@ def _collect_csv_and_repeat(
 
 
 def cmd_overlay(args: argparse.Namespace) -> int:
+    """
+    Execute the `overlay` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)
@@ -599,6 +677,19 @@ def cmd_overlay(args: argparse.Namespace) -> int:
 
 
 def cmd_dependencies(args: argparse.Namespace) -> int:
+    """
+    Execute the `dependencies` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)
@@ -633,6 +724,19 @@ def cmd_dependencies(args: argparse.Namespace) -> int:
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
+    """
+    Execute the `delete` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)

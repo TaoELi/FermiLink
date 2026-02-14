@@ -16,6 +16,29 @@ def register_service_parsers(
     cmd_restart: CommandHandler,
     cmd_status: CommandHandler,
 ) -> None:
+    """
+    Register parser arguments for service.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    add_json_option : Callable[[argparse.ArgumentParser], None]
+        Callback that adds shared `--json` output flags.
+    cmd_start : CommandHandler
+        Command handler for `start` subcommands.
+    cmd_stop : CommandHandler
+        Command handler for `stop` subcommands.
+    cmd_restart : CommandHandler
+        Command handler for `restart` subcommands.
+    cmd_status : CommandHandler
+        Command handler for `status` subcommands.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     start_parser = subparsers.add_parser(
         "start",
         help="Start one or more services: runner, web. Default starts both.",

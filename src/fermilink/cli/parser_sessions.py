@@ -14,6 +14,25 @@ def register_exec_loop_parsers(
     cmd_loop: CommandHandler,
     default_codex_bin: str,
 ) -> None:
+    """
+    Register parser arguments for exec loop.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    cmd_exec : CommandHandler
+        Command handler for `exec` subcommands.
+    cmd_loop : CommandHandler
+        Command handler for `loop` subcommands.
+    default_codex_bin : str
+        Default Codex executable to prefill parser options.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     exec_parser = subparsers.add_parser(
         "exec",
         help=(
@@ -141,6 +160,23 @@ def register_chat_parser(
     cmd_chat: CommandHandler,
     default_codex_bin: str,
 ) -> None:
+    """
+    Register parser arguments for chat.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    cmd_chat : CommandHandler
+        Command handler for `chat` subcommands.
+    default_codex_bin : str
+        Default Codex executable to prefill parser options.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     chat_parser = subparsers.add_parser(
         "chat",
         help=(

@@ -31,6 +31,21 @@ dev = [
   "pre-commit>=3.6",
 ]
 
+docs = [
+  "sphinx>=7.2",
+  "furo>=2024.1.29",                
+  "sphinx-autodoc-typehints>=2.1",  
+  "sphinxcontrib-napoleon>=0.7",    
+  "myst-parser>=3.0",               
+  "sphinx-copybutton>=0.5",         
+  "sphinx-design>=0.6",             
+  "nbsphinx>=0.9",
+  "sphinxcontrib-youtube",
+  "nbconvert", 
+  "ipykernel",
+  "pandoc"                 
+]
+ 
 [project.scripts]
 fermilink = "fermilink.cli:main"
 
@@ -53,3 +68,35 @@ fermilink = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311", "py312", "py313"]
+include = '\.pyi?$'
+exclude = '''
+(
+  /(
+      \.direnv
+    | \.eggs
+    | \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.ruff_cache
+    | \.venv
+    | build
+    | dist
+    | .*\.egg-info
+  )/
+)
+'''
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = [
+  "E203",  
+  "W503",  
+]
+per-file-ignores = [
+  "__init__.py:F401,F403,F405",
+  "src/**/__init__.py:F401,F403,F405",
+]

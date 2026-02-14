@@ -30,6 +30,19 @@ def _now_iso() -> str:
 
 
 def normalize_provider(raw: str | None) -> str:
+    """
+    Normalize and validate an agent provider name.
+
+    Parameters
+    ----------
+    raw : str | None
+        Raw value from user input or configuration.
+
+    Returns
+    -------
+    str
+        Normalized provider value.
+    """
     value = (raw or "").strip().lower()
     if value not in SUPPORTED_PROVIDERS:
         valid = ", ".join(SUPPORTED_PROVIDERS)
@@ -38,6 +51,19 @@ def normalize_provider(raw: str | None) -> str:
 
 
 def normalize_sandbox_policy(raw: str | None) -> str:
+    """
+    Normalize and validate an agent sandbox policy.
+
+    Parameters
+    ----------
+    raw : str | None
+        Raw value from user input or configuration.
+
+    Returns
+    -------
+    str
+        Normalized sandbox policy value.
+    """
     value = (raw or "").strip().lower()
     if value not in SUPPORTED_SANDBOX_POLICIES:
         valid = ", ".join(SUPPORTED_SANDBOX_POLICIES)
@@ -46,6 +72,19 @@ def normalize_sandbox_policy(raw: str | None) -> str:
 
 
 def normalize_sandbox_mode(raw: str | None) -> str:
+    """
+    Normalize and validate an agent sandbox mode string.
+
+    Parameters
+    ----------
+    raw : str | None
+        Raw value from user input or configuration.
+
+    Returns
+    -------
+    str
+        Normalized sandbox mode value.
+    """
     value = (raw or "").strip()
     if not value:
         raise ValueError("Sandbox mode cannot be empty.")
@@ -87,10 +126,31 @@ def _coerce_policy(
 
 
 def resolve_agent_runtime_path() -> Path:
+    """
+    Return the path to the persisted agent runtime policy file.
+
+    Returns
+    -------
+    Path
+        Absolute path to the runtime policy file.
+    """
     return resolve_fermilink_home() / AGENT_RUNTIME_FILENAME
 
 
 def load_agent_runtime_policy(*, config_path: Path | None = None) -> AgentRuntimePolicy:
+    """
+    Load agent runtime policy settings from disk.
+
+    Parameters
+    ----------
+    config_path : Path | None
+        Optional explicit path to the runtime policy file.
+
+    Returns
+    -------
+    AgentRuntimePolicy
+        Loaded runtime policy, or defaults when file is missing/invalid.
+    """
     path = config_path or resolve_agent_runtime_path()
     if not path.is_file():
         return AgentRuntimePolicy()
@@ -124,6 +184,27 @@ def resolve_agent_runtime_policy(
     env: Mapping[str, str] | None = None,
     config_path: Path | None = None,
 ) -> AgentRuntimePolicy:
+    """
+    Resolve the effective agent runtime policy with override precedence.
+
+    Parameters
+    ----------
+    provider : str | None
+        Provider identifier (for example `codex`, `claude`, or `gemini`).
+    sandbox_policy : str | None
+        Sandbox policy override (`enforce` or `bypass`).
+    sandbox_mode : str | None
+        Sandbox mode override passed to the provider runtime.
+    env : Mapping[str, str] | None
+        Environment mapping used when resolving override variables.
+    config_path : Path | None
+        Optional explicit path to the runtime policy file.
+
+    Returns
+    -------
+    AgentRuntimePolicy
+        Effective runtime policy after applying precedence rules.
+    """
     runtime = load_agent_runtime_policy(config_path=config_path)
     env_map = os.environ if env is None else env
 
@@ -162,6 +243,25 @@ def save_agent_runtime_policy(
     sandbox_mode: str | None = None,
     config_path: Path | None = None,
 ) -> AgentRuntimePolicy:
+    """
+    Persist agent runtime policy settings and return the stored policy.
+
+    Parameters
+    ----------
+    provider : str | None
+        Provider identifier (for example `codex`, `claude`, or `gemini`).
+    sandbox_policy : str | None
+        Sandbox policy override (`enforce` or `bypass`).
+    sandbox_mode : str | None
+        Sandbox mode override passed to the provider runtime.
+    config_path : Path | None
+        Optional explicit path to the runtime policy file.
+
+    Returns
+    -------
+    AgentRuntimePolicy
+        Persisted runtime policy object.
+    """
     current = load_agent_runtime_policy(config_path=config_path)
     updated = resolve_agent_runtime_policy(
         provider=provider if provider is not None else current.provider,

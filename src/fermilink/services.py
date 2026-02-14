@@ -172,6 +172,19 @@ def _command_from_env(value: str | None) -> list[str] | None:
 
 
 def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
+    """
+    Build default service specifications for FermiLink components.
+
+    Parameters
+    ----------
+    web_app_path : Path
+        Path to the web application module entry file.
+
+    Returns
+    -------
+    dict[str, ServiceSpec]
+        Mapping from component name to `ServiceSpec`.
+    """
     runner_cmd = _command_from_env(os.getenv("FERMILINK_RUNNER_CMD")) or [
         "uvicorn",
         "fermilink.runner.app:app",
@@ -257,6 +270,19 @@ def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
 
 
 def normalize_components(values: list[str] | None) -> list[str]:
+    """
+    Normalize requested service component names.
+
+    Parameters
+    ----------
+    values : list[str] | None
+        Requested component names from CLI input.
+
+    Returns
+    -------
+    list[str]
+        Normalized component list with canonical names.
+    """
     if not values:
         return ["runner", "web"]
 
@@ -276,6 +302,21 @@ def normalize_components(values: list[str] | None) -> list[str]:
 
 
 def service_status(runtime_root: Path, service: str) -> dict[str, Any]:
+    """
+    Collect runtime status for a managed service component.
+
+    Parameters
+    ----------
+    runtime_root : Path
+        Runtime root used for service pid/status/log files.
+    service : str
+        Managed service component name.
+
+    Returns
+    -------
+    dict[str, Any]
+        Service status payload including pid, health, and metadata.
+    """
     state = _read_state(runtime_root, service)
     if not isinstance(state, dict):
         return {"service": service, "running": False, "reason": "no_state"}
@@ -304,6 +345,21 @@ def service_status(runtime_root: Path, service: str) -> dict[str, Any]:
 
 
 def start_service(runtime_root: Path, spec: ServiceSpec) -> dict[str, Any]:
+    """
+    Start a managed service process and persist runtime metadata.
+
+    Parameters
+    ----------
+    runtime_root : Path
+        Runtime root used for service pid/status/log files.
+    spec : ServiceSpec
+        Service specification describing command and runtime paths.
+
+    Returns
+    -------
+    dict[str, Any]
+        Start result payload including final status and process metadata.
+    """
     status = service_status(runtime_root, spec.name)
     if status.get("running"):
         return {
@@ -397,6 +453,21 @@ def start_service(runtime_root: Path, spec: ServiceSpec) -> dict[str, Any]:
 
 
 def stop_service(runtime_root: Path, service: str) -> dict[str, Any]:
+    """
+    Stop a managed service process and update runtime metadata.
+
+    Parameters
+    ----------
+    runtime_root : Path
+        Runtime root used for service pid/status/log files.
+    service : str
+        Managed service component name.
+
+    Returns
+    -------
+    dict[str, Any]
+        Stop result payload including final status and cleanup metadata.
+    """
     state = _read_state(runtime_root, service)
     if not isinstance(state, dict):
         return {

@@ -14,6 +14,25 @@ def register_agent_parser(
     cmd_agent: CommandHandler,
     supported_providers: tuple[str, ...],
 ) -> None:
+    """
+    Register parser arguments for agent.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    add_json_option : Callable[[argparse.ArgumentParser], None]
+        Callback that adds shared `--json` output flags.
+    cmd_agent : CommandHandler
+        Command handler for `agent` subcommands.
+    supported_providers : tuple[str, ...]
+        Provider names exposed by the runtime policy layer.
+
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
     agent_parser = subparsers.add_parser(
         "agent",
         help=(

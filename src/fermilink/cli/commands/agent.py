@@ -10,6 +10,19 @@ def _cli():
 
 
 def cmd_agent(args: argparse.Namespace) -> int:
+    """
+    Execute the `agent` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
     cli = _cli()
     desired_provider = args.provider
     desired_sandbox_policy: str | None = None
