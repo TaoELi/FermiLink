@@ -27,3 +27,7 @@ build/
 *.log
 *.pid
 *.sock
+
+# Development helpers
+/AGENTS.md
+/project_history.md
