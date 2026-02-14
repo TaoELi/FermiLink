@@ -241,6 +241,21 @@ When not overridden, FermiLink stores runtime data under:
 - `~/.fermilink/public` (Chainlit static assets + local artifact storage for web UI)
 - `~/.fermilink/.chainlit` (Chainlit sqlite DBs and internal state)
 
+## Web App Internal Layout
+
+`src/fermilink/web/app.py` remains the Chainlit entrypoint, while helper logic is split into focused modules under `src/fermilink/web/`:
+
+- `package_router_helpers.py`: package routing/scoring and second-guess prompt helpers.
+- `package_session_helpers.py`: package session state, `/package` command handling, and second-guess orchestration helpers.
+- `chat_helpers.py`: stream payload text extraction and chat-history prompt building.
+- `artifact_helpers.py`: artifact discovery/attachment and transparency report formatting helpers.
+- `runner_helpers.py`: runner SSE/admission probe helpers and runner log filtering.
+- `storage_helpers.py`: local Chainlit storage client and public-root resolution.
+- `sqlite_helpers.py`: sqlite URL parsing and schema/column bootstrap helpers.
+- `auth_helpers.py`: auth/signup/quota/account database helpers.
+- `activity_helpers.py`: active-run ownership/session rebinding helpers for reconnect-safe UX.
+- `status_helpers.py`: ephemeral streaming status label/render helpers.
+
 ## Documentation
 
 - [Install and Run](docs/install.md)

@@ -7,12 +7,10 @@ import secrets
 import sqlite3
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable
-from zoneinfo import ZoneInfo
 
-import aiofiles
 from passlib.hash import pbkdf2_sha256
 from fermilink.agent_runtime import resolve_agent_runtime_policy
 from fermilink.config import (
@@ -24,7 +22,18 @@ from fermilink.runner.scientific_packages import (
     normalize_package_id,
     resolve_scipkg_root,
 )
-from sqlalchemy.engine import make_url
+from fermilink.web import (
+    activity_helpers,
+    artifact_helpers,
+    auth_helpers,
+    chat_helpers,
+    package_router_helpers,
+    package_session_helpers,
+    runner_helpers,
+    sqlite_helpers,
+    status_helpers,
+    storage_helpers,
+)
 
 
 app_root_raw = os.getenv("FERMILINK_CHAINLIT_APP_ROOT")
@@ -357,381 +366,65 @@ class _ActiveRunBinding:
 _ACTIVE_THREADS_LOCK = asyncio.Lock()
 _ACTIVE_THREADS_BY_OWNER: dict[str, set[str]] = {}
 _ACTIVE_RUNS_BY_THREAD: dict[str, _ActiveRunBinding] = {}
-PACKAGE_FAMILY_RULES: dict[str, dict[str, list[str]]] = {
-    "maxwelllink": {
-        "strong_keywords": [
-            "maxwelllink",
-            "light matter",
-            "maxwell bloch",
-            "quantum optics",
-            "radiative decay",
-            "driven two level",
-            "spontaneous emission",
-            "two level system",
-            "two-level system",
-            "weakly excited",
-            "quantum emitter",
-        ],
-        "keywords": [
-            "electromagnetic solver",
-            "open quantum",
-            "photonics",
-            "maxwell equation",
-            "coupled light",
-            "population dynamics",
-            "density matrix",
-            "dephasing",
-            "purcell",
-            "vacuum coupling",
-        ],
-        "negative_keywords": ["classical md", "force field"],
-    },
-    "meep": {
-        "strong_keywords": [
-            "meep",
-            "fdtd",
-            "finite difference time domain",
-            "electromagnetic wave propagation",
-        ],
-        "keywords": [
-            "dielectric",
-            "waveguide",
-            "photonic crystal",
-            "pml",
-            "harminv",
-        ],
-        "negative_keywords": [
-            "gaussian",
-            "qchem",
-            "lammps",
-            "gromacs",
-            "spontaneous emission",
-            "two level system",
-            "two-level system",
-            "weakly excited",
-            "density matrix",
-            "population dynamics",
-            "maxwell bloch",
-        ],
-    },
-    "qchem": {
-        "strong_keywords": [
-            "qchem",
-            "q-chem",
-            "electronic structure",
-            "dft",
-            "ab initio",
-            "hartree fock",
-        ],
-        "keywords": [
-            "basis set",
-            "scf",
-            "td-dft",
-            "coupled cluster",
-            "quantum chemistry",
-        ],
-        "negative_keywords": ["md", "gromacs", "lammps", "fdtd"],
-    },
-    "gaussian": {
-        "strong_keywords": [
-            "gaussian",
-            "gaussian16",
-            "g16",
-            "electronic structure",
-            "quantum chemistry",
-        ],
-        "keywords": ["basis set", "opt freq", "pcm", "scf", "dft"],
-        "negative_keywords": ["md", "lammps", "gromacs", "fdtd"],
-    },
-    "lammps": {
-        "strong_keywords": [
-            "lammps",
-            "classical md",
-            "molecular dynamics",
-            "force field",
-        ],
-        "keywords": ["pair style", "thermo", "nvt", "npt", "dump"],
-        "negative_keywords": ["td-dft", "gaussian", "qchem", "fdtd"],
-    },
-    "gromacs": {
-        "strong_keywords": [
-            "gromacs",
-            "mdp",
-            "gmx",
-            "classical md",
-            "molecular dynamics",
-        ],
-        "keywords": ["topol", "gro", "xtc", "nvt", "npt"],
-        "negative_keywords": ["td-dft", "gaussian", "qchem", "fdtd"],
-    },
-}
 
 
 def _normalize_package_id_safe(value: str | None) -> str | None:
-    """Normalize package id and suppress validation exceptions.
-
-    Parameters
-    ----------
-    value : str or None
-        Raw package id.
-
-    Returns
-    -------
-    str or None
-        Normalized id when valid, otherwise `None`.
-    """
-
-    if not isinstance(value, str) or not value.strip():
-        return None
-    try:
-        return normalize_package_id(value)
-    except Exception:
-        return None
+    return package_router_helpers._normalize_package_id_safe(
+        value,
+        normalize_package_id=normalize_package_id,
+    )
 
 
 def _dedupe_terms(values: list[str]) -> list[str]:
-    """Deduplicate string terms while preserving order.
-
-    Parameters
-    ----------
-    values : list of str
-        Input sequence.
-
-    Returns
-    -------
-    list of str
-        Unique normalized terms.
-    """
-
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        if not isinstance(value, str):
-            continue
-        term = value.strip().lower()
-        if not term or term in seen:
-            continue
-        seen.add(term)
-        result.append(term)
-    return result
+    return package_router_helpers._dedupe_terms(values)
 
 
 def _normalize_rule_terms(raw: Any) -> list[str]:
-    """Normalize router term payload to a list of unique strings.
-
-    Parameters
-    ----------
-    raw : Any
-        Raw value from config.
-
-    Returns
-    -------
-    list of str
-        Normalized terms.
-    """
-
-    if isinstance(raw, str):
-        return _dedupe_terms(raw.split(","))
-    if isinstance(raw, list):
-        return _dedupe_terms([item for item in raw if isinstance(item, str)])
-    return []
+    return package_router_helpers._normalize_rule_terms(raw)
 
 
 def _resolve_package_registry() -> tuple[list[str], str | None, Path]:
-    """Load installed package ids and active package from registry.
-
-    Returns
-    -------
-    tuple
-        `(package_ids, active_package_id, scipkg_root)`.
-    """
-
-    scipkg_root = APP_ROOT / "scientific_packages"
-    try:
-        scipkg_root = resolve_scipkg_root()
-        registry = load_registry(scipkg_root)
-    except Exception as exc:
-        LOGGER.warning("Failed to load scientific package registry: %s", exc)
-        return [], None, scipkg_root
-
-    packages = registry.get("packages", {})
-    package_ids: list[str] = []
-    if isinstance(packages, dict):
-        for raw_id in packages.keys():
-            normalized = _normalize_package_id_safe(str(raw_id))
-            if normalized:
-                package_ids.append(normalized)
-    package_ids = sorted(set(package_ids))
-
-    active_raw = registry.get("active_package")
-    active_package_id = (
-        _normalize_package_id_safe(active_raw) if isinstance(active_raw, str) else None
+    return package_session_helpers._resolve_package_registry(
+        app_root=APP_ROOT,
+        resolve_scipkg_root=resolve_scipkg_root,
+        load_registry=load_registry,
+        normalize_package_id_safe=_normalize_package_id_safe,
+        logger=LOGGER,
     )
-    if active_package_id not in package_ids:
-        active_package_id = None
-    return package_ids, active_package_id, scipkg_root
+
+
+PACKAGE_FAMILY_RULES: dict[str, dict[str, list[str]]] = (
+    package_router_helpers.PACKAGE_FAMILY_RULES
+)
 
 
 def _load_router_config(scipkg_root: Path) -> dict[str, Any]:
-    """Load package-router config from `scientific_packages/router_rules.json`.
-
-    Parameters
-    ----------
-    scipkg_root : Path
-        Scientific package root.
-
-    Returns
-    -------
-    dict[str, Any]
-        Parsed config with defaults when the file is missing/invalid.
-    """
-
-    default_config: dict[str, Any] = {
-        "default_package_id": None,
-        "min_score": PACKAGE_ROUTER_MIN_SCORE,
-        "min_margin": PACKAGE_ROUTER_MIN_MARGIN,
-        "packages": {},
-    }
-    path = scipkg_root / PACKAGE_ROUTER_RULES_FILENAME
-    if not path.is_file():
-        return default_config
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        LOGGER.warning("Failed to read router rules %s: %s", path, exc)
-        return default_config
-    if not isinstance(loaded, dict):
-        return default_config
-
-    config = dict(default_config)
-    default_id = _normalize_package_id_safe(loaded.get("default_package_id"))
-    if default_id:
-        config["default_package_id"] = default_id
-
-    min_score_raw = loaded.get("min_score")
-    if isinstance(min_score_raw, int):
-        config["min_score"] = min_score_raw
-
-    min_margin_raw = loaded.get("min_margin")
-    if isinstance(min_margin_raw, int):
-        config["min_margin"] = min_margin_raw
-
-    packages_raw = loaded.get("packages")
-    if isinstance(packages_raw, dict):
-        normalized_packages: dict[str, Any] = {}
-        for raw_id, payload in packages_raw.items():
-            if not isinstance(payload, dict):
-                continue
-            normalized_id = _normalize_package_id_safe(str(raw_id))
-            if not normalized_id:
-                continue
-            normalized_packages[normalized_id] = payload
-        config["packages"] = normalized_packages
-    return config
+    return package_router_helpers._load_router_config(
+        scipkg_root,
+        package_router_min_score=PACKAGE_ROUTER_MIN_SCORE,
+        package_router_min_margin=PACKAGE_ROUTER_MIN_MARGIN,
+        package_router_rules_filename=PACKAGE_ROUTER_RULES_FILENAME,
+        normalize_package_id_safe=_normalize_package_id_safe,
+        logger=LOGGER,
+    )
 
 
 def _package_id_terms(package_id: str) -> list[str]:
-    """Build fallback match terms from a package id.
-
-    Parameters
-    ----------
-    package_id : str
-        Normalized package id.
-
-    Returns
-    -------
-    list of str
-        Match terms.
-    """
-
-    lowered = package_id.lower()
-    terms = [
-        lowered,
-        lowered.replace("-", " "),
-        lowered.replace("_", " "),
-        lowered.replace("_", "-"),
-        lowered.replace("-", "_"),
-    ]
-    parts = re.split(r"[-_]+", lowered)
-    for part in parts:
-        if len(part) >= 4 and not part.isdigit():
-            terms.append(part)
-    return _dedupe_terms(terms)
+    return package_router_helpers._package_id_terms(package_id)
 
 
 def _build_package_rule(
     package_id: str, config_packages: dict[str, Any]
 ) -> dict[str, list[str]]:
-    """Build effective router rule for one installed package.
-
-    Parameters
-    ----------
-    package_id : str
-        Installed package id.
-    config_packages : dict[str, Any]
-        Configured package-specific rules.
-
-    Returns
-    -------
-    dict[str, list[str]]
-        Rule payload with `keywords`, `strong_keywords`, and `negative_keywords`.
-    """
-
-    base_keywords = _package_id_terms(package_id)
-    base_strong: list[str] = []
-    base_negative: list[str] = []
-
-    lowered = package_id.lower()
-    for family, payload in PACKAGE_FAMILY_RULES.items():
-        if family not in lowered:
-            continue
-        base_keywords.extend(payload.get("keywords", []))
-        base_strong.extend(payload.get("strong_keywords", []))
-        base_negative.extend(payload.get("negative_keywords", []))
-
-    configured = config_packages.get(package_id)
-    configured_keywords: list[str] = []
-    configured_strong: list[str] = []
-    configured_negative: list[str] = []
-    if isinstance(configured, dict):
-        configured_keywords = _normalize_rule_terms(configured.get("keywords"))
-        configured_strong = _normalize_rule_terms(configured.get("strong_keywords"))
-        configured_negative = _normalize_rule_terms(configured.get("negative_keywords"))
-
-    return {
-        "keywords": _dedupe_terms(base_keywords + configured_keywords),
-        "strong_keywords": _dedupe_terms(base_strong + configured_strong),
-        "negative_keywords": _dedupe_terms(base_negative + configured_negative),
-    }
+    return package_router_helpers._build_package_rule(
+        package_id,
+        config_packages,
+        package_family_rules=PACKAGE_FAMILY_RULES,
+    )
 
 
 def _match_term_count(text: str, terms: list[str]) -> int:
-    """Count unique matched terms in normalized text.
-
-    Parameters
-    ----------
-    text : str
-        Lowercase prompt text.
-    terms : list of str
-        Candidate terms.
-
-    Returns
-    -------
-    int
-        Number of matched terms.
-    """
-
-    hits = 0
-    for term in terms:
-        if not term:
-            continue
-        if re.fullmatch(r"[a-z0-9]+", term):
-            pattern = rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])"
-            if re.search(pattern, text):
-                hits += 1
-        elif term in text:
-            hits += 1
-    return hits
+    return package_router_helpers._match_term_count(text, terms)
 
 
 def _route_package_candidate(
@@ -740,105 +433,15 @@ def _route_package_candidate(
     current_package_id: str | None,
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    """Route one user request to the best package candidate.
-
-    Parameters
-    ----------
-    user_text : str
-        Current user message.
-    package_ids : list of str
-        Installed package ids.
-    current_package_id : str or None
-        Existing selected package for this chat.
-    config : dict[str, Any]
-        Router configuration.
-
-    Returns
-    -------
-    dict[str, Any]
-        Routing decision including selected package and score diagnostics.
-    """
-
-    text = (user_text or "").strip().lower()
-    if not text:
-        return {
-            "selected_package_id": None,
-            "reason": "empty_prompt",
-            "scores": [],
-            "margin": 0,
-        }
-    if not package_ids:
-        return {
-            "selected_package_id": None,
-            "reason": "no_packages",
-            "scores": [],
-            "margin": 0,
-        }
-
-    config_packages = config.get("packages", {})
-    if not isinstance(config_packages, dict):
-        config_packages = {}
-
-    scored: list[dict[str, Any]] = []
-    for package_id in package_ids:
-        rule = _build_package_rule(package_id, config_packages)
-        strong_hits = _match_term_count(text, rule["strong_keywords"])
-        keyword_hits = _match_term_count(text, rule["keywords"])
-        negative_hits = _match_term_count(text, rule["negative_keywords"])
-
-        score = strong_hits * 3 + keyword_hits - negative_hits * 2
-        if package_id in text:
-            score += 3
-
-        scored.append(
-            {
-                "package_id": package_id,
-                "score": score,
-                "strong_hits": strong_hits,
-                "keyword_hits": keyword_hits,
-                "negative_hits": negative_hits,
-            }
-        )
-
-    scored.sort(key=lambda item: (item["score"], item["package_id"]), reverse=True)
-    top = scored[0]
-    second = scored[1] if len(scored) > 1 else None
-
-    min_score_raw = config.get("min_score", PACKAGE_ROUTER_MIN_SCORE)
-    min_margin_raw = config.get("min_margin", PACKAGE_ROUTER_MIN_MARGIN)
-    min_score = int(min_score_raw) if isinstance(min_score_raw, int) else 0
-    min_margin = int(min_margin_raw) if isinstance(min_margin_raw, int) else 0
-
-    margin = top["score"] - second["score"] if second else top["score"]
-    if top["score"] < min_score:
-        return {
-            "selected_package_id": None,
-            "reason": "low_score",
-            "scores": scored,
-            "margin": margin,
-        }
-
-    if second is not None and margin < min_margin:
-        if current_package_id and current_package_id == top["package_id"]:
-            return {
-                "selected_package_id": current_package_id,
-                "reason": "ambiguous_keep_current",
-                "scores": scored,
-                "margin": margin,
-            }
-        return {
-            "selected_package_id": None,
-            "reason": "ambiguous",
-            "scores": scored,
-            "margin": margin,
-        }
-
-    return {
-        "selected_package_id": top["package_id"],
-        "reason": "matched",
-        "scores": scored,
-        "margin": margin,
-    }
+    return package_router_helpers._route_package_candidate(
+        user_text,
+        package_ids,
+        current_package_id,
+        config,
+        package_router_min_score=PACKAGE_ROUTER_MIN_SCORE,
+        package_router_min_margin=PACKAGE_ROUTER_MIN_MARGIN,
+        package_family_rules=PACKAGE_FAMILY_RULES,
+    )
 
 
 def _resolve_default_package_id(
@@ -846,103 +449,24 @@ def _resolve_default_package_id(
     active_package_id: str | None,
     config: dict[str, Any],
 ) -> str | None:
-    """Resolve default package from config, registry active package, or installed list.
-
-    Parameters
-    ----------
-    package_ids : list of str
-        Installed package ids.
-    active_package_id : str or None
-        Registry active package.
-    config : dict[str, Any]
-        Router config.
-
-    Returns
-    -------
-    str or None
-        Default package id.
-    """
-
-    if not package_ids:
-        return None
-    package_set = set(package_ids)
-    config_default = _normalize_package_id_safe(config.get("default_package_id"))
-    if config_default in package_set:
-        return config_default
-    if active_package_id in package_set:
-        return active_package_id
-    return package_ids[0]
+    return package_router_helpers._resolve_default_package_id(
+        package_ids,
+        active_package_id,
+        config,
+        normalize_package_id_safe=_normalize_package_id_safe,
+    )
 
 
 def _build_package_catalog(
     package_ids: list[str], active_package_id: str | None, scipkg_root: Path
 ) -> list[dict[str, Any]]:
-    """Build concise package catalog for preflight routing checks.
-
-    Parameters
-    ----------
-    package_ids : list of str
-        Installed package ids.
-    active_package_id : str or None
-        Registry active package id.
-    scipkg_root : Path
-        Scientific package root.
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        Package metadata summary.
-    """
-
-    catalog: list[dict[str, Any]] = []
-    packages_payload: dict[str, Any] = {}
-    try:
-        registry = load_registry(scipkg_root)
-        maybe_packages = registry.get("packages", {})
-        if isinstance(maybe_packages, dict):
-            packages_payload = maybe_packages
-    except Exception as exc:
-        LOGGER.warning("Failed to load package catalog metadata: %s", exc)
-        packages_payload = {}
-
-    for package_id in package_ids:
-        meta_raw = packages_payload.get(package_id)
-        meta = meta_raw if isinstance(meta_raw, dict) else {}
-        item: dict[str, Any] = {
-            "id": package_id,
-            "active": package_id == active_package_id,
-        }
-
-        title = meta.get("title")
-        if isinstance(title, str) and title and title != package_id:
-            item["title"] = title
-
-        source = meta.get("source")
-        if isinstance(source, str) and source:
-            item["source"] = source
-
-        overlay_entries = meta.get("overlay_entries")
-        if isinstance(overlay_entries, list):
-            normalized_entries = [
-                str(entry).strip()
-                for entry in overlay_entries
-                if isinstance(entry, str) and str(entry).strip()
-            ]
-            if normalized_entries:
-                item["overlay_entries"] = normalized_entries
-
-        dependency_package_ids = meta.get("dependency_package_ids")
-        if isinstance(dependency_package_ids, list):
-            normalized_dependency_ids = [
-                str(entry).strip()
-                for entry in dependency_package_ids
-                if isinstance(entry, str) and str(entry).strip()
-            ]
-            if normalized_dependency_ids:
-                item["dependency_package_ids"] = normalized_dependency_ids
-
-        catalog.append(item)
-    return catalog
+    return package_router_helpers._build_package_catalog(
+        package_ids,
+        active_package_id,
+        scipkg_root,
+        load_registry=load_registry,
+        logger=LOGGER,
+    )
 
 
 def _build_second_guess_prompt(
@@ -951,126 +475,19 @@ def _build_second_guess_prompt(
     current_package_id: str | None,
     package_catalog: list[dict[str, Any]],
 ) -> str:
-    """Create routing preflight prompt for Codex second-guess decision.
-
-    Parameters
-    ----------
-    user_text : str
-        Current user message.
-    current_package_id : str or None
-        Initial package from keyword/default router.
-    package_catalog : list of dict
-        Installed package summary.
-
-    Returns
-    -------
-    str
-        Prompt text requesting strict JSON output.
-    """
-
-    catalog_json = json.dumps(package_catalog, indent=2, ensure_ascii=False)
-    current_label = current_package_id if current_package_id else "none"
-    return (
-        "PACKAGE ROUTING PREFLIGHT ONLY.\n"
-        "You must decide whether the currently selected scientific package is suitable.\n"
-        "Read AGENTS.md in the repo root and follow its Package Routing Policy.\n"
-        "Do NOT run shell commands. Do NOT edit files. Do NOT create outputs.\n"
-        "Return exactly one JSON object and nothing else.\n\n"
-        "Required JSON schema:\n"
-        "{\n"
-        '  "route": "keep" | "switch",\n'
-        '  "package_id": "<installed_package_id_or_null>",\n'
-        '  "confidence": <number_between_0_and_1>,\n'
-        '  "reason": "<short_reason>"\n'
-        "}\n\n"
-        f"Current package: {current_label}\n"
-        f"Installed package catalog:\n{catalog_json}\n\n"
-        f"User request:\n{(user_text or '').strip()}\n"
+    return package_router_helpers._build_second_guess_prompt(
+        user_text=user_text,
+        current_package_id=current_package_id,
+        package_catalog=package_catalog,
     )
 
 
 def _extract_first_json_object(text: str) -> dict[str, Any] | None:
-    """Extract first valid JSON object from text.
-
-    Parameters
-    ----------
-    text : str
-        Raw model output.
-
-    Returns
-    -------
-    dict[str, Any] or None
-        Parsed JSON object when found.
-    """
-
-    if not text:
-        return None
-
-    start_positions = [idx for idx, char in enumerate(text) if char == "{"]
-    for start in start_positions:
-        depth = 0
-        in_string = False
-        escaped = False
-        for index in range(start, len(text)):
-            char = text[index]
-            if escaped:
-                escaped = False
-                continue
-            if char == "\\":
-                escaped = True
-                continue
-            if char == '"':
-                in_string = not in_string
-                continue
-            if in_string:
-                continue
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    candidate = text[start : index + 1]
-                    try:
-                        parsed = json.loads(candidate)
-                    except json.JSONDecodeError:
-                        break
-                    if isinstance(parsed, dict):
-                        return parsed
-                    break
-                if depth < 0:
-                    break
-    return None
+    return package_router_helpers._extract_first_json_object(text)
 
 
 def _coerce_confidence(value: Any) -> float:
-    """Normalize confidence value to [0, 1].
-
-    Parameters
-    ----------
-    value : Any
-        Raw confidence field.
-
-    Returns
-    -------
-    float
-        Confidence value in range [0, 1].
-    """
-
-    if isinstance(value, (int, float)):
-        confidence = float(value)
-    elif isinstance(value, str):
-        try:
-            confidence = float(value.strip())
-        except ValueError:
-            return 0.0
-    else:
-        return 0.0
-
-    if confidence < 0:
-        return 0.0
-    if confidence > 1:
-        return 1.0
-    return confidence
+    return package_router_helpers._coerce_confidence(value)
 
 
 async def _run_package_second_guess(
@@ -1081,454 +498,75 @@ async def _run_package_second_guess(
     selected_package_id: str | None,
     selected_source: str,
 ) -> dict[str, Any]:
-    """Run AGENTS-guided preflight package routing check.
-
-    Parameters
-    ----------
-    user_text : str
-        Current user request.
-    session_id : str or None
-        Current chat session id.
-    user_id : str or None
-        Authenticated user identifier for runner-side concurrency control.
-    selected_package_id : str or None
-        Initial package from first-pass routing.
-    selected_source : str
-        Current source label for the selection.
-
-    Returns
-    -------
-    dict[str, Any]
-        Routing result containing final package, switch flag, and notes.
-    """
-
-    if not PACKAGE_SECOND_GUESS_ENABLED:
-        return {
-            "package_id": selected_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": session_id,
-            "consulted": False,
-            "note": "second_guess_disabled",
-        }
-
-    if selected_source == PACKAGE_SOURCE_MANUAL:
-        return {
-            "package_id": selected_package_id,
-            "source": PACKAGE_SOURCE_MANUAL,
-            "switched": False,
-            "session_id": session_id,
-            "consulted": False,
-            "note": "manual_pin",
-        }
-
-    package_ids, active_package_id, scipkg_root = _resolve_package_registry()
-    if len(package_ids) < 2:
-        return {
-            "package_id": selected_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": session_id,
-            "consulted": False,
-            "note": "insufficient_packages",
-        }
-
-    package_set = set(package_ids)
-    config = _load_router_config(scipkg_root)
-
-    base_package_id = (
-        selected_package_id
-        if isinstance(selected_package_id, str) and selected_package_id in package_set
-        else _resolve_default_package_id(package_ids, active_package_id, config)
-    )
-
-    if not base_package_id:
-        return {
-            "package_id": selected_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": session_id,
-            "consulted": False,
-            "note": "no_base_package",
-        }
-
-    package_catalog = _build_package_catalog(
-        package_ids=package_ids,
-        active_package_id=active_package_id,
-        scipkg_root=scipkg_root,
-    )
-    preflight_prompt = _build_second_guess_prompt(
+    return await package_session_helpers._run_package_second_guess(
         user_text=user_text,
-        current_package_id=base_package_id,
-        package_catalog=package_catalog,
+        session_id=session_id,
+        user_id=user_id,
+        selected_package_id=selected_package_id,
+        selected_source=selected_source,
+        package_second_guess_enabled=PACKAGE_SECOND_GUESS_ENABLED,
+        package_source_manual=PACKAGE_SOURCE_MANUAL,
+        package_source_second_guess=PACKAGE_SOURCE_SECOND_GUESS,
+        package_second_guess_timeout_seconds=PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS,
+        package_second_guess_min_confidence=PACKAGE_SECOND_GUESS_MIN_CONFIDENCE,
+        resolve_package_registry=_resolve_package_registry,
+        load_router_config=_load_router_config,
+        resolve_default_package_id=_resolve_default_package_id,
+        build_package_catalog=_build_package_catalog,
+        build_second_guess_prompt=_build_second_guess_prompt,
+        resolve_agent_runtime_policy=resolve_agent_runtime_policy,
+        stream_runner=_stream_runner,
+        extract_text=_extract_text,
+        extract_first_json_object=_extract_first_json_object,
+        normalize_package_id_safe=_normalize_package_id_safe,
+        coerce_confidence=_coerce_confidence,
+        logger=LOGGER,
     )
-
-    runtime_policy = resolve_agent_runtime_policy()
-    payload: dict[str, Any] = {
-        "session_id": session_id,
-        "user_prompt": preflight_prompt,
-        "package_id": base_package_id,
-        "provider": runtime_policy.provider,
-    }
-    if runtime_policy.sandbox_policy != "bypass":
-        payload["sandbox"] = "read-only"
-    if isinstance(user_id, str) and user_id.strip():
-        payload["user_id"] = user_id
-
-    resolved_session_id = session_id
-    assistant_chunks: list[str] = []
-
-    async def _collect() -> None:
-        nonlocal resolved_session_id
-        async for event_type, data in _stream_runner(payload):
-            if event_type == "meta":
-                try:
-                    meta = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
-                maybe_session = meta.get("session_id")
-                if isinstance(maybe_session, str) and maybe_session:
-                    resolved_session_id = maybe_session
-                continue
-
-            if event_type != "codex":
-                continue
-            try:
-                event = json.loads(data)
-            except json.JSONDecodeError:
-                continue
-            item = event.get("item")
-            if not isinstance(item, dict):
-                item = {}
-            item_type = item.get("type") or event.get("type") or ""
-            if not isinstance(item_type, str):
-                continue
-            if not item_type.startswith("agent_message"):
-                continue
-            text = _extract_text(event) or ""
-            if text:
-                assistant_chunks.append(text)
-
-    try:
-        timeout = PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS
-        if timeout > 0:
-            await asyncio.wait_for(_collect(), timeout=timeout)
-        else:
-            await _collect()
-    except asyncio.TimeoutError:
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": "second_guess_timeout",
-        }
-    except Exception as exc:
-        LOGGER.warning("Second-guess preflight failed: %s", exc)
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": f"second_guess_error:{exc}",
-        }
-
-    raw_text = "".join(assistant_chunks).strip()
-    decision = _extract_first_json_object(raw_text)
-    if not isinstance(decision, dict):
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": "second_guess_invalid_json",
-        }
-
-    route_raw = decision.get("route")
-    route = str(route_raw).strip().lower() if route_raw is not None else ""
-    suggested_package = _normalize_package_id_safe(decision.get("package_id"))
-    confidence = _coerce_confidence(decision.get("confidence"))
-    reason_raw = decision.get("reason")
-    reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""
-    reason_short = reason[:240] if reason else ""
-
-    if route not in {"keep", "switch"}:
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": "second_guess_invalid_route",
-        }
-
-    if route == "keep":
-        note = (
-            f"second_guess_keep(conf={confidence:.2f}, reason={reason_short})"
-            if reason_short
-            else f"second_guess_keep(conf={confidence:.2f})"
-        )
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": note,
-        }
-
-    if suggested_package not in package_set:
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": "second_guess_invalid_target",
-        }
-
-    if suggested_package == base_package_id:
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": "second_guess_same_target",
-        }
-
-    if confidence < PACKAGE_SECOND_GUESS_MIN_CONFIDENCE:
-        return {
-            "package_id": base_package_id,
-            "source": selected_source,
-            "switched": False,
-            "session_id": resolved_session_id,
-            "consulted": True,
-            "note": f"second_guess_low_confidence({confidence:.2f})",
-        }
-
-    note = (
-        f"second_guess_switch({base_package_id}->{suggested_package}, "
-        f"conf={confidence:.2f}, reason={reason_short})"
-        if reason_short
-        else f"second_guess_switch({base_package_id}->{suggested_package}, conf={confidence:.2f})"
-    )
-    return {
-        "package_id": suggested_package,
-        "source": PACKAGE_SOURCE_SECOND_GUESS,
-        "switched": True,
-        "session_id": resolved_session_id,
-        "consulted": True,
-        "note": note,
-    }
 
 
 def _resolve_package_alias(raw_target: str, package_ids: list[str]) -> str | None:
-    """Resolve flexible package id input to one installed package id.
-
-    Parameters
-    ----------
-    raw_target : str
-        User-provided package identifier.
-    package_ids : list of str
-        Installed package ids.
-
-    Returns
-    -------
-    str or None
-        Resolved package id when unambiguous.
-    """
-
-    normalized = _normalize_package_id_safe(raw_target)
-    if normalized and normalized in package_ids:
-        return normalized
-
-    lowered = (raw_target or "").strip().lower()
-    if not lowered:
-        return None
-
-    exact_matches = [package_id for package_id in package_ids if package_id == lowered]
-    if len(exact_matches) == 1:
-        return exact_matches[0]
-
-    prefix_matches = [
-        package_id for package_id in package_ids if package_id.startswith(lowered)
-    ]
-    if len(prefix_matches) == 1:
-        return prefix_matches[0]
-
-    contains_matches = [
-        package_id for package_id in package_ids if lowered in package_id
-    ]
-    if len(contains_matches) == 1:
-        return contains_matches[0]
-    return None
+    return package_router_helpers._resolve_package_alias(
+        raw_target,
+        package_ids,
+        normalize_package_id_safe=_normalize_package_id_safe,
+    )
 
 
 def _get_session_auto_route_flag() -> bool:
-    """Return session auto-route setting with default initialization.
-
-    Returns
-    -------
-    bool
-        Whether auto-routing is enabled for this chat session.
-    """
-
-    value = cl.user_session.get(SESSION_PACKAGE_AUTO_KEY)
-    if isinstance(value, bool):
-        return value
-    cl.user_session.set(SESSION_PACKAGE_AUTO_KEY, PACKAGE_ROUTER_AUTO_DEFAULT)
-    return PACKAGE_ROUTER_AUTO_DEFAULT
+    return package_session_helpers._get_session_auto_route_flag(
+        user_session=cl.user_session,
+        session_package_auto_key=SESSION_PACKAGE_AUTO_KEY,
+        package_router_auto_default=PACKAGE_ROUTER_AUTO_DEFAULT,
+    )
 
 
 def _resolve_package_for_turn(user_text: str) -> dict[str, Any]:
-    """Resolve package selection for the current user message.
-
-    Parameters
-    ----------
-    user_text : str
-        Current user message text.
-
-    Returns
-    -------
-    dict[str, Any]
-        Selection payload with package id, source, and reason.
-    """
-
-    package_ids, active_package_id, scipkg_root = _resolve_package_registry()
-    config = _load_router_config(scipkg_root)
-    package_set = set(package_ids)
-    resolution_context = {
-        "scipkg_root": str(scipkg_root),
-        "installed_package_count": len(package_ids),
-    }
-
-    current_package_id = cl.user_session.get(SESSION_PACKAGE_ID_KEY)
-    if isinstance(current_package_id, str):
-        current_package_id = _normalize_package_id_safe(current_package_id)
-    else:
-        current_package_id = None
-    current_source = cl.user_session.get(SESSION_PACKAGE_SOURCE_KEY)
-    if not isinstance(current_source, str) or not current_source:
-        current_source = PACKAGE_SOURCE_NONE
-
-    if current_package_id not in package_set:
-        current_package_id = None
-        current_source = PACKAGE_SOURCE_NONE
-
-    if current_source == PACKAGE_SOURCE_MANUAL and current_package_id:
-        return {
-            "package_id": current_package_id,
-            "source": PACKAGE_SOURCE_MANUAL,
-            "reason": "manual_pin",
-            "changed": False,
-            **resolution_context,
-        }
-
-    if not package_ids:
-        return {
-            "package_id": None,
-            "source": PACKAGE_SOURCE_NONE,
-            "reason": "no_packages",
-            "changed": current_package_id is not None,
-            **resolution_context,
-        }
-
-    auto_enabled = _get_session_auto_route_flag() and PACKAGE_ROUTER_ENABLED
-    if auto_enabled:
-        decision = _route_package_candidate(
-            user_text=user_text,
-            package_ids=package_ids,
-            current_package_id=current_package_id,
-            config=config,
-        )
-        candidate = decision.get("selected_package_id")
-        if isinstance(candidate, str) and candidate in package_set:
-            if (
-                PACKAGE_ROUTER_STICKY
-                and current_package_id
-                and current_package_id != candidate
-                and int(decision.get("margin", 0)) < PACKAGE_ROUTER_SWITCH_MARGIN
-            ):
-                return {
-                    "package_id": current_package_id,
-                    "source": current_source or PACKAGE_SOURCE_AUTO,
-                    "reason": "sticky_keep_current",
-                    "changed": False,
-                    **resolution_context,
-                }
-            return {
-                "package_id": candidate,
-                "source": PACKAGE_SOURCE_AUTO,
-                "reason": decision.get("reason", "matched"),
-                "changed": candidate != current_package_id
-                or current_source != PACKAGE_SOURCE_AUTO,
-                **resolution_context,
-            }
-
-    if current_package_id:
-        return {
-            "package_id": current_package_id,
-            "source": current_source or PACKAGE_SOURCE_DEFAULT,
-            "reason": "keep_current",
-            "changed": False,
-            **resolution_context,
-        }
-
-    fallback = _resolve_default_package_id(package_ids, active_package_id, config)
-    return {
-        "package_id": fallback,
-        "source": PACKAGE_SOURCE_DEFAULT if fallback else PACKAGE_SOURCE_NONE,
-        "reason": "default_fallback" if fallback else "no_default",
-        "changed": bool(fallback),
-        **resolution_context,
-    }
+    return package_session_helpers._resolve_package_for_turn(
+        user_text,
+        user_session=cl.user_session,
+        resolve_package_registry=_resolve_package_registry,
+        load_router_config=_load_router_config,
+        normalize_package_id_safe=_normalize_package_id_safe,
+        get_session_auto_route_flag=_get_session_auto_route_flag,
+        route_package_candidate=_route_package_candidate,
+        resolve_default_package_id=_resolve_default_package_id,
+        session_package_id_key=SESSION_PACKAGE_ID_KEY,
+        session_package_source_key=SESSION_PACKAGE_SOURCE_KEY,
+        package_source_manual=PACKAGE_SOURCE_MANUAL,
+        package_source_auto=PACKAGE_SOURCE_AUTO,
+        package_source_default=PACKAGE_SOURCE_DEFAULT,
+        package_source_none=PACKAGE_SOURCE_NONE,
+        package_router_enabled=PACKAGE_ROUTER_ENABLED,
+        package_router_sticky=PACKAGE_ROUTER_STICKY,
+        package_router_switch_margin=PACKAGE_ROUTER_SWITCH_MARGIN,
+    )
 
 
 def _parse_package_command(content: str) -> tuple[str, list[str]] | None:
-    """Parse `/package` chat commands.
-
-    Parameters
-    ----------
-    content : str
-        User message content.
-
-    Returns
-    -------
-    tuple[str, list[str]] or None
-        Command action and args, or `None` when not a package command.
-    """
-
-    text = (content or "").strip()
-    if not text:
-        return None
-    if not text.lower().startswith(PACKAGE_COMMAND_PREFIX):
-        return None
-
-    parts = text.split()
-    if len(parts) == 1:
-        return "help", []
-
-    subcommand = parts[1].strip().lower()
-    args = parts[2:]
-    if subcommand in {"list", "ls"}:
-        return "list", args
-    if subcommand in {"current", "status"}:
-        return "current", args
-    if subcommand in {"use", "set"}:
-        return "use", args
-    if subcommand in {"clear", "reset"}:
-        return "clear", args
-    if subcommand == "auto":
-        return "auto", args
-    if subcommand == "help":
-        return "help", args
-
-    # Support shorthand: `/package <package-id>`
-    return "use", parts[1:]
+    return package_router_helpers._parse_package_command(
+        content,
+        package_command_prefix=PACKAGE_COMMAND_PREFIX,
+    )
 
 
 def _format_package_list(
@@ -1536,466 +574,72 @@ def _format_package_list(
     active_package_id: str | None,
     current_package_id: str | None,
 ) -> str:
-    """Format installed package list for chat output.
-
-    Parameters
-    ----------
-    package_ids : list of str
-        Installed package ids.
-    active_package_id : str or None
-        Registry active package id.
-    current_package_id : str or None
-        Current chat-selected package id.
-
-    Returns
-    -------
-    str
-        Markdown text list.
-    """
-
-    if not package_ids:
-        return "No installed scientific packages found."
-
-    lines = ["Installed packages:"]
-    for package_id in package_ids:
-        labels: list[str] = []
-        if package_id == current_package_id:
-            labels.append("current")
-        if package_id == active_package_id:
-            labels.append("registry-active")
-        suffix = f" ({', '.join(labels)})" if labels else ""
-        lines.append(f"- `{package_id}`{suffix}")
-    return "\n".join(lines)
+    return package_router_helpers._format_package_list(
+        package_ids,
+        active_package_id,
+        current_package_id,
+    )
 
 
 async def _handle_package_command(message: cl.Message) -> bool:
-    """Handle `/package` command messages.
-
-    Parameters
-    ----------
-    message : cl.Message
-        Incoming user message.
-
-    Returns
-    -------
-    bool
-        `True` when the message was handled as a package command.
-    """
-
-    parsed = _parse_package_command(message.content)
-    if parsed is None:
-        return False
-    action, args = parsed
-
-    package_ids, active_package_id, _ = _resolve_package_registry()
-    package_set = set(package_ids)
-    current_package_id = cl.user_session.get(SESSION_PACKAGE_ID_KEY)
-    if isinstance(current_package_id, str):
-        current_package_id = _normalize_package_id_safe(current_package_id)
-    else:
-        current_package_id = None
-    if current_package_id not in package_set:
-        current_package_id = None
-
-    current_source = cl.user_session.get(SESSION_PACKAGE_SOURCE_KEY)
-    if not isinstance(current_source, str) or not current_source:
-        current_source = PACKAGE_SOURCE_NONE
-    auto_route = _get_session_auto_route_flag()
-
-    if action == "help":
-        await cl.Message(
-            content=(
-                "**Package Commands**\n"
-                "- `/package list`: list installed packages\n"
-                "- `/package current`: show current package for this chat\n"
-                "- `/package use <package_id>`: pin package for this chat\n"
-                "- `/package auto on|off`: enable/disable auto routing\n"
-                "- `/package clear`: clear manual pin/current selection"
-            )
-        ).send()
-        return True
-
-    if action == "list":
-        await cl.Message(
-            content=_format_package_list(
-                package_ids, active_package_id, current_package_id
-            )
-        ).send()
-        return True
-
-    if action == "current":
-        current_label = current_package_id or "none"
-        await cl.Message(
-            content=(
-                f"Current package: `{current_label}`\n"
-                f"Selection source: `{current_source}`\n"
-                f"Auto routing: `{'on' if auto_route else 'off'}`"
-            )
-        ).send()
-        return True
-
-    if action == "auto":
-        if not args:
-            await cl.Message(
-                content=f"Auto routing is currently `{'on' if auto_route else 'off'}`."
-            ).send()
-            return True
-
-        option = args[0].strip().lower()
-        if option in {"on", "true", "1", "yes"}:
-            cl.user_session.set(SESSION_PACKAGE_AUTO_KEY, True)
-            await cl.Message(
-                content=(
-                    "Auto routing enabled for this chat. "
-                    "Manual `/package use ...` pin still takes precedence."
-                )
-            ).send()
-            return True
-        if option in {"off", "false", "0", "no"}:
-            cl.user_session.set(SESSION_PACKAGE_AUTO_KEY, False)
-            await cl.Message(content="Auto routing disabled for this chat.").send()
-            return True
-        await cl.Message(
-            content="Usage: `/package auto on` or `/package auto off`"
-        ).send()
-        return True
-
-    if action == "clear":
-        cl.user_session.set(SESSION_PACKAGE_ID_KEY, None)
-        cl.user_session.set(SESSION_PACKAGE_SOURCE_KEY, PACKAGE_SOURCE_NONE)
-        await cl.Message(
-            content=(
-                "Cleared current package selection for this chat. "
-                "Next request will use auto/default routing."
-            )
-        ).send()
-        return True
-
-    if action == "use":
-        target_raw = " ".join(args).strip() if args else ""
-        if not target_raw:
-            await cl.Message(content="Usage: `/package use <package_id>`").send()
-            return True
-        resolved = _resolve_package_alias(target_raw, package_ids)
-        if not resolved:
-            available = ", ".join(f"`{item}`" for item in package_ids) or "none"
-            await cl.Message(
-                content=(
-                    f"Unknown package `{target_raw}`.\n"
-                    f"Available packages: {available}"
-                )
-            ).send()
-            return True
-        cl.user_session.set(SESSION_PACKAGE_ID_KEY, resolved)
-        cl.user_session.set(SESSION_PACKAGE_SOURCE_KEY, PACKAGE_SOURCE_MANUAL)
-        await cl.Message(
-            content=f"Pinned package `{resolved}` for this chat session."
-        ).send()
-        return True
-
-    await cl.Message(content="Unknown `/package` command. Use `/package help`.").send()
-    return True
+    return await package_session_helpers._handle_package_command(
+        message,
+        cl_module=cl,
+        parse_package_command=_parse_package_command,
+        resolve_package_registry=_resolve_package_registry,
+        normalize_package_id_safe=_normalize_package_id_safe,
+        get_session_auto_route_flag=_get_session_auto_route_flag,
+        format_package_list=_format_package_list,
+        resolve_package_alias=_resolve_package_alias,
+        session_package_id_key=SESSION_PACKAGE_ID_KEY,
+        session_package_source_key=SESSION_PACKAGE_SOURCE_KEY,
+        session_package_auto_key=SESSION_PACKAGE_AUTO_KEY,
+        package_source_manual=PACKAGE_SOURCE_MANUAL,
+        package_source_none=PACKAGE_SOURCE_NONE,
+    )
 
 
 def _normalize_status_label(value: str | None) -> str | None:
-    """Normalize streaming status text for UI display.
-
-    Parameters
-    ----------
-    value : str or None
-        Raw status label.
-
-    Returns
-    -------
-    str or None
-        Trimmed label or `None` when empty.
-    """
-
-    if not value:
-        return None
-    cleaned = str(value).strip()
-    return cleaned or None
+    return status_helpers._normalize_status_label(value)
 
 
 async def _maybe_update_status(
     status_msg: cl.Message | None, status_label: str | None, last_status: str | None
 ) -> tuple[cl.Message | None, str | None]:
-    """Create or update an ephemeral status message if label changed.
-
-    Parameters
-    ----------
-    status_msg : cl.Message or None
-        Existing status message handle.
-    status_label : str or None
-        Candidate status text.
-    last_status : str or None
-        Previously rendered status label.
-
-    Returns
-    -------
-    tuple
-        Updated `(status_msg, current_label)` pair.
-    """
-
-    label = _normalize_status_label(status_label)
-    if not label or label == last_status:
-        return status_msg, last_status
-    if status_msg is None:
-        status_msg = cl.Message(
-            content=label,
-            author="status",
-            type="system_message",
-        )
-        await status_msg.send()
-    else:
-        status_msg.content = label
-        await status_msg.update()
-    return status_msg, label
+    return await status_helpers._maybe_update_status(
+        status_msg,
+        status_label,
+        last_status,
+        normalize_status_label=_normalize_status_label,
+        cl_module=cl,
+    )
 
 
 def _normalize_subdir(value: str) -> str:
-    """Normalize a relative storage subdirectory string.
-
-    Parameters
-    ----------
-    value : str
-        Raw subdirectory value.
-
-    Returns
-    -------
-    str
-        Slash-normalized, dot-segment-free relative path.
-    """
-
-    cleaned = (value or "").replace("\\", "/")
-    parts = [part for part in cleaned.split("/") if part and part != "."]
-    return "/".join(parts)
+    return storage_helpers._normalize_subdir(value)
 
 
 def _join_url(root_path: str, path: str) -> str:
-    """Join a root URL path prefix with a child path.
-
-    Parameters
-    ----------
-    root_path : str
-        Optional base path prefix.
-    path : str
-        Child path to append.
-
-    Returns
-    -------
-    str
-        Joined URL path with exactly one slash at the boundary.
-    """
-
-    root = (root_path or "").rstrip("/")
-    tail = "/" + path.lstrip("/")
-    return f"{root}{tail}" if root else tail
+    return storage_helpers._join_url(root_path, path)
 
 
-class LocalPublicStorageClient(BaseStorageClient):
-    """Chainlit storage client that persists artifacts under `/public`."""
-
-    def __init__(self, public_root: Path, subdir: str, root_path: str):
-        """Initialize local storage paths and URL prefix.
-
-        Parameters
-        ----------
-        public_root : Path
-            Root filesystem path for Chainlit static public assets.
-        subdir : str
-            Relative subdirectory used to store uploaded objects.
-        root_path : str
-            Chainlit application root path prefix.
-        """
-
-        self.public_root = public_root
-        self.subdir = _normalize_subdir(subdir) or ".chainlit/artifacts"
-        self.base_dir = (self.public_root / self.subdir).resolve()
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-        self.public_url_prefix = _join_url(root_path, "/public")
-
-    def _resolve_path(self, object_key: str) -> Path:
-        """Resolve and validate an artifact key under the storage base directory.
-
-        Parameters
-        ----------
-        object_key : str
-            Relative object key provided by Chainlit.
-
-        Returns
-        -------
-        Path
-            Resolved filesystem path inside the storage base directory.
-
-        Raises
-        ------
-        ValueError
-            Raised when the resolved path escapes the base directory.
-        """
-
-        key = str(object_key or "").lstrip("/").replace("\\", "/")
-        path = (self.base_dir / key).resolve()
-        try:
-            path.relative_to(self.base_dir)
-        except ValueError as exc:
-            raise ValueError("Invalid object key") from exc
-        return path
-
-    def _url_for_key(self, object_key: str) -> str:
-        """Build the public URL for a stored object key.
-
-        Parameters
-        ----------
-        object_key : str
-            Relative object key.
-
-        Returns
-        -------
-        str
-            Public URL pointing to the stored file.
-        """
-
-        key = str(object_key or "").lstrip("/").replace("\\", "/")
-        rel = f"{self.subdir}/{key}" if self.subdir else key
-        return f"{self.public_url_prefix}/{rel}"
-
-    async def upload_file(
-        self,
-        object_key: str,
-        data: bytes | str,
-        mime: str = "application/octet-stream",
-        overwrite: bool = True,
-        content_disposition: str | None = None,
-    ) -> dict:
-        """Store a file-like payload to local public storage.
-
-        Parameters
-        ----------
-        object_key : str
-            Relative key used for local persistence and URL generation.
-        data : bytes or str
-            Payload content to write.
-        mime : str, optional
-            MIME type from the caller (unused by local implementation).
-        overwrite : bool, optional
-            Whether existing files can be replaced.
-        content_disposition : str or None, optional
-            Content disposition hint (unused by local implementation).
-
-        Returns
-        -------
-        dict
-            Mapping containing `object_key` and generated `url`.
-        """
-
-        _ = mime
-        _ = content_disposition
-        path = self._resolve_path(object_key)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if not overwrite and path.exists():
-            return {"object_key": object_key, "url": self._url_for_key(object_key)}
-        if isinstance(data, str):
-            data = data.encode("utf-8")
-        async with aiofiles.open(path, "wb") as handle:
-            await handle.write(data)
-        return {"object_key": object_key, "url": self._url_for_key(object_key)}
-
-    async def delete_file(self, object_key: str) -> bool:
-        """Delete a stored object key if present.
-
-        Parameters
-        ----------
-        object_key : str
-            Relative object key to remove.
-
-        Returns
-        -------
-        bool
-            Always `True`, including when the file is already missing.
-        """
-
-        path = self._resolve_path(object_key)
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            return True
-        return True
-
-    async def get_read_url(self, object_key: str) -> str:
-        """Return the public URL for a stored object key.
-
-        Parameters
-        ----------
-        object_key : str
-            Relative object key.
-
-        Returns
-        -------
-        str
-            Public URL for read access.
-        """
-
-        return self._url_for_key(object_key)
-
-    async def close(self) -> None:
-        """Close the storage client.
-
-        Returns
-        -------
-        None
-            No-op for local filesystem-backed storage.
-        """
-
-        return None
+LocalPublicStorageClient = storage_helpers.LocalPublicStorageClient
 
 
 def _resolve_public_root() -> Path:
-    """Resolve effective Chainlit public root and seed packaged assets if needed."""
-
-    configured = Path(public_dir).expanduser()
-    if not configured.is_absolute():
-        configured = (APP_ROOT / configured).resolve()
-    package_public = Path(__file__).resolve().parents[1] / "public"
-
-    if _is_router_only_import():
-        if package_public.is_dir():
-            return package_public
-        return configured
-
-    try:
-        configured.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        if package_public.is_dir():
-            return package_public
-        return configured
-
-    if package_public.is_dir():
-        for asset in package_public.iterdir():
-            target = configured / asset.name
-            if target.exists():
-                continue
-            if asset.is_file():
-                try:
-                    target.write_bytes(asset.read_bytes())
-                except OSError:
-                    continue
-    return configured
+    return storage_helpers._resolve_public_root(
+        configured_public_dir=str(public_dir),
+        app_root=APP_ROOT,
+        package_public_root=PACKAGE_PUBLIC_ROOT,
+        is_router_only_import=_is_router_only_import(),
+    )
 
 
 def _build_storage_provider() -> BaseStorageClient:
-    """Instantiate the local public storage provider for Chainlit.
-
-    Returns
-    -------
-    BaseStorageClient
-        Local storage implementation backed by the public directory.
-    """
-
     subdir = os.getenv("FERMILINK_CHAINLIT_LOCAL_STORAGE_SUBDIR", ".chainlit/artifacts")
-    return LocalPublicStorageClient(
-        public_root=_resolve_public_root(),
+    return storage_helpers._build_storage_provider(
         subdir=subdir,
+        public_root=_resolve_public_root(),
         root_path=config.run.root_path,
     )
 
@@ -2095,83 +739,15 @@ CREATE TABLE IF NOT EXISTS auth_usage_daily (
 
 
 def _sqlite_path_from_url(url: str) -> Path | None:
-    """Extract sqlite database path from a SQLAlchemy connection URL.
-
-    Parameters
-    ----------
-    url : str
-        SQLAlchemy connection string.
-
-    Returns
-    -------
-    Path or None
-        SQLite path when URL points to sqlite, otherwise `None`.
-    """
-
-    try:
-        parsed = make_url(url)
-    except Exception:
-        return None
-    if not parsed.drivername.startswith("sqlite"):
-        return None
-    if not parsed.database:
-        return None
-    path = Path(parsed.database)
-    if not path.is_absolute():
-        path = Path.cwd() / path
-    return path
+    return sqlite_helpers._sqlite_path_from_url(url)
 
 
 def _ensure_sqlite_schema(db_path: Path, schema_sql: str) -> None:
-    """Ensure sqlite database schema exists by executing DDL script.
-
-    Parameters
-    ----------
-    db_path : Path
-        SQLite database file path.
-    schema_sql : str
-        SQL script containing `CREATE TABLE IF NOT EXISTS` statements.
-
-    Returns
-    -------
-    None
-        Schema is applied in place.
-    """
-
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(db_path) as conn:
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.executescript(schema_sql)
+    sqlite_helpers._ensure_sqlite_schema(db_path, schema_sql)
 
 
 def _ensure_sqlite_columns(db_path: Path, table: str, columns: dict[str, str]) -> None:
-    """Backfill missing sqlite columns for an existing table.
-
-    Parameters
-    ----------
-    db_path : Path
-        SQLite database path.
-    table : str
-        Table name to inspect.
-    columns : dict of str to str
-        Mapping of column names to SQL types to add when absent.
-
-    Returns
-    -------
-    None
-        Table is altered in place when required.
-    """
-
-    with sqlite3.connect(db_path) as conn:
-        conn.execute("PRAGMA foreign_keys = ON;")
-        existing = {
-            row[1] for row in conn.execute(f"PRAGMA table_info({table});").fetchall()
-        }
-        for name, col_type in columns.items():
-            if name in existing:
-                continue
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {col_type};")
-        conn.commit()
+    sqlite_helpers._ensure_sqlite_columns(db_path, table, columns)
 
 
 CHAINLIT_DB_PATH = _sqlite_path_from_url(DB_URL)
@@ -2238,438 +814,165 @@ _ensure_sqlite_columns(
 
 
 def _normalize_username(username: str) -> str:
-    """Normalize login usernames for stable auth lookups.
-
-    Parameters
-    ----------
-    username : str
-        Raw username input.
-
-    Returns
-    -------
-    str
-        Trimmed lowercase username.
-    """
-
-    return username.strip().lower()
+    return auth_helpers._normalize_username(username)
 
 
 def _validate_password(password: str) -> bool:
-    """Validate password length against configured minimum.
-
-    Parameters
-    ----------
-    password : str
-        Password candidate.
-
-    Returns
-    -------
-    bool
-        `True` when length meets policy.
-    """
-
-    return len(password) >= AUTH_MIN_PASSWORD_LEN
+    return auth_helpers._validate_password(
+        password,
+        auth_min_password_len=AUTH_MIN_PASSWORD_LEN,
+    )
 
 
 def _validate_email(email: str) -> bool:
-    """Validate login/signup identifier as an email-like string.
-
-    Parameters
-    ----------
-    email : str
-        Email candidate.
-
-    Returns
-    -------
-    bool
-        `True` when the input matches a basic email pattern.
-    """
-
-    return bool(EMAIL_PATTERN.fullmatch(email))
+    return auth_helpers._validate_email(
+        email,
+        email_pattern=EMAIL_PATTERN,
+    )
 
 
 def _count_auth_users() -> int:
-    """Count registered users in the auth database.
-
-    Returns
-    -------
-    int
-        Total number of rows in `auth_users`.
-    """
-
-    with _open_auth_db() as conn:
-        row = conn.execute("SELECT COUNT(*) AS user_count FROM auth_users").fetchone()
-    if row is None:
-        return 0
-    return int(row["user_count"] or 0)
+    return auth_helpers._count_auth_users(open_auth_db=_open_auth_db)
 
 
 def _signup_status_payload() -> dict[str, Any]:
-    """Build current self-signup policy payload for API/UI.
-
-    Returns
-    -------
-    dict[str, Any]
-        Signup availability metadata.
-    """
-
-    user_count = _count_auth_users()
-    max_users = AUTH_MAX_USERS if AUTH_MAX_USERS > 0 else None
-    enabled = bool(AUTH_SIGNUP_ENABLED)
-    reason: str | None = None
-    message = "Self sign-up is available."
-
-    if not AUTH_SIGNUP_ENABLED:
-        enabled = False
-        reason = "disabled_by_admin"
-        message = "Sign up is disabled by admin."
-    elif AUTH_MAX_USERS > 0 and user_count >= AUTH_MAX_USERS:
-        enabled = False
-        reason = "user_limit_reached"
-        message = f"Sign up is closed. User limit reached ({AUTH_MAX_USERS})."
-
-    return {
-        "enabled": enabled,
-        "reason": reason,
-        "message": message,
-        "user_count": user_count,
-        "max_users": max_users,
-        "min_password_length": AUTH_MIN_PASSWORD_LEN,
-    }
+    return auth_helpers._signup_status_payload(
+        count_auth_users=_count_auth_users,
+        auth_signup_enabled=AUTH_SIGNUP_ENABLED,
+        auth_max_users=AUTH_MAX_USERS,
+        auth_min_password_len=AUTH_MIN_PASSWORD_LEN,
+    )
 
 
 def _normalize_group(group_name: str | None) -> str:
-    """Normalize prompt-quota group name with default fallback.
-
-    Parameters
-    ----------
-    group_name : str or None
-        Raw group value from user metadata.
-
-    Returns
-    -------
-    str
-        Normalized group name or default group.
-    """
-
-    if not group_name:
-        return DEFAULT_PROMPT_GROUP
-    normalized = str(group_name).strip().lower()
-    return normalized or DEFAULT_PROMPT_GROUP
+    return auth_helpers._normalize_group(
+        group_name,
+        default_prompt_group=DEFAULT_PROMPT_GROUP,
+    )
 
 
 def _get_prompt_timezone() -> timezone:
-    """Resolve timezone used for daily prompt-limit windows.
-
-    Returns
-    -------
-    datetime.timezone
-        Configured timezone or UTC fallback when invalid.
-    """
-
-    if PROMPT_DAY_TZ.upper() == "UTC":
-        return timezone.utc
-    try:
-        return ZoneInfo(PROMPT_DAY_TZ)
-    except Exception:
-        LOGGER.warning("Invalid PROMPT_DAY_TZ=%r, defaulting to UTC", PROMPT_DAY_TZ)
-        return timezone.utc
+    return auth_helpers._get_prompt_timezone(
+        prompt_day_tz=PROMPT_DAY_TZ,
+        logger=LOGGER,
+    )
 
 
 def _current_usage_day(now: datetime | None = None) -> tuple[str, datetime]:
-    """Compute current usage-day key in configured quota timezone.
-
-    Parameters
-    ----------
-    now : datetime or None, optional
-        Reference datetime. Uses current time when omitted.
-
-    Returns
-    -------
-    tuple
-        `(day_iso, localized_now)` for quota accounting.
-    """
-
-    tz = _get_prompt_timezone()
-    now = now.astimezone(tz) if now else datetime.now(tz)
-    return now.date().isoformat(), now
+    return auth_helpers._current_usage_day(
+        now,
+        get_prompt_timezone=_get_prompt_timezone,
+    )
 
 
 def _next_usage_reset(now: datetime | None = None) -> datetime:
-    """Compute next quota reset timestamp (next local midnight).
-
-    Parameters
-    ----------
-    now : datetime or None, optional
-        Reference datetime. Uses current time when omitted.
-
-    Returns
-    -------
-    datetime
-        Timestamp for the next quota reset.
-    """
-
-    _, current = _current_usage_day(now)
-    next_midnight = (current + timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
+    return auth_helpers._next_usage_reset(
+        now,
+        current_usage_day=_current_usage_day,
     )
-    return next_midnight
 
 
 def _get_prompt_limit(group_name: str) -> int:
-    """Return the daily prompt limit for a user group.
-
-    Parameters
-    ----------
-    group_name : str
-        User quota group name.
-
-    Returns
-    -------
-    int
-        Configured per-day prompt limit.
-    """
-
-    normalized = _normalize_group(group_name)
-    limit = PROMPT_LIMITS.get(normalized)
-    if limit is None:
-        limit = PROMPT_LIMITS.get(DEFAULT_PROMPT_GROUP, 0)
-    return limit
+    return auth_helpers._get_prompt_limit(
+        group_name,
+        normalize_group=_normalize_group,
+        prompt_limits=PROMPT_LIMITS,
+        default_prompt_group=DEFAULT_PROMPT_GROUP,
+    )
 
 
 def _get_user_group(username: str) -> str:
-    """Lookup a user's quota group from the auth database.
-
-    Parameters
-    ----------
-    username : str
-        Username identifier.
-
-    Returns
-    -------
-    str
-        Normalized group name, defaulting when user/group is missing.
-    """
-
-    normalized = _normalize_username(username)
-    if not normalized:
-        return DEFAULT_PROMPT_GROUP
-    with _open_auth_db() as conn:
-        row = conn.execute(
-            "SELECT group_name FROM auth_users WHERE username = ?",
-            (normalized,),
-        ).fetchone()
-    if row is None:
-        return DEFAULT_PROMPT_GROUP
-    return _normalize_group(row["group_name"])
+    return auth_helpers._get_user_group(
+        username,
+        normalize_username=_normalize_username,
+        default_prompt_group=DEFAULT_PROMPT_GROUP,
+        open_auth_db=_open_auth_db,
+        normalize_group=_normalize_group,
+    )
 
 
 def _get_current_user_identifier() -> str | None:
-    """Extract current Chainlit user identifier from session context.
-
-    Returns
-    -------
-    str or None
-        User identifier when authenticated, otherwise `None`.
-    """
-
-    user = cl.user_session.get("user")
-    if not user:
-        return None
-    if isinstance(user, dict):
-        identifier = user.get("identifier")
-        return identifier if isinstance(identifier, str) and identifier else None
-    identifier = getattr(user, "identifier", None)
-    return identifier if isinstance(identifier, str) and identifier else None
+    return activity_helpers._get_current_user_identifier(user_session=cl.user_session)
 
 
 def _get_current_chainlit_session_identifier() -> str | None:
-    """Extract current Chainlit websocket session identifier when available.
-
-    Returns
-    -------
-    str or None
-        Session identifier for anonymous fallback scoping.
-    """
-
-    try:
-        session = chainlit_context.session
-    except Exception:
-        return None
-
-    candidate = getattr(session, "id", None)
-    if isinstance(candidate, str) and candidate:
-        return candidate
-
-    candidate = getattr(session, "session_id", None)
-    if isinstance(candidate, str) and candidate:
-        return candidate
-    return None
+    return activity_helpers._get_current_chainlit_session_identifier(
+        chainlit_context=chainlit_context
+    )
 
 
 def _get_current_chainlit_session_object() -> Any | None:
-    """Return current Chainlit session object when available."""
-
-    try:
-        return chainlit_context.session
-    except Exception:
-        return None
+    return activity_helpers._get_current_chainlit_session_object(
+        chainlit_context=chainlit_context
+    )
 
 
 def _resolve_activity_owner_keys(user_identifier: str | None = None) -> list[str]:
-    """Resolve owner keys used for in-memory active thread tracking.
-
-    Parameters
-    ----------
-    user_identifier : str or None, optional
-        Pre-resolved authenticated identifier.
-
-    Returns
-    -------
-    list[str]
-        One or more stable keys for authenticated and/or anonymous scopes.
-    """
-
-    keys: list[str] = []
-    cleaned_user = None
-    if isinstance(user_identifier, str) and user_identifier.strip():
-        cleaned_user = user_identifier.strip().lower()
-    elif isinstance(user_identifier, str):
-        cleaned_user = None
-    else:
-        current_user = _get_current_user_identifier()
-        if isinstance(current_user, str) and current_user.strip():
-            cleaned_user = current_user.strip().lower()
-        else:
-            session = _get_current_chainlit_session_object()
-            if session is not None:
-                session_user = getattr(session, "user", None)
-                if isinstance(session_user, dict):
-                    identifier = session_user.get("identifier")
-                else:
-                    identifier = getattr(session_user, "identifier", None)
-                if isinstance(identifier, str) and identifier.strip():
-                    cleaned_user = identifier.strip().lower()
-
-    if cleaned_user:
-        keys.append(f"user:{cleaned_user}")
-
-    session_identifier = _get_current_chainlit_session_identifier()
-    if isinstance(session_identifier, str) and session_identifier:
-        keys.append(f"session:{session_identifier}")
-    return keys
+    return activity_helpers._resolve_activity_owner_keys(
+        user_identifier,
+        get_current_user_identifier=_get_current_user_identifier,
+        get_current_chainlit_session_object=_get_current_chainlit_session_object,
+        get_current_chainlit_session_identifier=_get_current_chainlit_session_identifier,
+    )
 
 
 def _owner_scope_matches(
     binding_owner_keys: set[str], candidate_owner_keys: set[str]
 ) -> bool:
-    """Check whether an active-run binding belongs to current requester scope.
-
-    For authenticated users, require an explicit key overlap.
-    For anonymous sessions (no `user:` keys on either side), allow thread-local
-    matching even when websocket session ids rotate on refresh.
-    """
-
-    if binding_owner_keys & candidate_owner_keys:
-        return True
-    binding_has_user = any(key.startswith("user:") for key in binding_owner_keys)
-    candidate_has_user = any(key.startswith("user:") for key in candidate_owner_keys)
-    if not binding_has_user and not candidate_has_user:
-        return True
-    return False
+    return activity_helpers._owner_scope_matches(
+        binding_owner_keys,
+        candidate_owner_keys,
+    )
 
 
 async def _thread_has_active_run_for_owner(
     thread_id: str | None, owner_keys: list[str]
 ) -> bool:
-    """Return whether one thread currently has an in-flight run for this owner."""
-
-    if not thread_id:
-        return False
-    candidate_keys = {key for key in owner_keys if key}
-
-    async with _ACTIVE_THREADS_LOCK:
-        binding = _ACTIVE_RUNS_BY_THREAD.get(thread_id)
-        if binding is None:
-            return False
-        run_task = binding.run_task
-        if run_task is None or run_task.done():
-            _ACTIVE_RUNS_BY_THREAD.pop(thread_id, None)
-            return False
-        return _owner_scope_matches(binding.owner_keys, candidate_keys)
+    return await activity_helpers._thread_has_active_run_for_owner(
+        thread_id,
+        owner_keys,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_runs_by_thread=_ACTIVE_RUNS_BY_THREAD,
+        owner_scope_matches=_owner_scope_matches,
+    )
 
 
 async def _cancel_active_run_for_thread(
     thread_id: str | None, owner_keys: list[str]
 ) -> bool:
-    """Cancel one in-flight run for the current owner when present."""
-
-    if not thread_id:
-        return False
-    candidate_keys = {key for key in owner_keys if key}
-
-    run_task: asyncio.Task[Any] | None = None
-    async with _ACTIVE_THREADS_LOCK:
-        binding = _ACTIVE_RUNS_BY_THREAD.get(thread_id)
-        if binding is None:
-            return False
-        if not _owner_scope_matches(binding.owner_keys, candidate_keys):
-            return False
-        run_task = binding.run_task
-        if run_task is None or run_task.done():
-            _ACTIVE_RUNS_BY_THREAD.pop(thread_id, None)
-            return False
-
-    run_task.cancel()
-    return True
+    return await activity_helpers._cancel_active_run_for_thread(
+        thread_id,
+        owner_keys,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_runs_by_thread=_ACTIVE_RUNS_BY_THREAD,
+        owner_scope_matches=_owner_scope_matches,
+    )
 
 
 async def _mark_thread_running(owner_keys: list[str], thread_id: str | None) -> None:
-    """Record a thread as actively running for one or more owners."""
-
-    if not thread_id:
-        return
-    unique_keys = [key for key in dict.fromkeys(owner_keys) if key]
-    if not unique_keys:
-        return
-
-    async with _ACTIVE_THREADS_LOCK:
-        for owner_key in unique_keys:
-            active = _ACTIVE_THREADS_BY_OWNER.setdefault(owner_key, set())
-            active.add(thread_id)
+    await activity_helpers._mark_thread_running(
+        owner_keys,
+        thread_id,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_threads_by_owner=_ACTIVE_THREADS_BY_OWNER,
+    )
 
 
 async def _mark_thread_stopped(owner_keys: list[str], thread_id: str | None) -> None:
-    """Remove one thread from active tracking for one or more owners."""
-
-    if not thread_id:
-        return
-    unique_keys = [key for key in dict.fromkeys(owner_keys) if key]
-    if not unique_keys:
-        return
-
-    async with _ACTIVE_THREADS_LOCK:
-        for owner_key in unique_keys:
-            active = _ACTIVE_THREADS_BY_OWNER.get(owner_key)
-            if not active:
-                continue
-            active.discard(thread_id)
-            if not active:
-                _ACTIVE_THREADS_BY_OWNER.pop(owner_key, None)
+    await activity_helpers._mark_thread_stopped(
+        owner_keys,
+        thread_id,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_threads_by_owner=_ACTIVE_THREADS_BY_OWNER,
+    )
 
 
 async def _get_active_threads_for_owner_keys(owner_keys: list[str]) -> list[str]:
-    """Return sorted active thread ids for current owner key set."""
-
-    unique_keys = [key for key in dict.fromkeys(owner_keys) if key]
-    if not unique_keys:
-        return []
-
-    async with _ACTIVE_THREADS_LOCK:
-        active: set[str] = set()
-        for owner_key in unique_keys:
-            active.update(_ACTIVE_THREADS_BY_OWNER.get(owner_key, set()))
-        return sorted(active)
+    return await activity_helpers._get_active_threads_for_owner_keys(
+        owner_keys,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_threads_by_owner=_ACTIVE_THREADS_BY_OWNER,
+    )
 
 
 async def _register_active_run(
@@ -2678,360 +981,120 @@ async def _register_active_run(
     stream_session: Any | None,
     run_task: asyncio.Task[Any] | None,
 ) -> None:
-    """Register one active run binding for reconnect-aware streaming."""
-
-    if not thread_id:
-        return
-    unique_keys = {key for key in owner_keys if key}
-    async with _ACTIVE_THREADS_LOCK:
-        _ACTIVE_RUNS_BY_THREAD[thread_id] = _ActiveRunBinding(
-            owner_keys=unique_keys,
-            stream_session=stream_session,
-            run_task=run_task,
-        )
+    await activity_helpers._register_active_run(
+        thread_id,
+        owner_keys,
+        stream_session,
+        run_task,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_runs_by_thread=_ACTIVE_RUNS_BY_THREAD,
+        active_run_binding_cls=_ActiveRunBinding,
+    )
 
 
 async def _unregister_active_run(thread_id: str | None) -> None:
-    """Remove one active run binding after completion."""
-
-    if not thread_id:
-        return
-    async with _ACTIVE_THREADS_LOCK:
-        _ACTIVE_RUNS_BY_THREAD.pop(thread_id, None)
+    await activity_helpers._unregister_active_run(
+        thread_id,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_runs_by_thread=_ACTIVE_RUNS_BY_THREAD,
+    )
 
 
 async def _rebind_active_run_session(thread_id: str | None, owner_keys: list[str]) -> None:
-    """Rebind one active run's emitter session to the current websocket session."""
-
-    if not thread_id:
-        return
-    candidate_keys = {key for key in owner_keys if key}
-    current_session = _get_current_chainlit_session_object()
-    if current_session is None:
-        return
-
-    async with _ACTIVE_THREADS_LOCK:
-        binding = _ACTIVE_RUNS_BY_THREAD.get(thread_id)
-        if binding is None:
-            return
-        if not _owner_scope_matches(binding.owner_keys, candidate_keys):
-            return
-        source = binding.stream_session
-        if source is None:
-            return
-        try:
-            source.emit = current_session.emit
-            source.emit_call = current_session.emit_call
-            source.environ = current_session.environ
-            # Keep stop/cancel targeting the original in-flight task after refresh.
-            if binding.run_task is not None and not binding.run_task.done():
-                current_session.current_task = binding.run_task
-        except Exception as exc:
-            LOGGER.debug("Failed to rebind active run session for %s: %s", thread_id, exc)
+    await activity_helpers._rebind_active_run_session(
+        thread_id,
+        owner_keys,
+        active_threads_lock=_ACTIVE_THREADS_LOCK,
+        active_runs_by_thread=_ACTIVE_RUNS_BY_THREAD,
+        owner_scope_matches=_owner_scope_matches,
+        get_current_chainlit_session_object=_get_current_chainlit_session_object,
+        logger=LOGGER,
+    )
 
 
 async def _sync_running_threads_window_state() -> None:
-    """Re-send running-thread start signals after client reconnect/refresh."""
-
-    owner_keys = _resolve_activity_owner_keys()
-    active_threads = await _get_active_threads_for_owner_keys(owner_keys)
-    current_thread_id = _get_current_thread_id()
-
-    # Owner-key matching can miss runs after refresh because websocket session ids
-    # rotate. If the currently viewed thread still has an active run binding, keep
-    # it in sync explicitly.
-    if current_thread_id and current_thread_id not in active_threads:
-        if await _thread_has_active_run_for_owner(current_thread_id, owner_keys):
-            active_threads = [current_thread_id, *active_threads]
-    active_threads = list(dict.fromkeys(active_threads))
-    if active_threads:
-        current_session = _get_current_chainlit_session_object()
-        if current_session is not None:
-            try:
-                # Restore Chainlit's loading state so the native stop button reappears
-                # after refresh while a run is still active.
-                await current_session.emit("task_start", {})
-                # Stop visibility also depends on first-interaction state in Chainlit.
-                # Re-emit for the current thread to recover this state on refresh.
-                if current_thread_id:
-                    await current_session.emit(
-                        "first_interaction",
-                        {"interaction": "resume", "thread_id": current_thread_id},
-                    )
-            except Exception as exc:
-                LOGGER.debug(
-                    "Failed to restore reconnect task state for active runs: %s", exc
-                )
-    for thread_id in active_threads:
-        await _rebind_active_run_session(thread_id, owner_keys)
-        await cl.send_window_message(
-            {
-                "type": "assistant_thinking",
-                "status": "start",
-                "thread_id": thread_id,
-            }
-        )
+    await activity_helpers._sync_running_threads_window_state(
+        resolve_activity_owner_keys=_resolve_activity_owner_keys,
+        get_active_threads_for_owner_keys=_get_active_threads_for_owner_keys,
+        get_current_thread_id=_get_current_thread_id,
+        thread_has_active_run_for_owner=_thread_has_active_run_for_owner,
+        get_current_chainlit_session_object=_get_current_chainlit_session_object,
+        rebind_active_run_session=_rebind_active_run_session,
+        send_window_message=cl.send_window_message,
+        logger=LOGGER,
+    )
 
 
 def _consume_prompt_quota(username: str) -> tuple[bool, int, int, str, datetime]:
-    """Consume one prompt quota unit for a user when allowed.
-
-    Parameters
-    ----------
-    username : str
-        Authenticated username.
-
-    Returns
-    -------
-    tuple
-        `(allowed, used_count, limit, group_name, reset_at)`.
-    """
-
-    normalized = _normalize_username(username)
-    if not normalized:
-        return True, 0, 0, DEFAULT_PROMPT_GROUP, _next_usage_reset()
-
-    group_name = _get_user_group(normalized)
-    limit = _get_prompt_limit(group_name)
-    if limit <= 0:
-        return True, 0, limit, group_name, _next_usage_reset()
-
-    usage_day, now = _current_usage_day()
-    reset_at = _next_usage_reset(now)
-    now_iso = now.isoformat()
-
-    with _open_auth_db() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute(
-            "SELECT count FROM auth_usage_daily WHERE username = ? AND day = ?",
-            (normalized, usage_day),
-        ).fetchone()
-        current = int(row["count"]) if row else 0
-        if current >= limit:
-            conn.rollback()
-            return False, current, limit, group_name, reset_at
-
-        new_count = current + 1
-        if row:
-            conn.execute(
-                "UPDATE auth_usage_daily SET count = ?, updated_at = ? "
-                "WHERE username = ? AND day = ?",
-                (new_count, now_iso, normalized, usage_day),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO auth_usage_daily (username, day, count, updated_at) "
-                "VALUES (?, ?, ?, ?)",
-                (normalized, usage_day, new_count, now_iso),
-            )
-        conn.commit()
-
-    return True, new_count, limit, group_name, reset_at
+    return auth_helpers._consume_prompt_quota(
+        username,
+        normalize_username=_normalize_username,
+        get_user_group=_get_user_group,
+        get_prompt_limit=_get_prompt_limit,
+        default_prompt_group=DEFAULT_PROMPT_GROUP,
+        next_usage_reset=_next_usage_reset,
+        current_usage_day=_current_usage_day,
+        open_auth_db=_open_auth_db,
+    )
 
 
 def _open_auth_db() -> sqlite3.Connection:
-    """Open the auth sqlite database with row and FK settings enabled.
-
-    Returns
-    -------
-    sqlite3.Connection
-        Configured sqlite connection.
-    """
-
-    conn = sqlite3.connect(AUTH_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
+    return auth_helpers._open_auth_db(auth_db_path=AUTH_DB_PATH)
 
 
 def _get_user(username: str) -> sqlite3.Row | None:
-    """Fetch an auth user row by username.
-
-    Parameters
-    ----------
-    username : str
-        Username identifier.
-
-    Returns
-    -------
-    sqlite3.Row or None
-        User record when present, otherwise `None`.
-    """
-
-    normalized = _normalize_username(username)
-    if not normalized:
-        return None
-    with _open_auth_db() as conn:
-        row = conn.execute(
-            "SELECT username, password_hash, created_at, last_login "
-            "FROM auth_users WHERE username = ?",
-            (normalized,),
-        ).fetchone()
-    return row
+    return auth_helpers._get_user(
+        username,
+        normalize_username=_normalize_username,
+        open_auth_db=_open_auth_db,
+    )
 
 
 def _create_user(username: str, password: str) -> sqlite3.Row | None:
-    """Create a new auth user account with hashed password.
-
-    Parameters
-    ----------
-    username : str
-        Desired username.
-    password : str
-        Plain-text password to hash and store.
-
-    Returns
-    -------
-    sqlite3.Row or None
-        Created user row when successful, otherwise `None`.
-    """
-
-    normalized = _normalize_username(username)
-    if not normalized:
-        return None
-    if not _validate_password(password):
-        return None
-    now = datetime.now(timezone.utc).isoformat()
-    password_hash = pbkdf2_sha256.hash(password)
-    try:
-        with _open_auth_db() as conn:
-            conn.execute(
-                "INSERT INTO auth_users (username, password_hash, created_at, group_name) "
-                "VALUES (?, ?, ?, ?)",
-                (normalized, password_hash, now, DEFAULT_PROMPT_GROUP),
-            )
-            conn.commit()
-    except sqlite3.IntegrityError:
-        return None
-    return _get_user(normalized)
+    return auth_helpers._create_user(
+        username,
+        password,
+        normalize_username=_normalize_username,
+        validate_password=_validate_password,
+        open_auth_db=_open_auth_db,
+        default_prompt_group=DEFAULT_PROMPT_GROUP,
+        get_user=_get_user,
+        pbkdf2_sha256=pbkdf2_sha256,
+    )
 
 
 def _register_signup_user(username: str, password: str) -> tuple[sqlite3.Row | None, str]:
-    """Register a user while enforcing self-signup policy atomically.
-
-    Parameters
-    ----------
-    username : str
-        Email-like username.
-    password : str
-        Plain-text password.
-
-    Returns
-    -------
-    tuple[sqlite3.Row or None, str]
-        `(user_row, reason)` where reason is one of:
-        `created`, `invalid_username`, `invalid_password`, `disabled_by_admin`,
-        `user_limit_reached`, `already_exists`, `db_error`.
-    """
-
-    normalized = _normalize_username(username)
-    if not normalized or not _validate_email(normalized):
-        return None, "invalid_username"
-    if not _validate_password(password):
-        return None, "invalid_password"
-
-    now = datetime.now(timezone.utc).isoformat()
-    try:
-        with _open_auth_db() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-
-            if not AUTH_SIGNUP_ENABLED:
-                conn.rollback()
-                return None, "disabled_by_admin"
-
-            if AUTH_MAX_USERS > 0:
-                row = conn.execute(
-                    "SELECT COUNT(*) AS user_count FROM auth_users"
-                ).fetchone()
-                count = int(row["user_count"] or 0) if row else 0
-                if count >= AUTH_MAX_USERS:
-                    conn.rollback()
-                    return None, "user_limit_reached"
-
-            existing = conn.execute(
-                "SELECT 1 FROM auth_users WHERE username = ?",
-                (normalized,),
-            ).fetchone()
-            if existing is not None:
-                conn.rollback()
-                return None, "already_exists"
-
-            password_hash = pbkdf2_sha256.hash(password)
-            conn.execute(
-                "INSERT INTO auth_users (username, password_hash, created_at, group_name) "
-                "VALUES (?, ?, ?, ?)",
-                (normalized, password_hash, now, DEFAULT_PROMPT_GROUP),
-            )
-            conn.commit()
-    except sqlite3.IntegrityError:
-        return None, "already_exists"
-    except sqlite3.Error:
-        LOGGER.exception("Failed to register signup user %s", normalized)
-        return None, "db_error"
-
-    created = _get_user(normalized)
-    if created is None:
-        return None, "db_error"
-    return created, "created"
+    return auth_helpers._register_signup_user(
+        username,
+        password,
+        normalize_username=_normalize_username,
+        validate_email=_validate_email,
+        validate_password=_validate_password,
+        open_auth_db=_open_auth_db,
+        auth_signup_enabled=AUTH_SIGNUP_ENABLED,
+        auth_max_users=AUTH_MAX_USERS,
+        default_prompt_group=DEFAULT_PROMPT_GROUP,
+        get_user=_get_user,
+        pbkdf2_sha256=pbkdf2_sha256,
+        logger=LOGGER,
+    )
 
 
 def _update_last_login(username: str) -> None:
-    """Update the `last_login` timestamp for a user.
-
-    Parameters
-    ----------
-    username : str
-        Normalized username.
-
-    Returns
-    -------
-    None
-        User row is updated in place.
-    """
-
-    now = datetime.now(timezone.utc).isoformat()
-    with _open_auth_db() as conn:
-        conn.execute(
-            "UPDATE auth_users SET last_login = ? WHERE username = ?",
-            (now, username),
-        )
-        conn.commit()
+    auth_helpers._update_last_login(username, open_auth_db=_open_auth_db)
 
 
 def _authenticate_user(username: str, password: str) -> str | None:
-    """Authenticate a user and optionally auto-register unknown users.
-
-    Parameters
-    ----------
-    username : str
-        Username input.
-    password : str
-        Password input.
-
-    Returns
-    -------
-    str or None
-        Authenticated identifier when credentials are valid, else `None`.
-    """
-
-    normalized = _normalize_username(username)
-    if not normalized or not password:
-        return None
-    user_row = _get_user(normalized)
-    if user_row is None:
-        if not AUTH_AUTO_REGISTER:
-            return None
-        created = _create_user(normalized, password)
-        if created is None:
-            return None
-        _update_last_login(normalized)
-        return normalized
-
-    if not pbkdf2_sha256.verify(password, user_row["password_hash"]):
-        return None
-
-    _update_last_login(normalized)
-    return normalized
+    return auth_helpers._authenticate_user(
+        username,
+        password,
+        normalize_username=_normalize_username,
+        get_user=_get_user,
+        auth_auto_register=AUTH_AUTO_REGISTER,
+        create_user=_create_user,
+        update_last_login=_update_last_login,
+        pbkdf2_sha256=pbkdf2_sha256,
+    )
 
 
 @cl.data_layer
@@ -3340,437 +1403,100 @@ async def on_window_message(payload: Any) -> None:
 
 
 def _extract_text(payload: dict) -> str | None:
-    """Extract best-effort text content from heterogeneous stream payloads.
-
-    Parameters
-    ----------
-    payload : dict
-        Event payload emitted by Codex streaming output.
-
-    Returns
-    -------
-    str or None
-        First non-empty text fragment found in known fields.
-    """
-
-    def from_obj(obj: object) -> str | None:
-        """Extract text from one object-shaped payload node.
-
-        Parameters
-        ----------
-        obj : object
-            Candidate mapping-like payload fragment.
-
-        Returns
-        -------
-        str or None
-            Text fragment or `None` when unavailable.
-        """
-
-        if not isinstance(obj, dict):
-            return None
-        for key in ("text", "content", "message", "raw_content", "summary_text"):
-            value = obj.get(key)
-            if isinstance(value, str) and value:
-                return value
-        content = obj.get("content")
-        if isinstance(content, list):
-            parts: list[str] = []
-            for entry in content:
-                if isinstance(entry, str):
-                    parts.append(entry)
-                elif isinstance(entry, dict):
-                    for key in ("text", "content", "message", "raw_content"):
-                        value = entry.get(key)
-                        if isinstance(value, str) and value:
-                            parts.append(value)
-                            break
-            if parts:
-                return "".join(parts)
-        return None
-
-    if isinstance(payload.get("item"), dict):
-        text = from_obj(payload["item"])
-        if text:
-            return text
-
-    for key in ("delta", "content_delta", "message_delta"):
-        value = payload.get(key)
-        if isinstance(value, str) and value:
-            return value
-        if isinstance(value, dict):
-            text = from_obj(value)
-            if text:
-                return text
-
-    return from_obj(payload)
+    return chat_helpers._extract_text(payload)
 
 
 def _extract_command(payload: dict) -> str | None:
-    """Extract command text from a stream payload.
-
-    Parameters
-    ----------
-    payload : dict
-        Event payload emitted during command/tool execution.
-
-    Returns
-    -------
-    str or None
-        Command string when present, otherwise `None`.
-    """
-
-    for key in ("command", "cmd", "parsed_cmd", "shell_command", "action", "text"):
-        value = payload.get(key)
-        if isinstance(value, str) and value:
-            return value
-    return None
+    return chat_helpers._extract_command(payload)
 
 
 def _truncate_history_entry(text: str) -> str:
-    """Truncate one history entry to configured maximum length.
-
-    Parameters
-    ----------
-    text : str
-        History message text.
-
-    Returns
-    -------
-    str
-        Original or truncated entry with overflow note.
-    """
-
-    if HISTORY_ENTRY_MAX_CHARS <= 0:
-        return ""
-    if len(text) <= HISTORY_ENTRY_MAX_CHARS:
-        return text
-    overflow = len(text) - HISTORY_ENTRY_MAX_CHARS
-    return f"{text[:HISTORY_ENTRY_MAX_CHARS]}... ({overflow} chars truncated)"
+    return chat_helpers._truncate_history_entry(
+        text,
+        history_entry_max_chars=HISTORY_ENTRY_MAX_CHARS,
+    )
 
 
 def _append_history(
     history: list[tuple[str, str]], role: str, content: str
 ) -> list[tuple[str, str]]:
-    """Append one chat turn to bounded session history.
-
-    Parameters
-    ----------
-    history : list of tuple[str, str]
-        Existing `(role, content)` pairs.
-    role : str
-        Message role label.
-    content : str
-        Message content.
-
-    Returns
-    -------
-    list of tuple[str, str]
-        Updated history honoring entry, message-count, and total-size limits.
-    """
-
-    content = (content or "").strip()
-    if not content:
-        return history
-    content = _truncate_history_entry(content)
-    history.append((role, content))
-    if HISTORY_MAX_MESSAGES > 0 and len(history) > HISTORY_MAX_MESSAGES:
-        history = history[-HISTORY_MAX_MESSAGES:]
-    if HISTORY_MAX_CHARS > 0:
-        total = sum(len(item[1]) for item in history)
-        while history and total > HISTORY_MAX_CHARS:
-            dropped = history.pop(0)
-            total -= len(dropped[1])
-    return history
+    return chat_helpers._append_history(
+        history,
+        role,
+        content,
+        history_entry_max_chars=HISTORY_ENTRY_MAX_CHARS,
+        history_max_messages=HISTORY_MAX_MESSAGES,
+        history_max_chars=HISTORY_MAX_CHARS,
+    )
 
 
 def _format_history(history: list[tuple[str, str]]) -> str:
-    """Render chat history into the prompt transcript format.
-
-    Parameters
-    ----------
-    history : list of tuple[str, str]
-        `(role, content)` history pairs.
-
-    Returns
-    -------
-    str
-        Newline-delimited transcript for runner prompts.
-    """
-
-    lines: list[str] = []
-    for role, content in history:
-        label = "User" if role == "user" else "Assistant"
-        lines.append(f"{label}: {content}")
-    return "\n".join(lines)
+    return chat_helpers._format_history(history)
 
 
 def _build_prompt(history: list[tuple[str, str]], user_text: str) -> str:
-    """Build a size-limited prompt transcript including current user text.
-
-    Parameters
-    ----------
-    history : list of tuple[str, str]
-        Existing session history.
-    user_text : str
-        Latest user message content.
-
-    Returns
-    -------
-    str
-        Prompt transcript bounded by `MAX_PROMPT_CHARS`.
-    """
-
-    temp = history + [("user", (user_text or "").strip())]
-    if not temp:
-        return user_text
-    if MAX_PROMPT_CHARS <= 0:
-        return _format_history(temp)
-    start = 0
-    while start < len(temp):
-        candidate = _format_history(temp[start:])
-        if len(candidate) <= MAX_PROMPT_CHARS:
-            return candidate
-        start += 1
-    return _format_history([temp[-1]])
+    return chat_helpers._build_prompt(
+        history,
+        user_text,
+        max_prompt_chars=MAX_PROMPT_CHARS,
+    )
 
 
 def _resolve_workspaces_root() -> Path:
-    """Resolve workspace root path used for artifact attachment.
-
-    Returns
-    -------
-    Path
-        Existing configured workspace root or local fallback.
-    """
-
-    try:
-        return resolve_default_workspaces_root()
-    except OSError:
-        fallback = Path.cwd() / "workspaces"
-        fallback.mkdir(parents=True, exist_ok=True)
-        return fallback
+    return artifact_helpers._resolve_workspaces_root(
+        resolve_default_workspaces_root=resolve_default_workspaces_root,
+        cwd=Path.cwd(),
+    )
 
 
 def _extract_candidate_paths(text: str) -> list[str]:
-    """Extract likely file-path tokens from assistant output text.
-
-    Parameters
-    ----------
-    text : str
-        Assistant output text.
-
-    Returns
-    -------
-    list of str
-        Sorted unique file-like path candidates.
-    """
-
-    if not text:
-        return []
-    candidates: set[str] = set()
-    for raw in re.split(r"\s+", text):
-        token = raw.strip("`'\".,;:()[]{}<>")
-        if not token:
-            continue
-        if "://" in token:
-            continue
-        if "/" not in token:
-            continue
-        if token.endswith("/"):
-            continue
-        if "." not in Path(token).name:
-            continue
-        candidates.add(token)
-    return sorted(candidates)
+    return artifact_helpers._extract_candidate_paths(text)
 
 
 def _resolve_artifact_path(repo_root: Path, token: str) -> tuple[Path, Path] | None:
-    """Resolve a candidate artifact token to a real file under repo root.
-
-    Parameters
-    ----------
-    repo_root : Path
-        Workspace repository root.
-    token : str
-        Candidate path token extracted from text.
-
-    Returns
-    -------
-    tuple[Path, Path] or None
-        `(absolute_path, repo_relative_path)` when valid, else `None`.
-    """
-
-    candidates = [token]
-    if "/repo/" in token:
-        candidates.append(token.split("/repo/", 1)[1])
-    for candidate in candidates:
-        path = Path(candidate)
-        if not path.is_absolute():
-            path = repo_root / path
-        path = path.resolve(strict=False)
-        if not path.is_file():
-            continue
-        try:
-            relative = path.relative_to(repo_root)
-        except ValueError:
-            continue
-        if ARTIFACT_PREFIXES:
-            if not relative.parts or relative.parts[0] not in ARTIFACT_PREFIXES:
-                continue
-        return path, relative
-    return None
+    return artifact_helpers._resolve_artifact_path(
+        repo_root,
+        token,
+        artifact_prefixes=ARTIFACT_PREFIXES,
+    )
 
 
 def _element_for_path(path: Path, relative: Path):
-    """Create a Chainlit element object for a file path.
-
-    Parameters
-    ----------
-    path : Path
-        Absolute artifact path.
-    relative : Path
-        Repo-relative artifact path for display name.
-
-    Returns
-    -------
-    cl.Element
-        `Image`, `Pdf`, or generic `File` element for attachment.
-    """
-
-    name = relative.as_posix()
-    ext = path.suffix.lower()
-    if ext in IMAGE_EXTS:
-        return cl.Image(name=name, path=str(path), display="inline", size="large")
-    if ext == ".pdf":
-        return cl.Pdf(name=name, path=str(path))
-    return cl.File(name=name, path=str(path))
+    return artifact_helpers._element_for_path(
+        path,
+        relative,
+        image_exts=IMAGE_EXTS,
+        cl_module=cl,
+    )
 
 
 def _snapshot_repo(repo_root: Path) -> dict[str, tuple[int, int]]:
-    """Snapshot repository files for change detection.
-
-    Parameters
-    ----------
-    repo_root : Path
-        Workspace repository root.
-
-    Returns
-    -------
-    dict[str, tuple[int, int]]
-        Mapping of relative path to `(mtime_ns, size)` metadata.
-    """
-
-    snapshot: dict[str, tuple[int, int]] = {}
-    for root, dirs, files in os.walk(repo_root):
-        dirs[:] = [d for d in dirs if d not in EXCLUDED_SNAPSHOT_DIRS]
-        for filename in files:
-            path = Path(root) / filename
-            try:
-                stat = path.stat()
-            except OSError:
-                continue
-            try:
-                rel = path.relative_to(repo_root).as_posix()
-            except ValueError:
-                continue
-            snapshot[rel] = (stat.st_mtime_ns, stat.st_size)
-    return snapshot
+    return artifact_helpers._snapshot_repo(
+        repo_root,
+        excluded_snapshot_dirs=EXCLUDED_SNAPSHOT_DIRS,
+    )
 
 
 def _diff_snapshots(
     before: dict[str, tuple[int, int]],
     after: dict[str, tuple[int, int]],
 ) -> tuple[list[str], list[str]]:
-    """Compute created and modified files between two snapshots.
-
-    Parameters
-    ----------
-    before : dict[str, tuple[int, int]]
-        Baseline snapshot.
-    after : dict[str, tuple[int, int]]
-        Snapshot after execution.
-
-    Returns
-    -------
-    tuple[list[str], list[str]]
-        Sorted `(created_files, modified_files)` path lists.
-    """
-
-    created = sorted(path for path in after.keys() if path not in before)
-    modified = sorted(
-        path for path, meta in after.items() if path in before and before[path] != meta
-    )
-    return created, modified
+    return artifact_helpers._diff_snapshots(before, after)
 
 
 def _truncate_items(items: list[str], max_items: int) -> list[str]:
-    """Truncate a list to a maximum count with overflow marker.
-
-    Parameters
-    ----------
-    items : list of str
-        Input entries.
-    max_items : int
-        Maximum number of entries to keep.
-
-    Returns
-    -------
-    list of str
-        Possibly truncated list including an overflow summary row.
-    """
-
-    if max_items <= 0:
-        return []
-    if len(items) <= max_items:
-        return items
-    return items[:max_items] + [f"... ({len(items) - max_items} more)"]
+    return artifact_helpers._truncate_items(items, max_items)
 
 
 def _dedupe_preserve(items: list[str]) -> list[str]:
-    """Remove duplicates while preserving original order.
-
-    Parameters
-    ----------
-    items : list of str
-        Input sequence.
-
-    Returns
-    -------
-    list of str
-        De-duplicated sequence preserving first occurrence order.
-    """
-
-    seen: set[str] = set()
-    result: list[str] = []
-    for item in items:
-        if item in seen:
-            continue
-        seen.add(item)
-        result.append(item)
-    return result
+    return artifact_helpers._dedupe_preserve(items)
 
 
 def _truncate_entry(text: str) -> str:
-    """Truncate one transparency report entry by character budget.
-
-    Parameters
-    ----------
-    text : str
-        Entry text.
-
-    Returns
-    -------
-    str
-        Original or truncated entry with overflow marker.
-    """
-
-    if TRANSPARENCY_MAX_ENTRY_CHARS <= 0:
-        return text
-    if len(text) <= TRANSPARENCY_MAX_ENTRY_CHARS:
-        return text
-    overflow = len(text) - TRANSPARENCY_MAX_ENTRY_CHARS
-    return f"{text[:TRANSPARENCY_MAX_ENTRY_CHARS]}... ({overflow} more chars)"
+    return artifact_helpers._truncate_entry(
+        text,
+        transparency_max_entry_chars=TRANSPARENCY_MAX_ENTRY_CHARS,
+    )
 
 
 def _format_transparency_report(
@@ -3782,244 +1508,65 @@ def _format_transparency_report(
     log_entries: list[str],
     error_entries: list[str],
 ) -> str:
-    """Build a structured transparency report for post-run disclosure.
-
-    Parameters
-    ----------
-    active_package : str or None
-        Selected package id used for this run.
-    tool_calls : list of str
-        Observed tool call summaries.
-    commands_run : list of str
-        Executed shell command summaries.
-    created_files : list of str
-        Files created during run.
-    modified_files : list of str
-        Files modified during run.
-    log_entries : list of str
-        Captured runner log lines.
-    error_entries : list of str
-        Captured error messages.
-
-    Returns
-    -------
-    str
-        Markdown text report.
-    """
-
-    lines: list[str] = ["**Transparency**"]
-    lines.append(
-        f"Active package: `{active_package}`"
-        if active_package
-        else "Active package: none"
+    return artifact_helpers._format_transparency_report(
+        active_package,
+        tool_calls,
+        commands_run,
+        created_files,
+        modified_files,
+        log_entries,
+        error_entries,
+        transparency_max_items=TRANSPARENCY_MAX_ITEMS,
+        transparency_max_log_entries=TRANSPARENCY_MAX_LOG_ENTRIES,
+        transparency_max_entry_chars=TRANSPARENCY_MAX_ENTRY_CHARS,
     )
-
-    lines.append("Tool calls:")
-    for entry in _truncate_items(tool_calls, TRANSPARENCY_MAX_ITEMS) or ["none"]:
-        lines.append(f"- {_truncate_entry(entry)}")
-
-    lines.append("Commands run:")
-    for entry in _truncate_items(commands_run, TRANSPARENCY_MAX_ITEMS) or ["none"]:
-        lines.append(f"- {_truncate_entry(entry)}")
-
-    lines.append("Files created:")
-    for entry in _truncate_items(created_files, TRANSPARENCY_MAX_ITEMS) or ["none"]:
-        lines.append(f"- {_truncate_entry(entry)}")
-
-    lines.append("Files modified:")
-    for entry in _truncate_items(modified_files, TRANSPARENCY_MAX_ITEMS) or ["none"]:
-        lines.append(f"- {_truncate_entry(entry)}")
-
-    lines.append("Errors/logs:")
-    combined = []
-    combined.extend([f"[error] {e}" for e in error_entries])
-    combined.extend([f"[log] {l}" for l in log_entries])
-    combined = _truncate_items(combined, TRANSPARENCY_MAX_LOG_ENTRIES)
-    for entry in combined or ["none"]:
-        lines.append(f"- {_truncate_entry(entry)}")
-
-    summary = (
-        "Summary: "
-        f"{len(commands_run)} command(s), "
-        f"{len(created_files)} file(s) created, "
-        f"{len(modified_files)} file(s) modified."
-    )
-    lines.append(summary)
-
-    return "\n".join(lines)
 
 
 async def _attach_artifacts_from_text(
     text: str, session_id: str | None, message: cl.Message
 ) -> None:
-    """Attach artifacts referenced in assistant text to a Chainlit message.
-
-    Parameters
-    ----------
-    text : str
-        Assistant output text to scan for file paths.
-    session_id : str or None
-        Current workspace session id.
-    message : cl.Message
-        Target message receiving attachments.
-
-    Returns
-    -------
-    None
-        Matching files are sent as elements when discovered.
-    """
-
-    if not session_id:
-        return
-    repo_dir = _resolve_workspaces_root() / session_id / "repo"
-    if not repo_dir.exists():
-        return
-    repo_root = repo_dir.resolve()
-    candidates = _extract_candidate_paths(text)
-    if not candidates:
-        return
-    seen: set[str] = set()
-    resolved_files: list[tuple[Path, Path]] = []
-    for token in candidates:
-        resolved = _resolve_artifact_path(repo_root, token)
-        if not resolved:
-            continue
-        path, relative = resolved
-        key = str(path)
-        if key in seen:
-            continue
-        seen.add(key)
-        if MAX_ATTACHMENT_BYTES > 0:
-            try:
-                size = path.stat().st_size
-            except OSError:
-                continue
-            if size > MAX_ATTACHMENT_BYTES:
-                LOGGER.info("Skipping large artifact %s (%d bytes)", path, size)
-                continue
-        resolved_files.append((path, relative))
-
-    if not resolved_files:
-        return
-
-    image_files: list[tuple[Path, Path]] = []
-    for path, relative in resolved_files:
-        if path.suffix.lower() in IMAGE_EXTS:
-            image_files.append((path, relative))
-
-    if ZIP_MIN_COUNT > 0 and len(resolved_files) >= ZIP_MIN_COUNT:
-        try:
-            bundle_dir = repo_root / "outputs" / "_bundles"
-            bundle_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-            zip_path = bundle_dir / f"artifacts-{timestamp}.zip"
-            import zipfile
-
-            with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-                for path, relative in resolved_files:
-                    zf.write(path, arcname=relative.as_posix())
-
-            if MAX_ATTACHMENT_BYTES > 0:
-                zip_size = zip_path.stat().st_size
-                if zip_size > MAX_ATTACHMENT_BYTES:
-                    LOGGER.info("Skipping zip bundle %s (%d bytes)", zip_path, zip_size)
-                    zip_path.unlink(missing_ok=True)
-                    raise RuntimeError("Zip bundle exceeded attachment size limit.")
-
-            zip_relative = zip_path.relative_to(repo_root)
-            zip_element = cl.File(name=zip_relative.as_posix(), path=str(zip_path))
-            await zip_element.send(for_id=message.id)
-
-            for path, relative in image_files:
-                element = _element_for_path(path, relative)
-                await element.send(for_id=message.id)
-            return
-        except Exception as exc:
-            LOGGER.exception("Failed to bundle artifacts: %s", exc)
-
-    for path, relative in resolved_files:
-        element = _element_for_path(path, relative)
-        await element.send(for_id=message.id)
+    await artifact_helpers._attach_artifacts_from_text(
+        text,
+        session_id,
+        message,
+        resolve_workspaces_root=_resolve_workspaces_root,
+        extract_candidate_paths=_extract_candidate_paths,
+        resolve_artifact_path=_resolve_artifact_path,
+        element_for_path=_element_for_path,
+        max_attachment_bytes=MAX_ATTACHMENT_BYTES,
+        image_exts=IMAGE_EXTS,
+        zip_min_count=ZIP_MIN_COUNT,
+        cl_module=cl,
+        logger=LOGGER,
+    )
 
 
 async def _stream_runner(payload: dict):
-    """Stream SSE events from the runner `/run` endpoint.
-
-    Parameters
-    ----------
-    payload : dict
-        JSON payload forwarded to the runner service.
-
-    Yields
-    ------
-    tuple[str, str]
-        `(event_type, data)` frames parsed from SSE stream.
-    """
-
-    url = f"{RUNNER_URL}/run"
-    async with httpx.AsyncClient(timeout=None) as client:
-        async with client.stream("POST", url, json=payload) as resp:
-            resp.raise_for_status()
-            event_type = None
-            data_lines: list[str] = []
-
-            async for line in resp.aiter_lines():
-                if line == "":
-                    if data_lines:
-                        data = "\n".join(data_lines)
-                        yield event_type or "message", data
-                    event_type = None
-                    data_lines = []
-                    continue
-
-                if line.startswith("event:"):
-                    event_type = line[len("event:") :].strip()
-                elif line.startswith("data:"):
-                    data_lines.append(line[len("data:") :].strip())
-
-            if data_lines:
-                data = "\n".join(data_lines)
-                yield event_type or "message", data
+    async for event_type, data in runner_helpers._stream_runner(
+        payload,
+        runner_url=RUNNER_URL,
+        httpx_module=httpx,
+    ):
+        yield event_type, data
 
 
 def _build_runner_admission_params(
     session_id: str | None, user_id: str | None
 ) -> dict[str, str]:
-    """Build runner admission query params from optional session/user identifiers."""
-
-    params: dict[str, str] = {}
-    if isinstance(session_id, str) and session_id.strip():
-        params["session_id"] = session_id.strip()
-    if isinstance(user_id, str) and user_id.strip():
-        params["user_id"] = user_id.strip()
-    return params
+    return runner_helpers._build_runner_admission_params(session_id, user_id)
 
 
 async def _probe_runner_admission(
     client: httpx.AsyncClient, *, session_id: str | None, user_id: str | None
 ) -> dict[str, Any] | None:
-    """Fetch one runner admission readiness snapshot.
-
-    Returns `None` when probing fails; callers should typically fail-open.
-    """
-
-    params = _build_runner_admission_params(session_id, user_id)
-    headers: dict[str, str] | None = None
-    if RUNNER_METRICS_TOKEN:
-        headers = {"X-Runner-Metrics-Token": RUNNER_METRICS_TOKEN}
-    try:
-        response = await client.get(
-            f"{RUNNER_URL}/ops/admission", params=params, headers=headers
-        )
-        response.raise_for_status()
-        payload = response.json()
-    except Exception as exc:
-        LOGGER.warning("Runner admission probe failed: %s", exc)
-        return None
-
-    if isinstance(payload, dict):
-        return payload
-    return None
+    return await runner_helpers._probe_runner_admission(
+        client,
+        runner_url=RUNNER_URL,
+        session_id=session_id,
+        user_id=user_id,
+        runner_metrics_token=RUNNER_METRICS_TOKEN,
+        logger=LOGGER,
+    )
 
 
 async def _wait_for_runner_admission_slot(
@@ -4028,168 +1575,37 @@ async def _wait_for_runner_admission_slot(
     user_id: str | None,
     on_queued: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
-    """Wait until runner can start a run immediately for this user/session.
-
-    Parameters
-    ----------
-    session_id : str or None
-        Current chat session identifier.
-    user_id : str or None
-        Authenticated user identifier, when available.
-    on_queued : callable or None, optional
-        Optional async callback invoked once when the first admission probe
-        indicates this request must wait in queue.
-
-    Returns
-    -------
-    dict[str, Any]
-        Result payload with fields: `ok`, `waited`, `reason`, `wait_seconds`.
-    """
-
-    start = time.monotonic()
-    timeout = ADMISSION_POLL_TIMEOUT_SECONDS
-    interval = ADMISSION_POLL_INTERVAL_SECONDS
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        first = await _probe_runner_admission(
-            client, session_id=session_id, user_id=user_id
-        )
-        if first is None:
-            return {
-                "ok": True,
-                "waited": False,
-                "reason": "admission_probe_unavailable",
-                "wait_seconds": 0.0,
-            }
-        if bool(first.get("can_run_now", True)):
-            return {
-                "ok": True,
-                "waited": False,
-                "reason": "admission_ready",
-                "wait_seconds": 0.0,
-            }
-        if on_queued is not None:
-            try:
-                await on_queued(first)
-            except Exception as exc:
-                LOGGER.warning("Failed to emit queued admission notice: %s", exc)
-
-        while True:
-            elapsed = time.monotonic() - start
-            if timeout > 0 and elapsed >= timeout:
-                return {
-                    "ok": False,
-                    "waited": True,
-                    "reason": "admission_timeout",
-                    "wait_seconds": elapsed,
-                }
-            await asyncio.sleep(interval)
-
-            snapshot = await _probe_runner_admission(
-                client, session_id=session_id, user_id=user_id
-            )
-            if snapshot is None:
-                return {
-                    "ok": True,
-                    "waited": True,
-                    "reason": "admission_probe_unavailable",
-                    "wait_seconds": time.monotonic() - start,
-                }
-            if bool(snapshot.get("can_run_now", True)):
-                return {
-                    "ok": True,
-                    "waited": True,
-                    "reason": "admission_ready",
-                    "wait_seconds": time.monotonic() - start,
-                }
-
-
-def _runner_http_error_detail(exc: httpx.HTTPStatusError) -> str:
-    """Extract a concise runner error detail from an HTTP failure."""
-
-    response = exc.response
-    if response is None:
-        return ""
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = None
-    if isinstance(payload, dict):
-        detail = payload.get("detail")
-        if isinstance(detail, str) and detail.strip():
-            return detail.strip()
-        if detail is not None:
-            return str(detail)
-    text = (response.text or "").strip()
-    return text[:500] if text else ""
-
-
-def _build_admission_queued_notice(snapshot: dict[str, Any]) -> str:
-    """Build user-facing status text while waiting for admission."""
-
-    per_user_active = snapshot.get("per_user_active")
-    per_user_limit = snapshot.get("per_user_limit")
-    active_total = snapshot.get("active_total")
-    global_limit = snapshot.get("global_limit")
-
-    if (
-        isinstance(per_user_active, int)
-        and isinstance(per_user_limit, int)
-        and per_user_limit > 0
-        and per_user_active >= per_user_limit
-    ):
-        return (
-            f"[runner] Queued: you currently use "
-            f"{per_user_active}/{per_user_limit} concurrent chats. "
-            "This request will start automatically after one running chat "
-            "finishes. No need to resend the message."
-        )
-
-    if (
-        isinstance(active_total, int)
-        and isinstance(global_limit, int)
-        and global_limit > 0
-        and active_total >= global_limit
-    ):
-        return (
-            f"[runner] Queued: server concurrency is currently "
-            f"{active_total}/{global_limit}. "
-            "This request will start automatically when a slot is available. "
-            "No need to resend the message."
-        )
-
-    return (
-        "[runner] Queued: no execution slot is currently available. "
-        "This request will start automatically when capacity is free. "
-        "No need to resend the message."
+    return await runner_helpers._wait_for_runner_admission_slot(
+        session_id=session_id,
+        user_id=user_id,
+        on_queued=on_queued,
+        admission_poll_timeout_seconds=ADMISSION_POLL_TIMEOUT_SECONDS,
+        admission_poll_interval_seconds=ADMISSION_POLL_INTERVAL_SECONDS,
+        runner_url=RUNNER_URL,
+        runner_metrics_token=RUNNER_METRICS_TOKEN,
+        logger=LOGGER,
+        httpx_module=httpx,
     )
 
 
-def _get_current_thread_id() -> str | None:
-    """Return the active Chainlit thread identifier when available."""
+def _runner_http_error_detail(exc: httpx.HTTPStatusError) -> str:
+    return runner_helpers._runner_http_error_detail(exc)
 
-    try:
-        session = chainlit_context.session
-    except Exception:
-        return None
-    thread_id = getattr(session, "thread_id", None)
-    if isinstance(thread_id, str) and thread_id:
-        return thread_id
-    return None
+
+def _build_admission_queued_notice(snapshot: dict[str, Any]) -> str:
+    return runner_helpers._build_admission_queued_notice(snapshot)
+
+
+def _get_current_thread_id() -> str | None:
+    return activity_helpers._get_current_thread_id(chainlit_context=chainlit_context)
 
 
 def _should_surface_runner_log(text: str) -> bool:
-    """Decide whether runner stderr log should be echoed into chat UI."""
-
-    if not FORWARD_RUNNER_LOGS:
-        return False
-    lowered = (text or "").strip().lower()
-    if not lowered:
-        return False
-    for marker in SUPPRESSED_RUNNER_LOG_MARKERS:
-        if marker in lowered:
-            return False
-    return True
+    return runner_helpers._should_surface_runner_log(
+        text,
+        forward_runner_logs=FORWARD_RUNNER_LOGS,
+        suppressed_runner_log_markers=SUPPRESSED_RUNNER_LOG_MARKERS,
+    )
 
 
 @cl.on_message

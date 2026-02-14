@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from typing import Any
+
+
+def _extract_text(payload: dict[str, Any]) -> str | None:
+    """Extract best-effort text content from heterogeneous stream payloads."""
+
+    def from_obj(obj: object) -> str | None:
+        if not isinstance(obj, dict):
+            return None
+        for key in ("text", "content", "message", "raw_content", "summary_text"):
+            value = obj.get(key)
+            if isinstance(value, str) and value:
+                return value
+        content = obj.get("content")
+        if isinstance(content, list):
+            parts: list[str] = []
+            for entry in content:
+                if isinstance(entry, str):
+                    parts.append(entry)
+                elif isinstance(entry, dict):
+                    for key in ("text", "content", "message", "raw_content"):
+                        value = entry.get(key)
+                        if isinstance(value, str) and value:
+                            parts.append(value)
+                            break
+            if parts:
+                return "".join(parts)
+        return None
+
+    if isinstance(payload.get("item"), dict):
+        text = from_obj(payload["item"])
+        if text:
+            return text
+
+    for key in ("delta", "content_delta", "message_delta"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+        if isinstance(value, dict):
+            text = from_obj(value)
+            if text:
+                return text
+
+    return from_obj(payload)
+
+
+def _extract_command(payload: dict[str, Any]) -> str | None:
+    """Extract command text from a stream payload."""
+
+    for key in ("command", "cmd", "parsed_cmd", "shell_command", "action", "text"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _truncate_history_entry(text: str, *, history_entry_max_chars: int) -> str:
+    """Truncate one history entry to configured maximum length."""
+
+    if history_entry_max_chars <= 0:
+        return ""
+    if len(text) <= history_entry_max_chars:
+        return text
+    overflow = len(text) - history_entry_max_chars
+    return f"{text[:history_entry_max_chars]}... ({overflow} chars truncated)"
+
+
+def _append_history(
+    history: list[tuple[str, str]],
+    role: str,
+    content: str,
+    *,
+    history_entry_max_chars: int,
+    history_max_messages: int,
+    history_max_chars: int,
+) -> list[tuple[str, str]]:
+    """Append one chat turn to bounded session history."""
+
+    content = (content or "").strip()
+    if not content:
+        return history
+    content = _truncate_history_entry(content, history_entry_max_chars=history_entry_max_chars)
+    history.append((role, content))
+    if history_max_messages > 0 and len(history) > history_max_messages:
+        history = history[-history_max_messages:]
+    if history_max_chars > 0:
+        total = sum(len(item[1]) for item in history)
+        while history and total > history_max_chars:
+            dropped = history.pop(0)
+            total -= len(dropped[1])
+    return history
+
+
+def _format_history(history: list[tuple[str, str]]) -> str:
+    """Render chat history into the prompt transcript format."""
+
+    lines: list[str] = []
+    for role, content in history:
+        label = "User" if role == "user" else "Assistant"
+        lines.append(f"{label}: {content}")
+    return "\n".join(lines)
+
+
+def _build_prompt(
+    history: list[tuple[str, str]],
+    user_text: str,
+    *,
+    max_prompt_chars: int,
+) -> str:
+    """Build a size-limited prompt transcript including current user text."""
+
+    temp = history + [("user", (user_text or "").strip())]
+    if not temp:
+        return user_text
+    if max_prompt_chars <= 0:
+        return _format_history(temp)
+    start = 0
+    while start < len(temp):
+        candidate = _format_history(temp[start:])
+        if len(candidate) <= max_prompt_chars:
+            return candidate
+        start += 1
+    return _format_history([temp[-1]])
