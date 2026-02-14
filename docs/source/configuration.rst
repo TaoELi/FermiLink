@@ -87,6 +87,17 @@ Common runner/web controls
      - ``true``
      - Enable model-based package second-guess preflight.
 
+Core runtime paths (when not overridden)
+----------------------------------------
+
+By default, FermiLink stores runtime data under:
+
+- ``~/.fermilink/scientific_packages``
+- ``~/.fermilink/workspaces``
+- ``~/.fermilink/runtime``
+- ``~/.fermilink/public`` (Chainlit static assets + local artifact storage)
+- ``~/.fermilink/.chainlit`` (Chainlit sqlite DBs and internal state)
+
 Operational metrics endpoints
 -----------------------------
 

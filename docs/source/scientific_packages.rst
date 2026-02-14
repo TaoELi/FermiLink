@@ -58,11 +58,35 @@ Local path install:
 
    fermilink install mypkg --local-path /absolute/path/to/package --activate
 
-Compile local project into a package:
+Compile local project into a package
+------------------------------------
 
 .. code-block:: bash
 
    fermilink compile <package_id> <path>
+
+Compile uses a three-pass Codex workflow around ``sci-skills-generator`` to
+create/refine package ``skills/`` and then installs into scientific package
+storage.
+
+Typical compile path:
+
+1. Validate package id does not already exist in registry.
+2. Copy ``sci-skills-generator`` tool into project root.
+3. Run generation/audit passes for ``skills/`` quality.
+4. Remove temporary tool folder.
+5. Run final consistency/enrichment pass.
+6. Install resulting project as a package.
+
+Check curated package availability
+----------------------------------
+
+Use ``avail`` to check whether a package exists in curated channels.
+
+.. code-block:: bash
+
+   fermilink avail ase
+   fermilink avail quantum
 
 Package lifecycle commands
 --------------------------

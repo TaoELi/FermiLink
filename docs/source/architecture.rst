@@ -71,3 +71,20 @@ Admission controller enforces:
 - pending queue limits (global and per user).
 
 Operational visibility is exposed through the ``/ops/*`` endpoints.
+
+Web app internal layout
+-----------------------
+
+``src/fermilink/web/app.py`` remains the Chainlit entrypoint, while helper
+logic is split into focused modules under ``src/fermilink/web/``:
+
+- ``package_router_helpers.py``: package routing/scoring and second-guess prompts.
+- ``package_session_helpers.py``: session package state and ``/package`` handling.
+- ``chat_helpers.py``: stream text extraction and prompt history construction.
+- ``artifact_helpers.py``: artifact discovery/attachment and transparency rendering.
+- ``runner_helpers.py``: runner stream/admission probe and log filtering helpers.
+- ``storage_helpers.py``: local storage provider and public-root resolution.
+- ``sqlite_helpers.py``: sqlite URL parsing and schema/bootstrap helpers.
+- ``auth_helpers.py``: auth/signup/quota/account helpers.
+- ``activity_helpers.py``: active-run ownership and reconnect-safe rebinding.
+- ``status_helpers.py``: transient status-label rendering helpers.
