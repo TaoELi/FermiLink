@@ -1,66 +1,307 @@
 {
-  "version": 1,
+  "schema_version": 2,
   "channel_id": "tel-research-group",
+  "updated_at": "2026-02-14T00:00:00Z",
   "packages": [
     {
       "package_id": "maxwelllink",
       "title": "MaxwellLink",
-      "zip_url": "https://github.com/TEL-Research-Group/MaxwellLink/archive/refs/heads/main.zip"
+      "description": "Framework for light-matter interaction simulations and quantum-optical workflows with reusable skills for coupled electrodynamics and open-system studies.",
+      "upstream_repo_url": "https://github.com/TEL-Research-Group/MaxwellLink",
+      "homepage_url": "https://github.com/TEL-Research-Group/MaxwellLink",
+      "zip_url": "https://github.com/TEL-Research-Group/MaxwellLink/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/MaxwellLink/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "photonics",
+        "quantum-optics",
+        "light-matter"
+      ]
     },
     {
       "package_id": "meep",
       "title": "Meep",
-      "zip_url": "https://github.com/TEL-Research-Group/meep/archive/refs/heads/master.zip"
+      "description": "Finite-difference time-domain electromagnetic solver for photonics, nanophotonics, and device-scale wave propagation modeling.",
+      "upstream_repo_url": "https://github.com/NanoComp/meep",
+      "homepage_url": "https://meep.readthedocs.io",
+      "zip_url": "https://github.com/TEL-Research-Group/meep/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/meep/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "fdtd",
+        "electromagnetics",
+        "nanophotonics"
+      ]
     },
     {
       "package_id": "lammps",
       "title": "LAMMPS",
-      "zip_url": "https://github.com/TEL-Research-Group/lammps/archive/refs/heads/master.zip"
+      "description": "Classical molecular dynamics engine for atomistic materials, soft matter, and multiscale simulations with large force-field ecosystems.",
+      "upstream_repo_url": "https://github.com/lammps/lammps",
+      "homepage_url": "https://www.lammps.org",
+      "zip_url": "https://github.com/TEL-Research-Group/lammps/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/lammps/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "molecular-dynamics",
+        "materials",
+        "force-field"
+      ]
     },
     {
       "package_id": "qutip",
       "title": "QuTiP",
-      "zip_url": "https://github.com/TEL-Research-Group/qutip/archive/refs/heads/master.zip"
+      "description": "Python framework for open quantum systems, quantum dynamics, and control simulations using operator and master-equation toolkits.",
+      "upstream_repo_url": "https://github.com/qutip/qutip",
+      "homepage_url": "https://qutip.org",
+      "zip_url": "https://github.com/TEL-Research-Group/qutip/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/qutip/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum",
+        "open-systems",
+        "dynamics"
+      ]
     },
     {
       "package_id": "psi4",
       "title": "Psi4",
-      "zip_url": "https://github.com/TEL-Research-Group/psi4/archive/refs/heads/master.zip"
+      "description": "Ab initio quantum chemistry platform for wavefunction and density-functional calculations with advanced electronic-structure methods.",
+      "upstream_repo_url": "https://github.com/psi4/psi4",
+      "homepage_url": "https://psicode.org",
+      "zip_url": "https://github.com/TEL-Research-Group/psi4/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/psi4/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-chemistry",
+        "electronic-structure",
+        "ab-initio"
+      ]
     },
     {
       "package_id": "pyscf",
       "title": "PySCF",
-      "zip_url": "https://github.com/TEL-Research-Group/pyscf/archive/refs/heads/master.zip"
+      "description": "Python-based electronic-structure toolkit for Hartree-Fock, DFT, post-HF, and active-space methods with scriptable workflows.",
+      "upstream_repo_url": "https://github.com/pyscf/pyscf",
+      "homepage_url": "https://pyscf.org",
+      "zip_url": "https://github.com/TEL-Research-Group/pyscf/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/pyscf/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-chemistry",
+        "electronic-structure",
+        "python"
+      ]
     },
     {
       "package_id": "ase",
       "title": "ASE",
-      "zip_url": "https://github.com/TEL-Research-Group/ase/archive/refs/heads/master.zip"
+      "description": "Atomic Simulation Environment for building, running, and post-processing atomistic simulations across many external calculators.",
+      "upstream_repo_url": "https://gitlab.com/ase/ase",
+      "homepage_url": "https://wiki.fysik.dtu.dk/ase",
+      "zip_url": "https://github.com/TEL-Research-Group/ase/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/ase/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "atomistic",
+        "workflow",
+        "materials"
+      ]
     },
     {
       "package_id": "oqupy",
       "title": "OQuPy",
-      "zip_url": "https://github.com/TEL-Research-Group/OQuPy/archive/refs/heads/main.zip"
+      "description": "Open Quantum Systems in Python package focused on non-Markovian process-tensor methods and environment-driven quantum dynamics.",
+      "upstream_repo_url": "https://github.com/tempoCollaboration/OQuPy",
+      "homepage_url": "https://oqupy.readthedocs.io",
+      "zip_url": "https://github.com/TEL-Research-Group/OQuPy/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/OQuPy/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "open-quantum-systems",
+        "non-markovian",
+        "process-tensor"
+      ]
     },
     {
       "package_id": "packmol",
       "title": "Packmol",
-      "zip_url": "https://github.com/TEL-Research-Group/packmol/archive/refs/heads/master.zip"
+      "description": "Geometry preparation tool for generating initial molecular configurations under spatial constraints for MD and multicomponent systems.",
+      "upstream_repo_url": "https://github.com/m3g/packmol",
+      "homepage_url": "http://m3g.github.io/packmol",
+      "zip_url": "https://github.com/TEL-Research-Group/packmol/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/packmol/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "preprocessing",
+        "molecular-dynamics",
+        "packing"
+      ]
     },
     {
       "package_id": "kwant",
       "title": "Kwant",
-      "zip_url": "https://github.com/TEL-Research-Group/kwant/archive/refs/heads/master.zip"
+      "description": "Quantum transport simulation package for tight-binding models, scattering calculations, and mesoscopic device conductance analysis.",
+      "upstream_repo_url": "https://gitlab.kwant-project.org/kwant/kwant",
+      "homepage_url": "https://kwant-project.org",
+      "zip_url": "https://github.com/TEL-Research-Group/kwant/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/kwant/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-transport",
+        "tight-binding",
+        "mesoscopic"
+      ]
     },
     {
       "package_id": "tkwant",
       "title": "TKwant",
-      "zip_url": "https://github.com/TEL-Research-Group/tkwant/archive/refs/heads/master.zip"
+      "description": "Time-dependent extension of Kwant for non-equilibrium quantum transport and transient dynamics in mesoscopic systems.",
+      "upstream_repo_url": "https://gitlab.kwant-project.org/kwant/tkwant",
+      "homepage_url": "https://kwant-project.org/extensions/tkwant",
+      "zip_url": "https://github.com/TEL-Research-Group/tkwant/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/tkwant/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-transport",
+        "time-dependent",
+        "mesoscopic"
+      ]
     },
     {
       "package_id": "elk",
       "title": "ELK",
-      "zip_url": "https://github.com/TEL-Research-Group/elk/archive/refs/heads/main.zip"
+      "description": "All-electron DFT code using full-potential LAPW methods for electronic-structure and solid-state property calculations.",
+      "upstream_repo_url": "https://sourceforge.net/p/elk/code",
+      "homepage_url": "http://elk.sourceforge.net",
+      "zip_url": "https://github.com/TEL-Research-Group/elk/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/TEL-Research-Group/elk/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "dft",
+        "electronic-structure",
+        "solid-state"
+      ]
     }
   ]
 }

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fermilink.dev/schemas/family-hints.v2.schema.json",
+  "title": "FermiLink Router Family Hints (v2)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "families"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "families": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/family"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "termList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "family": {
+      "type": "object",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strong_keywords": {
+          "$ref": "#/$defs/termList"
+        },
+        "keywords": {
+          "$ref": "#/$defs/termList"
+        },
+        "negative_keywords": {
+          "$ref": "#/$defs/termList"
+        },
+        "package_id_overrides": {
+          "$ref": "#/$defs/termList"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

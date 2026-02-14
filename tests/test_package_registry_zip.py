@@ -132,6 +132,73 @@ def test_download_zip_shows_running_dots_when_content_length_missing(
     assert output.endswith("\n")
 
 
+def test_download_zip_uses_head_content_length_when_get_missing_size(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "package.zip"
+    stderr_buffer = _TTYBuffer()
+
+    monkeypatch.setenv("FERMILINK_PROGRESS", "1")
+    monkeypatch.delenv("FERMILINK_NO_PROGRESS", raising=False)
+
+    def _fake_urlopen(req: object) -> _FakeResponse:
+        method = req.get_method() if hasattr(req, "get_method") else "GET"
+        if method == "HEAD":
+            return _FakeResponse([b""], headers={"Content-Length": "10"})
+        return _FakeResponse([b"12345", b"67890", b""])
+
+    monkeypatch.setattr(package_registry.urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(package_registry.sys, "stderr", stderr_buffer)
+
+    written = package_registry._download_zip(
+        "https://example.invalid/package.zip",
+        destination,
+        max_bytes=100,
+    )
+    assert written == 10
+    output = stderr_buffer.getvalue()
+    assert "Downloading [" in output
+    assert "100.00%" in output
+    assert output.endswith("\n")
+
+
+def test_download_zip_uses_range_probe_when_head_missing_size(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "package.zip"
+    stderr_buffer = _TTYBuffer()
+
+    monkeypatch.setenv("FERMILINK_PROGRESS", "1")
+    monkeypatch.delenv("FERMILINK_NO_PROGRESS", raising=False)
+
+    def _fake_urlopen(req: object) -> _FakeResponse:
+        method = req.get_method() if hasattr(req, "get_method") else "GET"
+        headers = getattr(req, "headers", {})
+        range_header = ""
+        if isinstance(headers, dict):
+            range_header = str(headers.get("Range") or headers.get("range") or "")
+
+        if method == "HEAD":
+            return _FakeResponse([b""], headers={})
+        if range_header == "bytes=0-0":
+            return _FakeResponse([b"x", b""], headers={"Content-Range": "bytes 0-0/10"})
+        return _FakeResponse([b"12345", b"67890", b""])
+
+    monkeypatch.setattr(package_registry.urllib.request, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(package_registry.sys, "stderr", stderr_buffer)
+
+    written = package_registry._download_zip(
+        "https://example.invalid/package.zip",
+        destination,
+        max_bytes=100,
+    )
+    assert written == 10
+    output = stderr_buffer.getvalue()
+    assert "Downloading [" in output
+    assert "100.00%" in output
+    assert output.endswith("\n")
+
+
 def test_safe_extract_zip_rejects_unsafe_paths(tmp_path: Path) -> None:
     zip_path = tmp_path / "unsafe.zip"
     extract_root = tmp_path / "extract"

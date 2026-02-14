@@ -46,28 +46,42 @@ def package_id_terms(package_id: str) -> list[str]:
 
 
 @functools.lru_cache(maxsize=1)
-def load_family_hints() -> dict[str, dict[str, list[str]]]:
+def load_family_hints() -> dict[str, dict[str, list[str] | str]]:
     try:
         payload = json.loads(FAMILY_HINTS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"Invalid router family hints file: {FAMILY_HINTS_PATH}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"Family hints payload must be a JSON object: {FAMILY_HINTS_PATH}")
+    schema_version = payload.get("schema_version")
+    legacy_version = payload.get("version")
+    if schema_version is not None and not isinstance(schema_version, int):
+        raise ValueError(f"Family hints payload has invalid schema_version: {FAMILY_HINTS_PATH}")
+    if legacy_version is not None and not isinstance(legacy_version, int):
+        raise ValueError(f"Family hints payload has invalid version: {FAMILY_HINTS_PATH}")
     families_raw = payload.get("families")
     if not isinstance(families_raw, dict):
         raise ValueError(f"Family hints payload missing `families` map: {FAMILY_HINTS_PATH}")
 
-    parsed: dict[str, dict[str, list[str]]] = {}
+    parsed: dict[str, dict[str, list[str] | str]] = {}
     for family, raw_terms in families_raw.items():
         family_id = str(family).strip().lower()
         if not family_id:
             continue
         if not isinstance(raw_terms, dict):
             continue
+        description_raw = raw_terms.get("description")
+        description = (
+            description_raw.strip()
+            if isinstance(description_raw, str) and description_raw.strip()
+            else f"Routing hints for {family_id} workflows."
+        )
         parsed[family_id] = {
+            "description": description,
             "strong_keywords": normalize_terms(raw_terms.get("strong_keywords")),
             "keywords": normalize_terms(raw_terms.get("keywords")),
             "negative_keywords": normalize_terms(raw_terms.get("negative_keywords")),
+            "package_id_overrides": normalize_terms(raw_terms.get("package_id_overrides")),
         }
     return parsed
 
@@ -79,7 +93,13 @@ def infer_rule(package_id: str) -> dict[str, list[str]]:
 
     lowered = package_id.lower()
     for family, payload in load_family_hints().items():
-        if family not in lowered:
+        package_id_overrides = payload.get("package_id_overrides")
+        override_ids = (
+            [item for item in package_id_overrides if isinstance(item, str)]
+            if isinstance(package_id_overrides, list)
+            else []
+        )
+        if family not in lowered and lowered not in override_ids:
             continue
         strong_keywords.extend(payload.get("strong_keywords", []))
         keywords.extend(payload.get("keywords", []))

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+from fermilink import router_rules
 from fermilink.package_registry import install_from_local_path
 from fermilink.router_rules import infer_rule, load_family_hints, sync_router_rules
 
@@ -32,3 +34,31 @@ def test_router_family_hints_loaded_from_json() -> None:
     assert "maxwelllink" in hints
     inferred = infer_rule("maxwelllink")
     assert "quantum optics" in inferred["strong_keywords"]
+
+
+def test_router_family_hints_supports_package_id_overrides(
+    monkeypatch, tmp_path: Path
+) -> None:
+    hints_path = tmp_path / "family_hints.json"
+    payload = {
+        "schema_version": 2,
+        "families": {
+            "kwant": {
+                "description": "Routing hints for kwant.",
+                "strong_keywords": ["quantum transport"],
+                "keywords": ["mesoscopic"],
+                "negative_keywords": [],
+                "package_id_overrides": ["quantum-transport-kit"],
+            }
+        },
+    }
+    hints_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+    router_rules.load_family_hints.cache_clear()
+    monkeypatch.setattr(router_rules, "FAMILY_HINTS_PATH", hints_path)
+
+    inferred = router_rules.infer_rule("quantum-transport-kit")
+    assert "quantum transport" in inferred["strong_keywords"]
+    assert "mesoscopic" in inferred["keywords"]
+
+    router_rules.load_family_hints.cache_clear()

@@ -29,6 +29,7 @@ from fermilink.curated_channels import (
     list_curated_packages,
     normalize_channel_id,
     resolve_curated_package,
+    select_package_version,
 )
 from fermilink.package_registry import (
     PackageError,
@@ -41,6 +42,7 @@ from fermilink.package_registry import (
     list_packages,
     load_registry,
     normalize_package_id,
+    save_registry,
     set_package_dependency_ids,
     set_package_overlay_entries,
 )
@@ -2880,6 +2882,44 @@ def _cmd_compile(args: argparse.Namespace) -> int:
     return 0
 
 
+def _save_curated_install_metadata(
+    scipkg_root: Path,
+    package_id: str,
+    *,
+    channel: str,
+    curated_package_id: str,
+    version_id: str,
+    source_archive_url: str,
+    verified: bool,
+    source_ref_type: str | None,
+    source_ref_value: str | None,
+) -> None:
+    normalized_id = normalize_package_id(package_id)
+    registry = load_registry(scipkg_root)
+    packages = registry.get("packages")
+    if not isinstance(packages, dict):
+        return
+
+    meta = packages.get(normalized_id)
+    if not isinstance(meta, dict):
+        return
+
+    updated = dict(meta)
+    updated["curated"] = {
+        "channel": channel,
+        "package_id": curated_package_id,
+        "version_id": version_id,
+        "source_archive_url": source_archive_url,
+        "verified": verified,
+        "source_ref": {
+            "type": source_ref_type,
+            "value": source_ref_value,
+        },
+    }
+    packages[normalized_id] = updated
+    save_registry(scipkg_root, registry)
+
+
 def _cmd_install(args: argparse.Namespace) -> int:
     scipkg_root = resolve_scipkg_root()
     raw_package_id = getattr(args, "package_id", None)
@@ -2892,7 +2932,21 @@ def _cmd_install(args: argparse.Namespace) -> int:
     if not requested_ids:
         raise PackageError("Package id is required for fermilink install.")
 
+    requested_version_raw = getattr(args, "version_id", None)
+    requested_version = (
+        str(requested_version_raw).strip() if isinstance(requested_version_raw, str) else ""
+    )
+    if requested_version == "":
+        requested_version = None
+
+    require_verified = bool(getattr(args, "require_verified", False))
+    if requested_version and (args.local_path or args.zip_url):
+        raise PackageError("--version only applies to curated channel installs.")
+    if require_verified and (args.local_path or args.zip_url):
+        raise PackageError("--require-verified only applies to curated channel installs.")
+
     package_ids = [normalize_package_id(item) for item in requested_ids]
+    normalized_channel = normalize_channel_id(args.channel)
     if len(package_ids) > 1:
         if args.activate:
             raise PackageError(
@@ -2905,25 +2959,49 @@ def _cmd_install(args: argparse.Namespace) -> int:
             raise PackageError("Cannot combine multiple package ids with --zip-url.")
         if args.title:
             raise PackageError("Cannot combine multiple package ids with --title.")
+        if requested_version:
+            raise PackageError("Cannot combine multiple package ids with --version.")
 
         installed: list[dict[str, object]] = []
         sources: dict[str, str] = {}
+        selected_versions: dict[str, str] = {}
+        unverified: list[str] = []
         for package_id in package_ids:
-            curated = resolve_curated_package(
-                package_id,
-                channel=normalize_channel_id(args.channel),
-            )
+            curated = resolve_curated_package(package_id, channel=normalized_channel)
+            selected_version = select_package_version(curated)
+            if require_verified and not selected_version.verified:
+                raise PackageError(
+                    f"Selected curated version '{selected_version.version_id}' for package "
+                    f"'{package_id}' in channel '{normalized_channel}' is not verified. "
+                    "Use a verified version or remove --require-verified."
+                )
+            if not selected_version.verified:
+                unverified.append(f"{package_id}@{selected_version.version_id}")
+
             meta = install_from_zip(
                 scipkg_root,
                 package_id,
-                zip_url=curated.zip_url,
+                zip_url=selected_version.source_archive_url,
                 title=curated.title,
                 activate=False,
                 force=args.force,
                 max_zip_bytes=args.max_zip_bytes,
             )
+            installed_id = str(meta.get("id") or package_id)
+            _save_curated_install_metadata(
+                scipkg_root,
+                installed_id,
+                channel=normalized_channel,
+                curated_package_id=curated.package_id,
+                version_id=selected_version.version_id,
+                source_archive_url=selected_version.source_archive_url,
+                verified=selected_version.verified,
+                source_ref_type=selected_version.source_ref_type,
+                source_ref_value=selected_version.source_ref_value,
+            )
             installed.append(meta)
-            sources[str(meta.get("id") or package_id)] = str(curated.zip_url)
+            sources[installed_id] = str(selected_version.source_archive_url)
+            selected_versions[installed_id] = selected_version.version_id
 
         router = None
         if not args.no_router_sync:
@@ -2933,10 +3011,14 @@ def _cmd_install(args: argparse.Namespace) -> int:
         payload = {
             "installed": installed,
             "sources": sources,
+            "selected_versions": selected_versions,
+            "require_verified": require_verified,
             "scipkg_root": str(scipkg_root),
             "router_sync": router,
             "active_package": active,
         }
+        if unverified:
+            payload["unverified_versions"] = unverified
         summary = ", ".join(str(item.get("id") or "") for item in installed if isinstance(item, dict))
         summary = summary or ", ".join(package_ids)
         lines = [
@@ -2947,6 +3029,10 @@ def _cmd_install(args: argparse.Namespace) -> int:
                 else "Active package unchanged."
             ),
         ]
+        if unverified:
+            lines.append(
+                "Warning: installed unverified curated versions: " + ", ".join(unverified) + "."
+            )
         _emit_output(args, payload, lines)
         return 0
 
@@ -2954,6 +3040,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
     title = args.title
     source: str
+    selected_unverified_label: str | None = None
     if args.local_path:
         meta = install_from_local_path(
             scipkg_root,
@@ -2966,14 +3053,29 @@ def _cmd_install(args: argparse.Namespace) -> int:
         source = f"local-path:{Path(args.local_path).expanduser().resolve()}"
     else:
         zip_url = args.zip_url
+        selected_version_id: str | None = None
+        selected_version_verified: bool | None = None
+        selected_source_ref: dict[str, str | None] | None = None
         if not zip_url:
-            curated = resolve_curated_package(
-                package_id,
-                channel=normalize_channel_id(args.channel),
-            )
-            zip_url = curated.zip_url
+            curated = resolve_curated_package(package_id, channel=normalized_channel)
+            selected_version = select_package_version(curated, version_id=requested_version)
+            if require_verified and not selected_version.verified:
+                raise PackageError(
+                    f"Selected curated version '{selected_version.version_id}' for package "
+                    f"'{package_id}' in channel '{normalized_channel}' is not verified. "
+                    "Use a verified version or remove --require-verified."
+                )
+            zip_url = selected_version.source_archive_url
             if title is None:
                 title = curated.title
+            selected_version_id = selected_version.version_id
+            selected_version_verified = selected_version.verified
+            selected_source_ref = {
+                "type": selected_version.source_ref_type,
+                "value": selected_version.source_ref_value,
+            }
+            if not selected_version.verified:
+                selected_unverified_label = f"{package_id}@{selected_version.version_id}"
 
         meta = install_from_zip(
             scipkg_root,
@@ -2984,6 +3086,19 @@ def _cmd_install(args: argparse.Namespace) -> int:
             force=args.force,
             max_zip_bytes=args.max_zip_bytes,
         )
+        installed_id = str(meta.get("id") or package_id)
+        if not args.zip_url:
+            _save_curated_install_metadata(
+                scipkg_root,
+                installed_id,
+                channel=normalized_channel,
+                curated_package_id=package_id,
+                version_id=selected_version_id or "branch-head",
+                source_archive_url=str(zip_url),
+                verified=bool(selected_version_verified),
+                source_ref_type=selected_source_ref.get("type") if selected_source_ref else None,
+                source_ref_value=selected_source_ref.get("value") if selected_source_ref else None,
+            )
         source = str(zip_url)
 
     router = None
@@ -2993,6 +3108,8 @@ def _cmd_install(args: argparse.Namespace) -> int:
     payload = {
         "installed": meta,
         "source": source,
+        "requested_version": requested_version,
+        "require_verified": require_verified,
         "scipkg_root": str(scipkg_root),
         "router_sync": router,
     }
@@ -3005,6 +3122,8 @@ def _cmd_install(args: argparse.Namespace) -> int:
             else "Active package unchanged."
         ),
     ]
+    if selected_unverified_label:
+        lines.append(f"Warning: installed unverified curated version: {selected_unverified_label}.")
     _emit_output(args, payload, lines)
     return 0
 
@@ -3038,14 +3157,32 @@ def _cmd_avail(args: argparse.Namespace) -> int:
 
     lowered_query = query.lower()
     exact_match = curated_packages.get(lowered_query)
-    matched: list[dict[str, str]] = []
+    matched: list[dict[str, object]] = []
     if exact_match is not None:
+        versions = [
+            {
+                "version_id": version.version_id,
+                "source_archive_url": version.source_archive_url,
+                "verified": version.verified,
+                "source_ref": {
+                    "type": version.source_ref_type,
+                    "value": version.source_ref_value,
+                },
+            }
+            for version in exact_match.versions
+        ]
         matched.append(
             {
                 "package_id": exact_match.package_id,
                 "title": exact_match.title,
                 "zip_url": exact_match.zip_url,
                 "match_type": "exact",
+                "description": exact_match.description or "",
+                "upstream_repo_url": exact_match.upstream_repo_url or "",
+                "homepage_url": exact_match.homepage_url or "",
+                "tags": list(exact_match.tags),
+                "default_version": exact_match.default_version,
+                "versions": versions,
             }
         )
     else:
@@ -3053,12 +3190,30 @@ def _cmd_avail(args: argparse.Namespace) -> int:
             package_id = package.package_id.lower()
             title = package.title.lower()
             if lowered_query in package_id or lowered_query in title:
+                versions = [
+                    {
+                        "version_id": version.version_id,
+                        "source_archive_url": version.source_archive_url,
+                        "verified": version.verified,
+                        "source_ref": {
+                            "type": version.source_ref_type,
+                            "value": version.source_ref_value,
+                        },
+                    }
+                    for version in package.versions
+                ]
                 matched.append(
                     {
                         "package_id": package.package_id,
                         "title": package.title,
                         "zip_url": package.zip_url,
                         "match_type": "partial",
+                        "description": package.description or "",
+                        "upstream_repo_url": package.upstream_repo_url or "",
+                        "homepage_url": package.homepage_url or "",
+                        "tags": list(package.tags),
+                        "default_version": package.default_version,
+                        "versions": versions,
                     }
                 )
     matched.sort(key=lambda item: str(item.get("package_id") or ""))
@@ -3073,9 +3228,28 @@ def _cmd_avail(args: argparse.Namespace) -> int:
         lines = [
             f"Found {len(matched)} package(s) in channel '{normalized_channel}' for '{query}'.",
         ]
-        lines.extend(
-            f"{item['package_id']}: {item['title']} ({item['zip_url']})" for item in matched
-        )
+        for item in matched:
+            versions = item.get("versions")
+            version_list = (
+                ", ".join(
+                    f"{str(version.get('version_id'))}{'' if bool(version.get('verified')) else ' (unverified)'}"
+                    for version in versions
+                    if isinstance(version, dict)
+                )
+                if isinstance(versions, list)
+                else ""
+            )
+            default_version = str(item.get("default_version") or "branch-head")
+            base_line = (
+                f"{item['package_id']}: {item['title']} ({item['zip_url']}) "
+                f"[default={default_version}]"
+            )
+            lines.append(base_line)
+            description = str(item.get("description") or "").strip()
+            if description:
+                lines.append(f"  - {description}")
+            if version_list:
+                lines.append(f"  - versions: {version_list}")
     else:
         lines = [
             f"No curated package matched '{query}' in channel '{normalized_channel}'.",
@@ -3464,6 +3638,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--channel",
         default="tel-research-group",
         help="Curated source channel (default: tel-research-group).",
+    )
+    install_parser.add_argument(
+        "--version",
+        dest="version_id",
+        help=(
+            "Curated version id to install (for example: branch-head or a tagged version). "
+            "Only valid when source is curated channel."
+        ),
+    )
+    install_parser.add_argument(
+        "--require-verified",
+        action="store_true",
+        help=(
+            "Fail if the selected curated version is not marked verified. "
+            "Only valid when source is curated channel."
+        ),
     )
     source_group = install_parser.add_mutually_exclusive_group(required=False)
     source_group.add_argument("--zip-url", help="Override with custom zip URL.")

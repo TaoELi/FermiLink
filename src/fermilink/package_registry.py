@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -493,33 +494,89 @@ def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
         sys.stderr.flush()
         return len(line)
 
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "fermilink-installer/0.2",
-            "Accept": "application/zip, application/octet-stream",
-        },
-    )
+    def _extract_content_length(headers: Any) -> int | None:
+        if headers is None or not hasattr(headers, "get"):
+            return None
+        raw = headers.get("Content-Length")
+        if not isinstance(raw, str):
+            return None
+        raw_value = raw.strip()
+        if not raw_value:
+            return None
+        try:
+            parsed = int(raw_value)
+        except ValueError:
+            return None
+        if parsed <= 0:
+            return None
+        return parsed
+
+    def _extract_content_range_total(headers: Any) -> int | None:
+        if headers is None or not hasattr(headers, "get"):
+            return None
+        raw = headers.get("Content-Range")
+        if not isinstance(raw, str):
+            return None
+        match = re.search(r"/\s*(\d+)\s*$", raw)
+        if match is None:
+            return None
+        try:
+            parsed = int(match.group(1))
+        except ValueError:
+            return None
+        if parsed <= 0:
+            return None
+        return parsed
+
+    request_headers = {
+        "User-Agent": "fermilink-installer/0.2",
+        "Accept": "application/zip, application/octet-stream",
+    }
+
+    def _probe_total_bytes() -> int | None:
+        try:
+            head_req = urllib.request.Request(url, headers=request_headers, method="HEAD")
+            with urllib.request.urlopen(head_req) as response:
+                total_bytes = _extract_content_length(getattr(response, "headers", None))
+                if isinstance(total_bytes, int) and total_bytes > 0:
+                    return total_bytes
+                ranged_total = _extract_content_range_total(getattr(response, "headers", None))
+                if isinstance(ranged_total, int) and ranged_total > 0:
+                    return ranged_total
+        except Exception:
+            pass
+
+        try:
+            range_headers = dict(request_headers)
+            range_headers["Range"] = "bytes=0-0"
+            range_req = urllib.request.Request(url, headers=range_headers)
+            with urllib.request.urlopen(range_req) as response:
+                ranged_total = _extract_content_range_total(getattr(response, "headers", None))
+                if isinstance(ranged_total, int) and ranged_total > 0:
+                    return ranged_total
+                total_bytes = _extract_content_length(getattr(response, "headers", None))
+                if isinstance(total_bytes, int) and total_bytes > 1:
+                    return total_bytes
+        except Exception:
+            pass
+
+        return None
+
+    req = urllib.request.Request(url, headers=request_headers)
     total = 0
     show_progress = _should_show_progress()
     progress_length = 0
     progress_rendered = False
     started_at = time.monotonic()
     last_progress_emit = 0.0
+    preflight_total_bytes = _probe_total_bytes() if show_progress else None
     with urllib.request.urlopen(req) as response, destination.open("wb") as handle:
-        total_bytes: int | None = None
         headers = getattr(response, "headers", None)
-        if headers is not None and hasattr(headers, "get"):
-            raw = headers.get("Content-Length")
-            if isinstance(raw, str):
-                raw = raw.strip()
-                if raw:
-                    try:
-                        parsed = int(raw)
-                    except ValueError:
-                        parsed = 0
-                    if parsed > 0:
-                        total_bytes = parsed
+        total_bytes = _extract_content_length(headers)
+        if total_bytes is None:
+            total_bytes = _extract_content_range_total(headers)
+        if total_bytes is None:
+            total_bytes = preflight_total_bytes
         try:
             if show_progress:
                 progress_length = _write_progress_line(

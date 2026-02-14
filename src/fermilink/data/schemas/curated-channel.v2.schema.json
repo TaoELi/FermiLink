@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fermilink.dev/schemas/curated-channel.v2.schema.json",
+  "title": "FermiLink Curated Channel (v2)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "channel_id",
+    "packages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "channel_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/package"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sourceRef": {
+      "type": "object",
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "branch",
+            "tag",
+            "commit",
+            "release"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "version": {
+      "type": "object",
+      "required": [
+        "version_id",
+        "source_archive_url",
+        "source_ref",
+        "verified"
+      ],
+      "properties": {
+        "version_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_archive_url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        },
+        "source_ref": {
+          "$ref": "#/$defs/sourceRef"
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "package": {
+      "type": "object",
+      "required": [
+        "package_id",
+        "title",
+        "description",
+        "upstream_repo_url",
+        "default_version",
+        "versions"
+      ],
+      "properties": {
+        "package_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstream_repo_url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        },
+        "homepage_url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "default_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/version"
+          }
+        },
+        "zip_url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
