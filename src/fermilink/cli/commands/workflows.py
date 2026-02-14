@@ -490,6 +490,7 @@ def _ensure_loop_memory(
     user_prompt: str,
     prompt_file: str | None,
     overwrite: bool = False,
+    workflow_context_lines: list[str] | None = None,
 ) -> Path:
     cli = _cli()
     projects_dir = repo_dir / LOOP_MEMORY_DIRNAME
@@ -511,6 +512,20 @@ def _ensure_loop_memory(
 
     started_at = _utc_now_z()
     source_line = f"- prompt_source: {prompt_file}\n" if prompt_file else ""
+    context_block = ""
+    if isinstance(workflow_context_lines, list):
+        normalized_context = [
+            str(line).rstrip()
+            for line in workflow_context_lines
+            if isinstance(line, str) and line.strip()
+        ]
+        if normalized_context:
+            context_block = (
+                "\n"
+                "## Workflow context\n"
+                + "\n".join(normalized_context)
+                + "\n"
+            )
     initial = (
         "# FermiLink Loop Memory\n"
         "\n"
@@ -519,6 +534,7 @@ def _ensure_loop_memory(
         "\n"
         "## Original request\n"
         f"{user_prompt.strip()}\n"
+        f"{context_block}"
         "\n"
         "## Plan\n"
         "- [ ] (fill in a small checklist plan)\n"
@@ -531,6 +547,45 @@ def _ensure_loop_memory(
     except OSError as exc:
         raise cli.PackageError(f"Failed to create loop memory file: {memory_path}: {exc}") from exc
     return memory_path
+
+
+def _truncate_handoff_line(text: str, *, max_chars: int = 180) -> str:
+    cleaned = str(text).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    overflow = len(cleaned) - max_chars
+    return f"{cleaned[:max_chars]}... ({overflow} more chars)"
+
+
+def _summarize_archived_memory(path: Path, *, max_items: int = 3) -> list[str]:
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    candidates: list[str] = []
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            continue
+        if line.startswith("- "):
+            item = line[2:].strip()
+        else:
+            item = line
+        lowered = item.lower()
+        if lowered in {"initialized", "(fill in a small checklist plan)"}:
+            continue
+        if lowered.startswith("started_at_utc:") or lowered.startswith("prompt_source:"):
+            continue
+        if lowered.startswith("[ ]"):
+            continue
+        candidates.append(_truncate_handoff_line(item))
+
+    if not candidates:
+        return []
+    return candidates[-max_items:]
 
 
 def _extract_loop_wait_seconds(assistant_text: str) -> float | None:
@@ -1072,6 +1127,36 @@ def cmd_plan_workflow(
         prompt_path = run_dir / prompt_rel
         if not prompt_path.is_file():
             raise cli.PackageError(f"Task prompt file does not exist: {prompt_path}")
+        plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+        state_path = run_dir / REPRODUCE_STATE_FILENAME
+        archived_memory_paths = sorted(archive_dir.glob("memory_*.md"))
+        latest_archived_memory_path = (
+            archived_memory_paths[-1] if archived_memory_paths else None
+        )
+
+        def _memory_relpath(path: Path) -> str:
+            try:
+                return str(path.relative_to(repo_dir))
+            except ValueError:
+                return str(path)
+
+        workflow_prompt_preamble_lines = [
+            "Workflow preflight (research/reproduce mode):",
+            "- Before acting, read `projects/memory.md`.",
+            f"- Before acting, read `{_memory_relpath(plan_path)}`.",
+        ]
+        if latest_archived_memory_path is not None:
+            workflow_prompt_preamble_lines.append(
+                (
+                    "- Before acting, read latest archived memory "
+                    f"`{_memory_relpath(latest_archived_memory_path)}`."
+                )
+            )
+        else:
+            workflow_prompt_preamble_lines.append(
+                "- No archived memory exists yet for this run."
+            )
+        workflow_prompt_preamble = "\n".join(workflow_prompt_preamble_lines).strip()
 
         task_runs = int(task_runs_state.get(task_id, 0))
         if task_runs == 0:
@@ -1079,11 +1164,43 @@ def cmd_plan_workflow(
                 task_prompt_text = prompt_path.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
                 raise cli.PackageError(f"Failed to read task prompt file: {prompt_path}: {exc}") from exc
+
+            workflow_context_lines = [
+                f"- workflow: {workflow_name}",
+                f"- plan_json: {_memory_relpath(plan_path)} (overall workflow task plan)",
+                f"- state_json: {_memory_relpath(state_path)} (workflow progress and task status)",
+            ]
+            if archived_memory_paths:
+                workflow_context_lines.append(
+                    "- previous_memory_archives: snapshots from completed prior task runs"
+                )
+                for archived_path in archived_memory_paths[-20:]:
+                    workflow_context_lines.append(
+                        f"  - {_memory_relpath(archived_path)} (prior run memory snapshot)"
+                    )
+            else:
+                workflow_context_lines.append("- previous_memory_archives: none yet")
+            if latest_archived_memory_path is not None:
+                workflow_context_lines.append(
+                    (
+                        "- latest_memory_archive: "
+                        f"{_memory_relpath(latest_archived_memory_path)} "
+                        "(most recent completed task run memory)"
+                    )
+                )
+                handoff_summary = _summarize_archived_memory(latest_archived_memory_path)
+                if handoff_summary:
+                    workflow_context_lines.append(
+                        "- handoff_summary_from_latest_archive: quick continuity notes"
+                    )
+                    for item in handoff_summary:
+                        workflow_context_lines.append(f"  - {item}")
             cli._ensure_loop_memory(
                 repo_dir=repo_dir,
                 user_prompt=task_prompt_text,
                 prompt_file=str(prompt_path),
                 overwrite=True,
+                workflow_context_lines=workflow_context_lines,
             )
 
         run_number = task_runs + 1
@@ -1105,6 +1222,7 @@ def cmd_plan_workflow(
             max_wait_seconds=max_wait_seconds,
             init_git=args.init_git,
             no_init_git=args.no_init_git,
+            workflow_prompt_preamble=workflow_prompt_preamble,
         )
         started_at = cli._utc_now_z()
         code = cli._cmd_loop(loop_args)

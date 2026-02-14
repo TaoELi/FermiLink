@@ -98,7 +98,7 @@ REPRODUCE_PLANNER_PROMPT_PREFIX = (
     "- Return valid JSON only inside the tag (no markdown fences).\n"
     "- Keep task count practical (3-12 tasks unless source is tiny).\n"
     "- Include concrete parameters/plot details when available; otherwise add assumptions.\n"
-    "- Ensure each task prompt is self-contained and actionable.\n"
+    "- Ensure each task prompt is self-contained, providing all necessary context/background and actionable steps (future agent will only see this prompt).\n"
 )
 
 REPRODUCE_AUDITOR_PROMPT_PREFIX = (
@@ -111,8 +111,10 @@ REPRODUCE_AUDITOR_PROMPT_PREFIX = (
     "Return exactly one corrected plan block:\n"
     f"<{REPRODUCE_PLAN_TAG}>{{JSON}}</{REPRODUCE_PLAN_TAG}>\n"
     "\n"
-    "Use the same JSON schema as the planner and keep task ids stable when possible.\n"
-    "Return valid JSON only inside the tag (no markdown fences).\n"
+    "Rules:\n"
+    "- Keep JSON schema identical to reproduce planning and keep task ids stable when possible.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+    "- Ensure `prompt_markdown` is self-contained, providing all necessary context/background and actionable steps (future agent will only see this prompt).\n"
 )
 
 RESEARCH_PLANNER_PROMPT_PREFIX = (
@@ -125,10 +127,31 @@ RESEARCH_PLANNER_PROMPT_PREFIX = (
     "Output exactly one XML-like block:\n"
     f"<{RESEARCH_PLAN_TAG}>{{JSON}}</{RESEARCH_PLAN_TAG}>\n"
     "\n"
-    "Use the same JSON schema as reproduce planning (version/paper_source/assumptions/tasks).\n"
-    "Each task must include `prompt_markdown` suitable for one fermilink loop task.\n"
-    "Include baselines/controls/parameter sweeps and plotting requirements where relevant.\n"
-    "Return valid JSON only inside the tag (no markdown fences).\n"
+    "JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "paper_source": "short source description",\n'
+    '  "assumptions": ["..."],\n'
+    '  "tasks": [\n'
+    "    {\n"
+    '      "id": "task_001",\n'
+    '      "title": "short title",\n'
+    '      "figure_targets": ["Figure 1a"],\n'
+    '      "objective": "what to reproduce",\n'
+    '      "simulation_requirements": ["what to simulate"],\n'
+    '      "parameter_constraints": ["parameters/conditions"],\n'
+    '      "plot_requirements": ["axes/style/colors"],\n'
+    '      "acceptance_checks": ["completion criteria"],\n'
+    '      "prompt_markdown": "prompt text for one fermilink loop task"\n'
+    "    }\n"
+    "  ]\n"
+    "}\n"
+    "\n"
+    "Rules:\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+    "- Keep task count practical (3-12 tasks unless source is tiny).\n"
+    "- Ensure each task prompt is self-contained, providing all necessary context/background and actionable steps (future agent will only see this prompt).\n"
+    "- Include baselines/controls/parameter sweeps and plotting requirements where relevant.\n"
 )
 
 RESEARCH_AUDITOR_PROMPT_PREFIX = (
@@ -141,8 +164,11 @@ RESEARCH_AUDITOR_PROMPT_PREFIX = (
     "Return exactly one corrected plan block:\n"
     f"<{RESEARCH_PLAN_TAG}>{{JSON}}</{RESEARCH_PLAN_TAG}>\n"
     "\n"
-    "Keep JSON schema identical to reproduce planning and keep task ids stable when possible.\n"
-    "Return valid JSON only inside the tag (no markdown fences).\n"
+    "Rules:\n"
+    "- Keep JSON schema identical to reproduce planning and keep task ids stable when possible.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+    "- Ensure `prompt_markdown` is self-contained, providing all necessary context/background and actionable steps (future agent will only see this prompt).\n"
+
 )
 
 WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX = (

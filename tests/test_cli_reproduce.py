@@ -114,12 +114,14 @@ def test_reproduce_executes_tasks_with_retries(
     )
 
     loop_calls: list[Path] = []
+    loop_preambles: list[str] = []
     run_results = [1, 0, 0]
 
     def fake_loop(loop_args) -> int:
         prompt_values = getattr(loop_args, "prompt", [])
         assert isinstance(prompt_values, list)
         loop_calls.append(Path(str(prompt_values[0])))
+        loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
         return run_results[len(loop_calls) - 1]
 
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
@@ -139,15 +141,29 @@ def test_reproduce_executes_tasks_with_retries(
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
+    assert "Before acting, read `projects/memory.md`." in loop_preambles[0]
 
     runs_root = repo_dir / "projects" / "reproduce"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
     run_dir = runs_root / latest_run
+    assert f"projects/reproduce/{latest_run}/plan.json" in loop_preambles[0]
+    assert (
+        f"projects/reproduce/{latest_run}/archive/memory_task_001_run_02.md"
+        in loop_preambles[2]
+    )
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["status"] == "completed"
     assert state["current_task_index"] == 2
     assert (run_dir / "archive" / "memory_task_001_run_02.md").is_file()
     assert (run_dir / "archive" / "memory_task_002_run_01.md").is_file()
+
+    memory = (repo_dir / "projects" / "memory.md").read_text(encoding="utf-8")
+    assert "## Workflow context" in memory
+    assert f"projects/reproduce/{latest_run}/plan.json" in memory
+    assert f"projects/reproduce/{latest_run}/state.json" in memory
+    assert (
+        f"projects/reproduce/{latest_run}/archive/memory_task_001_run_02.md" in memory
+    )
 
 
 def test_reproduce_resume_reuses_existing_plan(

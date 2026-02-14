@@ -155,6 +155,9 @@ def cmd_loop(args: argparse.Namespace) -> int:
     cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
 
     user_prompt, prompt_file = cli._resolve_exec_like_user_prompt(args)
+    workflow_prompt_preamble = getattr(args, "workflow_prompt_preamble", None)
+    if isinstance(workflow_prompt_preamble, str) and workflow_prompt_preamble.strip():
+        user_prompt = f"{workflow_prompt_preamble.strip()}\n\n{user_prompt}"
     memory_path = cli._ensure_loop_memory(
         repo_dir=repo_dir,
         user_prompt=user_prompt,
