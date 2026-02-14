@@ -13,7 +13,9 @@ def _is_public_overlay_name(name: str) -> bool:
     return name.strip().strip("/\\").lower() == "public"
 
 
-def _filter_exec_overlay_package_meta(package_meta: dict[str, object]) -> dict[str, object]:
+def _filter_exec_overlay_package_meta(
+    package_meta: dict[str, object],
+) -> dict[str, object]:
     """Filter local exec/chat overlay metadata to avoid injecting `public/`."""
 
     from fermilink.runner.scientific_packages import iter_package_entries
@@ -41,14 +43,14 @@ def _filter_exec_overlay_package_meta(package_meta: dict[str, object]) -> dict[s
     if isinstance(raw_entries, str):
         candidates = [segment.strip() for segment in raw_entries.split(",")]
     elif isinstance(raw_entries, list):
-        candidates = [segment.strip() for segment in raw_entries if isinstance(segment, str)]
+        candidates = [
+            segment.strip() for segment in raw_entries if isinstance(segment, str)
+        ]
     else:
         return sanitized
 
     sanitized["overlay_entries"] = [
-        name
-        for name in candidates
-        if name and not _is_public_overlay_name(name)
+        name for name in candidates if name and not _is_public_overlay_name(name)
     ]
     return sanitized
 
@@ -75,7 +77,9 @@ def _overlay_exec_package(
         raise cli.PackageError(str(exc)) from exc
 
     if not resolved_id or not isinstance(package_meta, dict):
-        raise cli.PackageError(f"Package '{package_id}' could not be resolved for overlay.")
+        raise cli.PackageError(
+            f"Package '{package_id}' could not be resolved for overlay."
+        )
     filtered_package_meta = cli._filter_exec_overlay_package_meta(package_meta)
 
     try:

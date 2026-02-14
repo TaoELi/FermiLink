@@ -87,7 +87,9 @@ if "DATABASE_URL" not in os.environ:
     os.environ["DATABASE_URL"] = _configured_database_url
 
 _GENERATED_AUTH_SECRET = False
-_configured_chainlit_auth_secret = os.getenv("FERMILINK_CHAINLIT_AUTH_SECRET", "").strip()
+_configured_chainlit_auth_secret = os.getenv(
+    "FERMILINK_CHAINLIT_AUTH_SECRET", ""
+).strip()
 if "CHAINLIT_AUTH_SECRET" not in os.environ:
     if _configured_chainlit_auth_secret:
         os.environ["CHAINLIT_AUTH_SECRET"] = _configured_chainlit_auth_secret
@@ -110,12 +112,16 @@ RUNNER_METRICS_TOKEN = os.getenv("FERMILINK_RUNNER_METRICS_TOKEN", "").strip()
 DB_URL = os.environ.get("DATABASE_URL", _configured_database_url)
 AUTH_DB_URL = os.getenv("FERMILINK_AUTH_DB_URL", DEFAULT_AUTH_DB_URL)
 LOGGER = logging.getLogger(__name__)
-AUTH_AUTO_REGISTER = os.getenv("FERMILINK_AUTH_AUTO_REGISTER", "false").strip().lower() in {
+AUTH_AUTO_REGISTER = os.getenv(
+    "FERMILINK_AUTH_AUTO_REGISTER", "false"
+).strip().lower() in {
     "1",
     "true",
     "yes",
 }
-AUTH_SIGNUP_ENABLED = os.getenv("FERMILINK_AUTH_SIGNUP_ENABLED", "true").strip().lower() in {
+AUTH_SIGNUP_ENABLED = os.getenv(
+    "FERMILINK_AUTH_SIGNUP_ENABLED", "true"
+).strip().lower() in {
     "1",
     "true",
     "yes",
@@ -135,8 +141,8 @@ if AUTH_MAX_USERS < 0:
     AUTH_MAX_USERS = 0
 if _GENERATED_AUTH_SECRET:
     LOGGER.warning(
-        #"CHAINLIT_AUTH_SECRET was not set. Generated a temporary secret; "
-        #"users will be logged out after restart."
+        # "CHAINLIT_AUTH_SECRET was not set. Generated a temporary secret; "
+        # "users will be logged out after restart."
         "[loading]..."
     )
 
@@ -293,7 +299,9 @@ MAX_ATTACHMENT_BYTES = _get_int_env(
     "FERMILINK_CHAINLIT_MAX_ATTACHMENT_BYTES", 50 * 1024 * 1024
 )
 ZIP_MIN_COUNT = _get_int_env("FERMILINK_CHAINLIT_ZIP_MIN_COUNT", 3)
-MAX_PROMPT_CHARS = _get_int_env("FERMILINK_RUNNER_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS)
+MAX_PROMPT_CHARS = _get_int_env(
+    "FERMILINK_RUNNER_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS
+)
 HISTORY_MAX_MESSAGES = _get_int_env("FERMILINK_CHAINLIT_HISTORY_MAX_MESSAGES", 40)
 HISTORY_MAX_CHARS = _get_int_env("FERMILINK_CHAINLIT_HISTORY_MAX_CHARS", 40_000)
 HISTORY_ENTRY_MAX_CHARS = _get_int_env("FERMILINK_CHAINLIT_HISTORY_ENTRY_CHARS", 4_000)
@@ -308,11 +316,19 @@ TRANSPARENCY_MAX_ENTRY_CHARS = _get_int_env(
     "FERMILINK_CHAINLIT_TRANSPARENCY_MAX_ENTRY_CHARS", 500
 )
 FORWARD_RUNNER_LOGS = _get_bool_env("FERMILINK_CHAINLIT_FORWARD_RUNNER_LOGS", False)
-PACKAGE_ROUTER_ENABLED = _get_bool_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_ENABLED", True)
-PACKAGE_ROUTER_AUTO_DEFAULT = _get_bool_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_AUTO", True)
+PACKAGE_ROUTER_ENABLED = _get_bool_env(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_ENABLED", True
+)
+PACKAGE_ROUTER_AUTO_DEFAULT = _get_bool_env(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_AUTO", True
+)
 PACKAGE_ROUTER_STICKY = _get_bool_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_STICKY", True)
-PACKAGE_ROUTER_MIN_SCORE = _get_int_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_MIN_SCORE", 2)
-PACKAGE_ROUTER_MIN_MARGIN = _get_int_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_MIN_MARGIN", 1)
+PACKAGE_ROUTER_MIN_SCORE = _get_int_env(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_MIN_SCORE", 2
+)
+PACKAGE_ROUTER_MIN_MARGIN = _get_int_env(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_MIN_MARGIN", 1
+)
 PACKAGE_ROUTER_SWITCH_MARGIN = _get_int_env(
     "FERMILINK_CHAINLIT_PACKAGE_ROUTER_SWITCH_MARGIN", 2
 )
@@ -1000,7 +1016,9 @@ async def _unregister_active_run(thread_id: str | None) -> None:
     )
 
 
-async def _rebind_active_run_session(thread_id: str | None, owner_keys: list[str]) -> None:
+async def _rebind_active_run_session(
+    thread_id: str | None, owner_keys: list[str]
+) -> None:
     await activity_helpers._rebind_active_run_session(
         thread_id,
         owner_keys,
@@ -1063,7 +1081,9 @@ def _create_user(username: str, password: str) -> sqlite3.Row | None:
     )
 
 
-def _register_signup_user(username: str, password: str) -> tuple[sqlite3.Row | None, str]:
+def _register_signup_user(
+    username: str, password: str
+) -> tuple[sqlite3.Row | None, str]:
     return auth_helpers._register_signup_user(
         username,
         password,

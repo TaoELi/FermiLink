@@ -72,7 +72,9 @@ async def _probe_runner_admission(
     if runner_metrics_token:
         headers = {"X-Runner-Metrics-Token": runner_metrics_token}
     try:
-        response = await client.get(f"{runner_url}/ops/admission", params=params, headers=headers)
+        response = await client.get(
+            f"{runner_url}/ops/admission", params=params, headers=headers
+        )
         response.raise_for_status()
         payload = response.json()
     except Exception as exc:

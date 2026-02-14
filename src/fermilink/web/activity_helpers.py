@@ -304,7 +304,9 @@ async def _rebind_active_run_session(
             if binding.run_task is not None and not binding.run_task.done():
                 current_session.current_task = binding.run_task
         except Exception as exc:
-            logger.debug("Failed to rebind active run session for %s: %s", thread_id, exc)
+            logger.debug(
+                "Failed to rebind active run session for %s: %s", thread_id, exc
+            )
 
 
 async def _sync_running_threads_window_state(

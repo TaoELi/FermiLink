@@ -68,11 +68,21 @@ def _save_molecule_histories(molecules: list[mxl.Molecule]) -> None:
     for idx, molecule in enumerate(molecules):
         rows = molecule.additional_data_history
         payload = {
-            "time_au": np.array([float(ad.get("time_au", 0.0)) for ad in rows], dtype=float),
-            "energy_au": np.array([float(ad.get("energy_au", 0.0)) for ad in rows], dtype=float),
-            "mux_au": np.array([float(ad.get("mux_au", 0.0)) for ad in rows], dtype=float),
-            "muy_au": np.array([float(ad.get("muy_au", 0.0)) for ad in rows], dtype=float),
-            "muz_au": np.array([float(ad.get("muz_au", 0.0)) for ad in rows], dtype=float),
+            "time_au": np.array(
+                [float(ad.get("time_au", 0.0)) for ad in rows], dtype=float
+            ),
+            "energy_au": np.array(
+                [float(ad.get("energy_au", 0.0)) for ad in rows], dtype=float
+            ),
+            "mux_au": np.array(
+                [float(ad.get("mux_au", 0.0)) for ad in rows], dtype=float
+            ),
+            "muy_au": np.array(
+                [float(ad.get("muy_au", 0.0)) for ad in rows], dtype=float
+            ),
+            "muz_au": np.array(
+                [float(ad.get("muz_au", 0.0)) for ad in rows], dtype=float
+            ),
         }
         np.savez(f"mol_{idx}_data.npz", **payload)
 
@@ -148,7 +158,9 @@ def main() -> None:
             mp.Block(
                 material=si,
                 size=mp.Vector3(mp.inf, mp.inf, tsub + tabs),
-                center=mp.Vector3(0.0, 0.0, 0.5 * sz - tabs - tair - h - tmet - 0.5 * (tsub + tabs)),
+                center=mp.Vector3(
+                    0.0, 0.0, 0.5 * sz - tabs - tair - h - tmet - 0.5 * (tsub + tabs)
+                ),
             ),
         ]
 
@@ -194,7 +206,9 @@ def main() -> None:
                 molecules.append(
                     mxl.Molecule(
                         hub=hub,
-                        center=mp.Vector3(x_pos, y_pos, z_top_of_cylinder + 0.5 * len_molecule),
+                        center=mp.Vector3(
+                            x_pos, y_pos, z_top_of_cylinder + 0.5 * len_molecule
+                        ),
                         size=mp.Vector3(len_molecule, len_molecule, len_molecule),
                         sigma=sigma,
                         dimensions=int(mol_cfg.get("dimensions", 3)),
@@ -226,10 +240,13 @@ def main() -> None:
 
     sim.run(until=float(run_cfg["until"]))
 
-    if include_molecules and bool(run_cfg.get("save_molecule_npz", True)) and mp.am_master():
+    if (
+        include_molecules
+        and bool(run_cfg.get("save_molecule_npz", True))
+        and mp.am_master()
+    ):
         _save_molecule_histories(molecules)
 
 
 if __name__ == "__main__":
     main()
-

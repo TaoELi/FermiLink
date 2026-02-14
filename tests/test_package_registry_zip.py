@@ -8,11 +8,17 @@ from pathlib import Path
 import pytest
 
 from fermilink.packages import package_registry
-from fermilink.packages.package_registry import PackageError, install_from_zip, load_registry
+from fermilink.packages.package_registry import (
+    PackageError,
+    install_from_zip,
+    load_registry,
+)
 
 
 class _FakeResponse:
-    def __init__(self, chunks: list[bytes], *, headers: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, chunks: list[bytes], *, headers: dict[str, str] | None = None
+    ) -> None:
         self._chunks = list(chunks)
         self.headers = headers or {}
 
@@ -34,7 +40,9 @@ class _TTYBuffer(io.StringIO):
         return True
 
 
-def test_download_zip_enforces_max_size(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_download_zip_enforces_max_size(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     destination = tmp_path / "package.zip"
 
     monkeypatch.setattr(

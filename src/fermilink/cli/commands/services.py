@@ -10,7 +10,9 @@ def _cli():
     return cli
 
 
-def _resolve_specs(component_names: list[str] | None) -> tuple[list[str], dict[str, object]]:
+def _resolve_specs(
+    component_names: list[str] | None,
+) -> tuple[list[str], dict[str, object]]:
     cli = _cli()
     names = cli.normalize_components(component_names)
     web_app_path = Path(__file__).resolve().parent.parent.parent / "web" / "app.py"
@@ -47,7 +49,9 @@ def _ensure_bootstrap_package_for_services() -> dict[str, object]:
 
     channel = cli.normalize_channel_id(cli.DEFAULT_BOOTSTRAP_CHANNEL)
     try:
-        curated = cli.resolve_curated_package(cli.DEFAULT_BOOTSTRAP_PACKAGE_ID, channel=channel)
+        curated = cli.resolve_curated_package(
+            cli.DEFAULT_BOOTSTRAP_PACKAGE_ID, channel=channel
+        )
         installed = cli.install_from_zip(
             scipkg_root,
             cli.DEFAULT_BOOTSTRAP_PACKAGE_ID,
@@ -179,7 +183,9 @@ def cmd_restart(args: argparse.Namespace) -> int:
     lines.extend(cli._service_start_line(result) for result in start_results)
     failed_stops = [item for item in stop_results if item.get("status") == "error"]
     if failed_stops:
-        lines.append("Warning: one or more services failed to stop cleanly before restart.")
+        lines.append(
+            "Warning: one or more services failed to stop cleanly before restart."
+        )
     if rollback:
         lines.append("Rollback executed for previously started services.")
     cli._emit_output(args, payload, lines)

@@ -149,7 +149,7 @@ STOPWORD_TOKENS = {
     "with",
 }
 
-RST_UNDERLINE_CHARS = set("=-~^\"`*+#")
+RST_UNDERLINE_CHARS = set('=-~^"`*+#')
 MAX_DOCS_IN_REFERENCE_FILE = 350
 MAX_PRIMARY_DOCS_IN_SKILL = 12
 MAX_SOURCE_FILES_IN_REFERENCE_FILE = 30
@@ -169,13 +169,28 @@ TOPIC_RULES = [
         slug="getting-started",
         title="Getting Started",
         summary="initial setup, quickstarts, and core concepts",
-        keywords=("quickstart", "getting started", "intro", "introduction", "basics", "overview"),
+        keywords=(
+            "quickstart",
+            "getting started",
+            "intro",
+            "introduction",
+            "basics",
+            "overview",
+        ),
     ),
     TopicRule(
         slug="build-and-install",
         title="Build and Install",
         summary="build, installation, compilation, and environment setup",
-        keywords=("install", "installation", "build", "compile", "cmake", "make", "dependencies"),
+        keywords=(
+            "install",
+            "installation",
+            "build",
+            "compile",
+            "cmake",
+            "make",
+            "dependencies",
+        ),
     ),
     TopicRule(
         slug="inputs-and-modeling",
@@ -197,19 +212,44 @@ TOPIC_RULES = [
         slug="simulation-workflows",
         title="Simulation Workflows",
         summary="simulation setup, execution flow, and runtime controls",
-        keywords=("workflow", "simulation", "run", "dynamics", "integrator", "time step", "pipeline"),
+        keywords=(
+            "workflow",
+            "simulation",
+            "run",
+            "dynamics",
+            "integrator",
+            "time step",
+            "pipeline",
+        ),
     ),
     TopicRule(
         slug="parallel-hpc",
         title="Parallel and HPC",
         summary="MPI/OpenMP/GPU execution, scaling, and batch systems",
-        keywords=("mpi", "openmp", "gpu", "hpc", "parallel", "slurm", "scaling", "performance"),
+        keywords=(
+            "mpi",
+            "openmp",
+            "gpu",
+            "hpc",
+            "parallel",
+            "slurm",
+            "scaling",
+            "performance",
+        ),
     ),
     TopicRule(
         slug="api-and-scripting",
         title="API and Scripting",
         summary="language bindings, APIs, and programmatic interfaces",
-        keywords=("api", "python", "library", "bindings", "interface", "class", "function"),
+        keywords=(
+            "api",
+            "python",
+            "library",
+            "bindings",
+            "interface",
+            "class",
+            "function",
+        ),
     ),
     TopicRule(
         slug="examples-and-tutorials",
@@ -221,25 +261,56 @@ TOPIC_RULES = [
         slug="analysis-and-output",
         title="Analysis and Output",
         summary="output formats, analysis, and post-processing",
-        keywords=("output", "analysis", "postprocess", "post-processing", "visualization", "trajectory", "plot"),
+        keywords=(
+            "output",
+            "analysis",
+            "postprocess",
+            "post-processing",
+            "visualization",
+            "trajectory",
+            "plot",
+        ),
     ),
     TopicRule(
         slug="developer-guide",
         title="Developer Guide",
         summary="developer architecture, extension points, and contribution workflow",
-        keywords=("developer", "develop", "contributing", "contribution", "architecture", "internals", "plugin"),
+        keywords=(
+            "developer",
+            "develop",
+            "contributing",
+            "contribution",
+            "architecture",
+            "internals",
+            "plugin",
+        ),
     ),
     TopicRule(
         slug="troubleshooting",
         title="Troubleshooting",
         summary="known issues, diagnostics, and debugging patterns",
-        keywords=("troubleshoot", "debug", "faq", "error", "issue", "known problem", "failure"),
+        keywords=(
+            "troubleshoot",
+            "debug",
+            "faq",
+            "error",
+            "issue",
+            "known problem",
+            "failure",
+        ),
     ),
     TopicRule(
         slug="theory-and-methods",
         title="Theory and Methods",
         summary="theoretical background and algorithmic methods",
-        keywords=("theory", "method", "algorithm", "equation", "formalism", "derivation"),
+        keywords=(
+            "theory",
+            "method",
+            "algorithm",
+            "equation",
+            "formalism",
+            "derivation",
+        ),
     ),
 ]
 
@@ -280,7 +351,9 @@ def _dedupe_ancestor_paths(paths: list[Path]) -> list[Path]:
     return kept
 
 
-def _discover_named_dirs(root: Path, candidates: set[str], max_depth: int = 3) -> list[Path]:
+def _discover_named_dirs(
+    root: Path, candidates: set[str], max_depth: int = 3
+) -> list[Path]:
     found: list[Path] = []
     queue: list[Path] = [root]
 
@@ -347,7 +420,9 @@ def _find_docs_dirs(package_root: Path, docs_dirs_arg: str | None) -> list[Path]
     return _discover_named_dirs(package_root, DOC_DIR_CANDIDATES, max_depth=3)
 
 
-def _find_source_dirs(package_root: Path, source_dirs_arg: str | None, docs_only: bool) -> list[Path]:
+def _find_source_dirs(
+    package_root: Path, source_dirs_arg: str | None, docs_only: bool
+) -> list[Path]:
     if docs_only:
         return []
 
@@ -363,7 +438,9 @@ def _find_source_dirs(package_root: Path, source_dirs_arg: str | None, docs_only
     return _dedupe_ancestor_paths(source_dirs)
 
 
-def _find_aux_dirs(package_root: Path, aux_dirs_arg: str | None, candidates: set[str]) -> list[Path]:
+def _find_aux_dirs(
+    package_root: Path, aux_dirs_arg: str | None, candidates: set[str]
+) -> list[Path]:
     user_dirs = _parse_user_dirs(aux_dirs_arg, package_root)
     if user_dirs:
         return user_dirs
@@ -438,7 +515,9 @@ def _iter_doc_files(docs_dirs: list[Path]) -> list[Path]:
     return sorted(set(files))
 
 
-def _infer_topic_slug(rel_path: Path, headings: tuple[str, ...], package_slug: str) -> str:
+def _infer_topic_slug(
+    rel_path: Path, headings: tuple[str, ...], package_slug: str
+) -> str:
     blob = " ".join([str(rel_path).lower(), *[h.lower() for h in headings]])
 
     for rule in TOPIC_RULES:
@@ -464,7 +543,9 @@ def _pick_doc_title(rel_path: Path, headings: tuple[str, ...]) -> str:
     return _humanize_slug(_slugify(rel_path.stem))
 
 
-def _collect_doc_records(package_root: Path, docs_dirs: list[Path], package_slug: str) -> list[DocRecord]:
+def _collect_doc_records(
+    package_root: Path, docs_dirs: list[Path], package_slug: str
+) -> list[DocRecord]:
     records: list[DocRecord] = []
     for path in _iter_doc_files(docs_dirs):
         try:
@@ -475,7 +556,11 @@ def _collect_doc_records(package_root: Path, docs_dirs: list[Path], package_slug
         headings = _extract_headings(path)
         topic_slug = _infer_topic_slug(rel_path, headings, package_slug)
         title = _pick_doc_title(rel_path, headings)
-        records.append(DocRecord(rel_path=rel_path, title=title, headings=headings, topic_slug=topic_slug))
+        records.append(
+            DocRecord(
+                rel_path=rel_path, title=title, headings=headings, topic_slug=topic_slug
+            )
+        )
 
     return records
 
@@ -522,7 +607,9 @@ def _path_tokens(rel_path: Path) -> tuple[str, ...]:
     return tuple(tokens)
 
 
-def _collect_source_records(package_root: Path, source_dirs: list[Path]) -> list[SourceRecord]:
+def _collect_source_records(
+    package_root: Path, source_dirs: list[Path]
+) -> list[SourceRecord]:
     records: list[SourceRecord] = []
     for path in _iter_source_files(source_dirs):
         try:
@@ -533,7 +620,9 @@ def _collect_source_records(package_root: Path, source_dirs: list[Path]) -> list
     return records
 
 
-def _topic_query_tokens(topic_slug: str, docs: list[DocRecord], package_slug: str) -> tuple[str, ...]:
+def _topic_query_tokens(
+    topic_slug: str, docs: list[DocRecord], package_slug: str
+) -> tuple[str, ...]:
     token_set: set[str] = set(_tokenize_blob(topic_slug.replace("-", " ")))
     rule = RULE_BY_SLUG.get(topic_slug)
     if rule:
@@ -572,7 +661,9 @@ def _topic_query_tokens(topic_slug: str, docs: list[DocRecord], package_slug: st
     return tuple(sorted(cleaned))
 
 
-def _source_default_priority(record: SourceRecord, package_slug: str) -> tuple[int, int, str]:
+def _source_default_priority(
+    record: SourceRecord, package_slug: str
+) -> tuple[int, int, str]:
     rel_path_str = str(record.rel_path).lower()
     depth = len(record.rel_path.parts)
     filename = record.rel_path.name.lower()
@@ -580,7 +671,10 @@ def _source_default_priority(record: SourceRecord, package_slug: str) -> tuple[i
     score = 0
     if depth <= 2:
         score += 8
-    if record.rel_path.parts and record.rel_path.parts[0].lower() in SOURCE_DIR_CANDIDATES:
+    if (
+        record.rel_path.parts
+        and record.rel_path.parts[0].lower() in SOURCE_DIR_CANDIDATES
+    ):
         score += 5
     if filename.startswith(package_slug):
         score += 6
@@ -646,7 +740,14 @@ def _score_source_record(
         if "cmake" in rel_path_str or "makefile" in rel_path_str:
             score += 4
     if topic_slug == "inputs-and-modeling":
-        for token in ("material", "geom", "geometry", "structure", "boundary", "source"):
+        for token in (
+            "material",
+            "geom",
+            "geometry",
+            "structure",
+            "boundary",
+            "source",
+        ):
             if token in rel_path_str:
                 score += 2
     if topic_slug == "simulation-workflows":
@@ -763,7 +864,14 @@ def _select_topics(
 def _doc_priority(record: DocRecord) -> tuple[int, int, str]:
     stem = record.rel_path.stem.lower()
     priority = 0
-    if stem in {"index", "readme", "overview", "quickstart", "getting-started", "introduction"}:
+    if stem in {
+        "index",
+        "readme",
+        "overview",
+        "quickstart",
+        "getting-started",
+        "introduction",
+    }:
         priority += 15
     if record.headings:
         priority += min(8, len(record.headings))
@@ -790,7 +898,9 @@ def _topic_summary(topic_slug: str) -> str:
     if rule:
         return rule.summary
     if topic_slug == "advanced-topics":
-        return "overflow specialized documentation not captured by higher-priority skills"
+        return (
+            "overflow specialized documentation not captured by higher-priority skills"
+        )
     return f"documentation grouped under the '{topic_slug}' theme"
 
 
@@ -829,7 +939,9 @@ def _render_index_skill(
     source_dirs: list[Path],
     package_root: Path,
 ) -> str:
-    docs_lines = "\n".join(f"- `{path.relative_to(package_root)}`" for path in docs_dirs)
+    docs_lines = "\n".join(
+        f"- `{path.relative_to(package_root)}`" for path in docs_dirs
+    )
     tutorial_lines = (
         "\n".join(f"- `{path.relative_to(package_root)}`" for path in tutorial_dirs)
         if tutorial_dirs
@@ -841,12 +953,17 @@ def _render_index_skill(
         else "- None discovered."
     )
     if source_dirs:
-        source_lines = "\n".join(f"- `{path.relative_to(package_root)}`" for path in source_dirs)
+        source_lines = "\n".join(
+            f"- `{path.relative_to(package_root)}`" for path in source_dirs
+        )
     else:
-        source_lines = "- No source tree was provided or discovered; rely on docs-first skills."
+        source_lines = (
+            "- No source tree was provided or discovered; rely on docs-first skills."
+        )
 
     topic_lines = "\n".join(
-        f"- `{skill_name}`: {title} ({summary})" for skill_name, title, summary in topic_entries
+        f"- `{skill_name}`: {title} ({summary})"
+        for skill_name, title, summary in topic_entries
     )
 
     description = (
@@ -908,7 +1025,9 @@ def _render_topic_skill(
         docs_block = "- No documentation files were assigned to this topic."
 
     if source_dirs:
-        source_block = "\n".join(f"- `{path.relative_to(package_root)}`" for path in source_dirs)
+        source_block = "\n".join(
+            f"- `{path.relative_to(package_root)}`" for path in source_dirs
+        )
     else:
         source_block = "- Source code access is unavailable or intentionally skipped (`--docs-only`)."
     if topic_source_matches:
@@ -919,13 +1038,19 @@ def _render_topic_skill(
     elif source_dirs:
         source_primary_block = "- Source roots are available; use `references/source_map.md` for ranked entry points."
     else:
-        source_primary_block = "- No source entry points are available for this docs-only run."
+        source_primary_block = (
+            "- No source entry points are available for this docs-only run."
+        )
     if tutorial_dirs:
-        tutorial_block = "\n".join(f"- `{path.relative_to(package_root)}`" for path in tutorial_dirs)
+        tutorial_block = "\n".join(
+            f"- `{path.relative_to(package_root)}`" for path in tutorial_dirs
+        )
     else:
         tutorial_block = "- None discovered."
     if test_dirs:
-        test_block = "\n".join(f"- `{path.relative_to(package_root)}`" for path in test_dirs)
+        test_block = "\n".join(
+            f"- `{path.relative_to(package_root)}`" for path in test_dirs
+        )
     else:
         test_block = "- None discovered."
 
@@ -979,7 +1104,9 @@ def _render_doc_map(
     package_root: Path,
 ) -> str:
     title = _topic_title(topic_slug)
-    docs_dir_lines = "\n".join(f"- `{path.relative_to(package_root)}`" for path in knowledge_dirs)
+    docs_dir_lines = "\n".join(
+        f"- `{path.relative_to(package_root)}`" for path in knowledge_dirs
+    )
 
     ordered_docs = _sorted_docs(docs)
     shown_docs = ordered_docs[:MAX_DOCS_IN_REFERENCE_FILE]
@@ -987,8 +1114,14 @@ def _render_doc_map(
 
     lines = []
     for record in shown_docs:
-        heading_preview = "; ".join(record.headings[:3]) if record.headings else "(no heading extracted)"
-        lines.append(f"- `{record.rel_path}` | title: {record.title} | headings: {heading_preview}")
+        heading_preview = (
+            "; ".join(record.headings[:3])
+            if record.headings
+            else "(no heading extracted)"
+        )
+        lines.append(
+            f"- `{record.rel_path}` | title: {record.title} | headings: {heading_preview}"
+        )
 
     if not lines:
         lines.append("- No docs were grouped in this topic.")
@@ -1023,7 +1156,9 @@ def _render_source_map(
     title = _topic_title(topic_slug)
 
     if source_dirs:
-        source_dir_lines = "\n".join(f"- `{path.relative_to(package_root)}`" for path in source_dirs)
+        source_dir_lines = "\n".join(
+            f"- `{path.relative_to(package_root)}`" for path in source_dirs
+        )
     else:
         source_dir_lines = "- None (docs-only generation)."
 
@@ -1047,7 +1182,11 @@ def _render_source_map(
     else:
         lines = ["- No source files were available for this topic."]
 
-    source_roots_arg = " ".join(str(path.relative_to(package_root)) for path in source_dirs) if source_dirs else "<source-dir>"
+    source_roots_arg = (
+        " ".join(str(path.relative_to(package_root)) for path in source_dirs)
+        if source_dirs
+        else "<source-dir>"
+    )
 
     return f"""# {package_name} source map: {title}
 
@@ -1105,7 +1244,9 @@ def _print_plan(
     print("\nPlanned skills:")
     print(f"  - {package_name.lower()}-index")
     for topic_slug in selected_topics:
-        print(f"  - {package_name.lower()}-{topic_slug} ({len(buckets[topic_slug])} docs)")
+        print(
+            f"  - {package_name.lower()}-{topic_slug} ({len(buckets[topic_slug])} docs)"
+        )
 
 
 def generate(args: argparse.Namespace) -> int:
@@ -1124,7 +1265,9 @@ def generate(args: argparse.Namespace) -> int:
             "No documentation directories were found. Provide --docs-dirs or place docs under common names (docs/, doc/, manual/, ...)."
         )
 
-    tutorial_dirs = _find_aux_dirs(package_root, args.tutorial_dirs, TUTORIAL_DIR_CANDIDATES)
+    tutorial_dirs = _find_aux_dirs(
+        package_root, args.tutorial_dirs, TUTORIAL_DIR_CANDIDATES
+    )
     test_dirs = _find_aux_dirs(package_root, args.test_dirs, TEST_DIR_CANDIDATES)
     source_dirs = _find_source_dirs(package_root, args.source_dirs, args.docs_only)
     source_records = _collect_source_records(package_root, source_dirs)
@@ -1147,7 +1290,9 @@ def generate(args: argparse.Namespace) -> int:
 
     selected_topics, buckets = _select_topics(dict(buckets), args.max_skills)
 
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else package_root / "skills"
+    output_dir = (
+        Path(args.output_dir).resolve() if args.output_dir else package_root / "skills"
+    )
 
     if args.dry_run:
         _print_plan(
@@ -1250,7 +1395,11 @@ def build_parser() -> argparse.ArgumentParser:
             "The generated skill count is capped by --max-skills and remains abstract for large packages."
         )
     )
-    parser.add_argument("--package-root", required=True, help="Path to the target scientific software repository.")
+    parser.add_argument(
+        "--package-root",
+        required=True,
+        help="Path to the target scientific software repository.",
+    )
     parser.add_argument(
         "--package-name",
         default=None,
@@ -1310,7 +1459,9 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     if args.max_skills < 2:
-        parser.error("--max-skills must be >= 2 so an index skill plus at least one topic skill can be created.")
+        parser.error(
+            "--max-skills must be >= 2 so an index skill plus at least one topic skill can be created."
+        )
 
     return generate(args)
 

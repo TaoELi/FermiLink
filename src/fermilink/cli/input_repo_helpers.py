@@ -29,7 +29,9 @@ def _ensure_exec_repo_ready(repo_dir: Path, args: argparse.Namespace) -> None:
                 raise cli.PackageError(
                     "Current directory is not a git repository. Re-run with --init-git."
                 )
-            answer = input("Current directory is not a git repo. Run `git init` now? [y/N]: ")
+            answer = input(
+                "Current directory is not a git repo. Run `git init` now? [y/N]: "
+            )
             initialize = answer.strip().lower() in {"y", "yes"}
         if not initialize:
             raise cli.PackageError(
@@ -73,7 +75,9 @@ def _resolve_exec_like_user_prompt(args: argparse.Namespace) -> tuple[str, str |
             try:
                 content = candidate_path.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
-                raise cli.PackageError(f"Failed to read prompt file: {candidate_path}: {exc}") from exc
+                raise cli.PackageError(
+                    f"Failed to read prompt file: {candidate_path}: {exc}"
+                ) from exc
             text = content.strip()
             if not text:
                 raise cli.PackageError(f"Prompt file is empty: {candidate_path}")

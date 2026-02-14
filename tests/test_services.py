@@ -37,7 +37,9 @@ def test_start_and_stop_service(tmp_path: Path) -> None:
     assert status_after["running"] is False
 
 
-def test_default_service_specs_include_chainlit_app_root(monkeypatch, tmp_path: Path) -> None:
+def test_default_service_specs_include_chainlit_app_root(
+    monkeypatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("FERMILINK_RUNNER_URL", "http://127.0.0.1:18000")
     monkeypatch.setenv("FERMILINK_CHAINLIT_APP_ROOT", str(tmp_path / "app-root"))
     monkeypatch.delenv("FERMILINK_SCIPKG_ROOT", raising=False)
@@ -73,9 +75,13 @@ def test_default_service_specs_uses_fermilink_home_defaults(
     runner_env = specs["runner"].env
 
     assert web_env["FERMILINK_CHAINLIT_APP_ROOT"] == str(fermilink_home)
-    assert web_env["FERMILINK_SCIPKG_ROOT"] == str(fermilink_home / "scientific_packages")
+    assert web_env["FERMILINK_SCIPKG_ROOT"] == str(
+        fermilink_home / "scientific_packages"
+    )
     assert web_env["FERMILINK_WORKSPACES_ROOT"] == str(fermilink_home / "workspaces")
-    assert runner_env["FERMILINK_SCIPKG_ROOT"] == str(fermilink_home / "scientific_packages")
+    assert runner_env["FERMILINK_SCIPKG_ROOT"] == str(
+        fermilink_home / "scientific_packages"
+    )
     assert runner_env["FERMILINK_WORKSPACES_ROOT"] == str(fermilink_home / "workspaces")
 
 
@@ -108,7 +114,9 @@ def test_start_service_reports_immediate_failure(tmp_path: Path) -> None:
     assert status["reason"] == "no_state"
 
 
-def test_start_service_reports_port_in_use(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_start_service_reports_port_in_use(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     runtime_root = tmp_path / "runtime"
     port = 17860
     monkeypatch.setattr(services, "_is_port_in_use", lambda *_a, **_k: True)

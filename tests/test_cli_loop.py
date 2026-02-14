@@ -18,7 +18,9 @@ def test_loop_reads_prompt_file_and_initializes_memory(
     (repo_dir / "prompt.md").write_text("do the thing", encoding="utf-8")
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
     monkeypatch.setattr(
         cli,
         "resolve_agent_runtime_policy",
@@ -41,7 +43,11 @@ def test_loop_reads_prompt_file_and_initializes_memory(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
     captured: dict[str, object] = {}
 
@@ -55,7 +61,9 @@ def test_loop_reads_prompt_file_and_initializes_memory(
     monkeypatch.setattr(
         cli,
         "_cleanup_exec_overlay_symlinks",
-        lambda *, repo_dir, workspace_root: cleanup_calls.append((repo_dir, workspace_root)),
+        lambda *, repo_dir, workspace_root: cleanup_calls.append(
+            (repo_dir, workspace_root)
+        ),
     )
 
     code = cli.main(["loop", "--max-iterations", "1", "prompt.md"])
@@ -82,7 +90,9 @@ def test_loop_emits_done_token_when_present_in_last_message(
     monkeypatch.chdir(repo_dir)
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
     monkeypatch.setattr(
         cli,
         "resolve_agent_runtime_policy",
@@ -105,7 +115,11 @@ def test_loop_emits_done_token_when_present_in_last_message(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
     monkeypatch.setattr(
         cli,
@@ -162,7 +176,9 @@ def test_loop_wait_seconds_sleeps_between_iterations(
     monkeypatch.chdir(repo_dir)
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
     monkeypatch.setattr(
         cli,
         "resolve_agent_runtime_policy",
@@ -185,7 +201,11 @@ def test_loop_wait_seconds_sleeps_between_iterations(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
 
     run_calls: list[dict[str, object]] = []
@@ -204,7 +224,9 @@ def test_loop_wait_seconds_sleeps_between_iterations(
     slept: list[float] = []
     monkeypatch.setattr(cli.time, "sleep", lambda seconds: slept.append(float(seconds)))
 
-    code = cli.main(["loop", "--max-iterations", "2", "--wait-seconds", "3", "finish it"])
+    code = cli.main(
+        ["loop", "--max-iterations", "2", "--wait-seconds", "3", "finish it"]
+    )
     assert code == 0
     assert len(run_calls) == 2
     assert slept == [3.0]
@@ -218,7 +240,9 @@ def test_loop_wait_seconds_uses_agent_tag_and_caps_by_max_wait(
     monkeypatch.chdir(repo_dir)
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
     monkeypatch.setattr(
         cli,
         "resolve_agent_runtime_policy",
@@ -241,7 +265,11 @@ def test_loop_wait_seconds_uses_agent_tag_and_caps_by_max_wait(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
 
     run_results = [

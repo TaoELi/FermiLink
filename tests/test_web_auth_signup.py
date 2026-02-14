@@ -78,7 +78,9 @@ def test_signup_api_rejects_duplicate_user(
     assert "already registered" in str(exc_info.value.detail).lower()
 
 
-def test_jwt_token_invalid_after_secret_rotation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_jwt_token_invalid_after_secret_rotation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv(
         "CHAINLIT_AUTH_SECRET", "secret-one-with-at-least-thirty-two-bytes"
     )

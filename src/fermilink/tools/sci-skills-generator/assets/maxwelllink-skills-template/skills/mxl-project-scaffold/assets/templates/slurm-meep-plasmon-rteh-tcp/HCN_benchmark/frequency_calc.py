@@ -31,4 +31,3 @@ opts = {
 psi4.set_options(opts)
 energy, wfn = psi4.frequency("b3lyp/cc-pvdz", molecule=mol, return_wfn=True)
 print("Frequency job energy (Eh):", energy)
-

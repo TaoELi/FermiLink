@@ -66,8 +66,12 @@ def _resolve_package_for_turn(
     load_router_config: Callable[[Path], dict[str, Any]],
     normalize_package_id_safe: Callable[[str | None], str | None],
     get_session_auto_route_flag: Callable[[], bool],
-    route_package_candidate: Callable[[str, list[str], str | None, dict[str, Any]], dict[str, Any]],
-    resolve_default_package_id: Callable[[list[str], str | None, dict[str, Any]], str | None],
+    route_package_candidate: Callable[
+        [str, list[str], str | None, dict[str, Any]], dict[str, Any]
+    ],
+    resolve_default_package_id: Callable[
+        [list[str], str | None, dict[str, Any]], str | None
+    ],
     session_package_id_key: str,
     session_package_source_key: str,
     package_source_manual: str,
@@ -184,8 +188,12 @@ async def _run_package_second_guess(
     package_second_guess_min_confidence: float,
     resolve_package_registry: Callable[[], tuple[list[str], str | None, Path]],
     load_router_config: Callable[[Path], dict[str, Any]],
-    resolve_default_package_id: Callable[[list[str], str | None, dict[str, Any]], str | None],
-    build_package_catalog: Callable[[list[str], str | None, Path], list[dict[str, Any]]],
+    resolve_default_package_id: Callable[
+        [list[str], str | None, dict[str, Any]], str | None
+    ],
+    build_package_catalog: Callable[
+        [list[str], str | None, Path], list[dict[str, Any]]
+    ],
     build_second_guess_prompt: Callable[..., str],
     resolve_agent_runtime_policy: Callable[[], Any],
     stream_runner: Callable[[dict[str, Any]], Any],
@@ -512,7 +520,9 @@ async def _handle_package_command(
             return True
         if option in {"off", "false", "0", "no"}:
             cl_module.user_session.set(session_package_auto_key, False)
-            await cl_module.Message(content="Auto routing disabled for this chat.").send()
+            await cl_module.Message(
+                content="Auto routing disabled for this chat."
+            ).send()
             return True
         await cl_module.Message(
             content="Usage: `/package auto on` or `/package auto off`"
@@ -552,5 +562,7 @@ async def _handle_package_command(
         ).send()
         return True
 
-    await cl_module.Message(content="Unknown `/package` command. Use `/package help`.").send()
+    await cl_module.Message(
+        content="Unknown `/package` command. Use `/package help`."
+    ).send()
     return True

@@ -62,7 +62,9 @@ def test_exec_runs_with_routing_overlay_and_codex(
 
     output = capsys.readouterr().out
     assert "[package] Using maxwelllink (selection: second_guess)" in output
-    assert "[overlay] linked entries: 5, linked dependencies: 2, collisions: 1" in output
+    assert (
+        "[overlay] linked entries: 5, linked dependencies: 2, collisions: 1" in output
+    )
 
 
 def test_exec_propagates_codex_exit_code(
@@ -87,14 +89,20 @@ def test_exec_propagates_codex_exit_code(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
     monkeypatch.setattr(cli, "_run_exec_codex_prompt", lambda **_kwargs: 7)
     cleanup_calls: list[tuple[Path, Path]] = []
     monkeypatch.setattr(
         cli,
         "_cleanup_exec_overlay_symlinks",
-        lambda *, repo_dir, workspace_root: cleanup_calls.append((repo_dir, workspace_root)),
+        lambda *, repo_dir, workspace_root: cleanup_calls.append(
+            (repo_dir, workspace_root)
+        ),
     )
 
     code = cli.main(["exec", "hello"])
@@ -102,7 +110,9 @@ def test_exec_propagates_codex_exit_code(
     assert cleanup_calls == [(repo_dir, repo_dir)]
 
 
-def test_cleanup_exec_overlay_symlinks_removes_only_manifest_entries(tmp_path: Path) -> None:
+def test_cleanup_exec_overlay_symlinks_removes_only_manifest_entries(
+    tmp_path: Path,
+) -> None:
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -132,7 +142,9 @@ def test_cleanup_exec_overlay_symlinks_removes_only_manifest_entries(tmp_path: P
     dependency_root = repo_dir / scipkg.PACKAGE_DEPENDENCIES_DIRNAME
     dependency_root.mkdir(parents=True, exist_ok=True)
     managed_dependency_link = dependency_root / "deppkg"
-    managed_dependency_link.symlink_to(managed_dependency_source, target_is_directory=True)
+    managed_dependency_link.symlink_to(
+        managed_dependency_source, target_is_directory=True
+    )
     managed_dependency_copy = dependency_root / "copydep"
     managed_dependency_copy.mkdir(parents=True, exist_ok=True)
     (managed_dependency_copy / "README.md").write_text("copy", encoding="utf-8")
@@ -247,7 +259,11 @@ def test_exec_accepts_prompt_file(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
     captured: dict[str, object] = {}
     monkeypatch.setattr(
@@ -329,8 +345,8 @@ def test_stream_exec_process_output_with_capture_emits_and_captures(
         wait=lambda: 4,
     )
 
-    return_code, stdout_text, stderr_text = cli._stream_exec_process_output_with_capture(
-        process
+    return_code, stdout_text, stderr_text = (
+        cli._stream_exec_process_output_with_capture(process)
     )
 
     assert return_code == 4
@@ -372,7 +388,9 @@ def test_run_exec_chat_turn_streams_and_collects_assistant_text(
         captured["cwd"] = kwargs.get("cwd")
         captured["env"] = kwargs.get("env")
         output_index = cmd.index("--output-last-message")
-        Path(cmd[output_index + 1]).write_text("assistant from file\n", encoding="utf-8")
+        Path(cmd[output_index + 1]).write_text(
+            "assistant from file\n", encoding="utf-8"
+        )
         return FakeProcess()
 
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
@@ -429,7 +447,9 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     monkeypatch.setattr(
         cli.subprocess,
         "Popen",
-        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("Popen should not run in tty mode")),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("Popen should not run in tty mode")
+        ),
     )
 
     def fake_run(cmd, **kwargs):
@@ -490,7 +510,9 @@ def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
     monkeypatch.setattr(
         cli.subprocess,
         "Popen",
-        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("Popen should not run in tty mode")),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("Popen should not run in tty mode")
+        ),
     )
 
     def fake_run(cmd, **kwargs):
@@ -541,7 +563,9 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
         _build_package_catalog=lambda **_kwargs: [{"id": "maxwelllink"}],
         _build_second_guess_prompt=lambda **_kwargs: "route prompt",
         _extract_first_json_object=lambda text: json.loads(text),
-        _normalize_package_id_safe=lambda value: value if isinstance(value, str) else None,
+        _normalize_package_id_safe=lambda value: (
+            value if isinstance(value, str) else None
+        ),
         _coerce_confidence=lambda value: float(value),
         PACKAGE_SOURCE_SECOND_GUESS="second_guess",
     )
@@ -577,7 +601,9 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
 
-def test_filter_exec_overlay_package_meta_excludes_public_from_explicit_entries() -> None:
+def test_filter_exec_overlay_package_meta_excludes_public_from_explicit_entries() -> (
+    None
+):
     package_meta = {
         "installed_path": "/tmp/fake",
         "overlay_entries": ["skills", "public", "docs"],

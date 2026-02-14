@@ -17,7 +17,9 @@ def test_chat_runs_multiround_with_history_and_package_switch(
     monkeypatch.chdir(repo_dir)
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
     monkeypatch.setattr(
         cli,
         "resolve_agent_runtime_policy",
@@ -75,7 +77,9 @@ def test_chat_runs_multiround_with_history_and_package_switch(
     monkeypatch.setattr(
         cli,
         "_cleanup_exec_overlay_symlinks",
-        lambda *, repo_dir, workspace_root: cleanup_calls.append((repo_dir, workspace_root)),
+        lambda *, repo_dir, workspace_root: cleanup_calls.append(
+            (repo_dir, workspace_root)
+        ),
     )
 
     web_app = SimpleNamespace(
@@ -125,7 +129,9 @@ def test_chat_enforces_sandbox_override_for_session(
     monkeypatch.chdir(repo_dir)
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages")
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
     monkeypatch.setattr(
         cli,
         "resolve_agent_runtime_policy",
@@ -148,7 +154,11 @@ def test_chat_enforces_sandbox_override_for_session(
     monkeypatch.setattr(
         cli,
         "_overlay_exec_package",
-        lambda **_kwargs: {"linked_count": 1, "collision_count": 0, "linked_dependency_count": 0},
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
     )
     monkeypatch.setattr(
         cli,
@@ -212,7 +222,9 @@ def test_resolve_exec_package_selection_sticky_keeps_current_package(
     monkeypatch.setattr(cli, "EXEC_SECOND_GUESS_ENABLED", False)
 
     web_app = SimpleNamespace(
-        _normalize_package_id_safe=lambda value: value if isinstance(value, str) else None,
+        _normalize_package_id_safe=lambda value: (
+            value if isinstance(value, str) else None
+        ),
         _load_router_config=lambda _root: {"default_package_id": "pkg-a"},
         _route_package_candidate=lambda **_kwargs: {
             "selected_package_id": "pkg-b",

@@ -15,9 +15,7 @@ def test_resolve_specs_points_web_service_to_real_app() -> None:
     assert web_app_path.as_posix().endswith("src/fermilink/web/app.py")
 
 
-def test_start_aborts_after_first_failed_component(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_start_aborts_after_first_failed_component(monkeypatch, tmp_path: Path) -> None:
     runtime_root = tmp_path / "runtime"
     specs = {"runner": object(), "web": object()}
     names = ["runner", "web"]

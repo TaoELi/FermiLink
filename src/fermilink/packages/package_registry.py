@@ -35,6 +35,7 @@ from fermilink.packages import (
     save_registry_file,
     TEMPLATE_RESERVED_ENTRY_NAMES,
 )
+
 REMOVED_INSTRUCTION_FILENAMES = {"agents.md", "claude.md"}
 REMOVED_ROOT_DIRECTORIES = {"projects"}
 PROGRESS_REFRESH_SECONDS = 0.1
@@ -308,7 +309,9 @@ def _normalize_dependency_ids(
     elif isinstance(raw, list):
         candidates = raw
     else:
-        raise PackageValidationError("dependency_package_ids must be a list or csv string.")
+        raise PackageValidationError(
+            "dependency_package_ids must be a list or csv string."
+        )
 
     owner = normalize_package_id(package_id) if package_id else None
     normalized: list[str] = []
@@ -420,7 +423,9 @@ def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
             size /= 1024.0
         return f"{int(size)} B"
 
-    def _render_progress(downloaded: int, total_bytes: int | None, started_at: float) -> str:
+    def _render_progress(
+        downloaded: int, total_bytes: int | None, started_at: float
+    ) -> str:
         elapsed = max(time.monotonic() - started_at, 1e-6)
         speed = int(downloaded / elapsed)
         speed_text = f"{_format_size(speed)}/s"
@@ -488,12 +493,18 @@ def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
 
     def _probe_total_bytes() -> int | None:
         try:
-            head_req = urllib.request.Request(url, headers=request_headers, method="HEAD")
+            head_req = urllib.request.Request(
+                url, headers=request_headers, method="HEAD"
+            )
             with urllib.request.urlopen(head_req) as response:
-                total_bytes = _extract_content_length(getattr(response, "headers", None))
+                total_bytes = _extract_content_length(
+                    getattr(response, "headers", None)
+                )
                 if isinstance(total_bytes, int) and total_bytes > 0:
                     return total_bytes
-                ranged_total = _extract_content_range_total(getattr(response, "headers", None))
+                ranged_total = _extract_content_range_total(
+                    getattr(response, "headers", None)
+                )
                 if isinstance(ranged_total, int) and ranged_total > 0:
                     return ranged_total
         except Exception:
@@ -504,10 +515,14 @@ def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
             range_headers["Range"] = "bytes=0-0"
             range_req = urllib.request.Request(url, headers=range_headers)
             with urllib.request.urlopen(range_req) as response:
-                ranged_total = _extract_content_range_total(getattr(response, "headers", None))
+                ranged_total = _extract_content_range_total(
+                    getattr(response, "headers", None)
+                )
                 if isinstance(ranged_total, int) and ranged_total > 0:
                     return ranged_total
-                total_bytes = _extract_content_length(getattr(response, "headers", None))
+                total_bytes = _extract_content_length(
+                    getattr(response, "headers", None)
+                )
                 if isinstance(total_bytes, int) and total_bytes > 1:
                     return total_bytes
         except Exception:
@@ -544,7 +559,9 @@ def _download_zip(url: str, destination: Path, max_bytes: int) -> int:
                     break
                 total += len(chunk)
                 if max_bytes > 0 and total > max_bytes:
-                    raise PackageError(f"Zip download exceeded max size {max_bytes} bytes.")
+                    raise PackageError(
+                        f"Zip download exceeded max size {max_bytes} bytes."
+                    )
                 handle.write(chunk)
 
                 if show_progress:
@@ -868,7 +885,9 @@ def overlay_package_into_repo(
     scipkg_root: Path,
     allow_replace_existing: bool = False,
 ) -> dict[str, Any]:
-    def _load_package_map(_package_id: str, _package_meta: dict[str, Any]) -> dict[str, Any]:
+    def _load_package_map(
+        _package_id: str, _package_meta: dict[str, Any]
+    ) -> dict[str, Any]:
         registry = load_registry(scipkg_root)
         maybe_packages = registry.get("packages", {})
         if isinstance(maybe_packages, dict):

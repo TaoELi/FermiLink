@@ -17,7 +17,9 @@ def _find_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / "skills").is_dir() and (candidate / "projects").is_dir():
             return candidate
-    raise FileNotFoundError("Could not locate repo root (missing skills/ and projects/)")
+    raise FileNotFoundError(
+        "Could not locate repo root (missing skills/ and projects/)"
+    )
 
 
 def _parse_frontmatter(text: str) -> Optional[SkillMeta]:
@@ -69,7 +71,9 @@ def main(argv: list[str]) -> int:
             if meta is None:
                 errors.append(f"{skill_md}: missing YAML frontmatter")
                 continue
-            if not meta.description.lower().startswith("this skill should be used when"):
+            if not meta.description.lower().startswith(
+                "this skill should be used when"
+            ):
                 errors.append(
                     f"{skill_md}: description should start with "
                     f"'This skill should be used when...'"

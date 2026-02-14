@@ -52,7 +52,12 @@ def test_validate_data_script_passes_for_valid_payload(tmp_path: Path) -> None:
         },
     }
     _write_json(
-        tmp_path / "src" / "fermilink" / "data" / "curated_channels" / "tel-research-group.json",
+        tmp_path
+        / "src"
+        / "fermilink"
+        / "data"
+        / "curated_channels"
+        / "tel-research-group.json",
         curated_payload,
     )
     _write_json(
@@ -104,7 +109,12 @@ def test_validate_data_script_fails_when_family_is_missing(tmp_path: Path) -> No
         },
     }
     _write_json(
-        tmp_path / "src" / "fermilink" / "data" / "curated_channels" / "tel-research-group.json",
+        tmp_path
+        / "src"
+        / "fermilink"
+        / "data"
+        / "curated_channels"
+        / "tel-research-group.json",
         curated_payload,
     )
     _write_json(

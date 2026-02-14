@@ -181,6 +181,8 @@ def save_agent_runtime_policy(
     path = config_path or resolve_agent_runtime_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     tmp_path.replace(path)
     return updated

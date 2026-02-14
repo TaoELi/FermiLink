@@ -577,7 +577,9 @@ def _resolve_package_alias(
     if len(prefix_matches) == 1:
         return prefix_matches[0]
 
-    contains_matches = [package_id for package_id in package_ids if lowered in package_id]
+    contains_matches = [
+        package_id for package_id in package_ids if lowered in package_id
+    ]
     if len(contains_matches) == 1:
         return contains_matches[0]
     return None

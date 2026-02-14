@@ -85,7 +85,9 @@ def _element_for_path(
     name = relative.as_posix()
     ext = path.suffix.lower()
     if ext in image_exts:
-        return cl_module.Image(name=name, path=str(path), display="inline", size="large")
+        return cl_module.Image(
+            name=name, path=str(path), display="inline", size="large"
+        )
     if ext == ".pdf":
         return cl_module.Pdf(name=name, path=str(path))
     return cl_module.File(name=name, path=str(path))
@@ -304,7 +306,9 @@ async def _attach_artifacts_from_text(
                     raise RuntimeError("Zip bundle exceeded attachment size limit.")
 
             zip_relative = zip_path.relative_to(repo_root)
-            zip_element = cl_module.File(name=zip_relative.as_posix(), path=str(zip_path))
+            zip_element = cl_module.File(
+                name=zip_relative.as_posix(), path=str(zip_path)
+            )
             await zip_element.send(for_id=message.id)
 
             for path, relative in image_files:

@@ -26,14 +26,21 @@ from fermilink.cli.commands import packages as package_commands
 from fermilink.cli.commands import services as service_commands
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
-from fermilink.cli.compile_prompts import COMPILE_PROMPT_1, COMPILE_PROMPT_2, COMPILE_PROMPT_3
+from fermilink.cli.compile_prompts import (
+    COMPILE_PROMPT_1,
+    COMPILE_PROMPT_2,
+    COMPILE_PROMPT_3,
+)
 from fermilink.cli.parser_agent import register_agent_parser
 from fermilink.cli.parser_packages import (
     register_package_install_compile_parsers,
     register_package_management_parsers,
 )
 from fermilink.cli.parser_services import register_service_parsers
-from fermilink.cli.parser_sessions import register_chat_parser, register_exec_loop_parsers
+from fermilink.cli.parser_sessions import (
+    register_chat_parser,
+    register_exec_loop_parsers,
+)
 from fermilink.cli.parser_workflows import register_workflow_parsers
 from fermilink.cli.workflow_prompts import (
     LOOP_DONE_TOKEN,
@@ -113,18 +120,15 @@ DEFAULT_BOOTSTRAP_CHANNEL = "tel-research-group"
 DEFAULT_COMPILE_CODEX_BIN = os.getenv("FERMILINK_CODEX_BIN", "codex")
 DEFAULT_COMPILE_SANDBOX = os.getenv("FERMILINK_COMPILE_SANDBOX", "workspace-write")
 
-EXEC_ROUTER_ENABLED = (
-    os.getenv("FERMILINK_CHAINLIT_PACKAGE_ROUTER_ENABLED", "true").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-EXEC_ROUTER_AUTO_DEFAULT = (
-    os.getenv("FERMILINK_CHAINLIT_PACKAGE_ROUTER_AUTO", "true").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-EXEC_SECOND_GUESS_ENABLED = (
-    os.getenv("FERMILINK_PACKAGE_SECOND_GUESS_ENABLED", "true").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
+EXEC_ROUTER_ENABLED = os.getenv(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_ENABLED", "true"
+).strip().lower() in {"1", "true", "yes", "on"}
+EXEC_ROUTER_AUTO_DEFAULT = os.getenv(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_AUTO", "true"
+).strip().lower() in {"1", "true", "yes", "on"}
+EXEC_SECOND_GUESS_ENABLED = os.getenv(
+    "FERMILINK_PACKAGE_SECOND_GUESS_ENABLED", "true"
+).strip().lower() in {"1", "true", "yes", "on"}
 try:
     EXEC_SECOND_GUESS_MIN_CONFIDENCE = float(
         os.getenv("FERMILINK_CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE", "0.75")
@@ -185,7 +189,9 @@ _load_runner_app_module = runtime_loaders._load_runner_app_module
 
 # Routing and second-guess helpers
 _normalize_installed_package_ids = routing_helpers._normalize_installed_package_ids
-_collect_second_guess_assistant_text = routing_helpers._collect_second_guess_assistant_text
+_collect_second_guess_assistant_text = (
+    routing_helpers._collect_second_guess_assistant_text
+)
 _run_exec_second_guess = routing_helpers._run_exec_second_guess
 _resolve_exec_package_selection = routing_helpers._resolve_exec_package_selection
 
@@ -198,7 +204,9 @@ _cleanup_exec_overlay_symlinks = overlay_helpers._cleanup_exec_overlay_symlinks
 # Exec runtime helpers
 _inject_exec_option_before_prompt = exec_runtime._inject_exec_option_before_prompt
 _stream_exec_process_output = exec_runtime._stream_exec_process_output
-_stream_exec_process_output_with_capture = exec_runtime._stream_exec_process_output_with_capture
+_stream_exec_process_output_with_capture = (
+    exec_runtime._stream_exec_process_output_with_capture
+)
 _should_use_direct_terminal_stream = exec_runtime._should_use_direct_terminal_stream
 _run_exec_chat_turn = exec_runtime._run_exec_chat_turn
 _run_exec_codex_prompt = exec_runtime._run_exec_codex_prompt
@@ -257,7 +265,9 @@ _cmd_delete = package_commands.cmd_delete
 
 _resolve_specs = service_commands._resolve_specs
 _installed_package_count = service_commands._installed_package_count
-_ensure_bootstrap_package_for_services = service_commands._ensure_bootstrap_package_for_services
+_ensure_bootstrap_package_for_services = (
+    service_commands._ensure_bootstrap_package_for_services
+)
 _is_start_result_failed = service_commands._is_start_result_failed
 _start_sequence = service_commands._start_sequence
 _cmd_start = service_commands.cmd_start
@@ -280,7 +290,12 @@ def main(argv: list[str] | None = None) -> int:
     except urllib.error.URLError as exc:
         print(f"Download failed: {exc}", file=sys.stderr)
         return 2
-    except (PackageError, PackageNotFoundError, PackageValidationError, ValueError) as exc:
+    except (
+        PackageError,
+        PackageNotFoundError,
+        PackageValidationError,
+        ValueError,
+    ) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 

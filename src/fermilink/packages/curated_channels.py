@@ -69,7 +69,9 @@ def _normalize_tag_list(raw: Any) -> tuple[str, ...]:
     return tuple(deduped)
 
 
-def _parse_versions(item: dict[str, Any], zip_url: str, package_id: str) -> tuple[ChannelPackageVersion, ...]:
+def _parse_versions(
+    item: dict[str, Any], zip_url: str, package_id: str
+) -> tuple[ChannelPackageVersion, ...]:
     versions_raw = item.get("versions")
     parsed_versions: list[ChannelPackageVersion] = []
 
@@ -80,7 +82,9 @@ def _parse_versions(item: dict[str, Any], zip_url: str, package_id: str) -> tupl
                     f"Package '{package_id}' has invalid version at index {version_index} (not an object)"
                 )
             version_id = str(raw_version.get("version_id") or "").strip()
-            source_archive_url = str(raw_version.get("source_archive_url") or "").strip()
+            source_archive_url = str(
+                raw_version.get("source_archive_url") or ""
+            ).strip()
             if not version_id or not source_archive_url:
                 raise ValueError(
                     f"Package '{package_id}' version at index {version_index} missing version_id/source_archive_url"
@@ -96,7 +100,11 @@ def _parse_versions(item: dict[str, Any], zip_url: str, package_id: str) -> tupl
             verified_raw = raw_version.get("verified")
             verified = bool(verified_raw) if isinstance(verified_raw, bool) else False
             notes_raw = raw_version.get("notes")
-            notes = notes_raw.strip() if isinstance(notes_raw, str) and notes_raw.strip() else None
+            notes = (
+                notes_raw.strip()
+                if isinstance(notes_raw, str) and notes_raw.strip()
+                else None
+            )
             parsed_versions.append(
                 ChannelPackageVersion(
                     version_id=version_id,
@@ -110,7 +118,9 @@ def _parse_versions(item: dict[str, Any], zip_url: str, package_id: str) -> tupl
 
     if not parsed_versions:
         if not zip_url:
-            raise ValueError(f"Package '{package_id}' must provide either versions[] or zip_url")
+            raise ValueError(
+                f"Package '{package_id}' must provide either versions[] or zip_url"
+            )
         parsed_versions.append(
             ChannelPackageVersion(
                 version_id="branch-head",
@@ -160,18 +170,24 @@ def _load_channel_packages(channel_id: str) -> dict[str, ChannelPackage]:
     try:
         payload = json.loads(channel_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Invalid curated channel file: {channel_path}: {exc}") from exc
+        raise ValueError(
+            f"Invalid curated channel file: {channel_path}: {exc}"
+        ) from exc
 
     if not isinstance(payload, dict):
         raise ValueError(f"Curated channel file must be a JSON object: {channel_path}")
 
     schema_version = payload.get("schema_version")
     if schema_version is not None and not isinstance(schema_version, int):
-        raise ValueError(f"Invalid schema_version in curated channel file: {channel_path}")
+        raise ValueError(
+            f"Invalid schema_version in curated channel file: {channel_path}"
+        )
 
     packages_raw = payload.get("packages")
     if not isinstance(packages_raw, list):
-        raise ValueError(f"Curated channel file missing `packages` list: {channel_path}")
+        raise ValueError(
+            f"Curated channel file missing `packages` list: {channel_path}"
+        )
 
     packages: dict[str, ChannelPackage] = {}
     for index, item in enumerate(packages_raw, start=1):
@@ -183,7 +199,11 @@ def _load_channel_packages(channel_id: str) -> dict[str, ChannelPackage]:
         title = str(item.get("title") or "").strip()
         zip_url = str(item.get("zip_url") or "").strip()
         description = item.get("description")
-        description_text = description.strip() if isinstance(description, str) and description.strip() else None
+        description_text = (
+            description.strip()
+            if isinstance(description, str) and description.strip()
+            else None
+        )
         upstream_repo_url = item.get("upstream_repo_url")
         upstream_repo_url_text = (
             upstream_repo_url.strip()
@@ -191,7 +211,11 @@ def _load_channel_packages(channel_id: str) -> dict[str, ChannelPackage]:
             else None
         )
         homepage_url = item.get("homepage_url")
-        homepage_url_text = homepage_url.strip() if isinstance(homepage_url, str) and homepage_url.strip() else None
+        homepage_url_text = (
+            homepage_url.strip()
+            if isinstance(homepage_url, str) and homepage_url.strip()
+            else None
+        )
         tags = _normalize_tag_list(item.get("tags"))
         versions = _parse_versions(item, zip_url, package_id)
         default_version = str(item.get("default_version") or "").strip()
@@ -236,11 +260,15 @@ def list_curated_packages(*, channel: str | None = None) -> dict[str, ChannelPac
     channels = _available_channel_ids()
     if normalized_channel not in channels:
         valid = ", ".join(sorted(channels))
-        raise ValueError(f"Unknown channel '{normalized_channel}'. Available channels: {valid}")
+        raise ValueError(
+            f"Unknown channel '{normalized_channel}'. Available channels: {valid}"
+        )
     return _load_channel_packages(normalized_channel)
 
 
-def resolve_curated_package(package_id: str, *, channel: str | None = None) -> ChannelPackage:
+def resolve_curated_package(
+    package_id: str, *, channel: str | None = None
+) -> ChannelPackage:
     packages = list_curated_packages(channel=channel)
     normalized_channel = normalize_channel_id(channel)
     package_key = package_id.strip().lower()

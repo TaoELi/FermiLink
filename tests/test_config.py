@@ -8,7 +8,9 @@ from fermilink.config import (
     resolve_scipkg_root,
     resolve_workspaces_root,
 )
-from fermilink.runner.scientific_packages import resolve_scipkg_root as runner_resolve_scipkg_root
+from fermilink.runner.scientific_packages import (
+    resolve_scipkg_root as runner_resolve_scipkg_root,
+)
 
 
 def test_default_roots_use_home_fermilink(monkeypatch, tmp_path: Path) -> None:

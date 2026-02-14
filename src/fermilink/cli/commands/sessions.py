@@ -115,7 +115,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 sandbox_policy=sandbox_policy,
             )
         finally:
-            cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+            cli._cleanup_exec_overlay_symlinks(
+                repo_dir=repo_dir, workspace_root=repo_dir
+            )
 
         assistant_text = str(run_result.get("assistant_text") or "").strip()
         return_code = int(run_result.get("return_code") or 0)
@@ -258,7 +260,10 @@ def cmd_loop(args: argparse.Namespace) -> int:
             )
 
             assistant_text = str(run_result.get("assistant_text") or "")
-            done = any(line.strip() == cli.LOOP_DONE_TOKEN for line in assistant_text.splitlines())
+            done = any(
+                line.strip() == cli.LOOP_DONE_TOKEN
+                for line in assistant_text.splitlines()
+            )
             if done:
                 print(cli.LOOP_DONE_TOKEN)
                 return 0
@@ -347,9 +352,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
     if note and note not in {"manual_pin", "default_fallback", "matched"}:
         cli._print_tagged("router", note)
     sandbox_text = (
-        f"enforce({sandbox_mode})"
-        if sandbox_policy == "enforce"
-        else "bypass"
+        f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
     )
     cli._print_tagged("agent", f"provider: {provider}, sandbox: {sandbox_text}")
 

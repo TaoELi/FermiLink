@@ -9,7 +9,9 @@ from fermilink.packages.package_registry import load_registry, normalize_package
 
 
 DEFAULT_ROUTER_RULES_FILENAME = "router_rules.json"
-FAMILY_HINTS_PATH = Path(__file__).resolve().parent / "data" / "router" / "family_hints.json"
+FAMILY_HINTS_PATH = (
+    Path(__file__).resolve().parent / "data" / "router" / "family_hints.json"
+)
 
 
 def dedupe(items: list[str]) -> list[str]:
@@ -50,18 +52,28 @@ def load_family_hints() -> dict[str, dict[str, list[str] | str]]:
     try:
         payload = json.loads(FAMILY_HINTS_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Invalid router family hints file: {FAMILY_HINTS_PATH}: {exc}") from exc
+        raise ValueError(
+            f"Invalid router family hints file: {FAMILY_HINTS_PATH}: {exc}"
+        ) from exc
     if not isinstance(payload, dict):
-        raise ValueError(f"Family hints payload must be a JSON object: {FAMILY_HINTS_PATH}")
+        raise ValueError(
+            f"Family hints payload must be a JSON object: {FAMILY_HINTS_PATH}"
+        )
     schema_version = payload.get("schema_version")
     legacy_version = payload.get("version")
     if schema_version is not None and not isinstance(schema_version, int):
-        raise ValueError(f"Family hints payload has invalid schema_version: {FAMILY_HINTS_PATH}")
+        raise ValueError(
+            f"Family hints payload has invalid schema_version: {FAMILY_HINTS_PATH}"
+        )
     if legacy_version is not None and not isinstance(legacy_version, int):
-        raise ValueError(f"Family hints payload has invalid version: {FAMILY_HINTS_PATH}")
+        raise ValueError(
+            f"Family hints payload has invalid version: {FAMILY_HINTS_PATH}"
+        )
     families_raw = payload.get("families")
     if not isinstance(families_raw, dict):
-        raise ValueError(f"Family hints payload missing `families` map: {FAMILY_HINTS_PATH}")
+        raise ValueError(
+            f"Family hints payload missing `families` map: {FAMILY_HINTS_PATH}"
+        )
 
     parsed: dict[str, dict[str, list[str] | str]] = {}
     for family, raw_terms in families_raw.items():
@@ -81,7 +93,9 @@ def load_family_hints() -> dict[str, dict[str, list[str] | str]]:
             "strong_keywords": normalize_terms(raw_terms.get("strong_keywords")),
             "keywords": normalize_terms(raw_terms.get("keywords")),
             "negative_keywords": normalize_terms(raw_terms.get("negative_keywords")),
-            "package_id_overrides": normalize_terms(raw_terms.get("package_id_overrides")),
+            "package_id_overrides": normalize_terms(
+                raw_terms.get("package_id_overrides")
+            ),
         }
     return parsed
 
@@ -168,7 +182,9 @@ def build_synced_rules(
             added.append(package_id)
 
     removed = sorted(
-        package_id for package_id in existing_packages.keys() if package_id not in installed_set
+        package_id
+        for package_id in existing_packages.keys()
+        if package_id not in installed_set
     )
 
     active_raw = registry.get("active_package")
@@ -209,7 +225,9 @@ def build_synced_rules(
     existing_min_score = existing.get("min_score")
     existing_min_margin = existing.get("min_margin")
     final_min_score = (
-        min_score if isinstance(min_score, int) else (existing_min_score if isinstance(existing_min_score, int) else 2)
+        min_score
+        if isinstance(min_score, int)
+        else (existing_min_score if isinstance(existing_min_score, int) else 2)
     )
     final_min_margin = (
         min_margin

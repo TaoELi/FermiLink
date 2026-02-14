@@ -143,8 +143,10 @@ def main() -> None:
         sim.run(until=float(cfg["until"]))
 
     if mp.am_master():
-        out_npz = Path(__file__).resolve().with_name(
-            str(cfg.get("output_npz", "lammps_history.npz"))
+        out_npz = (
+            Path(__file__)
+            .resolve()
+            .with_name(str(cfg.get("output_npz", "lammps_history.npz")))
         )
         _save_history_npz(molecule, out_npz)
         print(f"Wrote LAMMPS history: {out_npz}")

@@ -62,7 +62,9 @@ def test_per_user_limit_does_not_block_other_users() -> None:
         await asyncio.sleep(0.05)
         assert not same_user_task.done()
 
-        other_user_grant = await asyncio.wait_for(controller.acquire("bob"), timeout=0.5)
+        other_user_grant = await asyncio.wait_for(
+            controller.acquire("bob"), timeout=0.5
+        )
         assert other_user_grant["per_user_active"] == 1
 
         await controller.release("alice")

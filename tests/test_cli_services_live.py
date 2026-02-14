@@ -26,7 +26,9 @@ def test_cli_start_restart_stop_with_real_processes(
     )
 
     captured_payloads: list[dict[str, object]] = []
-    monkeypatch.setattr(cli, "_print_json", lambda payload: captured_payloads.append(payload))
+    monkeypatch.setattr(
+        cli, "_print_json", lambda payload: captured_payloads.append(payload)
+    )
 
     try:
         assert cli.main(["start", "--json"]) == 0

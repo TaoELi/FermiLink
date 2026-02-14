@@ -48,6 +48,7 @@ def find_project_root(start: Path) -> Path:
 PROJECT_ROOT = find_project_root(Path(__file__))
 DEFAULT_MAXWELLLINK_ROOT = PROJECT_ROOT / "maxwelllink"
 
+
 class PackageError(RuntimeError):
     """Base error for scientific package management."""
 

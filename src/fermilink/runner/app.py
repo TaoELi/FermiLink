@@ -653,7 +653,9 @@ def _resolve_run_policy(req: RunRequest) -> tuple[str, str, str | None]:
             _ = requested_provider
 
     sandbox_policy = policy.sandbox_policy
-    sandbox_mode: str | None = policy.sandbox_mode if sandbox_policy == "enforce" else None
+    sandbox_mode: str | None = (
+        policy.sandbox_mode if sandbox_policy == "enforce" else None
+    )
 
     requested_sandbox = (req.sandbox or "").strip()
     if sandbox_policy == "enforce" and requested_sandbox:
@@ -864,7 +866,9 @@ async def run(req: RunRequest):
                     break
 
                 try:
-                    event_type, payload = await asyncio.wait_for(queue.get(), timeout=0.1)
+                    event_type, payload = await asyncio.wait_for(
+                        queue.get(), timeout=0.1
+                    )
                 except asyncio.TimeoutError:
                     event_type = None
                     payload = None
@@ -888,7 +892,9 @@ async def run(req: RunRequest):
                         pass
 
             reason = "timeout" if timed_out else "completed"
-            yield sse("runner.exit", {"reason": reason, "return_code": process.returncode})
+            yield sse(
+                "runner.exit", {"reason": reason, "return_code": process.returncode}
+            )
         finally:
             try:
                 if process.returncode is None:

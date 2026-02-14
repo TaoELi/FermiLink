@@ -100,8 +100,12 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
     )
 
     sync_calls: list[Path] = []
-    monkeypatch.setattr(cli, "sync_router_rules", lambda root: sync_calls.append(root) or {})
-    monkeypatch.setattr(cli, "load_registry", lambda _root: {"active_package": "maxwelllink"})
+    monkeypatch.setattr(
+        cli, "sync_router_rules", lambda root: sync_calls.append(root) or {}
+    )
+    monkeypatch.setattr(
+        cli, "load_registry", lambda _root: {"active_package": "maxwelllink"}
+    )
 
     code = cli.main(["install", "ase", "meep"])
     assert code == 0
@@ -114,7 +118,9 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
     assert "Installed 2 packages" in output
 
 
-def test_cli_install_uses_requested_curated_version(monkeypatch, tmp_path: Path) -> None:
+def test_cli_install_uses_requested_curated_version(
+    monkeypatch, tmp_path: Path
+) -> None:
     scipkg_root = tmp_path / "scientific_packages"
     monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
@@ -172,7 +178,9 @@ def test_cli_install_uses_requested_curated_version(monkeypatch, tmp_path: Path)
         ),
     )
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {})
-    monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}, "active_package": "ase"})
+    monkeypatch.setattr(
+        cli, "load_registry", lambda _root: {"packages": {}, "active_package": "ase"}
+    )
     monkeypatch.setattr(cli, "save_registry", lambda _root, payload: payload)
 
     code = cli.main(["install", "ase", "--version", "v1.0.0"])

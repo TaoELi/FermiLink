@@ -27,7 +27,7 @@ def test_research_parser_defaults() -> None:
 def test_extract_research_plan_payload_parses_tagged_json() -> None:
     text = (
         "some text\n"
-        "<research_plan>{\"tasks\":[{\"id\":\"task_001\",\"prompt_markdown\":\"do x\"}]}</research_plan>\n"
+        '<research_plan>{"tasks":[{"id":"task_001","prompt_markdown":"do x"}]}</research_plan>\n'
         "tail"
     )
     payload = cli._extract_research_plan_payload(text)
@@ -65,7 +65,9 @@ def test_research_plan_only_writes_plan_without_running_loop(
     monkeypatch.setattr(
         cli,
         "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(AssertionError("loop should not run in --plan-only")),
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
     )
 
     code = cli.main(["research", "idea.md", "--plan-only"])
@@ -161,9 +163,7 @@ def test_research_executes_tasks_with_retries(
     assert "## Workflow context" in memory
     assert f"projects/research/{latest_run}/plan.json" in memory
     assert f"projects/research/{latest_run}/state.json" in memory
-    assert (
-        f"projects/research/{latest_run}/archive/memory_task_001_run_02.md" in memory
-    )
+    assert f"projects/research/{latest_run}/archive/memory_task_001_run_02.md" in memory
 
 
 def test_research_resume_uses_user_edited_plan(

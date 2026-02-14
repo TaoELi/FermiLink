@@ -37,7 +37,9 @@ def _ensure_sqlite_columns(db_path: Path, table: str, columns: dict[str, str]) -
 
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
-        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table});").fetchall()}
+        existing = {
+            row[1] for row in conn.execute(f"PRAGMA table_info({table});").fetchall()
+        }
         for name, col_type in columns.items():
             if name in existing:
                 continue

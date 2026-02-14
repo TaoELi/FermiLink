@@ -105,7 +105,11 @@ def test_remove_managed_symlinks_removes_copy_mode_entries(tmp_path: Path) -> No
 
     manifest = {
         "linked_entries": [
-            {"name": "public", "mode": "copy", "source": str((tmp_path / "src").resolve())}
+            {
+                "name": "public",
+                "mode": "copy",
+                "source": str((tmp_path / "src").resolve()),
+            }
         ]
     }
 

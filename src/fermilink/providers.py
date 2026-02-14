@@ -70,7 +70,11 @@ def build_exec_command(
     if normalized_policy == "bypass":
         cmd.append("--dangerously-bypass-approvals-and-sandbox")
 
-    if normalized_policy == "enforce" and isinstance(sandbox_mode, str) and sandbox_mode.strip():
+    if (
+        normalized_policy == "enforce"
+        and isinstance(sandbox_mode, str)
+        and sandbox_mode.strip()
+    ):
         mode = sandbox_mode.strip()
         cmd.extend(["--sandbox", mode])
         if mode == "workspace-write":

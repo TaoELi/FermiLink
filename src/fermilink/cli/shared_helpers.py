@@ -9,7 +9,12 @@ import sys
 def _should_style_cli_output() -> bool:
     if os.getenv("FERMILINK_NO_COLOR"):
         return False
-    if os.getenv("FERMILINK_NO_STYLE", "").strip().lower() in {"1", "true", "yes", "on"}:
+    if os.getenv("FERMILINK_NO_STYLE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
         return False
     term = os.getenv("FERMILINK_TERM", "").strip().lower()
     if term == "dumb":
@@ -171,7 +176,9 @@ def _bootstrap_line(payload: object) -> str | None:
     if status == "failed":
         package_id = payload.get("package_id")
         error = payload.get("error")
-        package_text = f" '{package_id}'" if isinstance(package_id, str) and package_id else ""
+        package_text = (
+            f" '{package_id}'" if isinstance(package_id, str) and package_id else ""
+        )
         error_text = f": {error}" if isinstance(error, str) and error else "."
         return f"[bootstrap] Failed to auto-install default package{package_text}{error_text}"
     return None

@@ -25,9 +25,13 @@ def _patch_minimal_runner_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.setattr(
         runner_app, "bootstrap_legacy_maxwelllink_package", lambda *_a, **_k: None
     )
-    monkeypatch.setattr(runner_app, "_ensure_template_agents_file", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        runner_app, "_ensure_template_agents_file", lambda *_a, **_k: None
+    )
     monkeypatch.setattr(runner_app, "_ensure_git_repo", lambda *_a, **_k: None)
-    monkeypatch.setattr(runner_app, "resolve_session_package", lambda **_k: (None, None))
+    monkeypatch.setattr(
+        runner_app, "resolve_session_package", lambda **_k: (None, None)
+    )
 
 
 def test_cancel_during_setup_releases_admission_slot(

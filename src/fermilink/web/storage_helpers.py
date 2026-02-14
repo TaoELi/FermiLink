@@ -119,7 +119,9 @@ def _resolve_public_root(
     return configured
 
 
-def _build_storage_provider(*, subdir: str, public_root: Path, root_path: str) -> BaseStorageClient:
+def _build_storage_provider(
+    *, subdir: str, public_root: Path, root_path: str
+) -> BaseStorageClient:
     """Instantiate the local public storage provider for Chainlit."""
 
     return LocalPublicStorageClient(

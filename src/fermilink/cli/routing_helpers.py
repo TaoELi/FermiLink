@@ -22,7 +22,9 @@ def _normalize_installed_package_ids(
     return sorted(set(package_ids))
 
 
-def _collect_second_guess_assistant_text(raw_stream_text: str, *, web_app: object) -> str:
+def _collect_second_guess_assistant_text(
+    raw_stream_text: str, *, web_app: object
+) -> str:
     chunks: list[str] = []
     for line in raw_stream_text.splitlines():
         line = line.strip()
@@ -126,11 +128,16 @@ def _run_exec_second_guess(
             "note": f"second_guess_error:exit_code_{completed.returncode}",
         }
 
-    raw_text = cli._collect_second_guess_assistant_text(completed.stdout or "", web_app=web_app)
+    raw_text = cli._collect_second_guess_assistant_text(
+        completed.stdout or "", web_app=web_app
+    )
     if not raw_text:
         raw_text = "\n".join(
             part
-            for part in ((completed.stdout or "").strip(), (completed.stderr or "").strip())
+            for part in (
+                (completed.stdout or "").strip(),
+                (completed.stderr or "").strip(),
+            )
             if part
         )
     decision = web_app._extract_first_json_object(raw_text)
@@ -224,10 +231,14 @@ def _resolve_exec_package_selection(
     web_app = cli._load_web_router_module()
     registry = cli.load_registry(scipkg_root)
     packages_payload = registry.get("packages", {})
-    package_ids = cli._normalize_installed_package_ids(packages_payload, web_app=web_app)
+    package_ids = cli._normalize_installed_package_ids(
+        packages_payload, web_app=web_app
+    )
     active_raw = registry.get("active_package")
     active_package_id = (
-        web_app._normalize_package_id_safe(active_raw) if isinstance(active_raw, str) else None
+        web_app._normalize_package_id_safe(active_raw)
+        if isinstance(active_raw, str)
+        else None
     )
     package_set = set(package_ids)
     if active_package_id not in package_set:
@@ -346,9 +357,15 @@ def _resolve_exec_package_selection(
         )
         switched = bool(second_guess.get("switched"))
         second_package = second_guess.get("package_id")
-        if switched and isinstance(second_package, str) and second_package in package_set:
+        if (
+            switched
+            and isinstance(second_package, str)
+            and second_package in package_set
+        ):
             selected_package_id = second_package
-            selected_source = str(second_guess.get("source") or cli.PACKAGE_SOURCE_SECOND_GUESS)
+            selected_source = str(
+                second_guess.get("source") or cli.PACKAGE_SOURCE_SECOND_GUESS
+            )
         note = str(second_guess.get("note") or note)
 
     return {

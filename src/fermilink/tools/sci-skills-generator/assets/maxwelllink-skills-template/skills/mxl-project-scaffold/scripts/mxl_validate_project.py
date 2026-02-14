@@ -18,7 +18,9 @@ def _find_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / "projects").is_dir() and (candidate / "skills").is_dir():
             return candidate
-    raise FileNotFoundError("Could not locate repo root (missing projects/ and skills/)")
+    raise FileNotFoundError(
+        "Could not locate repo root (missing projects/ and skills/)"
+    )
 
 
 def _read_json(path: Path) -> Any:
@@ -59,26 +61,40 @@ def _validate_tls_block(tls: Any, errors: list[ValidationError]) -> None:
         return
     _require_number(tls.get("omega_au"), "tls.omega_au must be a number", errors)
     _require_number(tls.get("mu12_au"), "tls.mu12_au must be a number", errors)
-    _require_int(tls.get("orientation"), "tls.orientation must be an int (0|1|2)", errors)
-    _require_number(tls.get("pe_initial"), "tls.pe_initial must be a number (0..1)", errors)
+    _require_int(
+        tls.get("orientation"), "tls.orientation must be an int (0|1|2)", errors
+    )
+    _require_number(
+        tls.get("pe_initial"), "tls.pe_initial must be a number (0..1)", errors
+    )
 
 
 def _validate_meep_cfg(cfg: dict, errors: list[ValidationError]) -> None:
     _require_number(cfg.get("time_units_fs"), "time_units_fs must be a number", errors)
     cell = cfg.get("cell_size")
     _require(
-        isinstance(cell, list) and len(cell) == 3 and all(isinstance(v, (int, float)) for v in cell),
+        isinstance(cell, list)
+        and len(cell) == 3
+        and all(isinstance(v, (int, float)) for v in cell),
         "cell_size must be a length-3 list of numbers",
         errors,
     )
     _require_number(cfg.get("pml_thickness"), "pml_thickness must be a number", errors)
     _require_int(cfg.get("resolution"), "resolution must be an int", errors)
-    _require_number(cfg.get("until"), "until must be a number (Meep time units)", errors)
+    _require_number(
+        cfg.get("until"), "until must be a number (Meep time units)", errors
+    )
     molecule = cfg.get("molecule")
     _require(isinstance(molecule, dict), "molecule must be an object", errors)
     if isinstance(molecule, dict):
-        _require_number(molecule.get("sigma"), "molecule.sigma must be a number", errors)
-        _require_int(molecule.get("dimensions"), "molecule.dimensions must be an int (1|2|3)", errors)
+        _require_number(
+            molecule.get("sigma"), "molecule.sigma must be a number", errors
+        )
+        _require_int(
+            molecule.get("dimensions"),
+            "molecule.dimensions must be an int (1|2|3)",
+            errors,
+        )
 
     _validate_tls_block(cfg.get("tls"), errors)
 
@@ -87,7 +103,9 @@ def _validate_meep_cfg_no_tls(cfg: dict, errors: list[ValidationError]) -> None:
     _require_number(cfg.get("time_units_fs"), "time_units_fs must be a number", errors)
     cell = cfg.get("cell_size")
     _require(
-        isinstance(cell, list) and len(cell) == 3 and all(isinstance(v, (int, float)) for v in cell),
+        isinstance(cell, list)
+        and len(cell) == 3
+        and all(isinstance(v, (int, float)) for v in cell),
         "cell_size must be a length-3 list of numbers",
         errors,
     )
@@ -109,9 +127,14 @@ def _validate_meep_cfg_no_tls(cfg: dict, errors: list[ValidationError]) -> None:
     molecule = cfg.get("molecule")
     _require(isinstance(molecule, dict), "molecule must be an object", errors)
     if isinstance(molecule, dict):
-        _require_number(molecule.get("sigma"), "molecule.sigma must be a number", errors)
-        _require_int(molecule.get("dimensions"), "molecule.dimensions must be an int (1|2|3)", errors)
-
+        _require_number(
+            molecule.get("sigma"), "molecule.sigma must be a number", errors
+        )
+        _require_int(
+            molecule.get("dimensions"),
+            "molecule.dimensions must be an int (1|2|3)",
+            errors,
+        )
 
 
 def _validate_singlemode_cfg(cfg: dict, errors: list[ValidationError]) -> None:
@@ -124,9 +147,17 @@ def _validate_singlemode_cfg(cfg: dict, errors: list[ValidationError]) -> None:
     _require(isinstance(sim, dict), "sim must be an object", errors)
     if isinstance(sim, dict):
         _require_number(sim.get("dt_au"), "sim.dt_au must be a number", errors)
-        _require_number(sim.get("frequency_au"), "sim.frequency_au must be a number", errors)
-        _require_number(sim.get("damping_au"), "sim.damping_au must be a number", errors)
-        _require_str(sim.get("coupling_axis"), "sim.coupling_axis must be a non-empty string", errors)
+        _require_number(
+            sim.get("frequency_au"), "sim.frequency_au must be a number", errors
+        )
+        _require_number(
+            sim.get("damping_au"), "sim.damping_au must be a number", errors
+        )
+        _require_str(
+            sim.get("coupling_axis"),
+            "sim.coupling_axis must be a non-empty string",
+            errors,
+        )
         _require_int(sim.get("steps"), "sim.steps must be an int", errors)
     _validate_tls_block(cfg.get("tls"), errors)
 
@@ -137,7 +168,11 @@ def _validate_laser_cfg(cfg: dict, errors: list[ValidationError]) -> None:
     if isinstance(sim, dict):
         _require_number(sim.get("dt_au"), "sim.dt_au must be a number", errors)
         _require_number(sim.get("until_au"), "sim.until_au must be a number", errors)
-        _require_str(sim.get("coupling_axis"), "sim.coupling_axis must be a non-empty string", errors)
+        _require_str(
+            sim.get("coupling_axis"),
+            "sim.coupling_axis must be a non-empty string",
+            errors,
+        )
     drive = cfg.get("drive")
     _require(isinstance(drive, dict), "drive must be an object", errors)
     if isinstance(drive, dict):
@@ -156,52 +191,107 @@ def _validate_meep_lammps_unix_cfg(cfg: dict, errors: list[ValidationError]) -> 
     lammps = cfg.get("lammps")
     _require(isinstance(lammps, dict), "'lammps' must be an object", errors)
     if isinstance(lammps, dict):
-        _require_str(lammps.get("input_template"), "lammps.input_template must be a non-empty string", errors)
-        _require_str(lammps.get("data"), "lammps.data must be a non-empty string", errors)
+        _require_str(
+            lammps.get("input_template"),
+            "lammps.input_template must be a non-empty string",
+            errors,
+        )
+        _require_str(
+            lammps.get("data"), "lammps.data must be a non-empty string", errors
+        )
 
 
 def _validate_slurm_meep_cfg(cfg: dict, errors: list[ValidationError]) -> None:
     _validate_meep_cfg(cfg, errors)
-    _require_str(cfg.get("host_port_file"), "host_port_file must be a non-empty string", errors)
+    _require_str(
+        cfg.get("host_port_file"), "host_port_file must be a non-empty string", errors
+    )
 
-def _validate_slurm_meep_lammps_tcp_cfg(cfg: dict, errors: list[ValidationError]) -> None:
+
+def _validate_slurm_meep_lammps_tcp_cfg(
+    cfg: dict, errors: list[ValidationError]
+) -> None:
     _validate_meep_cfg_no_tls(cfg, errors)
-    _require_str(cfg.get("host_port_file"), "host_port_file must be a non-empty string", errors)
+    _require_str(
+        cfg.get("host_port_file"), "host_port_file must be a non-empty string", errors
+    )
     lammps = cfg.get("lammps")
     _require(isinstance(lammps, dict), "'lammps' must be an object", errors)
     if isinstance(lammps, dict):
-        _require_str(lammps.get("input_template"), "lammps.input_template must be a non-empty string", errors)
-        _require_str(lammps.get("data"), "lammps.data must be a non-empty string", errors)
+        _require_str(
+            lammps.get("input_template"),
+            "lammps.input_template must be a non-empty string",
+            errors,
+        )
+        _require_str(
+            lammps.get("data"), "lammps.data must be a non-empty string", errors
+        )
 
 
-def _validate_slurm_meep_plasmon_rteh_tcp_cfg(cfg: dict, errors: list[ValidationError]) -> None:
-    _require_str(cfg.get("host_port_file"), "host_port_file must be a non-empty string", errors)
+def _validate_slurm_meep_plasmon_rteh_tcp_cfg(
+    cfg: dict, errors: list[ValidationError]
+) -> None:
+    _require_str(
+        cfg.get("host_port_file"), "host_port_file must be a non-empty string", errors
+    )
 
     run_cfg = cfg.get("run")
     _require(isinstance(run_cfg, dict), "run must be an object", errors)
     if isinstance(run_cfg, dict):
-        _require_bool(run_cfg.get("include_dielectric"), "run.include_dielectric must be a bool", errors)
-        _require_bool(run_cfg.get("include_molecules"), "run.include_molecules must be a bool", errors)
-        _require_number(run_cfg.get("until"), "run.until must be a number (Meep time units)", errors)
+        _require_bool(
+            run_cfg.get("include_dielectric"),
+            "run.include_dielectric must be a bool",
+            errors,
+        )
+        _require_bool(
+            run_cfg.get("include_molecules"),
+            "run.include_molecules must be a bool",
+            errors,
+        )
+        _require_number(
+            run_cfg.get("until"), "run.until must be a number (Meep time units)", errors
+        )
         _require_int(run_cfg.get("nmol"), "run.nmol must be an int", errors)
-        _require_number(run_cfg.get("lattice_a_um"), "run.lattice_a_um must be a number", errors)
-        _require_number(run_cfg.get("rod_radius_fraction"), "run.rod_radius_fraction must be a number", errors)
-        _require_number(run_cfg.get("theta_deg"), "run.theta_deg must be a number", errors)
+        _require_number(
+            run_cfg.get("lattice_a_um"), "run.lattice_a_um must be a number", errors
+        )
+        _require_number(
+            run_cfg.get("rod_radius_fraction"),
+            "run.rod_radius_fraction must be a number",
+            errors,
+        )
+        _require_number(
+            run_cfg.get("theta_deg"), "run.theta_deg must be a number", errors
+        )
 
     units_cfg = cfg.get("units")
     _require(isinstance(units_cfg, dict), "units must be an object", errors)
     if isinstance(units_cfg, dict):
-        _require_number(units_cfg.get("time_units_fs"), "units.time_units_fs must be a number", errors)
+        _require_number(
+            units_cfg.get("time_units_fs"),
+            "units.time_units_fs must be a number",
+            errors,
+        )
 
     meep_cfg = cfg.get("meep")
     _require(isinstance(meep_cfg, dict), "meep must be an object", errors)
     if isinstance(meep_cfg, dict):
-        _require_int(meep_cfg.get("resolution"), "meep.resolution must be an int", errors)
-        _require_number(meep_cfg.get("tabs_um"), "meep.tabs_um must be a number", errors)
-        _require_number(meep_cfg.get("tair_um"), "meep.tair_um must be a number", errors)
+        _require_int(
+            meep_cfg.get("resolution"), "meep.resolution must be an int", errors
+        )
+        _require_number(
+            meep_cfg.get("tabs_um"), "meep.tabs_um must be a number", errors
+        )
+        _require_number(
+            meep_cfg.get("tair_um"), "meep.tair_um must be a number", errors
+        )
         _require_number(meep_cfg.get("h_um"), "meep.h_um must be a number", errors)
-        _require_number(meep_cfg.get("tmet_um"), "meep.tmet_um must be a number", errors)
-        _require_number(meep_cfg.get("tsub_um"), "meep.tsub_um must be a number", errors)
+        _require_number(
+            meep_cfg.get("tmet_um"), "meep.tmet_um must be a number", errors
+        )
+        _require_number(
+            meep_cfg.get("tsub_um"), "meep.tsub_um must be a number", errors
+        )
         _require_number(
             meep_cfg.get("wavelength_min_um"),
             "meep.wavelength_min_um must be a number",
@@ -245,15 +335,47 @@ def _validate_slurm_meep_plasmon_rteh_tcp_cfg(cfg: dict, errors: list[Validation
     rte_cfg = cfg.get("rtehrenfest")
     _require(isinstance(rte_cfg, dict), "rtehrenfest must be an object", errors)
     if isinstance(rte_cfg, dict):
-        _require_str(rte_cfg.get("molecule_xyz"), "rtehrenfest.molecule_xyz must be a non-empty string", errors)
-        _require_str(rte_cfg.get("functional"), "rtehrenfest.functional must be a non-empty string", errors)
-        _require_str(rte_cfg.get("dft_grid_name"), "rtehrenfest.dft_grid_name must be a non-empty string", errors)
-        _require_str(rte_cfg.get("basis"), "rtehrenfest.basis must be a non-empty string", errors)
-        _require_number(rte_cfg.get("dt_rttddft_au"), "rtehrenfest.dt_rttddft_au must be a number", errors)
-        _require_str(rte_cfg.get("memory"), "rtehrenfest.memory must be a non-empty string", errors)
-        _require_int(rte_cfg.get("num_threads"), "rtehrenfest.num_threads must be an int", errors)
-        _require_int(rte_cfg.get("n_fock_per_nuc"), "rtehrenfest.n_fock_per_nuc must be an int", errors)
-        _require_int(rte_cfg.get("n_elec_per_fock"), "rtehrenfest.n_elec_per_fock must be an int", errors)
+        _require_str(
+            rte_cfg.get("molecule_xyz"),
+            "rtehrenfest.molecule_xyz must be a non-empty string",
+            errors,
+        )
+        _require_str(
+            rte_cfg.get("functional"),
+            "rtehrenfest.functional must be a non-empty string",
+            errors,
+        )
+        _require_str(
+            rte_cfg.get("dft_grid_name"),
+            "rtehrenfest.dft_grid_name must be a non-empty string",
+            errors,
+        )
+        _require_str(
+            rte_cfg.get("basis"), "rtehrenfest.basis must be a non-empty string", errors
+        )
+        _require_number(
+            rte_cfg.get("dt_rttddft_au"),
+            "rtehrenfest.dt_rttddft_au must be a number",
+            errors,
+        )
+        _require_str(
+            rte_cfg.get("memory"),
+            "rtehrenfest.memory must be a non-empty string",
+            errors,
+        )
+        _require_int(
+            rte_cfg.get("num_threads"), "rtehrenfest.num_threads must be an int", errors
+        )
+        _require_int(
+            rte_cfg.get("n_fock_per_nuc"),
+            "rtehrenfest.n_fock_per_nuc must be an int",
+            errors,
+        )
+        _require_int(
+            rte_cfg.get("n_elec_per_fock"),
+            "rtehrenfest.n_elec_per_fock must be an int",
+            errors,
+        )
 
     launch_cfg = cfg.get("driver_launch")
     _require(isinstance(launch_cfg, dict), "driver_launch must be an object", errors)
@@ -272,7 +394,10 @@ def _validate_slurm_meep_plasmon_rteh_tcp_cfg(cfg: dict, errors: list[Validation
 
 def main(argv: list[str]) -> int:
     if not argv:
-        print("Usage: mxl_validate_project.py <path/to/projects/YYYY-MM-DD-NAME>", file=sys.stderr)
+        print(
+            "Usage: mxl_validate_project.py <path/to/projects/YYYY-MM-DD-NAME>",
+            file=sys.stderr,
+        )
         return 2
 
     repo_root = _find_repo_root(Path(__file__).resolve())
@@ -280,7 +405,9 @@ def main(argv: list[str]) -> int:
     projects_root = (repo_root / "projects").resolve()
 
     errors: list[ValidationError] = []
-    _require(project_dir.is_dir(), f"Project directory does not exist: {project_dir}", errors)
+    _require(
+        project_dir.is_dir(), f"Project directory does not exist: {project_dir}", errors
+    )
     _require(
         str(project_dir).startswith(str(projects_root) + os.sep),
         f"Project must live under {projects_root}",
@@ -305,36 +432,90 @@ def main(argv: list[str]) -> int:
             elif template_id == "meep-tls-socket-unix":
                 _validate_meep_unix_cfg(cfg, errors)
                 _require((project_dir / "em.py").exists(), "Missing em.py", errors)
-                _require((project_dir / "driver.py").exists(), "Missing driver.py", errors)
+                _require(
+                    (project_dir / "driver.py").exists(), "Missing driver.py", errors
+                )
             elif template_id == "singlemode-tls-socket-tcp":
                 _validate_singlemode_cfg(cfg, errors)
                 _require((project_dir / "em.py").exists(), "Missing em.py", errors)
-                _require((project_dir / "driver.py").exists(), "Missing driver.py", errors)
+                _require(
+                    (project_dir / "driver.py").exists(), "Missing driver.py", errors
+                )
             elif template_id == "laser-tls-embedded":
                 _validate_laser_cfg(cfg, errors)
                 _require((project_dir / "em.py").exists(), "Missing em.py", errors)
             elif template_id == "slurm-meep-tls-tcp":
                 _validate_slurm_meep_cfg(cfg, errors)
-                _require((project_dir / "em_main.py").exists(), "Missing em_main.py", errors)
-                _require((project_dir / "driver.py").exists(), "Missing driver.py", errors)
-                _require((project_dir / "submit_main.sh").exists(), "Missing submit_main.sh", errors)
-                _require((project_dir / "submit_driver.sh").exists(), "Missing submit_driver.sh", errors)
+                _require(
+                    (project_dir / "em_main.py").exists(), "Missing em_main.py", errors
+                )
+                _require(
+                    (project_dir / "driver.py").exists(), "Missing driver.py", errors
+                )
+                _require(
+                    (project_dir / "submit_main.sh").exists(),
+                    "Missing submit_main.sh",
+                    errors,
+                )
+                _require(
+                    (project_dir / "submit_driver.sh").exists(),
+                    "Missing submit_driver.sh",
+                    errors,
+                )
             elif template_id == "slurm-meep-lammps-tcp":
                 _validate_slurm_meep_lammps_tcp_cfg(cfg, errors)
-                _require((project_dir / "em_main.py").exists(), "Missing em_main.py", errors)
-                _require((project_dir / "lammps_driver.py").exists(), "Missing lammps_driver.py", errors)
-                _require((project_dir / "submit_main.sh").exists(), "Missing submit_main.sh", errors)
-                _require((project_dir / "submit_lammps.sh").exists(), "Missing submit_lammps.sh", errors)
-                _require((project_dir / "in_mxl.lmp").exists(), "Missing in_mxl.lmp", errors)
-                _require((project_dir / "data.lmp").exists(), "Missing data.lmp", errors)
+                _require(
+                    (project_dir / "em_main.py").exists(), "Missing em_main.py", errors
+                )
+                _require(
+                    (project_dir / "lammps_driver.py").exists(),
+                    "Missing lammps_driver.py",
+                    errors,
+                )
+                _require(
+                    (project_dir / "submit_main.sh").exists(),
+                    "Missing submit_main.sh",
+                    errors,
+                )
+                _require(
+                    (project_dir / "submit_lammps.sh").exists(),
+                    "Missing submit_lammps.sh",
+                    errors,
+                )
+                _require(
+                    (project_dir / "in_mxl.lmp").exists(), "Missing in_mxl.lmp", errors
+                )
+                _require(
+                    (project_dir / "data.lmp").exists(), "Missing data.lmp", errors
+                )
             elif template_id == "slurm-meep-plasmon-rteh-tcp":
                 _validate_slurm_meep_plasmon_rteh_tcp_cfg(cfg, errors)
-                _require((project_dir / "em_main.py").exists(), "Missing em_main.py", errors)
-                _require((project_dir / "driver.py").exists(), "Missing driver.py", errors)
-                _require((project_dir / "submit_main.sh").exists(), "Missing submit_main.sh", errors)
-                _require((project_dir / "submit_driver.sh").exists(), "Missing submit_driver.sh", errors)
-                _require((project_dir / "submit_all.sh").exists(), "Missing submit_all.sh", errors)
-                _require((project_dir / "HCN_benchmark" / "hcn.xyz").exists(), "Missing HCN_benchmark/hcn.xyz", errors)
+                _require(
+                    (project_dir / "em_main.py").exists(), "Missing em_main.py", errors
+                )
+                _require(
+                    (project_dir / "driver.py").exists(), "Missing driver.py", errors
+                )
+                _require(
+                    (project_dir / "submit_main.sh").exists(),
+                    "Missing submit_main.sh",
+                    errors,
+                )
+                _require(
+                    (project_dir / "submit_driver.sh").exists(),
+                    "Missing submit_driver.sh",
+                    errors,
+                )
+                _require(
+                    (project_dir / "submit_all.sh").exists(),
+                    "Missing submit_all.sh",
+                    errors,
+                )
+                _require(
+                    (project_dir / "HCN_benchmark" / "hcn.xyz").exists(),
+                    "Missing HCN_benchmark/hcn.xyz",
+                    errors,
+                )
             else:
                 _require(False, f"Unknown template_id: {template_id!r}", errors)
 

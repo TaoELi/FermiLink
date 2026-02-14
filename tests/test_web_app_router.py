@@ -23,7 +23,9 @@ def test_branding_defaults_are_applied_when_config_missing_custom_assets() -> No
     assert web_app.config.ui.custom_css == "/public/custom.css"
     assert web_app.config.ui.custom_js == "/public/custom.js"
     assert web_app.config.ui.logo_file_url == "/public/fermilink_wordmark.svg"
-    assert web_app.config.ui.default_avatar_file_url == "/public/fermilink_mini_bright.svg"
+    assert (
+        web_app.config.ui.default_avatar_file_url == "/public/fermilink_mini_bright.svg"
+    )
 
 
 def test_packaged_fermilink_markdown_is_synced_to_chainlit_md() -> None:

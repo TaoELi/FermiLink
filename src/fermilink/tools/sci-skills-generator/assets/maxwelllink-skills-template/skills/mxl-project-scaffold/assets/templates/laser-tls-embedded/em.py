@@ -101,11 +101,14 @@ def main() -> None:
 
     sim.run(until=float(sim_cfg["until_au"]))
 
-    out_csv = Path(__file__).resolve().with_name(str(cfg.get("output_csv", "tls_history.csv")))
+    out_csv = (
+        Path(__file__)
+        .resolve()
+        .with_name(str(cfg.get("output_csv", "tls_history.csv")))
+    )
     _write_tls_history_csv(tls, out_csv=out_csv)
     print(f"Wrote TLS history: {out_csv}")
 
 
 if __name__ == "__main__":
     main()
-

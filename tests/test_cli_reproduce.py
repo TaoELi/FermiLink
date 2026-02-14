@@ -27,7 +27,7 @@ def test_reproduce_parser_defaults() -> None:
 def test_extract_reproduce_plan_payload_parses_tagged_json() -> None:
     text = (
         "some text\n"
-        "<reproduce_plan>{\"tasks\":[{\"id\":\"task_001\",\"prompt_markdown\":\"do x\"}]}</reproduce_plan>\n"
+        '<reproduce_plan>{"tasks":[{"id":"task_001","prompt_markdown":"do x"}]}</reproduce_plan>\n'
         "tail"
     )
     payload = cli._extract_reproduce_plan_payload(text)
@@ -65,7 +65,9 @@ def test_reproduce_plan_only_writes_plan_without_running_loop(
     monkeypatch.setattr(
         cli,
         "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(AssertionError("loop should not run in --plan-only")),
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
     )
 
     code = cli.main(["reproduce", "paper.md", "--plan-only"])
@@ -300,7 +302,9 @@ def test_reproduce_report_only_runs_report_stage_without_loop(
     monkeypatch.setattr(
         cli,
         "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(AssertionError("loop should not run in --report-only")),
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --report-only")
+        ),
     )
     code = cli.main(["reproduce", "paper.md", "--report-only"])
     assert code == 0

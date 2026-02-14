@@ -114,11 +114,7 @@ def normalize_registry_payload(
         if maybe_active and maybe_active in normalized_packages:
             active_id = maybe_active
 
-    if (
-        active_id is None
-        and fallback_active_to_first_package
-        and normalized_packages
-    ):
+    if active_id is None and fallback_active_to_first_package and normalized_packages:
         active_id = sorted(normalized_packages.keys())[0]
     registry["active_package"] = active_id
 
@@ -337,7 +333,9 @@ def overlay_package_into_repo_core(
     resolve_package_meta_path: Callable[[dict[str, Any]], Path],
     normalize_overlay_entries: Callable[[Any], list[str] | None],
     normalize_dependency_ids: Callable[..., list[str] | None],
-    iter_package_entries: Callable[[Path, list[str] | None], tuple[list[Path], list[str]]],
+    iter_package_entries: Callable[
+        [Path, list[str] | None], tuple[list[Path], list[str]]
+    ],
     load_workspace_manifest: Callable[[Path], dict[str, Any] | None],
     save_workspace_manifest: Callable[[Path, dict[str, Any]], None],
     normalize_package_id: Callable[[str], str],
@@ -351,9 +349,13 @@ def overlay_package_into_repo_core(
     link_or_copy: Callable[[Path, Path], str] = link_or_copy_entry,
 ) -> dict[str, Any]:
     package_root = resolve_package_meta_path(package_meta)
-    configured_entries = normalize_overlay_entries(package_meta.get(overlay_entries_key))
+    configured_entries = normalize_overlay_entries(
+        package_meta.get(overlay_entries_key)
+    )
     configured_dependency_ids = (
-        normalize_dependency_ids(package_meta.get(dependency_ids_key), package_id=package_id)
+        normalize_dependency_ids(
+            package_meta.get(dependency_ids_key), package_id=package_id
+        )
         or []
     )
 
@@ -388,7 +390,9 @@ def overlay_package_into_repo_core(
             remove_existing=remove_existing,
         )
     elif previous_id == package_id:
-        stale_names = extract_manifest_entry_names(previous_manifest) - target_entry_names
+        stale_names = (
+            extract_manifest_entry_names(previous_manifest) - target_entry_names
+        )
         if stale_names:
             remove_managed_entries(
                 repo_dir,
@@ -441,7 +445,8 @@ def overlay_package_into_repo_core(
                 continue
         elif dst.exists():
             if allow_replace_existing or (
-                replace_existing_entries_for_previous_names and src.name in previous_names
+                replace_existing_entries_for_previous_names
+                and src.name in previous_names
             ):
                 remove_existing(dst)
             else:

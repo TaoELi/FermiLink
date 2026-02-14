@@ -48,7 +48,9 @@ def register_package_install_compile_parsers(
     )
     source_group = install_parser.add_mutually_exclusive_group(required=False)
     source_group.add_argument("--zip-url", help="Override with custom zip URL.")
-    source_group.add_argument("--local-path", help="Install from local package directory.")
+    source_group.add_argument(
+        "--local-path", help="Install from local package directory."
+    )
     install_parser.add_argument("--title", help="Display title for package metadata.")
     install_parser.add_argument(
         "--activate",
@@ -118,7 +120,9 @@ def register_package_management_parsers(
     cmd_dependencies: CommandHandler,
     cmd_delete: CommandHandler,
 ) -> None:
-    list_parser = subparsers.add_parser("list", help="List installed scientific packages.")
+    list_parser = subparsers.add_parser(
+        "list", help="List installed scientific packages."
+    )
     add_json_option(list_parser)
     list_parser.set_defaults(func=cmd_list)
 
@@ -127,7 +131,9 @@ def register_package_management_parsers(
         help="Search curated channel packages available for installation.",
     )
     add_json_option(avail_parser)
-    avail_parser.add_argument("query", help="Package id or keyword to search in curated channel.")
+    avail_parser.add_argument(
+        "query", help="Package id or keyword to search in curated channel."
+    )
     avail_parser.add_argument(
         "--channel",
         default="tel-research-group",
@@ -186,7 +192,9 @@ def register_package_management_parsers(
     )
     dependencies_parser.set_defaults(func=cmd_dependencies)
 
-    delete_parser = subparsers.add_parser("delete", help="Delete installed scientific package.")
+    delete_parser = subparsers.add_parser(
+        "delete", help="Delete installed scientific package."
+    )
     add_json_option(delete_parser)
     delete_parser.add_argument("package_id")
     delete_parser.add_argument(

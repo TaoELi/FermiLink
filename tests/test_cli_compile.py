@@ -35,9 +35,7 @@ def test_compile_rejects_existing_package_id(
     assert "already exists" in err
 
 
-def test_compile_runs_three_passes_then_installs(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_compile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir(parents=True, exist_ok=True)
     tool_source = tmp_path / "tool-source"
@@ -58,7 +56,9 @@ def test_compile_runs_three_passes_then_installs(
     def fake_subprocess_run(cmd, check=False):
         _ = check
         call_state["calls"] += 1
-        call_state["tool_exists"].append((project_root / "sci-skills-generator").exists())
+        call_state["tool_exists"].append(
+            (project_root / "sci-skills-generator").exists()
+        )
         return SimpleNamespace(returncode=0, cmd=cmd)
 
     monkeypatch.setattr(cli.subprocess, "run", fake_subprocess_run)
@@ -135,7 +135,9 @@ def test_compile_cleans_up_tool_on_pass_failure(
     monkeypatch.setattr(
         cli,
         "install_from_local_path",
-        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("install should not run")),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("install should not run")
+        ),
     )
 
     code = cli.main(["compile", "newpkg", str(project_root)])
@@ -221,7 +223,9 @@ def test_compile_inherits_provider_from_runtime_policy(
     assert all(call["provider"] == "gemini" for call in build_calls)
     assert all(call["provider_bin"] == "gemini-bin" for call in build_calls)
     assert all(call["sandbox_policy"] == "enforce" for call in build_calls)
-    assert all(call["sandbox_mode"] == cli.DEFAULT_COMPILE_SANDBOX for call in build_calls)
+    assert all(
+        call["sandbox_mode"] == cli.DEFAULT_COMPILE_SANDBOX for call in build_calls
+    )
     assert all(call["json_output"] is False for call in build_calls)
 
 
@@ -254,7 +258,9 @@ def test_compile_errors_for_unimplemented_runtime_provider(
     monkeypatch.setattr(
         cli.subprocess,
         "run",
-        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("subprocess should not run")),
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("subprocess should not run")
+        ),
     )
 
     code = cli.main(["compile", "newpkg", str(project_root)])

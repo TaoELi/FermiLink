@@ -96,7 +96,9 @@ def _render_reproduce_task_prompt(task: dict[str, object]) -> str:
     title = str(task.get("title") or "Reproduce task").strip()
     objective = str(task.get("objective") or "").strip()
     figure_targets = _normalize_string_list(task.get("figure_targets"))
-    simulation_requirements = _normalize_string_list(task.get("simulation_requirements"))
+    simulation_requirements = _normalize_string_list(
+        task.get("simulation_requirements")
+    )
     parameter_constraints = _normalize_string_list(task.get("parameter_constraints"))
     plot_requirements = _normalize_string_list(task.get("plot_requirements"))
     acceptance_checks = _normalize_string_list(task.get("acceptance_checks"))
@@ -108,19 +110,33 @@ def _render_reproduce_task_prompt(task: dict[str, object]) -> str:
         objective or "Reproduce the requested scientific result for this task.",
     ]
     if figure_targets:
-        lines.extend(["", "## Figure targets", *[f"- {item}" for item in figure_targets]])
+        lines.extend(
+            ["", "## Figure targets", *[f"- {item}" for item in figure_targets]]
+        )
     if simulation_requirements:
         lines.extend(
-            ["", "## Simulation requirements", *[f"- {item}" for item in simulation_requirements]]
+            [
+                "",
+                "## Simulation requirements",
+                *[f"- {item}" for item in simulation_requirements],
+            ]
         )
     if parameter_constraints:
         lines.extend(
-            ["", "## Parameter constraints", *[f"- {item}" for item in parameter_constraints]]
+            [
+                "",
+                "## Parameter constraints",
+                *[f"- {item}" for item in parameter_constraints],
+            ]
         )
     if plot_requirements:
-        lines.extend(["", "## Plot requirements", *[f"- {item}" for item in plot_requirements]])
+        lines.extend(
+            ["", "## Plot requirements", *[f"- {item}" for item in plot_requirements]]
+        )
     if acceptance_checks:
-        lines.extend(["", "## Acceptance checks", *[f"- {item}" for item in acceptance_checks]])
+        lines.extend(
+            ["", "## Acceptance checks", *[f"- {item}" for item in acceptance_checks]]
+        )
     lines.extend(
         [
             "",
@@ -153,7 +169,9 @@ def _extract_tagged_json_payload(
 
 
 def _extract_reproduce_plan_payload(assistant_text: str) -> dict[str, object] | None:
-    return _extract_tagged_json_payload(assistant_text, token_re=REPRODUCE_PLAN_TOKEN_RE)
+    return _extract_tagged_json_payload(
+        assistant_text, token_re=REPRODUCE_PLAN_TOKEN_RE
+    )
 
 
 def _extract_research_plan_payload(assistant_text: str) -> dict[str, object] | None:
@@ -183,8 +201,12 @@ def _normalize_automation_plan(
         title = str(raw_task.get("title") or f"Task {index}").strip()
         objective = str(raw_task.get("objective") or "").strip()
         figure_targets = _normalize_string_list(raw_task.get("figure_targets"))
-        simulation_requirements = _normalize_string_list(raw_task.get("simulation_requirements"))
-        parameter_constraints = _normalize_string_list(raw_task.get("parameter_constraints"))
+        simulation_requirements = _normalize_string_list(
+            raw_task.get("simulation_requirements")
+        )
+        parameter_constraints = _normalize_string_list(
+            raw_task.get("parameter_constraints")
+        )
         plot_requirements = _normalize_string_list(raw_task.get("plot_requirements"))
         acceptance_checks = _normalize_string_list(raw_task.get("acceptance_checks"))
         prompt_markdown = str(raw_task.get("prompt_markdown") or "").strip()
@@ -273,7 +295,9 @@ def _run_reproduce_exec_turn(
     cli._print_tagged("package", f"Using {package_id} (selection: {source})")
     if note and note not in {"manual_pin", "default_fallback", "matched"}:
         cli._print_tagged("router", note)
-    sandbox_text = f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
+    sandbox_text = (
+        f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
+    )
     cli._print_tagged("agent", f"provider: {provider}, sandbox: {sandbox_text}")
 
     overlay = cli._overlay_exec_package(
@@ -282,7 +306,9 @@ def _run_reproduce_exec_turn(
         package_id=package_id,
     )
     linked = int(overlay.get("linked_count", 0)) if isinstance(overlay, dict) else 0
-    collisions = int(overlay.get("collision_count", 0)) if isinstance(overlay, dict) else 0
+    collisions = (
+        int(overlay.get("collision_count", 0)) if isinstance(overlay, dict) else 0
+    )
     linked_deps = (
         int(overlay.get("linked_dependency_count", 0))
         if isinstance(overlay, dict)
@@ -362,13 +388,17 @@ def _generate_mode_plan(
             )
             continue
         try:
-            planner_plan = normalize_plan(raw_payload, source_description=source_description)
+            planner_plan = normalize_plan(
+                raw_payload, source_description=source_description
+            )
         except cli.PackageError as exc:
             cli._print_tagged(log_tag, f"planner response invalid: {exc}", stderr=True)
             continue
         break
     if planner_plan is None:
-        raise cli.PackageError(f"Unable to generate a valid {log_tag} plan from planner response.")
+        raise cli.PackageError(
+            f"Unable to generate a valid {log_tag} plan from planner response."
+        )
 
     audited_plan: dict[str, object] | None = None
     auditor_prompt = (
@@ -403,13 +433,17 @@ def _generate_mode_plan(
             )
             continue
         try:
-            audited_plan = normalize_plan(raw_payload, source_description=source_description)
+            audited_plan = normalize_plan(
+                raw_payload, source_description=source_description
+            )
         except cli.PackageError as exc:
             cli._print_tagged(log_tag, f"auditor response invalid: {exc}", stderr=True)
             continue
         break
     if audited_plan is None:
-        raise cli.PackageError(f"Unable to generate a valid {log_tag} plan from auditor response.")
+        raise cli.PackageError(
+            f"Unable to generate a valid {log_tag} plan from auditor response."
+        )
     return audited_plan
 
 
@@ -471,7 +505,9 @@ def _generate_research_plan(
     )
 
 
-def _archive_loop_memory(*, repo_dir: Path, archive_dir: Path, task_id: str, run_count: int) -> None:
+def _archive_loop_memory(
+    *, repo_dir: Path, archive_dir: Path, task_id: str, run_count: int
+) -> None:
     cli = _cli()
     memory_path = repo_dir / LOOP_MEMORY_DIRNAME / LOOP_MEMORY_FILENAME
     if not memory_path.is_file():
@@ -481,7 +517,9 @@ def _archive_loop_memory(*, repo_dir: Path, archive_dir: Path, task_id: str, run
     try:
         shutil.copy2(memory_path, archive_path)
     except OSError as exc:
-        raise cli.PackageError(f"Failed to archive loop memory to {archive_path}: {exc}") from exc
+        raise cli.PackageError(
+            f"Failed to archive loop memory to {archive_path}: {exc}"
+        ) from exc
 
 
 def _ensure_loop_memory(
@@ -521,10 +559,7 @@ def _ensure_loop_memory(
         ]
         if normalized_context:
             context_block = (
-                "\n"
-                "## Workflow context\n"
-                + "\n".join(normalized_context)
-                + "\n"
+                "\n" "## Workflow context\n" + "\n".join(normalized_context) + "\n"
             )
     initial = (
         "# FermiLink Loop Memory\n"
@@ -545,7 +580,9 @@ def _ensure_loop_memory(
     try:
         memory_path.write_text(initial, encoding="utf-8")
     except OSError as exc:
-        raise cli.PackageError(f"Failed to create loop memory file: {memory_path}: {exc}") from exc
+        raise cli.PackageError(
+            f"Failed to create loop memory file: {memory_path}: {exc}"
+        ) from exc
     return memory_path
 
 
@@ -577,7 +614,9 @@ def _summarize_archived_memory(path: Path, *, max_items: int = 3) -> list[str]:
         lowered = item.lower()
         if lowered in {"initialized", "(fill in a small checklist plan)"}:
             continue
-        if lowered.startswith("started_at_utc:") or lowered.startswith("prompt_source:"):
+        if lowered.startswith("started_at_utc:") or lowered.startswith(
+            "prompt_source:"
+        ):
             continue
         if lowered.startswith("[ ]"):
             continue
@@ -614,7 +653,9 @@ def _materialize_mode_plan(
     cli = _cli()
     tasks = plan.get("tasks")
     if not isinstance(tasks, list) or not tasks:
-        raise cli.PackageError(f"{workflow_name.title()} planner produced no executable tasks.")
+        raise cli.PackageError(
+            f"{workflow_name.title()} planner produced no executable tasks."
+        )
 
     prompts_dir = run_dir / REPRODUCE_PROMPTS_DIRNAME
     prompts_dir.mkdir(parents=True, exist_ok=True)
@@ -625,7 +666,10 @@ def _materialize_mode_plan(
     for index, task_obj in enumerate(tasks, start=1):
         if not isinstance(task_obj, dict):
             raise cli.PackageError(f"Task {index} in {workflow_name} plan is invalid.")
-        task_id = str(task_obj.get("id") or f"task_{index:03d}").strip() or f"task_{index:03d}"
+        task_id = (
+            str(task_obj.get("id") or f"task_{index:03d}").strip()
+            or f"task_{index:03d}"
+        )
         prompt_markdown = str(task_obj.get("prompt_markdown") or "").strip()
         if not prompt_markdown:
             raise cli.PackageError(f"Task {task_id} has empty `prompt_markdown`.")
@@ -634,7 +678,9 @@ def _materialize_mode_plan(
         try:
             prompt_path.write_text(prompt_markdown.strip() + "\n", encoding="utf-8")
         except OSError as exc:
-            raise cli.PackageError(f"Failed to write task prompt file: {prompt_path}: {exc}") from exc
+            raise cli.PackageError(
+                f"Failed to write task prompt file: {prompt_path}: {exc}"
+            ) from exc
         plan_task = dict(task_obj)
         plan_task["prompt_file"] = prompt_rel
         plan_tasks.append(plan_task)
@@ -679,9 +725,13 @@ def _maybe_sync_mode_plan_from_disk(
     try:
         raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise cli.PackageError(f"Failed to read {workflow_name} plan file: {plan_path}: {exc}") from exc
+        raise cli.PackageError(
+            f"Failed to read {workflow_name} plan file: {plan_path}: {exc}"
+        ) from exc
     if not isinstance(raw_plan, dict):
-        raise cli.PackageError(f"{workflow_name.title()} plan file is not a JSON object: {plan_path}")
+        raise cli.PackageError(
+            f"{workflow_name.title()} plan file is not a JSON object: {plan_path}"
+        )
 
     normalized_plan = _normalize_automation_plan(
         raw_plan,
@@ -716,7 +766,9 @@ def _finalize_workflow_report(
     cli = _cli()
     plan_path = run_dir / REPRODUCE_PLAN_FILENAME
     if not plan_path.is_file():
-        raise cli.PackageError(f"Missing plan file for {workflow_name} report generation: {plan_path}")
+        raise cli.PackageError(
+            f"Missing plan file for {workflow_name} report generation: {plan_path}"
+        )
 
     summaries_root = run_dir / WORKFLOW_SUMMARIES_DIRNAME
     summaries_root.mkdir(parents=True, exist_ok=True)
@@ -731,7 +783,9 @@ def _finalize_workflow_report(
     summary_paths: list[Path] = []
     task_lines: list[str] = []
     for index, task in enumerate(tasks_state, start=1):
-        task_id = str(task.get("id") or f"task_{index:03d}").strip() or f"task_{index:03d}"
+        task_id = (
+            str(task.get("id") or f"task_{index:03d}").strip() or f"task_{index:03d}"
+        )
         summary_path = summaries_root / task_id / "summary.md"
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         summary_paths.append(summary_path)
@@ -905,7 +959,9 @@ def cmd_plan_workflow(
     source_fingerprint = hashlib.sha256(user_prompt.strip().encode("utf-8")).hexdigest()
     resume_enabled = bool(getattr(args, "resume", True))
     if report_only and not resume_enabled:
-        raise cli.PackageError("--report-only requires --resume (do not use --restart).")
+        raise cli.PackageError(
+            "--report-only requires --resume (do not use --restart)."
+        )
     run_dir: Path | None = None
     state: dict[str, object] | None = None
 
@@ -916,10 +972,13 @@ def cmd_plan_workflow(
                 candidate = runs_root / latest_run_id
                 candidate_state_path = candidate / cli.REPRODUCE_STATE_FILENAME
                 if candidate_state_path.is_file():
-                    loaded = json.loads(candidate_state_path.read_text(encoding="utf-8"))
+                    loaded = json.loads(
+                        candidate_state_path.read_text(encoding="utf-8")
+                    )
                     if isinstance(loaded, dict):
                         same_source = (
-                            str(loaded.get("source_fingerprint") or "") == source_fingerprint
+                            str(loaded.get("source_fingerprint") or "")
+                            == source_fingerprint
                         )
                         status = str(loaded.get("status") or "")
                         if same_source and (status not in {"completed"} or report_only):
@@ -994,10 +1053,14 @@ def cmd_plan_workflow(
             state=state,
             workflow_name=workflow_name,
         )
-        state["status"] = "plan_ready" if bool(getattr(args, "plan_only", False)) else "running_tasks"
+        state["status"] = (
+            "plan_ready" if bool(getattr(args, "plan_only", False)) else "running_tasks"
+        )
         state["updated_at_utc"] = cli._utc_now_z()
         cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
-        cli._print_tagged(workflow_name, f"plan ready with {len(state.get('tasks') or [])} tasks")
+        cli._print_tagged(
+            workflow_name, f"plan ready with {len(state.get('tasks') or [])} tasks"
+        )
     elif state_status == "completed" and not report_only:
         cli._print_tagged(workflow_name, "run already completed")
         print(cli.LOOP_DONE_TOKEN)
@@ -1013,7 +1076,9 @@ def cmd_plan_workflow(
         cli._print_tagged(workflow_name, "synced plan from plan.json")
 
     if plan_only:
-        cli._print_tagged(workflow_name, f"plan-only mode: {run_dir.relative_to(repo_dir)}")
+        cli._print_tagged(
+            workflow_name, f"plan-only mode: {run_dir.relative_to(repo_dir)}"
+        )
         return 0
 
     tasks_state = state.get("tasks")
@@ -1076,7 +1141,9 @@ def cmd_plan_workflow(
                     "reason": "skip_report_flag",
                     "updated_at_utc": cli._utc_now_z(),
                 }
-                cli._print_tagged(workflow_name, "skipping report generation (--skip-report)")
+                cli._print_tagged(
+                    workflow_name, "skipping report generation (--skip-report)"
+                )
             else:
                 try:
                     report_info = cli._finalize_workflow_report(
@@ -1094,7 +1161,9 @@ def cmd_plan_workflow(
                     state["status"] = "failed"
                     state["last_error"] = str(exc)
                     state["updated_at_utc"] = cli._utc_now_z()
-                    cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+                    cli._write_json_atomic(
+                        run_dir / cli.REPRODUCE_STATE_FILENAME, state
+                    )
                     cli._print_tagged(workflow_name, str(exc), stderr=True)
                     return 1
                 state["report"] = report_info
@@ -1119,11 +1188,15 @@ def cmd_plan_workflow(
 
         task = tasks_state[current_index]
         if not isinstance(task, dict):
-            raise cli.PackageError(f"Task index {current_index} in {workflow_name} state is invalid.")
+            raise cli.PackageError(
+                f"Task index {current_index} in {workflow_name} state is invalid."
+            )
         task_id = str(task.get("id") or f"task_{current_index + 1:03d}").strip()
         prompt_rel = str(task.get("prompt_file") or "").strip()
         if not prompt_rel:
-            raise cli.PackageError(f"Task {task_id} is missing `prompt_file` in {workflow_name} state.")
+            raise cli.PackageError(
+                f"Task {task_id} is missing `prompt_file` in {workflow_name} state."
+            )
         prompt_path = run_dir / prompt_rel
         if not prompt_path.is_file():
             raise cli.PackageError(f"Task prompt file does not exist: {prompt_path}")
@@ -1161,9 +1234,13 @@ def cmd_plan_workflow(
         task_runs = int(task_runs_state.get(task_id, 0))
         if task_runs == 0:
             try:
-                task_prompt_text = prompt_path.read_text(encoding="utf-8", errors="replace")
+                task_prompt_text = prompt_path.read_text(
+                    encoding="utf-8", errors="replace"
+                )
             except OSError as exc:
-                raise cli.PackageError(f"Failed to read task prompt file: {prompt_path}: {exc}") from exc
+                raise cli.PackageError(
+                    f"Failed to read task prompt file: {prompt_path}: {exc}"
+                ) from exc
 
             workflow_context_lines = [
                 f"- workflow: {workflow_name}",
@@ -1188,7 +1265,9 @@ def cmd_plan_workflow(
                         "(most recent completed task run memory)"
                     )
                 )
-                handoff_summary = _summarize_archived_memory(latest_archived_memory_path)
+                handoff_summary = _summarize_archived_memory(
+                    latest_archived_memory_path
+                )
                 if handoff_summary:
                     workflow_context_lines.append(
                         "- handoff_summary_from_latest_archive: quick continuity notes"

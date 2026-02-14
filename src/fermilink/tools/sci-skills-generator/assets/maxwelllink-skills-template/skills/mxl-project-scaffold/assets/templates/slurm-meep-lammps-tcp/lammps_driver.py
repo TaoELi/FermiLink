@@ -23,7 +23,9 @@ def _wait_for_host_port(path: Path, timeout_s: int = 120) -> tuple[str, int]:
     raise FileNotFoundError(f"Host/port file not found or incomplete: {path}")
 
 
-def _render_lammps_input(template_path: Path, out_path: Path, host: str, port: int) -> None:
+def _render_lammps_input(
+    template_path: Path, out_path: Path, host: str, port: int
+) -> None:
     text = template_path.read_text(encoding="utf-8")
     text = text.replace("HOST", host).replace("PORT", str(port))
     out_path.write_text(text, encoding="utf-8")

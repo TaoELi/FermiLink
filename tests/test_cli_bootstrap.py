@@ -6,9 +6,7 @@ from fermilink import cli
 from fermilink.packages.curated_channels import ChannelPackage
 
 
-def test_bootstrap_skips_when_packages_exist(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_bootstrap_skips_when_packages_exist(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
     monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
     monkeypatch.setattr(
@@ -37,7 +35,9 @@ def test_bootstrap_installs_maxwelllink_when_registry_empty(
 
     called: dict[str, object] = {}
 
-    def fake_resolve_curated(package_id: str, *, channel: str | None = None) -> ChannelPackage:
+    def fake_resolve_curated(
+        package_id: str, *, channel: str | None = None
+    ) -> ChannelPackage:
         called["resolve_package_id"] = package_id
         called["resolve_channel"] = channel
         return ChannelPackage(
@@ -123,6 +123,12 @@ def test_start_continues_when_bootstrap_fails(monkeypatch, tmp_path: Path) -> No
 def test_install_parser_accepts_active_alias() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(
-        ["install", "maxwelllink", "--zip-url", "https://example.invalid/pkg.zip", "--active"]
+        [
+            "install",
+            "maxwelllink",
+            "--zip-url",
+            "https://example.invalid/pkg.zip",
+            "--active",
+        ]
     )
     assert args.activate is True

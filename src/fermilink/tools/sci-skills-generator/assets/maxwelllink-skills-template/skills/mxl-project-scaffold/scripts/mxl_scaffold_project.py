@@ -14,7 +14,9 @@ def _find_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / "projects").is_dir() and (candidate / "skills").is_dir():
             return candidate
-    raise FileNotFoundError("Could not locate repo root (missing projects/ and skills/)")
+    raise FileNotFoundError(
+        "Could not locate repo root (missing projects/ and skills/)"
+    )
 
 
 def _templates_root(repo_root: Path) -> Path:
@@ -24,7 +26,9 @@ def _templates_root(repo_root: Path) -> Path:
 def _list_templates(root: Path) -> list[str]:
     if not root.is_dir():
         return []
-    return sorted([p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")])
+    return sorted(
+        [p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")]
+    )
 
 
 def _replace_placeholders(project_dir: Path, replacement: str) -> None:

@@ -81,7 +81,9 @@ def _append_history(
     content = (content or "").strip()
     if not content:
         return history
-    content = _truncate_history_entry(content, history_entry_max_chars=history_entry_max_chars)
+    content = _truncate_history_entry(
+        content, history_entry_max_chars=history_entry_max_chars
+    )
     history.append((role, content))
     if history_max_messages > 0 and len(history) > history_max_messages:
         history = history[-history_max_messages:]

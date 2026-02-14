@@ -9,7 +9,9 @@ def _cli():
     return cli
 
 
-def _inject_exec_option_before_prompt(command: list[str], *option_tokens: str) -> list[str]:
+def _inject_exec_option_before_prompt(
+    command: list[str], *option_tokens: str
+) -> list[str]:
     """Insert option tokens before the final prompt argument."""
 
     if not command:
@@ -26,7 +28,9 @@ def _stream_exec_process_output(process) -> int:
             return
         for line in iter(stream.readline, ""):
             text = line.rstrip("\n")
-            print(text, file=cli.sys.stderr if is_stderr else cli.sys.stdout, flush=True)
+            print(
+                text, file=cli.sys.stderr if is_stderr else cli.sys.stdout, flush=True
+            )
         stream.close()
 
     stdout_thread = cli.threading.Thread(
@@ -59,7 +63,9 @@ def _stream_exec_process_output_with_capture(
             else:
                 stdout_lines.append(line)
             text = line.rstrip("\n")
-            print(text, file=cli.sys.stderr if is_stderr else cli.sys.stdout, flush=True)
+            print(
+                text, file=cli.sys.stderr if is_stderr else cli.sys.stdout, flush=True
+            )
         stream.close()
 
     stdout_thread = cli.threading.Thread(
@@ -167,7 +173,9 @@ def _run_exec_chat_turn(
                     f"{provider} CLI not found: {provider_bin}. "
                     f"Install the provider CLI or set {env_key}."
                 ) from exc
-            return_code, stdout_text, stderr_text = cli._stream_exec_process_output_with_capture(process)
+            return_code, stdout_text, stderr_text = (
+                cli._stream_exec_process_output_with_capture(process)
+            )
 
         assistant_text = ""
         try:
@@ -177,7 +185,9 @@ def _run_exec_chat_turn(
 
         if not assistant_text and stdout_text:
             web_app = cli._load_web_router_module()
-            assistant_text = cli._collect_second_guess_assistant_text(stdout_text, web_app=web_app)
+            assistant_text = cli._collect_second_guess_assistant_text(
+                stdout_text, web_app=web_app
+            )
 
         return {
             "assistant_text": assistant_text,

@@ -112,7 +112,9 @@ def cmd_compile(args: argparse.Namespace) -> int:
         shutil.rmtree(tool_dest, ignore_errors=True)
 
     if tool_dest.exists():
-        raise cli.PackageError(f"Failed to clean up temporary tool directory: {tool_dest}")
+        raise cli.PackageError(
+            f"Failed to clean up temporary tool directory: {tool_dest}"
+        )
 
     compile_runs.append(
         cli._run_codex_compile_pass(
@@ -165,7 +167,9 @@ def cmd_install(args: argparse.Namespace) -> int:
     scipkg_root = cli.resolve_scipkg_root()
     raw_package_id = getattr(args, "package_id", None)
     if isinstance(raw_package_id, list):
-        requested_ids = [item for item in raw_package_id if isinstance(item, str) and item.strip()]
+        requested_ids = [
+            item for item in raw_package_id if isinstance(item, str) and item.strip()
+        ]
     elif isinstance(raw_package_id, str) and raw_package_id.strip():
         requested_ids = [raw_package_id.strip()]
     else:
@@ -175,7 +179,9 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     requested_version_raw = getattr(args, "version_id", None)
     requested_version = (
-        str(requested_version_raw).strip() if isinstance(requested_version_raw, str) else ""
+        str(requested_version_raw).strip()
+        if isinstance(requested_version_raw, str)
+        else ""
     )
     if requested_version == "":
         requested_version = None
@@ -184,7 +190,9 @@ def cmd_install(args: argparse.Namespace) -> int:
     if requested_version and (args.local_path or args.zip_url):
         raise cli.PackageError("--version only applies to curated channel installs.")
     if require_verified and (args.local_path or args.zip_url):
-        raise cli.PackageError("--require-verified only applies to curated channel installs.")
+        raise cli.PackageError(
+            "--require-verified only applies to curated channel installs."
+        )
 
     package_ids = [cli.normalize_package_id(item) for item in requested_ids]
     normalized_channel = cli.normalize_channel_id(args.channel)
@@ -195,20 +203,28 @@ def cmd_install(args: argparse.Namespace) -> int:
                 "Install them first, then run `fermilink activate <package_id>`."
             )
         if args.local_path:
-            raise cli.PackageError("Cannot combine multiple package ids with --local-path.")
+            raise cli.PackageError(
+                "Cannot combine multiple package ids with --local-path."
+            )
         if args.zip_url:
-            raise cli.PackageError("Cannot combine multiple package ids with --zip-url.")
+            raise cli.PackageError(
+                "Cannot combine multiple package ids with --zip-url."
+            )
         if args.title:
             raise cli.PackageError("Cannot combine multiple package ids with --title.")
         if requested_version:
-            raise cli.PackageError("Cannot combine multiple package ids with --version.")
+            raise cli.PackageError(
+                "Cannot combine multiple package ids with --version."
+            )
 
         installed: list[dict[str, object]] = []
         sources: dict[str, str] = {}
         selected_versions: dict[str, str] = {}
         unverified: list[str] = []
         for package_id in package_ids:
-            curated = cli.resolve_curated_package(package_id, channel=normalized_channel)
+            curated = cli.resolve_curated_package(
+                package_id, channel=normalized_channel
+            )
             selected_version = cli.select_package_version(curated)
             if require_verified and not selected_version.verified:
                 raise cli.PackageError(
@@ -260,7 +276,9 @@ def cmd_install(args: argparse.Namespace) -> int:
         }
         if unverified:
             payload["unverified_versions"] = unverified
-        summary = ", ".join(str(item.get("id") or "") for item in installed if isinstance(item, dict))
+        summary = ", ".join(
+            str(item.get("id") or "") for item in installed if isinstance(item, dict)
+        )
         summary = summary or ", ".join(package_ids)
         lines = [
             f"Installed {len(installed)} packages: {summary}.",
@@ -272,7 +290,9 @@ def cmd_install(args: argparse.Namespace) -> int:
         ]
         if unverified:
             lines.append(
-                "Warning: installed unverified curated versions: " + ", ".join(unverified) + "."
+                "Warning: installed unverified curated versions: "
+                + ", ".join(unverified)
+                + "."
             )
         cli._emit_output(args, payload, lines)
         return 0
@@ -298,8 +318,12 @@ def cmd_install(args: argparse.Namespace) -> int:
         selected_version_verified: bool | None = None
         selected_source_ref: dict[str, str | None] | None = None
         if not zip_url:
-            curated = cli.resolve_curated_package(package_id, channel=normalized_channel)
-            selected_version = cli.select_package_version(curated, version_id=requested_version)
+            curated = cli.resolve_curated_package(
+                package_id, channel=normalized_channel
+            )
+            selected_version = cli.select_package_version(
+                curated, version_id=requested_version
+            )
             if require_verified and not selected_version.verified:
                 raise cli.PackageError(
                     f"Selected curated version '{selected_version.version_id}' for package "
@@ -316,7 +340,9 @@ def cmd_install(args: argparse.Namespace) -> int:
                 "value": selected_version.source_ref_value,
             }
             if not selected_version.verified:
-                selected_unverified_label = f"{package_id}@{selected_version.version_id}"
+                selected_unverified_label = (
+                    f"{package_id}@{selected_version.version_id}"
+                )
 
         meta = cli.install_from_zip(
             scipkg_root,
@@ -337,8 +363,12 @@ def cmd_install(args: argparse.Namespace) -> int:
                 version_id=selected_version_id or "branch-head",
                 source_archive_url=str(zip_url),
                 verified=bool(selected_version_verified),
-                source_ref_type=selected_source_ref.get("type") if selected_source_ref else None,
-                source_ref_value=selected_source_ref.get("value") if selected_source_ref else None,
+                source_ref_type=(
+                    selected_source_ref.get("type") if selected_source_ref else None
+                ),
+                source_ref_value=(
+                    selected_source_ref.get("value") if selected_source_ref else None
+                ),
             )
         source = str(zip_url)
 
@@ -364,7 +394,9 @@ def cmd_install(args: argparse.Namespace) -> int:
         ),
     ]
     if selected_unverified_label:
-        lines.append(f"Warning: installed unverified curated version: {selected_unverified_label}.")
+        lines.append(
+            f"Warning: installed unverified curated version: {selected_unverified_label}."
+        )
     cli._emit_output(args, payload, lines)
     return 0
 
@@ -519,7 +551,9 @@ def cmd_activate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _collect_csv_and_repeat(values: list[str] | None, csv_value: str | None) -> list[str]:
+def _collect_csv_and_repeat(
+    values: list[str] | None, csv_value: str | None
+) -> list[str]:
     collected: list[str] = []
     if values:
         collected.extend(values)
@@ -558,7 +592,9 @@ def cmd_overlay(args: argparse.Namespace) -> int:
         "meta": meta,
         "scipkg_root": str(scipkg_root),
     }
-    cli._emit_output(args, payload, [f"Overlay entries for '{package_id}': {entry_text}."])
+    cli._emit_output(
+        args, payload, [f"Overlay entries for '{package_id}': {entry_text}."]
+    )
     return 0
 
 

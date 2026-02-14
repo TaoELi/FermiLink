@@ -36,9 +36,13 @@ def _patch_minimal_runner_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.setattr(
         runner_app, "bootstrap_legacy_maxwelllink_package", lambda *_a, **_k: None
     )
-    monkeypatch.setattr(runner_app, "_ensure_template_agents_file", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        runner_app, "_ensure_template_agents_file", lambda *_a, **_k: None
+    )
     monkeypatch.setattr(runner_app, "_ensure_git_repo", lambda *_a, **_k: None)
-    monkeypatch.setattr(runner_app, "resolve_session_package", lambda **_k: (None, None))
+    monkeypatch.setattr(
+        runner_app, "resolve_session_package", lambda **_k: (None, None)
+    )
 
 
 def _line_reader(lines: list[str]) -> asyncio.StreamReader:
@@ -125,10 +129,14 @@ def test_web_stream_runner_parses_runner_sse_end_to_end(
     meta_payload = json.loads(events[0][1])
     assert meta_payload["session_id"] == "session-stream-test"
 
-    codex_payloads = [json.loads(data) for event_type, data in events if event_type == "codex"]
+    codex_payloads = [
+        json.loads(data) for event_type, data in events if event_type == "codex"
+    ]
     assert any(payload.get("type") == "agent_message" for payload in codex_payloads)
 
-    log_payload = json.loads(next(data for event_type, data in events if event_type == "log"))
+    log_payload = json.loads(
+        next(data for event_type, data in events if event_type == "log")
+    )
     assert log_payload["text"] == "runner-stderr-line"
 
     exit_payload = json.loads(events[-1][1])

@@ -46,19 +46,25 @@ def test_default_registry_shape_contract_matches_runner() -> None:
     cli_default = package_registry._default_registry()
     runner_default = scientific_packages._default_registry()
 
-    assert set(cli_default.keys()) == set(runner_default.keys()) == {
-        "version",
-        "active_package",
-        "packages",
-        "updated_at",
-    }
+    assert (
+        set(cli_default.keys())
+        == set(runner_default.keys())
+        == {
+            "version",
+            "active_package",
+            "packages",
+            "updated_at",
+        }
+    )
     assert cli_default["version"] == runner_default["version"] == 1
     assert cli_default["active_package"] is None
     assert runner_default["active_package"] is None
     assert cli_default["packages"] == {}
     assert runner_default["packages"] == {}
     assert isinstance(cli_default["updated_at"], str) and cli_default["updated_at"]
-    assert isinstance(runner_default["updated_at"], str) and runner_default["updated_at"]
+    assert (
+        isinstance(runner_default["updated_at"], str) and runner_default["updated_at"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -73,7 +79,9 @@ def test_default_registry_shape_contract_matches_runner() -> None:
         ("agents.md", False),
     ],
 )
-def test_entry_exportability_contract_matches_runner(entry_name: str, expected: bool) -> None:
+def test_entry_exportability_contract_matches_runner(
+    entry_name: str, expected: bool
+) -> None:
     entry = Path(entry_name)
     assert package_registry._entry_is_exportable(entry) is expected
     assert scientific_packages._entry_is_exportable(entry) is expected
@@ -104,8 +112,7 @@ def test_manifest_extractors_contract_matches_runner() -> None:
     assert package_registry._manifest_entry_names(manifest) == expected_entries
     assert scientific_packages._manifest_entry_names(manifest) == expected_entries
     assert (
-        package_registry._manifest_dependency_ids(manifest)
-        == expected_dependency_ids
+        package_registry._manifest_dependency_ids(manifest) == expected_dependency_ids
     )
     assert (
         scientific_packages._manifest_dependency_ids(manifest)
@@ -203,19 +210,33 @@ def test_overlay_manifest_payload_shape_contract_matches_runner(tmp_path: Path) 
     assert set(cli_summary.keys()) == set(runner_summary.keys())
     assert set(cli_manifest.keys()) == set(runner_manifest.keys())
     assert cli_summary["package_id"] == runner_summary["package_id"] == "demo"
-    assert cli_summary["requested_entries"] == runner_summary["requested_entries"] == [
-        "skills"
-    ]
-    assert cli_summary["dependency_package_ids"] == runner_summary["dependency_package_ids"] == []
-    assert cli_summary["missing_requested_entries"] == runner_summary["missing_requested_entries"] == []
-    assert cli_manifest["configured_dependency_package_ids"] == runner_manifest[
-        "configured_dependency_package_ids"
-    ] == []
+    assert (
+        cli_summary["requested_entries"]
+        == runner_summary["requested_entries"]
+        == ["skills"]
+    )
+    assert (
+        cli_summary["dependency_package_ids"]
+        == runner_summary["dependency_package_ids"]
+        == []
+    )
+    assert (
+        cli_summary["missing_requested_entries"]
+        == runner_summary["missing_requested_entries"]
+        == []
+    )
+    assert (
+        cli_manifest["configured_dependency_package_ids"]
+        == runner_manifest["configured_dependency_package_ids"]
+        == []
+    )
     assert {item["name"] for item in cli_manifest["linked_entries"]} == {"skills"}
     assert {item["name"] for item in runner_manifest["linked_entries"]} == {"skills"}
 
 
-def test_overlay_previous_non_symlink_collision_behavior_contract(tmp_path: Path) -> None:
+def test_overlay_previous_non_symlink_collision_behavior_contract(
+    tmp_path: Path,
+) -> None:
     package_root = tmp_path / "pkg"
     _make_package(package_root, ["skills"])
     package_meta = {"installed_path": str(package_root), "overlay_entries": ["skills"]}
