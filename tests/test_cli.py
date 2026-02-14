@@ -15,7 +15,7 @@ def _make_local_package(path: Path) -> None:
 
 def test_cli_install_local_auto_sync(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
-    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
     source = tmp_path / "ase-src"
     _make_local_package(source)
@@ -30,7 +30,7 @@ def test_cli_install_local_auto_sync(monkeypatch, tmp_path: Path) -> None:
 
 def test_cli_dependencies(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
-    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
     source_a = tmp_path / "maxwell-src"
     source_b = tmp_path / "meep-src"
@@ -52,7 +52,7 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     scipkg_root = tmp_path / "scientific_packages"
-    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
     install_calls: list[dict[str, object]] = []
 
@@ -116,7 +116,7 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
 
 def test_cli_install_uses_requested_curated_version(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
-    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
     install_calls: list[dict[str, object]] = []
 
@@ -185,7 +185,7 @@ def test_cli_install_require_verified_rejects_unverified(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     scipkg_root = tmp_path / "scientific_packages"
-    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
     monkeypatch.setattr(
         cli,
@@ -217,7 +217,7 @@ def test_cli_install_multiple_packages_rejects_activate(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     scipkg_root = tmp_path / "scientific_packages"
-    monkeypatch.setenv("SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
     code = cli.main(["install", "ase", "meep", "--activate"])
     assert code == 2

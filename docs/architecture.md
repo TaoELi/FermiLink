@@ -26,7 +26,7 @@ Shared infrastructure:
 3. Optional second-guess preflight runs a policy-aware runner call with strict JSON output.
 4. Web calls runner `POST /run` with `session_id`, `user_id`, prompt, provider, optional sandbox, optional `package_id`.
 5. Runner admission queue enforces global and per-user concurrency limits.
-6. Runner provisions `WORKSPACES_ROOT/<session_id>/repo`, ensures `AGENTS.md`, ensures git repo.
+6. Runner provisions `FERMILINK_WORKSPACES_ROOT/<session_id>/repo`, ensures `AGENTS.md`, ensures git repo.
 7. Runner resolves package and overlays selected package entries into `repo/`.
 8. Runner resolves effective agent policy and executes provider CLI (`codex` today) via unified command builder.
 9. Web renders assistant stream, command steps, artifacts, and optional transparency report.
@@ -36,9 +36,9 @@ Shared infrastructure:
 
 Per session:
 
-- Workspace root: `WORKSPACES_ROOT/<session_id>/`
-- Working repo: `WORKSPACES_ROOT/<session_id>/repo/`
-- Overlay manifest: `WORKSPACES_ROOT/<session_id>/.package_manifest.json`
+- Workspace root: `FERMILINK_WORKSPACES_ROOT/<session_id>/`
+- Working repo: `FERMILINK_WORKSPACES_ROOT/<session_id>/repo/`
+- Overlay manifest: `FERMILINK_WORKSPACES_ROOT/<session_id>/.package_manifest.json`
 - Output convention: `repo/outputs/`
 
 Overlay behavior:
@@ -61,7 +61,7 @@ Web-layer routing (`src/fermilink/web/app.py`):
 Runner-layer resolution (`src/fermilink/runner/scientific_packages.py`):
 
 - Final package source of truth before overlay:
-  requested package -> workspace manifest -> `SCIPKG_ACTIVE` -> registry active package
+  requested package -> workspace manifest -> `FERMILINK_SCIPKG_ACTIVE` -> registry active package
 
 ## Streaming Contract
 
@@ -99,7 +99,7 @@ Operational endpoints:
 - `GET /ops/concurrency.prom` (Prometheus text)
 - `GET /ops/admission` (per-user readiness snapshot)
 
-When `RUNNER_METRICS_TOKEN` is set, these endpoints require
+When `FERMILINK_RUNNER_METRICS_TOKEN` is set, these endpoints require
 `X-Runner-Metrics-Token`.
 
 ## Agent Runtime Policy Plane

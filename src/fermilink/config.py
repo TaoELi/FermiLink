@@ -39,7 +39,10 @@ def resolve_fermilink_home() -> Path:
 def resolve_scipkg_root() -> Path:
     """Resolve scientific-package storage root and ensure it exists."""
 
-    raw = _first_env("SCIPKG_ROOT", "SCIENTIFIC_PACKAGES_ROOT")
+    raw = _first_env(
+        "FERMILINK_SCIPKG_ROOT",
+        "FERMILINK_SCIENTIFIC_PACKAGES_ROOT",
+    )
     if raw:
         root = _resolve_path(raw, default=Path.cwd())
     else:
@@ -51,7 +54,7 @@ def resolve_scipkg_root() -> Path:
 def resolve_workspaces_root() -> Path:
     """Resolve workspaces root and ensure it exists."""
 
-    raw = os.getenv("WORKSPACES_ROOT")
+    raw = os.getenv("FERMILINK_WORKSPACES_ROOT")
     if raw and raw.strip():
         root = _resolve_path(raw, default=Path.cwd())
     else:

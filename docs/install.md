@@ -64,10 +64,10 @@ paths instead:
 
 ```bash
 export FERMILINK_HOME=./.fermilink
-export SCIPKG_ROOT=./.fermilink/scientific_packages
-export WORKSPACES_ROOT=./.fermilink/workspaces
+export FERMILINK_SCIPKG_ROOT=./.fermilink/scientific_packages
+export FERMILINK_WORKSPACES_ROOT=./.fermilink/workspaces
 export FERMILINK_RUNTIME_ROOT=./.fermilink/runtime
-export CHAINLIT_APP_ROOT=./.fermilink
+export FERMILINK_CHAINLIT_APP_ROOT=./.fermilink
 ```
 
 ## Install Scientific Packages
@@ -122,7 +122,7 @@ Compile workflow:
 4. Run `codex exec` pass 2 (audit/refine `skills/`).
 5. Delete `sci-skills-generator/`.
 6. Run `codex exec` pass 3 (consistency + enrichment check).
-7. Install local project to `SCIPKG_ROOT/packages/<package_id>`.
+7. Install local project to `FERMILINK_SCIPKG_ROOT/packages/<package_id>`.
 8. Sync `router_rules.json` (unless `--no-router-sync`).
 
 Notes:
@@ -197,21 +197,21 @@ You can also run services directly:
 
 ```bash
 uvicorn fermilink.runner.app:app --host 0.0.0.0 --port 8000
-RUNNER_URL=http://127.0.0.1:8000 chainlit run src/fermilink/web/app.py --host 0.0.0.0 --port 7860
+FERMILINK_RUNNER_URL=http://127.0.0.1:8000 chainlit run src/fermilink/web/app.py --host 0.0.0.0 --port 7860
 ```
 
 ## Where Do Web Static Assets Live?
 
 Chainlit serves static files (CSS/JS/logos) from a `public/` directory under
-`CHAINLIT_APP_ROOT`. FermiLink ships its own branding assets in
-`src/fermilink/public/` and seeds them into `$CHAINLIT_APP_ROOT/public/` when
+`FERMILINK_CHAINLIT_APP_ROOT`. FermiLink ships its own branding assets in
+`src/fermilink/public/` and seeds them into `$FERMILINK_CHAINLIT_APP_ROOT/public/` when
 you run the web UI (`fermilink start` or `chainlit run ...`).
 
 Notes:
 
 - This is web-only behavior. `fermilink exec` and `fermilink chat` do not copy
   those web assets into your current repository.
-- If you do not want runtime folders in your repo, set `CHAINLIT_APP_ROOT` (and
+- If you do not want runtime folders in your repo, set `FERMILINK_CHAINLIT_APP_ROOT` (and
   optionally `FERMILINK_HOME`) to a dedicated directory such as `./.fermilink`
   or `~/.fermilink`.
 - In this repository layout, `public/` and `.chainlit/` are already listed in
@@ -223,14 +223,14 @@ In chat UI:
 
 1. Run `/package list` and verify installed packages appear.
 2. Send one package-specific prompt (for example, FDTD for Meep).
-3. Confirm workspace creation under `WORKSPACES_ROOT/<session_id>/repo`.
-4. Confirm overlay manifest at `WORKSPACES_ROOT/<session_id>/.package_manifest.json`.
+3. Confirm workspace creation under `FERMILINK_WORKSPACES_ROOT/<session_id>/repo`.
+4. Confirm overlay manifest at `FERMILINK_WORKSPACES_ROOT/<session_id>/.package_manifest.json`.
 
 ## Common Issues
 
 - `codex` not found:
-  install Codex CLI or set `CODEX_BIN`.
+  install Codex CLI or set `FERMILINK_CODEX_BIN`.
 - Runner returns auth errors:
-  run `codex login` or set a real `CODEX_API_KEY`/`OPENAI_API_KEY`.
+  run `codex login` or set a real `FERMILINK_CODEX_API_KEY`/`FERMILINK_OPENAI_API_KEY`.
 - Web cannot reach runner:
-  set `RUNNER_URL` correctly (for local default use `http://127.0.0.1:8000`).
+  set `FERMILINK_RUNNER_URL` correctly (for local default use `http://127.0.0.1:8000`).

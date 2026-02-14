@@ -190,42 +190,46 @@ def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
         "7860",
     ]
 
-    runner_url = os.getenv("RUNNER_URL", "http://127.0.0.1:8000")
-    chainlit_app_root_raw = os.getenv("CHAINLIT_APP_ROOT")
+    runner_url = os.getenv("FERMILINK_RUNNER_URL", "http://127.0.0.1:8000")
+    chainlit_app_root_raw = os.getenv("FERMILINK_CHAINLIT_APP_ROOT")
     if not chainlit_app_root_raw or not chainlit_app_root_raw.strip():
         chainlit_app_root_raw = str(resolve_fermilink_home())
     chainlit_app_root = Path(chainlit_app_root_raw).expanduser()
     if not chainlit_app_root.is_absolute():
         chainlit_app_root = (Path.cwd() / chainlit_app_root).resolve()
-    scipkg_root_raw = os.getenv("SCIPKG_ROOT", str(chainlit_app_root / "scientific_packages"))
+    scipkg_root_raw = os.getenv(
+        "FERMILINK_SCIPKG_ROOT", str(chainlit_app_root / "scientific_packages")
+    )
     scipkg_root = Path(scipkg_root_raw).expanduser()
     if not scipkg_root.is_absolute():
         scipkg_root = (Path.cwd() / scipkg_root).resolve()
-    workspaces_root_raw = os.getenv("WORKSPACES_ROOT", str(chainlit_app_root / "workspaces"))
+    workspaces_root_raw = os.getenv(
+        "FERMILINK_WORKSPACES_ROOT", str(chainlit_app_root / "workspaces")
+    )
     workspaces_root = Path(workspaces_root_raw).expanduser()
     if not workspaces_root.is_absolute():
         workspaces_root = (Path.cwd() / workspaces_root).resolve()
 
     runner_env = {
-        "SCIPKG_ROOT": str(scipkg_root),
-        "WORKSPACES_ROOT": str(workspaces_root),
+        "FERMILINK_SCIPKG_ROOT": str(scipkg_root),
+        "FERMILINK_WORKSPACES_ROOT": str(workspaces_root),
     }
     web_env = {
-        "RUNNER_URL": runner_url,
-        "CHAINLIT_APP_ROOT": str(chainlit_app_root),
-        "SCIPKG_ROOT": str(scipkg_root),
-        "WORKSPACES_ROOT": str(workspaces_root),
+        "FERMILINK_RUNNER_URL": runner_url,
+        "FERMILINK_CHAINLIT_APP_ROOT": str(chainlit_app_root),
+        "FERMILINK_SCIPKG_ROOT": str(scipkg_root),
+        "FERMILINK_WORKSPACES_ROOT": str(workspaces_root),
     }
 
-    # Do not force a project-local CODEX_HOME by default; otherwise Codex may
+    # Do not force a project-local FERMILINK_CODEX_HOME by default; otherwise Codex may
     # lose existing auth state (often under ~/.codex) and return 401 errors.
-    codex_home_raw = os.getenv("CODEX_HOME")
+    codex_home_raw = os.getenv("FERMILINK_CODEX_HOME")
     if codex_home_raw and codex_home_raw.strip():
         codex_home = Path(codex_home_raw).expanduser()
         if not codex_home.is_absolute():
             codex_home = (Path.cwd() / codex_home).resolve()
-        runner_env["CODEX_HOME"] = str(codex_home)
-        web_env["CODEX_HOME"] = str(codex_home)
+        runner_env["FERMILINK_CODEX_HOME"] = str(codex_home)
+        web_env["FERMILINK_CODEX_HOME"] = str(codex_home)
 
     runtime_policy = load_agent_runtime_policy()
     if ENV_PROVIDER not in os.environ:

@@ -105,18 +105,20 @@ from fermilink.services import (
 )
 
 
-DEFAULT_MAX_ZIP_BYTES = int(os.getenv("SCIPKG_MAX_ZIP_BYTES", str(800 * 1024 * 1024)))
+DEFAULT_MAX_ZIP_BYTES = int(
+    os.getenv("FERMILINK_SCIPKG_MAX_ZIP_BYTES", str(800 * 1024 * 1024))
+)
 DEFAULT_BOOTSTRAP_PACKAGE_ID = "maxwelllink"
 DEFAULT_BOOTSTRAP_CHANNEL = "tel-research-group"
-DEFAULT_COMPILE_CODEX_BIN = os.getenv("CODEX_BIN", "codex")
+DEFAULT_COMPILE_CODEX_BIN = os.getenv("FERMILINK_CODEX_BIN", "codex")
 DEFAULT_COMPILE_SANDBOX = os.getenv("FERMILINK_COMPILE_SANDBOX", "workspace-write")
 
 EXEC_ROUTER_ENABLED = (
-    os.getenv("CHAINLIT_PACKAGE_ROUTER_ENABLED", "true").strip().lower()
+    os.getenv("FERMILINK_CHAINLIT_PACKAGE_ROUTER_ENABLED", "true").strip().lower()
     in {"1", "true", "yes", "on"}
 )
 EXEC_ROUTER_AUTO_DEFAULT = (
-    os.getenv("CHAINLIT_PACKAGE_ROUTER_AUTO", "true").strip().lower()
+    os.getenv("FERMILINK_CHAINLIT_PACKAGE_ROUTER_AUTO", "true").strip().lower()
     in {"1", "true", "yes", "on"}
 )
 EXEC_SECOND_GUESS_ENABLED = (
@@ -125,13 +127,13 @@ EXEC_SECOND_GUESS_ENABLED = (
 )
 try:
     EXEC_SECOND_GUESS_MIN_CONFIDENCE = float(
-        os.getenv("CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE", "0.75")
+        os.getenv("FERMILINK_CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE", "0.75")
     )
 except ValueError:
     EXEC_SECOND_GUESS_MIN_CONFIDENCE = 0.75
 try:
     EXEC_SECOND_GUESS_TIMEOUT_SECONDS = float(
-        os.getenv("CHAINLIT_PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS", "25.0")
+        os.getenv("FERMILINK_CHAINLIT_PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS", "25.0")
     )
 except ValueError:
     EXEC_SECOND_GUESS_TIMEOUT_SECONDS = 25.0

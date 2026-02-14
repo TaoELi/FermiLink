@@ -151,13 +151,13 @@ def resolve_scipkg_root() -> Path:
         Existing or newly created scientific package root path.
     """
 
-    raw_scipkg_root = os.getenv("SCIPKG_ROOT")
+    raw_scipkg_root = os.getenv("FERMILINK_SCIPKG_ROOT")
     if raw_scipkg_root and raw_scipkg_root.strip():
-        path = _resolve_path("SCIPKG_ROOT", Path.cwd())
+        path = _resolve_path("FERMILINK_SCIPKG_ROOT", Path.cwd())
     else:
-        raw_scientific_packages_root = os.getenv("SCIENTIFIC_PACKAGES_ROOT")
+        raw_scientific_packages_root = os.getenv("FERMILINK_SCIENTIFIC_PACKAGES_ROOT")
         if raw_scientific_packages_root and raw_scientific_packages_root.strip():
-            path = _resolve_path("SCIENTIFIC_PACKAGES_ROOT", Path.cwd())
+            path = _resolve_path("FERMILINK_SCIENTIFIC_PACKAGES_ROOT", Path.cwd())
         else:
             path = resolve_fermilink_home() / "scientific_packages"
     path.mkdir(parents=True, exist_ok=True)
@@ -667,7 +667,7 @@ def _resolve_maxwelllink_root() -> Path | None:
         Existing directory for legacy package registration, else `None`.
     """
 
-    env_path = _resolve_path("MAXWELLLINK_ROOT", DEFAULT_MAXWELLLINK_ROOT)
+    env_path = _resolve_path("FERMILINK_MAXWELLLINK_ROOT", DEFAULT_MAXWELLLINK_ROOT)
     if env_path.exists() and env_path.is_dir():
         return env_path
     return None
@@ -692,7 +692,7 @@ def bootstrap_legacy_maxwelllink_package(scipkg_root: Path) -> str | None:
         return None
 
     package_id = normalize_package_id(
-        os.getenv("LEGACY_MAXWELLLINK_PACKAGE_ID", "maxwelllink-local")
+        os.getenv("FERMILINK_LEGACY_MAXWELLLINK_PACKAGE_ID", "maxwelllink-local")
     )
     register_package(
         scipkg_root,
@@ -1132,7 +1132,7 @@ def resolve_session_package(
 ) -> tuple[str, dict[str, Any]] | tuple[None, None]:
     """Resolve which package should be overlaid for a workspace session.
 
-    Resolution order is explicit request, workspace manifest pin, `SCIPKG_ACTIVE`,
+    Resolution order is explicit request, workspace manifest pin, `FERMILINK_SCIPKG_ACTIVE`,
     then registry active package.
 
     Parameters
@@ -1186,7 +1186,7 @@ def resolve_session_package(
                     except PackageValidationError:
                         pass
 
-    env_active = os.getenv("SCIPKG_ACTIVE", "").strip()
+    env_active = os.getenv("FERMILINK_SCIPKG_ACTIVE", "").strip()
     if env_active:
         try:
             env_id = normalize_package_id(env_active)

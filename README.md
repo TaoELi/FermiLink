@@ -46,6 +46,19 @@ fermilink agent codex --sandbox
 # or: fermilink agent --bypass-sandbox
 ```
 
+## Environment Variables
+
+Package-facing environment variables use the `FERMILINK_` prefix to avoid
+namespace collisions, for example:
+
+- `FERMILINK_CHAINLIT_APP_ROOT`
+- `FERMILINK_SCIPKG_ROOT`
+- `FERMILINK_WORKSPACES_ROOT`
+- `FERMILINK_RUNNER_URL`
+- `FERMILINK_CODEX_BIN`
+
+See `docs/configuration.md` for the full configuration matrix.
+
 ## Compile Local Projects Into Packages
 
 Use `compile` to generate an enriched `skills/` folder for a local scientific

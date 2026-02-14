@@ -755,7 +755,7 @@ def resolve_session_package(
                     except PackageValidationError:
                         pass
 
-    env_active = os.getenv("SCIPKG_ACTIVE", "").strip()
+    env_active = os.getenv("FERMILINK_SCIPKG_ACTIVE", "").strip()
     if env_active:
         try:
             env_id = normalize_package_id(env_active)

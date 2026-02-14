@@ -16,7 +16,7 @@ fermilink dependencies maxwelllink --package meep
 
 ## Storage Model
 
-Package metadata and sources are stored under `SCIPKG_ROOT` (default:
+Package metadata and sources are stored under `FERMILINK_SCIPKG_ROOT` (default:
 `~/.fermilink/scientific_packages`):
 
 - `packages/<package_id>/...`: installed package trees
@@ -25,8 +25,8 @@ Package metadata and sources are stored under `SCIPKG_ROOT` (default:
 
 Per-session overlays are materialized in:
 
-- `WORKSPACES_ROOT/<session_id>/repo`
-- `WORKSPACES_ROOT/<session_id>/.package_manifest.json`
+- `FERMILINK_WORKSPACES_ROOT/<session_id>/repo`
+- `FERMILINK_WORKSPACES_ROOT/<session_id>/.package_manifest.json`
 
 ## Install Sources
 
@@ -85,7 +85,7 @@ Implementation details:
 - temporary tool directory: `<path>/sci-skills-generator/`
 - removed automatically before pass 3
 - resulting project is installed via local-path flow into
-  `SCIPKG_ROOT/packages/<package_id>`
+  `FERMILINK_SCIPKG_ROOT/packages/<package_id>`
 - compile fails fast on package-id conflict with existing registry entry
 - compile output suppresses known benign Codex rollout-path noise
 
@@ -172,7 +172,7 @@ Runner resolves package in this order:
 
 1. Explicit request (`package_id` from web layer).
 2. Workspace manifest pin (`.package_manifest.json`).
-3. `SCIPKG_ACTIVE` env override.
+3. `FERMILINK_SCIPKG_ACTIVE` env override.
 4. Registry `active_package`.
 
 `fermilink exec` resolves package with web-like routing:

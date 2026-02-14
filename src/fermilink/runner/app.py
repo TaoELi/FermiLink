@@ -74,20 +74,20 @@ def _get_int_env(name: str, default: int, minimum: int | None = None) -> int:
     return value
 
 
-CODEX_BIN = os.getenv("CODEX_BIN", "codex")
-MAX_RUNTIME_SECONDS = int(os.getenv("RUNNER_MAX_RUNTIME_SECONDS", "600"))
+CODEX_BIN = os.getenv("FERMILINK_CODEX_BIN", "codex")
+MAX_RUNTIME_SECONDS = int(os.getenv("FERMILINK_RUNNER_MAX_RUNTIME_SECONDS", "600"))
 MAX_PROMPT_CHARS = 10_000
 RUNNER_GLOBAL_CONCURRENT_RUNS = _get_int_env(
-    "RUNNER_GLOBAL_CONCURRENT_RUNS", 200, minimum=1
+    "FERMILINK_RUNNER_GLOBAL_CONCURRENT_RUNS", 200, minimum=1
 )
 RUNNER_PER_USER_CONCURRENT_RUNS = _get_int_env(
-    "RUNNER_PER_USER_CONCURRENT_RUNS", 10, minimum=1
+    "FERMILINK_RUNNER_PER_USER_CONCURRENT_RUNS", 10, minimum=1
 )
-RUNNER_MAX_QUEUE_SIZE = _get_int_env("RUNNER_MAX_QUEUE_SIZE", 2000, minimum=0)
+RUNNER_MAX_QUEUE_SIZE = _get_int_env("FERMILINK_RUNNER_MAX_QUEUE_SIZE", 2000, minimum=0)
 RUNNER_MAX_PENDING_PER_USER = _get_int_env(
-    "RUNNER_MAX_PENDING_PER_USER", 10, minimum=0
+    "FERMILINK_RUNNER_MAX_PENDING_PER_USER", 10, minimum=0
 )
-RUNNER_METRICS_TOKEN = os.getenv("RUNNER_METRICS_TOKEN", "").strip()
+RUNNER_METRICS_TOKEN = os.getenv("FERMILINK_RUNNER_METRICS_TOKEN", "").strip()
 PLACEHOLDER_KEYS = {
     "YOUR_KEY_HERE",
     "YOUR_REAL_OPENAI_API_KEY",
@@ -399,7 +399,7 @@ def _resolve_source_dir() -> Path:
         `software/` directory.
     """
 
-    source = _resolve_path("SOFTWARE_ROOT", "/opt/software")
+    source = _resolve_path("FERMILINK_SOFTWARE_ROOT", "/opt/software")
     if source.exists():
         return source
     if PACKAGE_SOFTWARE_ROOT.exists():
@@ -544,17 +544,37 @@ def _sanitize_env(env: dict) -> dict:
         Sanitized environment mapping.
     """
 
-    auth_mode = os.getenv("CODEX_AUTH_MODE", "").strip().lower()
+    _promote_prefixed_codex_env(env)
+    auth_mode = (env.get("FERMILINK_CODEX_AUTH_MODE") or "").strip().lower()
     if auth_mode in {"login", "oauth", "keychain", "stored"}:
+        env.pop("FERMILINK_CODEX_API_KEY", None)
+        env.pop("FERMILINK_OPENAI_API_KEY", None)
         env.pop("CODEX_API_KEY", None)
         env.pop("OPENAI_API_KEY", None)
         return env
 
-    key = env.get("CODEX_API_KEY") or env.get("OPENAI_API_KEY")
+    key = env.get("FERMILINK_CODEX_API_KEY") or env.get("FERMILINK_OPENAI_API_KEY")
+    if not key:
+        key = env.get("CODEX_API_KEY") or env.get("OPENAI_API_KEY")
     if key and key.strip() in PLACEHOLDER_KEYS:
+        env.pop("FERMILINK_CODEX_API_KEY", None)
+        env.pop("FERMILINK_OPENAI_API_KEY", None)
         env.pop("CODEX_API_KEY", None)
         env.pop("OPENAI_API_KEY", None)
     return env
+
+
+def _promote_prefixed_codex_env(env: dict) -> None:
+    """Populate Codex-native env names from FermiLink-prefixed inputs."""
+
+    if env.get("FERMILINK_CODEX_AUTH_MODE") and not env.get("CODEX_AUTH_MODE"):
+        env["CODEX_AUTH_MODE"] = str(env["FERMILINK_CODEX_AUTH_MODE"])
+    if env.get("FERMILINK_CODEX_API_KEY") and not env.get("CODEX_API_KEY"):
+        env["CODEX_API_KEY"] = str(env["FERMILINK_CODEX_API_KEY"])
+    if env.get("FERMILINK_OPENAI_API_KEY") and not env.get("OPENAI_API_KEY"):
+        env["OPENAI_API_KEY"] = str(env["FERMILINK_OPENAI_API_KEY"])
+    if env.get("FERMILINK_CODEX_HOME") and not env.get("CODEX_HOME"):
+        env["CODEX_HOME"] = str(env["FERMILINK_CODEX_HOME"])
 
 
 def _normalize_codex_home(env: dict) -> dict:
@@ -571,7 +591,7 @@ def _normalize_codex_home(env: dict) -> dict:
         Environment mapping with a rewritten `CODEX_HOME` fallback when needed.
     """
 
-    raw = env.get("CODEX_HOME")
+    raw = env.get("FERMILINK_CODEX_HOME") or env.get("CODEX_HOME")
     if not raw:
         return env
 
@@ -581,16 +601,19 @@ def _normalize_codex_home(env: dict) -> dict:
 
     if _ensure_dir_safe(path):
         env["CODEX_HOME"] = str(path)
+        env["FERMILINK_CODEX_HOME"] = str(path)
         return env
 
     home_fallback = Path.home() / ".codex"
     if _ensure_dir_safe(home_fallback):
         env["CODEX_HOME"] = str(home_fallback)
+        env["FERMILINK_CODEX_HOME"] = str(home_fallback)
         return env
 
     local_fallback = Path.cwd() / ".codex"
     _ensure_dir_safe(local_fallback)
     env["CODEX_HOME"] = str(local_fallback)
+    env["FERMILINK_CODEX_HOME"] = str(local_fallback)
     return env
 
 

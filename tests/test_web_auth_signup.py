@@ -11,9 +11,11 @@ from fastapi import HTTPException
 pytest.importorskip("chainlit")
 
 _TEMP_ROOT = tempfile.mkdtemp(prefix="fermilink-web-auth-tests-")
-os.environ.setdefault("CHAINLIT_APP_ROOT", _TEMP_ROOT)
-os.environ.setdefault("SCIPKG_ROOT", str(Path(_TEMP_ROOT) / "scientific_packages"))
-os.environ.setdefault("CHAINLIT_AUTH_SECRET", "test-secret")
+os.environ.setdefault("FERMILINK_CHAINLIT_APP_ROOT", _TEMP_ROOT)
+os.environ.setdefault(
+    "FERMILINK_SCIPKG_ROOT", str(Path(_TEMP_ROOT) / "scientific_packages")
+)
+os.environ.setdefault("FERMILINK_CHAINLIT_AUTH_SECRET", "test-secret")
 
 from chainlit.auth import jwt as chainlit_jwt
 from chainlit.user import User

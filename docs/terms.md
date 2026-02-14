@@ -51,7 +51,7 @@ transmit, and transform content as needed to operate and secure the service.
 ## 5. Storage, Retention, and Deletion
 
 Session data is stored under workspace directories (for example
-`WORKSPACES_ROOT/<session_id>/`). Important terms:
+`FERMILINK_WORKSPACES_ROOT/<session_id>/`). Important terms:
 
 - storage is not guaranteed indefinitely
 - operators may delete/prune/reset workspace data at any time

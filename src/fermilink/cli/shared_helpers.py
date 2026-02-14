@@ -7,12 +7,12 @@ import sys
 
 
 def _should_style_cli_output() -> bool:
-    if os.getenv("NO_COLOR"):
+    if os.getenv("FERMILINK_NO_COLOR"):
         return False
     if os.getenv("FERMILINK_NO_STYLE", "").strip().lower() in {"1", "true", "yes", "on"}:
         return False
-    term = os.getenv("TERM", "").strip().lower()
-    if term in {"", "dumb"}:
+    term = os.getenv("FERMILINK_TERM", "").strip().lower()
+    if term == "dumb":
         return False
     try:
         return bool(sys.stdout.isatty() and sys.stderr.isatty())

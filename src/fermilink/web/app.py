@@ -27,7 +27,7 @@ from fermilink.runner.scientific_packages import (
 from sqlalchemy.engine import make_url
 
 
-app_root_raw = os.getenv("CHAINLIT_APP_ROOT")
+app_root_raw = os.getenv("FERMILINK_CHAINLIT_APP_ROOT")
 if not app_root_raw or not app_root_raw.strip():
     app_root_raw = str(resolve_fermilink_home())
 APP_ROOT = Path(app_root_raw).expanduser()
@@ -73,13 +73,18 @@ def _sync_chainlit_markdown() -> None:
 if not _is_router_only_import():
     _sync_chainlit_markdown()
 
+_configured_database_url = os.getenv("FERMILINK_DATABASE_URL", DEFAULT_DB_URL)
 if "DATABASE_URL" not in os.environ:
-    os.environ["DATABASE_URL"] = DEFAULT_DB_URL
+    os.environ["DATABASE_URL"] = _configured_database_url
 
 _GENERATED_AUTH_SECRET = False
+_configured_chainlit_auth_secret = os.getenv("FERMILINK_CHAINLIT_AUTH_SECRET", "").strip()
 if "CHAINLIT_AUTH_SECRET" not in os.environ:
-    os.environ["CHAINLIT_AUTH_SECRET"] = secrets.token_urlsafe(32)
-    _GENERATED_AUTH_SECRET = True
+    if _configured_chainlit_auth_secret:
+        os.environ["CHAINLIT_AUTH_SECRET"] = _configured_chainlit_auth_secret
+    else:
+        os.environ["CHAINLIT_AUTH_SECRET"] = secrets.token_urlsafe(32)
+        _GENERATED_AUTH_SECRET = True
 
 import chainlit as cl
 import httpx
@@ -91,28 +96,28 @@ from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.server import app as chainlit_fastapi_app
 from fastapi import Body, HTTPException
 
-RUNNER_URL = os.getenv("RUNNER_URL", "http://runner:8000")
-RUNNER_METRICS_TOKEN = os.getenv("RUNNER_METRICS_TOKEN", "").strip()
-DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
-AUTH_DB_URL = os.getenv("AUTH_DB_URL", DEFAULT_AUTH_DB_URL)
+RUNNER_URL = os.getenv("FERMILINK_RUNNER_URL", "http://runner:8000")
+RUNNER_METRICS_TOKEN = os.getenv("FERMILINK_RUNNER_METRICS_TOKEN", "").strip()
+DB_URL = os.environ.get("DATABASE_URL", _configured_database_url)
+AUTH_DB_URL = os.getenv("FERMILINK_AUTH_DB_URL", DEFAULT_AUTH_DB_URL)
 LOGGER = logging.getLogger(__name__)
-AUTH_AUTO_REGISTER = os.getenv("AUTH_AUTO_REGISTER", "false").strip().lower() in {
+AUTH_AUTO_REGISTER = os.getenv("FERMILINK_AUTH_AUTO_REGISTER", "false").strip().lower() in {
     "1",
     "true",
     "yes",
 }
-AUTH_SIGNUP_ENABLED = os.getenv("AUTH_SIGNUP_ENABLED", "true").strip().lower() in {
+AUTH_SIGNUP_ENABLED = os.getenv("FERMILINK_AUTH_SIGNUP_ENABLED", "true").strip().lower() in {
     "1",
     "true",
     "yes",
 }
 try:
-    AUTH_MIN_PASSWORD_LEN = int(os.getenv("AUTH_MIN_PASSWORD_LEN", "8"))
+    AUTH_MIN_PASSWORD_LEN = int(os.getenv("FERMILINK_AUTH_MIN_PASSWORD_LEN", "8"))
 except ValueError:
     AUTH_MIN_PASSWORD_LEN = 8
     LOGGER.warning("Invalid AUTH_MIN_PASSWORD_LEN value. Falling back to 8.")
 try:
-    AUTH_MAX_USERS = int(os.getenv("AUTH_MAX_USERS", "0"))
+    AUTH_MAX_USERS = int(os.getenv("FERMILINK_AUTH_MAX_USERS", "0"))
 except ValueError:
     AUTH_MAX_USERS = 0
     LOGGER.warning("Invalid AUTH_MAX_USERS value. Falling back to 0 (unlimited).")
@@ -258,63 +263,70 @@ def _get_float_env(name: str, default: float) -> float:
 
 
 DEFAULT_PROMPT_GROUP = (
-    os.getenv("PROMPT_DEFAULT_GROUP", "average").strip().lower() or "average"
+    os.getenv("FERMILINK_PROMPT_DEFAULT_GROUP", "average").strip().lower() or "average"
 )
 PROMPT_LIMITS = {
-    "average": _get_int_env("PROMPT_LIMIT_AVERAGE", 100),
-    "star": _get_int_env("PROMPT_LIMIT_STAR", 100),
+    "average": _get_int_env("FERMILINK_PROMPT_LIMIT_AVERAGE", 100),
+    "star": _get_int_env("FERMILINK_PROMPT_LIMIT_STAR", 100),
 }
-PROMPT_DAY_TZ = os.getenv("PROMPT_DAY_TZ", "UTC").strip() or "UTC"
+PROMPT_DAY_TZ = os.getenv("FERMILINK_PROMPT_DAY_TZ", "UTC").strip() or "UTC"
 
 
 ARTIFACT_PREFIXES = tuple(
     prefix.strip()
     for prefix in os.getenv(
-        "CHAINLIT_ARTIFACT_PREFIXES", ",".join(DEFAULT_ARTIFACT_PREFIXES)
+        "FERMILINK_CHAINLIT_ARTIFACT_PREFIXES",
+        ",".join(DEFAULT_ARTIFACT_PREFIXES),
     ).split(",")
     if prefix.strip()
 )
-MAX_ATTACHMENT_BYTES = _get_int_env("CHAINLIT_MAX_ATTACHMENT_BYTES", 50 * 1024 * 1024)
-ZIP_MIN_COUNT = _get_int_env("CHAINLIT_ZIP_MIN_COUNT", 3)
-MAX_PROMPT_CHARS = _get_int_env("RUNNER_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS)
-HISTORY_MAX_MESSAGES = _get_int_env("CHAINLIT_HISTORY_MAX_MESSAGES", 40)
-HISTORY_MAX_CHARS = _get_int_env("CHAINLIT_HISTORY_MAX_CHARS", 40_000)
-HISTORY_ENTRY_MAX_CHARS = _get_int_env("CHAINLIT_HISTORY_ENTRY_CHARS", 4_000)
-TRANSPARENCY_ENABLED = os.getenv(
-    "CHAINLIT_TRANSPARENCY_ENABLED", "false"
-).strip().lower() in {"1", "true", "yes"}
-TRANSPARENCY_MAX_ITEMS = _get_int_env("CHAINLIT_TRANSPARENCY_MAX_ITEMS", 200)
-TRANSPARENCY_MAX_LOG_ENTRIES = _get_int_env("CHAINLIT_TRANSPARENCY_MAX_LOG_ENTRIES", 50)
-TRANSPARENCY_MAX_ENTRY_CHARS = _get_int_env(
-    "CHAINLIT_TRANSPARENCY_MAX_ENTRY_CHARS", 500
+MAX_ATTACHMENT_BYTES = _get_int_env(
+    "FERMILINK_CHAINLIT_MAX_ATTACHMENT_BYTES", 50 * 1024 * 1024
 )
-FORWARD_RUNNER_LOGS = _get_bool_env("CHAINLIT_FORWARD_RUNNER_LOGS", False)
-PACKAGE_ROUTER_ENABLED = _get_bool_env("CHAINLIT_PACKAGE_ROUTER_ENABLED", True)
-PACKAGE_ROUTER_AUTO_DEFAULT = _get_bool_env("CHAINLIT_PACKAGE_ROUTER_AUTO", True)
-PACKAGE_ROUTER_STICKY = _get_bool_env("CHAINLIT_PACKAGE_ROUTER_STICKY", True)
-PACKAGE_ROUTER_MIN_SCORE = _get_int_env("CHAINLIT_PACKAGE_ROUTER_MIN_SCORE", 2)
-PACKAGE_ROUTER_MIN_MARGIN = _get_int_env("CHAINLIT_PACKAGE_ROUTER_MIN_MARGIN", 1)
-PACKAGE_ROUTER_SWITCH_MARGIN = _get_int_env("CHAINLIT_PACKAGE_ROUTER_SWITCH_MARGIN", 2)
+ZIP_MIN_COUNT = _get_int_env("FERMILINK_CHAINLIT_ZIP_MIN_COUNT", 3)
+MAX_PROMPT_CHARS = _get_int_env("FERMILINK_RUNNER_MAX_PROMPT_CHARS", DEFAULT_MAX_PROMPT_CHARS)
+HISTORY_MAX_MESSAGES = _get_int_env("FERMILINK_CHAINLIT_HISTORY_MAX_MESSAGES", 40)
+HISTORY_MAX_CHARS = _get_int_env("FERMILINK_CHAINLIT_HISTORY_MAX_CHARS", 40_000)
+HISTORY_ENTRY_MAX_CHARS = _get_int_env("FERMILINK_CHAINLIT_HISTORY_ENTRY_CHARS", 4_000)
+TRANSPARENCY_ENABLED = os.getenv(
+    "FERMILINK_CHAINLIT_TRANSPARENCY_ENABLED", "false"
+).strip().lower() in {"1", "true", "yes"}
+TRANSPARENCY_MAX_ITEMS = _get_int_env("FERMILINK_CHAINLIT_TRANSPARENCY_MAX_ITEMS", 200)
+TRANSPARENCY_MAX_LOG_ENTRIES = _get_int_env(
+    "FERMILINK_CHAINLIT_TRANSPARENCY_MAX_LOG_ENTRIES", 50
+)
+TRANSPARENCY_MAX_ENTRY_CHARS = _get_int_env(
+    "FERMILINK_CHAINLIT_TRANSPARENCY_MAX_ENTRY_CHARS", 500
+)
+FORWARD_RUNNER_LOGS = _get_bool_env("FERMILINK_CHAINLIT_FORWARD_RUNNER_LOGS", False)
+PACKAGE_ROUTER_ENABLED = _get_bool_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_ENABLED", True)
+PACKAGE_ROUTER_AUTO_DEFAULT = _get_bool_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_AUTO", True)
+PACKAGE_ROUTER_STICKY = _get_bool_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_STICKY", True)
+PACKAGE_ROUTER_MIN_SCORE = _get_int_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_MIN_SCORE", 2)
+PACKAGE_ROUTER_MIN_MARGIN = _get_int_env("FERMILINK_CHAINLIT_PACKAGE_ROUTER_MIN_MARGIN", 1)
+PACKAGE_ROUTER_SWITCH_MARGIN = _get_int_env(
+    "FERMILINK_CHAINLIT_PACKAGE_ROUTER_SWITCH_MARGIN", 2
+)
 PACKAGE_SECOND_GUESS_ENABLED = _get_bool_env(
-    "CHAINLIT_PACKAGE_SECOND_GUESS_ENABLED", True
+    "FERMILINK_PACKAGE_SECOND_GUESS_ENABLED", True
 )
 PACKAGE_SECOND_GUESS_MIN_CONFIDENCE = _get_float_env(
-    "CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE", 0.75
+    "FERMILINK_CHAINLIT_PACKAGE_SECOND_GUESS_MIN_CONFIDENCE", 0.75
 )
 PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS = _get_float_env(
-    "CHAINLIT_PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS", 25.0
+    "FERMILINK_CHAINLIT_PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS", 25.0
 )
 STREAM_PARTIAL_PERSIST_SECONDS = max(
-    0.0, _get_float_env("CHAINLIT_STREAM_PARTIAL_PERSIST_SECONDS", 1.0)
+    0.0, _get_float_env("FERMILINK_CHAINLIT_STREAM_PARTIAL_PERSIST_SECONDS", 1.0)
 )
 ADMISSION_POLL_INTERVAL_SECONDS = max(
-    0.1, _get_float_env("CHAINLIT_ADMISSION_POLL_INTERVAL_SECONDS", 0.5)
+    0.1, _get_float_env("FERMILINK_CHAINLIT_ADMISSION_POLL_INTERVAL_SECONDS", 0.5)
 )
 ADMISSION_POLL_TIMEOUT_SECONDS = max(
-    0.0, _get_float_env("CHAINLIT_ADMISSION_POLL_TIMEOUT_SECONDS", 0.0)
+    0.0, _get_float_env("FERMILINK_CHAINLIT_ADMISSION_POLL_TIMEOUT_SECONDS", 0.0)
 )
 PACKAGE_ROUTER_RULES_FILENAME = (
-    os.getenv("CHAINLIT_PACKAGE_ROUTER_RULES", "router_rules.json").strip()
+    os.getenv("FERMILINK_CHAINLIT_PACKAGE_ROUTER_RULES", "router_rules.json").strip()
     or "router_rules.json"
 )
 SESSION_PACKAGE_ID_KEY = "selected_package_id"
@@ -1980,7 +1992,7 @@ def _build_storage_provider() -> BaseStorageClient:
         Local storage implementation backed by the public directory.
     """
 
-    subdir = os.getenv("CHAINLIT_LOCAL_STORAGE_SUBDIR", ".chainlit/artifacts")
+    subdir = os.getenv("FERMILINK_CHAINLIT_LOCAL_STORAGE_SUBDIR", ".chainlit/artifacts")
     return LocalPublicStorageClient(
         public_root=_resolve_public_root(),
         subdir=subdir,

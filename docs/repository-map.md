@@ -20,7 +20,7 @@ This map covers maintained source files and docs for the current layout.
 | `src/fermilink/packages/curated_channels.py` | Curated package-channel catalog (`tel-research-group`) and resolution helpers. |
 | `src/fermilink/packages/package_registry.py` | CLI-facing compatibility facade for package registry CRUD/install and overlay behavior, delegating shared internals to `package_core.py`. |
 | `src/fermilink/agent_runtime.py` | Persisted/global agent runtime policy model (provider + sandbox policy/mode). |
-| `src/fermilink/config.py` | Shared root/path resolution (`FERMILINK_HOME`, `SCIPKG_ROOT`, etc.). |
+| `src/fermilink/config.py` | Shared root/path resolution (`FERMILINK_HOME`, `FERMILINK_SCIPKG_ROOT`, etc.). |
 | `src/fermilink/providers.py` | Provider CLI abstraction and command assembly (codex implemented, others stubbed). |
 | `src/fermilink/router_rules.py` | Auto-generation/synchronization of `router_rules.json` from installed packages. |
 | `src/fermilink/services.py` | Service specs and process lifecycle helpers used by CLI (`runner`, `web`). |
@@ -46,7 +46,7 @@ This map covers maintained source files and docs for the current layout.
 | Path | Purpose |
 | --- | --- |
 | `src/fermilink/software/AGENTS.md` | Baseline agent instructions copied into each workspace repo root. |
-| `src/fermilink/public/` | Bundled Chainlit static assets (`custom.css`, `custom.js`, logos, landing markdown). Seeded into `$CHAINLIT_APP_ROOT/public/` by web UI only. |
+| `src/fermilink/public/` | Bundled Chainlit static assets (`custom.css`, `custom.js`, logos, landing markdown). Seeded into `$FERMILINK_CHAINLIT_APP_ROOT/public/` by web UI only. |
 
 ## Documentation (`docs`)
 

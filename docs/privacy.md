@@ -32,7 +32,7 @@ When you use FermiLink, we process and may store:
 ### 1.3 Workspace and Artifact Data
 
 For each session, FermiLink may create data under workspace roots (for example
-`WORKSPACES_ROOT/<session_id>/`) including:
+`FERMILINK_WORKSPACES_ROOT/<session_id>/`) including:
 
 - generated code/scripts/configuration files
 - logs and command outputs

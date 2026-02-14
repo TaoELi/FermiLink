@@ -38,24 +38,24 @@ def test_start_and_stop_service(tmp_path: Path) -> None:
 
 
 def test_default_service_specs_include_chainlit_app_root(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("RUNNER_URL", "http://127.0.0.1:18000")
-    monkeypatch.setenv("CHAINLIT_APP_ROOT", str(tmp_path / "app-root"))
-    monkeypatch.delenv("SCIPKG_ROOT", raising=False)
-    monkeypatch.delenv("WORKSPACES_ROOT", raising=False)
-    monkeypatch.delenv("CODEX_HOME", raising=False)
+    monkeypatch.setenv("FERMILINK_RUNNER_URL", "http://127.0.0.1:18000")
+    monkeypatch.setenv("FERMILINK_CHAINLIT_APP_ROOT", str(tmp_path / "app-root"))
+    monkeypatch.delenv("FERMILINK_SCIPKG_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_WORKSPACES_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_CODEX_HOME", raising=False)
     specs = default_service_specs(web_app_path=tmp_path / "web" / "app.py")
 
     web_env = specs["web"].env
     runner_env = specs["runner"].env
     app_root = (tmp_path / "app-root").resolve()
-    assert web_env["RUNNER_URL"] == "http://127.0.0.1:18000"
-    assert web_env["CHAINLIT_APP_ROOT"] == str(app_root)
-    assert web_env["SCIPKG_ROOT"] == str(app_root / "scientific_packages")
-    assert web_env["WORKSPACES_ROOT"] == str(app_root / "workspaces")
-    assert "CODEX_HOME" not in web_env
-    assert runner_env["SCIPKG_ROOT"] == str(app_root / "scientific_packages")
-    assert runner_env["WORKSPACES_ROOT"] == str(app_root / "workspaces")
-    assert "CODEX_HOME" not in runner_env
+    assert web_env["FERMILINK_RUNNER_URL"] == "http://127.0.0.1:18000"
+    assert web_env["FERMILINK_CHAINLIT_APP_ROOT"] == str(app_root)
+    assert web_env["FERMILINK_SCIPKG_ROOT"] == str(app_root / "scientific_packages")
+    assert web_env["FERMILINK_WORKSPACES_ROOT"] == str(app_root / "workspaces")
+    assert "FERMILINK_CODEX_HOME" not in web_env
+    assert runner_env["FERMILINK_SCIPKG_ROOT"] == str(app_root / "scientific_packages")
+    assert runner_env["FERMILINK_WORKSPACES_ROOT"] == str(app_root / "workspaces")
+    assert "FERMILINK_CODEX_HOME" not in runner_env
 
 
 def test_default_service_specs_uses_fermilink_home_defaults(
@@ -63,32 +63,32 @@ def test_default_service_specs_uses_fermilink_home_defaults(
 ) -> None:
     fermilink_home = (tmp_path / "fl-home").resolve()
     monkeypatch.setenv("FERMILINK_HOME", str(fermilink_home))
-    monkeypatch.delenv("CHAINLIT_APP_ROOT", raising=False)
-    monkeypatch.delenv("SCIPKG_ROOT", raising=False)
-    monkeypatch.delenv("WORKSPACES_ROOT", raising=False)
-    monkeypatch.delenv("CODEX_HOME", raising=False)
+    monkeypatch.delenv("FERMILINK_CHAINLIT_APP_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_SCIPKG_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_WORKSPACES_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_CODEX_HOME", raising=False)
 
     specs = default_service_specs(web_app_path=tmp_path / "web" / "app.py")
     web_env = specs["web"].env
     runner_env = specs["runner"].env
 
-    assert web_env["CHAINLIT_APP_ROOT"] == str(fermilink_home)
-    assert web_env["SCIPKG_ROOT"] == str(fermilink_home / "scientific_packages")
-    assert web_env["WORKSPACES_ROOT"] == str(fermilink_home / "workspaces")
-    assert runner_env["SCIPKG_ROOT"] == str(fermilink_home / "scientific_packages")
-    assert runner_env["WORKSPACES_ROOT"] == str(fermilink_home / "workspaces")
+    assert web_env["FERMILINK_CHAINLIT_APP_ROOT"] == str(fermilink_home)
+    assert web_env["FERMILINK_SCIPKG_ROOT"] == str(fermilink_home / "scientific_packages")
+    assert web_env["FERMILINK_WORKSPACES_ROOT"] == str(fermilink_home / "workspaces")
+    assert runner_env["FERMILINK_SCIPKG_ROOT"] == str(fermilink_home / "scientific_packages")
+    assert runner_env["FERMILINK_WORKSPACES_ROOT"] == str(fermilink_home / "workspaces")
 
 
 def test_default_service_specs_respects_explicit_codex_home(
     monkeypatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("CHAINLIT_APP_ROOT", str(tmp_path / "app-root"))
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    monkeypatch.setenv("FERMILINK_CHAINLIT_APP_ROOT", str(tmp_path / "app-root"))
+    monkeypatch.setenv("FERMILINK_CODEX_HOME", str(tmp_path / "codex-home"))
     specs = default_service_specs(web_app_path=tmp_path / "web" / "app.py")
 
     expected = str((tmp_path / "codex-home").resolve())
-    assert specs["runner"].env["CODEX_HOME"] == expected
-    assert specs["web"].env["CODEX_HOME"] == expected
+    assert specs["runner"].env["FERMILINK_CODEX_HOME"] == expected
+    assert specs["web"].env["FERMILINK_CODEX_HOME"] == expected
 
 
 def test_start_service_reports_immediate_failure(tmp_path: Path) -> None:

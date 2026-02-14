@@ -19,9 +19,9 @@ def test_default_roots_use_home_fermilink(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(elsewhere)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("FERMILINK_HOME", raising=False)
-    monkeypatch.delenv("SCIPKG_ROOT", raising=False)
-    monkeypatch.delenv("SCIENTIFIC_PACKAGES_ROOT", raising=False)
-    monkeypatch.delenv("WORKSPACES_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_SCIPKG_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_SCIENTIFIC_PACKAGES_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_WORKSPACES_ROOT", raising=False)
     monkeypatch.delenv("FERMILINK_RUNTIME_ROOT", raising=False)
 
     expected_home = home / ".fermilink"
@@ -37,9 +37,9 @@ def test_fermilink_home_override_drives_default_roots(
 ) -> None:
     custom_home = (tmp_path / "custom-root").resolve()
     monkeypatch.setenv("FERMILINK_HOME", str(custom_home))
-    monkeypatch.delenv("SCIPKG_ROOT", raising=False)
-    monkeypatch.delenv("SCIENTIFIC_PACKAGES_ROOT", raising=False)
-    monkeypatch.delenv("WORKSPACES_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_SCIPKG_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_SCIENTIFIC_PACKAGES_ROOT", raising=False)
+    monkeypatch.delenv("FERMILINK_WORKSPACES_ROOT", raising=False)
     monkeypatch.delenv("FERMILINK_RUNTIME_ROOT", raising=False)
 
     assert resolve_fermilink_home() == custom_home

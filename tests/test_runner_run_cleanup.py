@@ -164,7 +164,7 @@ def test_resolve_source_dir_prefers_packaged_software(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     missing = tmp_path / "missing-software"
-    monkeypatch.setenv("SOFTWARE_ROOT", str(missing))
+    monkeypatch.setenv("FERMILINK_SOFTWARE_ROOT", str(missing))
 
     source_dir = runner_app._resolve_source_dir()
     assert source_dir.exists()

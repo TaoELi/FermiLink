@@ -12,9 +12,9 @@ from fermilink.agent_runtime import (
 
 
 PROVIDER_BIN_ENV = {
-    "codex": "CODEX_BIN",
-    "claude": "CLAUDE_BIN",
-    "gemini": "GEMINI_BIN",
+    "codex": "FERMILINK_CODEX_BIN",
+    "claude": "FERMILINK_CLAUDE_BIN",
+    "gemini": "FERMILINK_GEMINI_BIN",
 }
 PROVIDER_BIN_DEFAULT = {
     "codex": "codex",

@@ -13,9 +13,11 @@ pytest.importorskip("chainlit")
 pytest.importorskip("fastapi")
 
 _TEMP_ROOT = tempfile.mkdtemp(prefix="fermilink-web-runner-tests-")
-os.environ.setdefault("CHAINLIT_APP_ROOT", _TEMP_ROOT)
-os.environ.setdefault("SCIPKG_ROOT", str(Path(_TEMP_ROOT) / "scientific_packages"))
-os.environ.setdefault("CHAINLIT_AUTH_SECRET", "test-secret")
+os.environ.setdefault("FERMILINK_CHAINLIT_APP_ROOT", _TEMP_ROOT)
+os.environ.setdefault(
+    "FERMILINK_SCIPKG_ROOT", str(Path(_TEMP_ROOT) / "scientific_packages")
+)
+os.environ.setdefault("FERMILINK_CHAINLIT_AUTH_SECRET", "test-secret")
 
 from fermilink.runner import app as runner_app
 from fermilink.runner.admission import RunAdmissionController
