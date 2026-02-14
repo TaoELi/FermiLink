@@ -16,13 +16,10 @@ This map covers maintained source files and docs for the current layout.
 | --- | --- |
 | `src/fermilink/__init__.py` | Package version export. |
 | `src/fermilink/packages/__init__.py` | Scientific package-management namespace marker. |
-| `src/fermilink/packages/_package_core.py` | Shared internal package-registry and overlay internals used by compatibility facades. |
+| `src/fermilink/packages/package_core.py` | Shared internal package-registry and overlay internals used by compatibility facades. |
 | `src/fermilink/packages/curated_channels.py` | Curated package-channel catalog (`tel-research-group`) and resolution helpers. |
-| `src/fermilink/packages/package_registry.py` | CLI-facing compatibility facade for package registry CRUD/install and overlay behavior, delegating shared internals to `_package_core.py`. |
-| `src/fermilink/_package_core.py` | Compatibility shim forwarding legacy imports to `fermilink.packages._package_core`. |
+| `src/fermilink/packages/package_registry.py` | CLI-facing compatibility facade for package registry CRUD/install and overlay behavior, delegating shared internals to `package_core.py`. |
 | `src/fermilink/agent_runtime.py` | Persisted/global agent runtime policy model (provider + sandbox policy/mode). |
-| `src/fermilink/curated_channels.py` | Compatibility shim forwarding legacy imports to `fermilink.packages.curated_channels`. |
-| `src/fermilink/package_registry.py` | Compatibility shim forwarding legacy imports to `fermilink.packages.package_registry`. |
 | `src/fermilink/config.py` | Shared root/path resolution (`FERMILINK_HOME`, `SCIPKG_ROOT`, etc.). |
 | `src/fermilink/providers.py` | Provider CLI abstraction and command assembly (codex implemented, others stubbed). |
 | `src/fermilink/router_rules.py` | Auto-generation/synchronization of `router_rules.json` from installed packages. |
@@ -34,7 +31,7 @@ This map covers maintained source files and docs for the current layout.
 | --- | --- |
 | `src/fermilink/runner/app.py` | FastAPI runner service: `/run`, admission control, workspace provisioning, package overlay, Codex subprocess stream. |
 | `src/fermilink/runner/admission.py` | In-memory admission queue with global/per-user active+pending controls. |
-| `src/fermilink/runner/scientific_packages.py` | Runner-facing compatibility facade for locked registry access, legacy bootstrap, session resolution, and overlay orchestration via `fermilink.packages._package_core`. |
+| `src/fermilink/runner/scientific_packages.py` | Runner-facing compatibility facade for locked registry access, legacy bootstrap, session resolution, and overlay orchestration via `fermilink.packages.package_core`. |
 | `src/fermilink/runner/__init__.py` | Runner package marker. |
 
 ## Web Frontend (`src/fermilink/web`)
@@ -77,7 +74,6 @@ This map covers maintained source files and docs for the current layout.
 | `tests/test_cli_services_live.py` | Live process start/restart/stop lifecycle behavior. |
 | `tests/test_package_registry.py` | Registry operations and dependency validation. |
 | `tests/test_package_registry_compat.py` | Cross-module compatibility/characterization tests for shared package-registry and overlay contracts. |
-| `tests/test_package_module_paths.py` | Import-path compatibility checks for legacy and namespaced package-management modules. |
 | `tests/test_package_registry_zip.py` | Zip install safety and size checks. |
 | `tests/test_providers.py` | Provider command builder behavior and non-implemented provider guards. |
 | `tests/test_router_rules.py` | Router rule synchronization from installed packages. |

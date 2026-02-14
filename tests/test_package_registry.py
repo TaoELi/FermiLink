@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from fermilink.package_registry import (
+from fermilink.packages.package_registry import (
     PackageNotFoundError,
     install_from_local_path,
     load_registry,

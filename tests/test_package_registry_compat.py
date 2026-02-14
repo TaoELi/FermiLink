@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fermilink import package_registry
+from fermilink.packages import package_registry
 from fermilink.runner import scientific_packages
 
 

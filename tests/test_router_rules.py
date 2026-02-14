@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from fermilink import router_rules
-from fermilink.package_registry import install_from_local_path
+from fermilink.packages.package_registry import install_from_local_path
 from fermilink.router_rules import infer_rule, load_family_hints, sync_router_rules
 
 

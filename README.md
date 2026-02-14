@@ -235,7 +235,3 @@ When not overridden, FermiLink stores runtime data under:
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
 - [Repository Map](docs/repository-map.md)
-
-Internal code layout note: shared package-management internals now live under
-`src/fermilink/packages/`; legacy import paths under `src/fermilink/` are kept
-as compatibility shims.

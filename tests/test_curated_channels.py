@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from fermilink import curated_channels
-from fermilink.curated_channels import (
+from fermilink.packages import curated_channels
+from fermilink.packages.curated_channels import (
     list_curated_packages,
     normalize_channel_id,
     resolve_curated_package,

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from fermilink import package_registry
-from fermilink.package_registry import PackageError, install_from_zip, load_registry
+from fermilink.packages import package_registry
+from fermilink.packages.package_registry import PackageError, install_from_zip, load_registry
 
 
 class _FakeResponse:

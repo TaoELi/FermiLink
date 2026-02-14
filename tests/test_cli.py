@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from fermilink import cli
-from fermilink.curated_channels import ChannelPackage, ChannelPackageVersion
-from fermilink.package_registry import load_registry
+from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
+from fermilink.packages.package_registry import load_registry
 
 
 def _make_local_package(path: Path) -> None:

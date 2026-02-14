@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fermilink import cli
-from fermilink.curated_channels import ChannelPackage
+from fermilink.packages.curated_channels import ChannelPackage
 
 
 def test_bootstrap_skips_when_packages_exist(

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fermilink.packages._package_core import (
+from fermilink.packages import (
     PACKAGE_DEPENDENCIES_DIRNAME,
     PACKAGE_DEPENDENCY_IDS_KEY,
     PACKAGE_OVERLAY_ENTRIES_KEY,
