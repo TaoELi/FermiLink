@@ -262,6 +262,19 @@ def test_exec_accepts_prompt_file(
     assert captured["prompt"] == "simulate one cavity"
 
 
+def test_exec_rejects_pdf_prompt_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "prompt.pdf").write_bytes(b"%PDF-1.7\n")
+
+    code = cli.main(["exec", "prompt.pdf"])
+    assert code == 2
+    assert "PDF prompt files are not supported yet" in capsys.readouterr().err
+
+
 def test_run_exec_codex_prompt_uses_runner_sanitized_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

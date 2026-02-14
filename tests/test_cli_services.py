@@ -5,6 +5,16 @@ from pathlib import Path
 from fermilink import cli
 
 
+def test_resolve_specs_points_web_service_to_real_app() -> None:
+    _, specs = cli._resolve_specs(None)
+    web_spec = specs["web"]
+    assert isinstance(web_spec.command, list)
+    run_index = web_spec.command.index("run")
+    web_app_path = Path(web_spec.command[run_index + 1])
+    assert web_app_path.is_file()
+    assert web_app_path.as_posix().endswith("src/fermilink/web/app.py")
+
+
 def test_start_aborts_after_first_failed_component(
     monkeypatch, tmp_path: Path
 ) -> None:

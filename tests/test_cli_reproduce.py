@@ -290,6 +290,20 @@ def test_reproduce_report_only_runs_report_stage_without_loop(
     assert code == 0
 
 
+def test_reproduce_report_only_requires_existing_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+
+    code = cli.main(["reproduce", "paper.md", "--report-only"])
+    assert code == 2
+    assert "requires an existing resumable reproduce run" in capsys.readouterr().err
+
+
 def test_reproduce_plan_only_conflicts_with_report_only(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -95,8 +96,6 @@ PLACEHOLDER_KEYS = {
 }
 ALLOWED_REQUEST_SANDBOXES = {"read-only", "workspace-write"}
 
-app = FastAPI()
-
 
 RUN_ADMISSION_CONTROLLER = RunAdmissionController(
     global_limit=RUNNER_GLOBAL_CONCURRENT_RUNS,
@@ -117,7 +116,6 @@ class RunRequest(BaseModel):
     provider: str | None = None
 
 
-@app.on_event("startup")
 def verify_provider_bin() -> None:
     """Validate that the configured provider CLI binary is available.
 
@@ -135,6 +133,15 @@ def verify_provider_bin() -> None:
             f"{policy.provider} CLI not found. Install it in the runner image or set "
             f"{env_key} to its path."
         )
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    verify_provider_bin()
+    yield
+
+
+app = FastAPI(lifespan=_lifespan)
 
 
 @app.get("/ops/concurrency")

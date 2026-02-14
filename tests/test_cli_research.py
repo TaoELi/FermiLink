@@ -236,3 +236,17 @@ def test_research_report_only_conflicts_with_restart(
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     code = cli.main(["research", "idea.md", "--report-only", "--restart"])
     assert code == 2
+
+
+def test_research_report_only_requires_existing_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+
+    code = cli.main(["research", "idea.md", "--report-only"])
+    assert code == 2
+    assert "requires an existing resumable research run" in capsys.readouterr().err
