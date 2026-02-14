@@ -13,7 +13,7 @@ Shared infrastructure:
 
 - Package registry and overlay logic:
   `src/fermilink/runner/scientific_packages.py` and
-  `src/fermilink/package_registry.py`.
+  `src/fermilink/packages/package_registry.py`.
 - Router rule synchronization: `src/fermilink/router_rules.py`.
 - Unified CLI and service management: `src/fermilink/cli.py`,
   `src/fermilink/services.py`.

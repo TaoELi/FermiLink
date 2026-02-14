@@ -8,6 +8,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fermilink.packages._package_core import (
+    PACKAGE_DEPENDENCIES_DIRNAME,
+    PACKAGE_DEPENDENCY_IDS_KEY,
+    PACKAGE_OVERLAY_ENTRIES_KEY,
+    REGISTRY_FILENAME,
+    WORKSPACE_MANIFEST_FILENAME,
+    atomic_write_json as _atomic_write_json_shared,
+    build_default_registry,
+    extract_manifest_dependency_ids,
+    extract_manifest_entry_names,
+    is_exportable_entry_name,
+    link_or_copy_entry as _link_or_copy_entry_shared,
+    load_registry_file,
+    normalize_package_id as _normalize_package_id,
+    normalize_registry_payload,
+    overlay_package_into_repo_core,
+    remove_existing_entry as _remove_existing_entry_shared,
+    remove_managed_dependency_links as _remove_managed_dependency_links_shared,
+    remove_managed_entries as _remove_managed_entries_shared,
+)
 from fermilink.config import resolve_fermilink_home
 
 try:
@@ -27,24 +47,6 @@ def find_project_root(start: Path) -> Path:
 
 PROJECT_ROOT = find_project_root(Path(__file__))
 DEFAULT_MAXWELLLINK_ROOT = PROJECT_ROOT / "maxwelllink"
-
-REGISTRY_FILENAME = "registry.json"
-WORKSPACE_MANIFEST_FILENAME = ".package_manifest.json"
-
-SKIP_ENTRY_NAMES = {
-    ".git",
-    "__pycache__",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".ruff_cache",
-    ".venv",
-    "node_modules",
-}
-TEMPLATE_RESERVED_ENTRY_NAMES = {"agents.md"}
-PACKAGE_OVERLAY_ENTRIES_KEY = "overlay_entries"
-PACKAGE_DEPENDENCY_IDS_KEY = "dependency_package_ids"
-PACKAGE_DEPENDENCIES_DIRNAME = "external_packages"
-
 
 class PackageError(RuntimeError):
     """Base error for scientific package management."""
@@ -112,12 +114,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         The file is replaced in place.
     """
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with tmp.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
-        handle.write("\n")
-    tmp.replace(path)
+    _atomic_write_json_shared(path, payload)
 
 
 def normalize_package_id(value: str) -> str:
@@ -139,16 +136,10 @@ def normalize_package_id(value: str) -> str:
         Raised when the normalized id is empty.
     """
 
-    cleaned = "".join(
-        char.lower() if (char.isalnum() or char in {"-", "_"}) else "-"
-        for char in (value or "").strip()
-    )
-    while "--" in cleaned:
-        cleaned = cleaned.replace("--", "-")
-    cleaned = cleaned.strip("-_")
-    if not cleaned:
-        raise PackageValidationError("Package id is empty after normalization.")
-    return cleaned
+    try:
+        return _normalize_package_id(value)
+    except ValueError as exc:
+        raise PackageValidationError(str(exc)) from exc
 
 
 def resolve_scipkg_root() -> Path:
@@ -235,12 +226,7 @@ def _default_registry() -> dict[str, Any]:
         Registry skeleton with version, active package, and package map.
     """
 
-    return {
-        "version": 1,
-        "active_package": None,
-        "packages": {},
-        "updated_at": _now_iso(),
-    }
+    return build_default_registry(updated_at=_now_iso())
 
 
 def _normalize_registry(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -257,53 +243,18 @@ def _normalize_registry(payload: dict[str, Any] | None) -> dict[str, Any]:
         Canonical registry with normalized package ids and active selection.
     """
 
-    data = _default_registry()
-    if not isinstance(payload, dict):
-        return data
-
-    packages = payload.get("packages")
-    if isinstance(packages, dict):
-        normalized_packages: dict[str, Any] = {}
-        for raw_id, raw_meta in packages.items():
-            if not isinstance(raw_id, str) or not isinstance(raw_meta, dict):
-                continue
-            try:
-                package_id = normalize_package_id(raw_id)
-            except PackageValidationError:
-                continue
-            meta = dict(raw_meta)
-            meta["id"] = package_id
-            normalized_packages[package_id] = meta
-
-        for package_id, meta in normalized_packages.items():
-            raw_dependencies = meta.get(PACKAGE_DEPENDENCY_IDS_KEY)
-            try:
-                normalized_dependencies = _normalize_dependency_package_ids(
-                    raw_dependencies,
-                    package_id=package_id,
-                )
-            except PackageValidationError:
-                normalized_dependencies = None
-            if normalized_dependencies:
-                meta[PACKAGE_DEPENDENCY_IDS_KEY] = normalized_dependencies
-            else:
-                meta.pop(PACKAGE_DEPENDENCY_IDS_KEY, None)
-        data["packages"] = normalized_packages
-
-    active = payload.get("active_package")
-    if isinstance(active, str):
-        try:
-            normalized_active = normalize_package_id(active)
-        except PackageValidationError:
-            normalized_active = None
-        if normalized_active in data["packages"]:
-            data["active_package"] = normalized_active
-
-    updated_at = payload.get("updated_at")
-    if isinstance(updated_at, str) and updated_at:
-        data["updated_at"] = updated_at
-
-    return data
+    return normalize_registry_payload(
+        payload,
+        updated_at=_now_iso(),
+        normalize_package_id=normalize_package_id,
+        dependency_key=PACKAGE_DEPENDENCY_IDS_KEY,
+        dependency_normalizer=lambda raw, package_id: _normalize_dependency_package_ids(
+            raw,
+            package_id=package_id,
+        ),
+        coerce_non_dict_meta_to_empty=False,
+        fallback_active_to_first_package=False,
+    )
 
 
 @contextmanager
@@ -348,14 +299,11 @@ def _load_registry_unlocked(scipkg_root: Path) -> dict[str, Any]:
     """
 
     path = registry_path(scipkg_root)
-    if not path.exists():
-        return _default_registry()
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            loaded = json.load(handle)
-    except (json.JSONDecodeError, OSError):
-        return _default_registry()
-    return _normalize_registry(loaded)
+    return load_registry_file(
+        path,
+        default_registry=_default_registry,
+        normalize_registry=_normalize_registry,
+    )
 
 
 def load_registry(scipkg_root: Path) -> dict[str, Any]:
@@ -819,16 +767,7 @@ def _entry_is_exportable(entry: Path) -> bool:
         `True` when entry is not hidden/reserved and not in skip lists.
     """
 
-    name = entry.name
-    if not name:
-        return False
-    if name.startswith("."):
-        return False
-    if name in SKIP_ENTRY_NAMES:
-        return False
-    if name.casefold() in TEMPLATE_RESERVED_ENTRY_NAMES:
-        return False
-    return True
+    return is_exportable_entry_name(entry.name)
 
 
 def _normalize_overlay_entry_name(raw: str) -> str:
@@ -1034,20 +973,7 @@ def _manifest_entry_names(manifest: dict[str, Any] | None) -> set[str]:
         Linked entry names found in the manifest.
     """
 
-    names: set[str] = set()
-    if not isinstance(manifest, dict):
-        return names
-    linked = manifest.get("linked_entries")
-    if not isinstance(linked, list):
-        return names
-    for item in linked:
-        if isinstance(item, dict):
-            name = item.get("name")
-            if isinstance(name, str) and name:
-                names.add(name)
-        elif isinstance(item, str) and item:
-            names.add(item)
-    return names
+    return extract_manifest_entry_names(manifest)
 
 
 def _manifest_dependency_ids(manifest: dict[str, Any] | None) -> set[str]:
@@ -1064,27 +990,7 @@ def _manifest_dependency_ids(manifest: dict[str, Any] | None) -> set[str]:
         Dependency package ids found in the manifest.
     """
 
-    package_ids: set[str] = set()
-    if not isinstance(manifest, dict):
-        return package_ids
-    linked = manifest.get("linked_dependency_packages")
-    if not isinstance(linked, list):
-        return package_ids
-    for item in linked:
-        package_id: str | None = None
-        if isinstance(item, dict):
-            maybe_id = item.get("package_id") or item.get("name")
-            if isinstance(maybe_id, str) and maybe_id:
-                package_id = maybe_id
-        elif isinstance(item, str) and item:
-            package_id = item
-        if not package_id:
-            continue
-        try:
-            package_ids.add(normalize_package_id(package_id))
-        except PackageValidationError:
-            continue
-    return package_ids
+    return extract_manifest_dependency_ids(manifest)
 
 
 def _remove_managed_symlinks(
@@ -1110,29 +1016,13 @@ def _remove_managed_symlinks(
         Matching managed entries are removed in place.
     """
 
-    if not isinstance(manifest, dict):
-        return
-    linked = manifest.get("linked_entries")
-    if not isinstance(linked, list):
-        return
-    for item in linked:
-        if isinstance(item, dict):
-            name = item.get("name")
-            mode = item.get("mode", "symlink")
-        elif isinstance(item, str):
-            name = item
-            mode = "symlink"
-        else:
-            continue
-        if not isinstance(name, str) or not name:
-            continue
-        if only_names is not None and name not in only_names:
-            continue
-        target = repo_dir / name
-        if mode == "symlink" and target.is_symlink():
-            target.unlink(missing_ok=True)
-        elif mode != "symlink" and target.exists():
-            _remove_existing_entry(target)
+    _remove_managed_entries_shared(
+        repo_dir,
+        manifest,
+        only_names=only_names,
+        remove_non_symlink_entries=True,
+        remove_existing=_remove_existing_entry,
+    )
 
 
 def _remove_managed_dependency_links(
@@ -1158,46 +1048,14 @@ def _remove_managed_dependency_links(
         Matching dependency links are removed in place.
     """
 
-    if not isinstance(manifest, dict):
-        return
-    linked = manifest.get("linked_dependency_packages")
-    if not isinstance(linked, list):
-        return
-
-    dependency_root = repo_dir / PACKAGE_DEPENDENCIES_DIRNAME
-    for item in linked:
-        package_id: str | None = None
-        mode = "symlink"
-        if isinstance(item, dict):
-            maybe_id = item.get("package_id") or item.get("name")
-            if isinstance(maybe_id, str) and maybe_id:
-                package_id = maybe_id
-            maybe_mode = item.get("mode")
-            if isinstance(maybe_mode, str) and maybe_mode:
-                mode = maybe_mode
-        elif isinstance(item, str):
-            package_id = item
-        if not package_id:
-            continue
-
-        try:
-            normalized_id = normalize_package_id(package_id)
-        except PackageValidationError:
-            continue
-        if only_package_ids is not None and normalized_id not in only_package_ids:
-            continue
-
-        target = dependency_root / normalized_id
-        if mode == "symlink" and target.is_symlink():
-            target.unlink(missing_ok=True)
-        elif mode != "symlink" and target.exists():
-            _remove_existing_entry(target)
-
-    if dependency_root.is_dir():
-        try:
-            next(dependency_root.iterdir())
-        except StopIteration:
-            dependency_root.rmdir()
+    _remove_managed_dependency_links_shared(
+        repo_dir,
+        manifest,
+        normalize_package_id=normalize_package_id,
+        only_package_ids=only_package_ids,
+        dependencies_dirname=PACKAGE_DEPENDENCIES_DIRNAME,
+        remove_existing=_remove_existing_entry,
+    )
 
 
 def _link_or_copy_entry(src: Path, dst: Path) -> str:
@@ -1217,17 +1075,7 @@ def _link_or_copy_entry(src: Path, dst: Path) -> str:
         destination already exists.
     """
 
-    if dst.is_symlink() or dst.exists():
-        return "existing"
-    try:
-        os.symlink(src.resolve(), dst, target_is_directory=src.is_dir())
-        return "symlink"
-    except OSError:
-        if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src, dst)
-        return "copy"
+    return _link_or_copy_entry_shared(src, dst)
 
 
 def _remove_existing_entry(path: Path) -> None:
@@ -1244,11 +1092,7 @@ def _remove_existing_entry(path: Path) -> None:
         Existing path is removed in place.
     """
 
-    if path.is_symlink() or path.is_file():
-        path.unlink(missing_ok=True)
-        return
-    if path.is_dir():
-        shutil.rmtree(path, ignore_errors=True)
+    _remove_existing_entry_shared(path)
 
 
 def _resolve_package_meta_path(package_meta: dict[str, Any]) -> Path:
@@ -1401,210 +1245,41 @@ def overlay_package_into_repo(
         entry diagnostics, plus dependency package link diagnostics.
     """
 
-    package_root = _resolve_package_meta_path(package_meta)
-    configured_entries = _normalize_overlay_entries(
-        package_meta.get(PACKAGE_OVERLAY_ENTRIES_KEY)
-    )
-    configured_dependency_ids = (
-        _normalize_dependency_package_ids(
-            package_meta.get(PACKAGE_DEPENDENCY_IDS_KEY),
-            package_id=package_id,
-        )
-        or []
-    )
-    entries, missing_requested_entries = iter_package_entries(
-        package_root,
-        include_names=configured_entries,
-    )
-    target_entry_names = {entry.name for entry in entries}
-    previous_manifest = load_workspace_manifest(workspace_root)
-    previous_id = None
-    if isinstance(previous_manifest, dict):
-        previous_raw = previous_manifest.get("package_id")
-        if isinstance(previous_raw, str):
-            try:
-                previous_id = normalize_package_id(previous_raw)
-            except PackageValidationError:
-                previous_id = None
-
-    if previous_id is not None and previous_id != package_id:
-        _remove_managed_symlinks(repo_dir, previous_manifest)
-        _remove_managed_dependency_links(repo_dir, previous_manifest)
-    elif previous_id == package_id:
-        stale_names = _manifest_entry_names(previous_manifest) - target_entry_names
-        if stale_names:
-            _remove_managed_symlinks(
-                repo_dir, previous_manifest, only_names=stale_names
-            )
-        stale_dependency_ids = _manifest_dependency_ids(previous_manifest) - set(
-            configured_dependency_ids
-        )
-        if stale_dependency_ids:
-            _remove_managed_dependency_links(
-                repo_dir,
-                previous_manifest,
-                only_package_ids=stale_dependency_ids,
-            )
-
-    previous_names = _manifest_entry_names(previous_manifest)
-    previous_dependency_ids = _manifest_dependency_ids(previous_manifest)
-    linked_entries: list[dict[str, str]] = []
-    collisions: list[str] = []
-    linked_dependency_packages: list[dict[str, str]] = []
-    missing_dependency_packages: list[str] = []
-    dependency_collisions: list[str] = []
-
-    for src in entries:
-        dst = repo_dir / src.name
-        if dst.is_symlink():
-            try:
-                same_target = dst.resolve() == src.resolve()
-            except OSError:
-                same_target = False
-            if same_target:
-                linked_entries.append(
-                    {"name": src.name, "mode": "symlink", "source": str(src.resolve())}
-                )
-                continue
-            if src.name in previous_names:
-                dst.unlink(missing_ok=True)
-            elif allow_replace_existing:
-                dst.unlink(missing_ok=True)
-            else:
-                collisions.append(src.name)
-                continue
-        elif dst.exists():
-            if allow_replace_existing:
-                _remove_existing_entry(dst)
-            else:
-                collisions.append(src.name)
-                continue
-
-        mode = _link_or_copy_entry(src, dst)
-        if mode == "existing":
-            collisions.append(src.name)
-            continue
-        linked_entries.append(
-            {"name": src.name, "mode": mode, "source": str(src.resolve())}
-        )
-
-    packages_payload: dict[str, Any] = {}
-    try:
-        effective_scipkg_root = (
-            scipkg_root if isinstance(scipkg_root, Path) else resolve_scipkg_root()
-        )
-        registry = load_registry(effective_scipkg_root)
-        maybe_packages = registry.get("packages", {})
-        if isinstance(maybe_packages, dict):
-            packages_payload = maybe_packages
-    except Exception:
-        packages_payload = {}
-
-    if package_id not in packages_payload:
-        packages_payload = dict(packages_payload)
-        packages_payload[package_id] = package_meta
-
-    dependency_root = repo_dir / PACKAGE_DEPENDENCIES_DIRNAME
-    dependency_root_ready = True
-    if configured_dependency_ids:
-        if dependency_root.exists() and not dependency_root.is_dir():
-            if allow_replace_existing:
-                _remove_existing_entry(dependency_root)
-            else:
-                dependency_root_ready = False
-                dependency_collisions.extend(configured_dependency_ids)
-        if dependency_root_ready:
-            dependency_root.mkdir(parents=True, exist_ok=True)
-
-    for dependency_id in configured_dependency_ids:
-        if not dependency_root_ready:
-            break
-        dependency_meta = packages_payload.get(dependency_id)
-        dependency_dst = dependency_root / dependency_id
-        if not isinstance(dependency_meta, dict):
-            missing_dependency_packages.append(dependency_id)
-            if dependency_id in previous_dependency_ids:
-                _remove_existing_entry(dependency_dst)
-            continue
+    def _load_package_map(
+        _package_id: str, _package_meta: dict[str, Any]
+    ) -> dict[str, Any]:
         try:
-            dependency_src = _resolve_package_meta_path(dependency_meta)
-        except PackageValidationError:
-            missing_dependency_packages.append(dependency_id)
-            if dependency_id in previous_dependency_ids:
-                _remove_existing_entry(dependency_dst)
-            continue
+            effective_scipkg_root = (
+                scipkg_root if isinstance(scipkg_root, Path) else resolve_scipkg_root()
+            )
+            registry = load_registry(effective_scipkg_root)
+            maybe_packages = registry.get("packages", {})
+            if isinstance(maybe_packages, dict):
+                return maybe_packages
+            return {}
+        except Exception:
+            return {}
 
-        if dependency_dst.is_symlink():
-            try:
-                same_target = dependency_dst.resolve() == dependency_src.resolve()
-            except OSError:
-                same_target = False
-            if same_target:
-                linked_dependency_packages.append(
-                    {
-                        "package_id": dependency_id,
-                        "mode": "symlink",
-                        "source": str(dependency_src.resolve()),
-                    }
-                )
-                continue
-            if dependency_id in previous_dependency_ids or allow_replace_existing:
-                dependency_dst.unlink(missing_ok=True)
-            else:
-                dependency_collisions.append(dependency_id)
-                continue
-        elif dependency_dst.exists():
-            if dependency_id in previous_dependency_ids or allow_replace_existing:
-                _remove_existing_entry(dependency_dst)
-            else:
-                dependency_collisions.append(dependency_id)
-                continue
-
-        mode = _link_or_copy_entry(dependency_src, dependency_dst)
-        if mode == "existing":
-            dependency_collisions.append(dependency_id)
-            continue
-        linked_dependency_packages.append(
-            {
-                "package_id": dependency_id,
-                "mode": mode,
-                "source": str(dependency_src.resolve()),
-            }
-        )
-
-    if dependency_root.is_dir():
-        try:
-            next(dependency_root.iterdir())
-        except StopIteration:
-            dependency_root.rmdir()
-
-    manifest = {
-        "version": 1,
-        "package_id": package_id,
-        "package_path": str(package_root.resolve()),
-        "requested_entries": configured_entries,
-        "missing_requested_entries": missing_requested_entries,
-        "linked_entries": linked_entries,
-        "collisions": collisions,
-        "configured_dependency_package_ids": configured_dependency_ids,
-        "linked_dependency_packages": linked_dependency_packages,
-        "missing_dependency_packages": sorted(set(missing_dependency_packages)),
-        "dependency_collisions": sorted(set(dependency_collisions)),
-        "updated_at": _now_iso(),
-    }
-    save_workspace_manifest(workspace_root, manifest)
-    return {
-        "package_id": package_id,
-        "package_path": str(package_root.resolve()),
-        "linked_count": len(linked_entries),
-        "collision_count": len(collisions),
-        "collisions": collisions,
-        "requested_entries": configured_entries,
-        "missing_requested_entries": missing_requested_entries,
-        "dependency_package_ids": configured_dependency_ids,
-        "linked_dependency_count": len(linked_dependency_packages),
-        "linked_dependency_packages": linked_dependency_packages,
-        "missing_dependency_packages": sorted(set(missing_dependency_packages)),
-        "dependency_collision_count": len(set(dependency_collisions)),
-        "dependency_collisions": sorted(set(dependency_collisions)),
-    }
+    return overlay_package_into_repo_core(
+        repo_dir=repo_dir,
+        workspace_root=workspace_root,
+        package_id=package_id,
+        package_meta=package_meta,
+        allow_replace_existing=allow_replace_existing,
+        now_iso=_now_iso,
+        resolve_package_meta_path=_resolve_package_meta_path,
+        normalize_overlay_entries=_normalize_overlay_entries,
+        normalize_dependency_ids=_normalize_dependency_package_ids,
+        iter_package_entries=iter_package_entries,
+        load_workspace_manifest=load_workspace_manifest,
+        save_workspace_manifest=save_workspace_manifest,
+        normalize_package_id=normalize_package_id,
+        get_package_map=_load_package_map,
+        replace_existing_entries_for_previous_names=False,
+        remove_non_symlink_managed_entries=True,
+        overlay_entries_key=PACKAGE_OVERLAY_ENTRIES_KEY,
+        dependency_ids_key=PACKAGE_DEPENDENCY_IDS_KEY,
+        dependencies_dirname=PACKAGE_DEPENDENCIES_DIRNAME,
+        remove_existing=_remove_existing_entry,
+        link_or_copy=_link_or_copy_entry,
+    )

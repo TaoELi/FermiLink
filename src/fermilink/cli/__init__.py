@@ -69,13 +69,13 @@ from fermilink.agent_runtime import (
     save_agent_runtime_policy,
 )
 from fermilink.config import resolve_runtime_root, resolve_scipkg_root
-from fermilink.curated_channels import (
+from fermilink.packages.curated_channels import (
     list_curated_packages,
     normalize_channel_id,
     resolve_curated_package,
     select_package_version,
 )
-from fermilink.package_registry import (
+from fermilink.packages.package_registry import (
     PackageError,
     PackageNotFoundError,
     PackageValidationError,

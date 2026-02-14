@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fermilink.package_registry import load_registry, normalize_package_id
+from fermilink.packages.package_registry import load_registry, normalize_package_id
 
 
 DEFAULT_ROUTER_RULES_FILENAME = "router_rules.json"
