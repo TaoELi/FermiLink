@@ -101,7 +101,6 @@ import chainlit as cl
 import httpx
 from chainlit.config import config, public_dir
 from chainlit.context import context as chainlit_context
-from chainlit.data import get_data_layer
 from chainlit.data.storage_clients.base import BaseStorageClient
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.server import app as chainlit_fastapi_app

@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable
 
 
 def _resolve_package_registry(
