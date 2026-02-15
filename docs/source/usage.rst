@@ -98,8 +98,8 @@ publication-scale requests.
    fermilink reproduce paper.tex --report-only
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
-``plan.json``, ``state.json``, prompts, logs, archive, summaries) plus final
-report output.
+``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
+``report.md``).
 
 Research workflows
 ------------------
@@ -113,8 +113,8 @@ paper.
    fermilink research idea.md --plan-only
    fermilink research idea.md --report-only
 
-Key artifacts are written under ``projects/research/<run-id>/`` and support
-resume from edited plan state.
+Key artifacts are written under ``projects/research/<run-id>/`` (including
+``report.md``) and support resume from edited plan state.
 
 Web package controls
 --------------------

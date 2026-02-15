@@ -151,6 +151,23 @@ def cmd_loop(args: argparse.Namespace) -> int:
     """
 
     cli = _cli()
+
+    def _record_loop_outcome(
+        *,
+        status: str,
+        reason: str,
+        provider_exit_code: int | None = None,
+    ) -> None:
+        setattr(
+            args,
+            "_fermilink_loop_outcome",
+            {
+                "status": status,
+                "reason": reason,
+                "provider_exit_code": provider_exit_code,
+            },
+        )
+
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
 
@@ -265,11 +282,17 @@ def cmd_loop(args: argparse.Namespace) -> int:
                 for line in assistant_text.splitlines()
             )
             if done:
+                _record_loop_outcome(status="done", reason="done_token")
                 print(cli.LOOP_DONE_TOKEN)
                 return 0
 
             return_code = int(run_result.get("return_code") or 0)
             if return_code != 0:
+                _record_loop_outcome(
+                    status="provider_failure",
+                    reason=f"provider_exit_code_{return_code}",
+                    provider_exit_code=return_code,
+                )
                 return return_code
 
             if iteration < max_iterations:
@@ -306,6 +329,10 @@ def cmd_loop(args: argparse.Namespace) -> int:
         "loop",
         f"max iterations reached ({max_iterations}) without {cli.LOOP_DONE_TOKEN}.",
         stderr=True,
+    )
+    _record_loop_outcome(
+        status="incomplete_max_iterations",
+        reason="max_iterations_reached",
     )
     return 1
 

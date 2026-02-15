@@ -745,6 +745,74 @@ def _maybe_sync_mode_plan_from_disk(
     return True
 
 
+def _capture_file_signature(path: Path) -> tuple[int, int, str] | None:
+    if not path.is_file():
+        return None
+    try:
+        file_stat = path.stat()
+        payload = path.read_bytes()
+    except OSError:
+        return None
+    return (
+        int(len(payload)),
+        int(file_stat.st_mtime_ns),
+        hashlib.sha256(payload).hexdigest(),
+    )
+
+
+def _capture_signatures(
+    paths: list[Path],
+) -> dict[str, tuple[int, int, str] | None]:
+    return {str(path): _capture_file_signature(path) for path in paths}
+
+
+def _validate_report_stage_artifacts(
+    *,
+    stage_label: str,
+    report_path: Path,
+    summary_paths: list[Path],
+    before_report_signature: tuple[int, int, str] | None,
+    before_summary_signatures: dict[str, tuple[int, int, str] | None],
+    required_marker: str,
+) -> str | None:
+    errors: list[str] = []
+    report_signature = _capture_file_signature(report_path)
+    report_text = ""
+    if report_signature is None:
+        errors.append(f"missing report file: {report_path}")
+    else:
+        if report_signature[0] <= 0:
+            errors.append(f"empty report file: {report_path}")
+        try:
+            report_text = report_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            errors.append(f"failed to read report file: {report_path}: {exc}")
+        if required_marker not in report_text:
+            errors.append(f"report missing required marker: {required_marker}")
+
+    summary_signatures = _capture_signatures(summary_paths)
+    for summary_path in summary_paths:
+        summary_signature = summary_signatures.get(str(summary_path))
+        if summary_signature is None:
+            errors.append(f"missing summary file: {summary_path}")
+            continue
+        if summary_signature[0] <= 0:
+            errors.append(f"empty summary file: {summary_path}")
+
+    artifacts_updated = report_signature != before_report_signature
+    if not artifacts_updated:
+        for path_text, after_signature in summary_signatures.items():
+            if after_signature != before_summary_signatures.get(path_text):
+                artifacts_updated = True
+                break
+    if not artifacts_updated:
+        errors.append("no report/summary artifacts were updated in this stage")
+
+    if errors:
+        return f"{stage_label} validation failed: {'; '.join(errors)}"
+    return None
+
+
 def _finalize_workflow_report(
     *,
     repo_dir: Path,
@@ -768,7 +836,12 @@ def _finalize_workflow_report(
 
     summaries_root = run_dir / WORKFLOW_SUMMARIES_DIRNAME
     summaries_root.mkdir(parents=True, exist_ok=True)
-    report_path = runs_root / WORKFLOW_REPORT_FILENAME
+    report_path = run_dir / WORKFLOW_REPORT_FILENAME
+    run_id = run_dir.name
+    generation_marker = (
+        f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
+    )
+    audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
 
     def _display_path(path: Path) -> str:
         try:
@@ -811,10 +884,15 @@ def _finalize_workflow_report(
         "3) Include markdown figure/image links to generated outputs whenever files exist.\n"
         "4) Explicitly note missing artifacts or limitations.\n"
         "5) End with concise conclusions and next-step suggestions.\n"
+        "6) Include this exact marker line anywhere in the report:\n"
+        f"{generation_marker}\n"
     )
 
+    generation_failure_reason = ""
     for attempt in range(1, 3):
         cli._print_tagged(workflow_name, f"report generation attempt {attempt}/2")
+        before_report_signature = _capture_file_signature(report_path)
+        before_summary_signatures = _capture_signatures(summary_paths)
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
             prompt=generator_prompt,
@@ -823,11 +901,30 @@ def _finalize_workflow_report(
             codex_bin=codex_bin,
         )
         return_code = int(run_result.get("return_code") or 0)
-        if return_code == 0 and report_path.is_file():
-            break
+        if return_code == 0:
+            generation_validation_error = _validate_report_stage_artifacts(
+                stage_label=f"{workflow_name} report generation",
+                report_path=report_path,
+                summary_paths=summary_paths,
+                before_report_signature=before_report_signature,
+                before_summary_signatures=before_summary_signatures,
+                required_marker=generation_marker,
+            )
+            if generation_validation_error is None:
+                break
+            generation_failure_reason = generation_validation_error
+            cli._print_tagged(workflow_name, generation_validation_error, stderr=True)
+        else:
+            generation_failure_reason = (
+                f"{workflow_name.title()} report generation failed with exit code {return_code}."
+            )
         if attempt == 2:
             raise cli.PackageError(
-                f"{workflow_name.title()} report generation failed (exit code {return_code})."
+                generation_failure_reason
+                or (
+                    f"{workflow_name.title()} report generation failed "
+                    f"(exit code {return_code})."
+                )
             )
 
     auditor_prompt = (
@@ -846,9 +943,14 @@ def _finalize_workflow_report(
         "2) Improve structure, clarity, and scientific correctness.\n"
         "3) Keep/repair figure links and explain missing figures explicitly.\n"
         "4) Update the same report file in place.\n"
+        "5) Ensure the report contains this exact marker line:\n"
+        f"{audit_marker}\n"
     )
+    audit_failure_reason = ""
     for attempt in range(1, 3):
         cli._print_tagged(workflow_name, f"report audit attempt {attempt}/2")
+        before_report_signature = _capture_file_signature(report_path)
+        before_summary_signatures = _capture_signatures(summary_paths)
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
             prompt=auditor_prompt,
@@ -857,11 +959,27 @@ def _finalize_workflow_report(
             codex_bin=codex_bin,
         )
         return_code = int(run_result.get("return_code") or 0)
-        if return_code == 0 and report_path.is_file():
-            break
+        if return_code == 0:
+            audit_validation_error = _validate_report_stage_artifacts(
+                stage_label=f"{workflow_name} report audit",
+                report_path=report_path,
+                summary_paths=summary_paths,
+                before_report_signature=before_report_signature,
+                before_summary_signatures=before_summary_signatures,
+                required_marker=audit_marker,
+            )
+            if audit_validation_error is None:
+                break
+            audit_failure_reason = audit_validation_error
+            cli._print_tagged(workflow_name, audit_validation_error, stderr=True)
+        else:
+            audit_failure_reason = (
+                f"{workflow_name.title()} report audit failed with exit code {return_code}."
+            )
         if attempt == 2:
             raise cli.PackageError(
-                f"{workflow_name.title()} report audit failed (exit code {return_code})."
+                audit_failure_reason
+                or f"{workflow_name.title()} report audit failed (exit code {return_code})."
             )
 
     return {
@@ -1301,6 +1419,27 @@ def cmd_plan_workflow(
         )
         started_at = cli._utc_now_z()
         code = cli._cmd_loop(loop_args)
+        loop_outcome_payload = getattr(loop_args, "_fermilink_loop_outcome", None)
+        loop_status = ""
+        loop_reason = ""
+        provider_exit_code: int | None = None
+        if isinstance(loop_outcome_payload, dict):
+            loop_status = str(loop_outcome_payload.get("status") or "").strip()
+            loop_reason = str(loop_outcome_payload.get("reason") or "").strip()
+            provider_exit_code_raw = loop_outcome_payload.get("provider_exit_code")
+            if isinstance(provider_exit_code_raw, int):
+                provider_exit_code = provider_exit_code_raw
+        if not loop_status:
+            if code == 0:
+                loop_status = "done"
+                loop_reason = "loop_exit_code_0"
+            elif code == 1:
+                loop_status = "incomplete_max_iterations"
+                loop_reason = "legacy_loop_exit_code_1"
+            else:
+                loop_status = "provider_failure"
+                loop_reason = f"legacy_loop_exit_code_{code}"
+                provider_exit_code = code
         finished_at = cli._utc_now_z()
         task_runs_state[task_id] = run_number
         state["updated_at_utc"] = finished_at
@@ -1314,6 +1453,9 @@ def cmd_plan_workflow(
                         "started_at_utc": started_at,
                         "finished_at_utc": finished_at,
                         "loop_exit_code": code,
+                        "loop_status": loop_status,
+                        "loop_reason": loop_reason,
+                        "provider_exit_code": provider_exit_code,
                     },
                     indent=2,
                 )
@@ -1323,7 +1465,7 @@ def cmd_plan_workflow(
         except OSError:
             pass
 
-        if code == 0:
+        if loop_status == "done":
             cli._archive_loop_memory(
                 repo_dir=repo_dir,
                 archive_dir=archive_dir,
@@ -1335,7 +1477,7 @@ def cmd_plan_workflow(
             cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
             continue
 
-        if code == 1 and run_number < task_max_runs:
+        if loop_status == "incomplete_max_iterations" and run_number < task_max_runs:
             state["last_error"] = (
                 f"Task {task_id} did not reach {cli.LOOP_DONE_TOKEN}; retrying "
                 f"({run_number}/{task_max_runs})."
@@ -1343,7 +1485,7 @@ def cmd_plan_workflow(
             cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
             continue
 
-        if code == 1:
+        if loop_status == "incomplete_max_iterations":
             state["status"] = "failed"
             state["last_error"] = (
                 f"Task {task_id} exceeded --task-max-runs ({task_max_runs}) "
@@ -1355,7 +1497,15 @@ def cmd_plan_workflow(
             return 1
 
         state["status"] = "failed"
-        state["last_error"] = f"Task {task_id} failed with loop exit code {code}."
+        if loop_status == "provider_failure" and provider_exit_code is not None:
+            state["last_error"] = (
+                f"Task {task_id} failed with provider exit code {provider_exit_code}."
+            )
+        else:
+            state["last_error"] = (
+                f"Task {task_id} failed with loop status {loop_status or 'unknown'} "
+                f"(exit code {code})."
+            )
         state["updated_at_utc"] = cli._utc_now_z()
         cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
         cli._print_tagged(workflow_name, str(state["last_error"]), stderr=True)
