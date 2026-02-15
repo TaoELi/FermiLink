@@ -95,11 +95,15 @@ publication-scale requests.
    fermilink reproduce paper.tex
    fermilink reproduce "reproduce Figures 1-4 from this paper ..."
    fermilink reproduce paper.tex --plan-only
+   fermilink reproduce paper.tex --dry-run
    fermilink reproduce paper.tex --report-only
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
 ``report.md``).
+Use ``--dry-run`` to keep task execution in scaffold mode (prepare simulation
+inputs, post-processing/plot scripts, and README instructions) without running
+full simulations.
 
 Research workflows
 ------------------
@@ -111,6 +115,7 @@ paper.
 
    fermilink research "Design and validate a cavity QED protocol"
    fermilink research idea.md --plan-only
+   fermilink research idea.md --dry-run
    fermilink research idea.md --report-only
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including

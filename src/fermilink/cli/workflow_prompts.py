@@ -182,3 +182,36 @@ WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
     "You are an independent reviewer. Read the generated report and improve it for\n"
     "scientific clarity, completeness, and reproducibility.\n"
 )
+
+WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX = (
+    "Dry-run planning requirements:\n"
+    "- Keep task-level scientific intent unchanged, but do not require executing full simulations now.\n"
+    "- Design each task so the agent prepares simulation-ready artifacts only: input/config templates,\n"
+    "  post-processing scripts, and plotting scripts.\n"
+    "- Require a task-level README.md (or update an existing one) with exact commands for later simulation execution,\n"
+    "  expected outputs, and validation steps.\n"
+    "- Acceptance checks must focus on artifact completeness, script correctness, and reproducibility instructions,\n"
+    "  not numerical results from executed simulations.\n"
+)
+
+WORKFLOW_DRY_RUN_AUDITOR_PROMPT_SUFFIX = (
+    "Dry-run audit requirements:\n"
+    "- Rewrite vague or simulation-execution-heavy tasks into artifact-preparation tasks only.\n"
+    "- Each `prompt_markdown` must explicitly prohibit running full simulations in this dry-run workflow.\n"
+    "- Ensure each task requests: simulation input/config preparation, post-processing scripts,\n"
+    "  plotting scripts, and a README.md for running simulations later.\n"
+    "- Ensure acceptance checks verify file outputs, command reproducibility instructions, and static checks,\n"
+    "  without claiming simulation-derived figure values.\n"
+)
+
+WORKFLOW_DRY_RUN_LOOP_PREAMBLE = (
+    "DRY-RUN mode constraints:\n"
+    "- Do not execute full simulations, MPI jobs, SLURM jobs, or long-running numerical workloads.\n"
+    "- Prepare only simulation inputs/configs, post-processing scripts, and plotting scripts.\n"
+    "- If you create or revise the checklist in `projects/memory.md`, use only 1-4 focused steps.\n"
+    "- This 1-4 checklist range overrides the default loop guidance of 5-15 steps.\n"
+    "- Create or update README.md instructions describing exactly how to run simulations later,\n"
+    "  expected outputs, and verification steps.\n"
+    "- Use static checks only (file existence, syntax/import checks, CLI dry-run checks where available).\n"
+    "- Do not claim simulation-derived numerical results in this mode.\n"
+)

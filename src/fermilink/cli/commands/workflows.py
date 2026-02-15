@@ -26,6 +26,9 @@ from fermilink.cli.workflow_prompts import (
     RESEARCH_PLAN_TAG,
     RESEARCH_PLAN_TOKEN_RE,
     RESEARCH_PLANNER_PROMPT_PREFIX,
+    WORKFLOW_DRY_RUN_AUDITOR_PROMPT_SUFFIX,
+    WORKFLOW_DRY_RUN_LOOP_PREAMBLE,
+    WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX,
     WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX,
     WORKFLOW_REPORT_FILENAME,
     WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX,
@@ -87,7 +90,9 @@ def _sanitize_task_id(raw_id: object, index: int, used: set[str]) -> str:
     return deduped
 
 
-def _render_reproduce_task_prompt(task: dict[str, object]) -> str:
+def _render_reproduce_task_prompt(
+    task: dict[str, object], *, dry_run: bool = False
+) -> str:
     task_id = str(task.get("id") or "task")
     title = str(task.get("title") or "Reproduce task").strip()
     objective = str(task.get("objective") or "").strip()
@@ -133,12 +138,26 @@ def _render_reproduce_task_prompt(task: dict[str, object]) -> str:
         lines.extend(
             ["", "## Acceptance checks", *[f"- {item}" for item in acceptance_checks]]
         )
+    if dry_run:
+        lines.extend(
+            [
+                "",
+                "## Dry-run deliverables",
+                "- Prepare simulation input/config files only (do not run simulations).",
+                "- Prepare post-processing scripts for expected simulation outputs.",
+                "- Prepare plotting scripts for the target figures.",
+                "- Create or update README.md with exact future simulation commands and validation steps.",
+            ]
+        )
     lines.extend(
         [
             "",
             "## Execution notes",
             "- Keep scripts, data, and plots reproducible.",
             "- Save run details and blockers in projects/memory.md.",
+            "- Do not execute full simulations in dry-run mode."
+            if dry_run
+            else "- Execute simulation work only when required by the task plan.",
         ]
     )
     return "\n".join(lines).strip() + "\n"
@@ -178,6 +197,7 @@ def _normalize_automation_plan(
     raw_plan: object,
     *,
     source_description: str,
+    dry_run: bool = False,
 ) -> dict[str, object]:
     cli = _cli()
     if not isinstance(raw_plan, dict):
@@ -218,7 +238,9 @@ def _normalize_automation_plan(
             "acceptance_checks": acceptance_checks,
         }
         if not prompt_markdown:
-            prompt_markdown = _render_reproduce_task_prompt(normalized_task).strip()
+            prompt_markdown = _render_reproduce_task_prompt(
+                normalized_task, dry_run=dry_run
+            ).strip()
         normalized_task["prompt_markdown"] = prompt_markdown
         normalized_tasks.append(normalized_task)
 
@@ -235,16 +257,26 @@ def _normalize_reproduce_plan(
     raw_plan: object,
     *,
     source_description: str,
+    dry_run: bool = False,
 ) -> dict[str, object]:
-    return _normalize_automation_plan(raw_plan, source_description=source_description)
+    return _normalize_automation_plan(
+        raw_plan,
+        source_description=source_description,
+        dry_run=dry_run,
+    )
 
 
 def _normalize_research_plan(
     raw_plan: object,
     *,
     source_description: str,
+    dry_run: bool = False,
 ) -> dict[str, object]:
-    return _normalize_automation_plan(raw_plan, source_description=source_description)
+    return _normalize_automation_plan(
+        raw_plan,
+        source_description=source_description,
+        dry_run=dry_run,
+    )
 
 
 def _run_reproduce_exec_turn(
@@ -349,16 +381,20 @@ def _generate_mode_plan(
     extract_payload,
     normalize_plan,
     log_tag: str,
+    dry_run: bool = False,
 ) -> dict[str, object]:
     """Generate + audit a workflow plan used by both `reproduce` and `research`."""
 
     cli = _cli()
-    planner_prompt = (
+    planner_prompt_parts = [
         f"{planner_prompt_prefix}\n\n"
         f"Paper source: {source_description}\n\n"
         "Paper content / request:\n"
         f"{source_text.strip()}\n"
-    )
+    ]
+    if dry_run:
+        planner_prompt_parts.append(f"\n{WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX}\n")
+    planner_prompt = "".join(planner_prompt_parts)
     planner_plan: dict[str, object] | None = None
     for attempt in range(1, planner_max_tries + 1):
         cli._print_tagged(log_tag, f"planner attempt {attempt}/{planner_max_tries}")
@@ -385,7 +421,9 @@ def _generate_mode_plan(
             continue
         try:
             planner_plan = normalize_plan(
-                raw_payload, source_description=source_description
+                raw_payload,
+                source_description=source_description,
+                dry_run=dry_run,
             )
         except cli.PackageError as exc:
             cli._print_tagged(log_tag, f"planner response invalid: {exc}", stderr=True)
@@ -397,14 +435,17 @@ def _generate_mode_plan(
         )
 
     audited_plan: dict[str, object] | None = None
-    auditor_prompt = (
+    auditor_prompt_parts = [
         f"{auditor_prompt_prefix}\n\n"
         f"Paper source: {source_description}\n\n"
         "Original paper content / request:\n"
         f"{source_text.strip()}\n\n"
         "Candidate plan JSON:\n"
         f"{json.dumps(planner_plan, indent=2)}\n"
-    )
+    ]
+    if dry_run:
+        auditor_prompt_parts.append(f"\n{WORKFLOW_DRY_RUN_AUDITOR_PROMPT_SUFFIX}\n")
+    auditor_prompt = "".join(auditor_prompt_parts)
     for attempt in range(1, auditor_max_tries + 1):
         cli._print_tagged(log_tag, f"auditor attempt {attempt}/{auditor_max_tries}")
         run_result = _run_reproduce_exec_turn(
@@ -430,7 +471,9 @@ def _generate_mode_plan(
             continue
         try:
             audited_plan = normalize_plan(
-                raw_payload, source_description=source_description
+                raw_payload,
+                source_description=source_description,
+                dry_run=dry_run,
             )
         except cli.PackageError as exc:
             cli._print_tagged(log_tag, f"auditor response invalid: {exc}", stderr=True)
@@ -453,6 +496,7 @@ def _generate_reproduce_plan(
     codex_bin: str,
     planner_max_tries: int,
     auditor_max_tries: int,
+    dry_run: bool = False,
 ) -> dict[str, object]:
     return _generate_mode_plan(
         repo_dir=repo_dir,
@@ -469,6 +513,7 @@ def _generate_reproduce_plan(
         extract_payload=_extract_reproduce_plan_payload,
         normalize_plan=_normalize_reproduce_plan,
         log_tag="reproduce",
+        dry_run=dry_run,
     )
 
 
@@ -482,6 +527,7 @@ def _generate_research_plan(
     codex_bin: str,
     planner_max_tries: int,
     auditor_max_tries: int,
+    dry_run: bool = False,
 ) -> dict[str, object]:
     return _generate_mode_plan(
         repo_dir=repo_dir,
@@ -498,6 +544,7 @@ def _generate_research_plan(
         extract_payload=_extract_research_plan_payload,
         normalize_plan=_normalize_research_plan,
         log_tag="research",
+        dry_run=dry_run,
     )
 
 
@@ -703,6 +750,7 @@ def _maybe_sync_mode_plan_from_disk(
     state: dict[str, object],
     source_description: str,
     workflow_name: str,
+    dry_run: bool = False,
 ) -> bool:
     cli = _cli()
     state_status = str(state.get("status") or "")
@@ -732,6 +780,7 @@ def _maybe_sync_mode_plan_from_disk(
     normalized_plan = _normalize_automation_plan(
         raw_plan,
         source_description=source_description,
+        dry_run=dry_run,
     )
     _materialize_mode_plan(
         run_dir=run_dir,
@@ -1012,6 +1061,7 @@ def cmd_plan_workflow(
     plan_only = bool(getattr(args, "plan_only", False))
     report_only = bool(getattr(args, "report_only", False))
     skip_report = bool(getattr(args, "skip_report", False))
+    dry_run = bool(getattr(args, "dry_run", False))
     if plan_only and report_only:
         raise cli.PackageError("Cannot combine --plan-only and --report-only.")
     if report_only and skip_report:
@@ -1114,6 +1164,7 @@ def cmd_plan_workflow(
             "version": 1,
             "run_id": run_id,
             "status": "planning",
+            "dry_run": dry_run,
             "created_at_utc": cli._utc_now_z(),
             "updated_at_utc": cli._utc_now_z(),
             "source_fingerprint": source_fingerprint,
@@ -1134,6 +1185,15 @@ def cmd_plan_workflow(
             ) from exc
     else:
         cli._print_tagged(workflow_name, f"resuming run: {run_dir.name}")
+    state_dry_run = bool(state.get("dry_run", False))
+    if state_dry_run != dry_run:
+        expected_mode = "--dry-run" if state_dry_run else "without --dry-run"
+        current_mode = "--dry-run" if dry_run else "without --dry-run"
+        raise cli.PackageError(
+            f"Run {run_dir.name} was created {expected_mode}; current invocation is "
+            f"{current_mode}. Use --restart or rerun with matching dry-run mode."
+        )
+    state["dry_run"] = state_dry_run
 
     prompts_dir = run_dir / cli.REPRODUCE_PROMPTS_DIRNAME
     logs_dir = run_dir / cli.REPRODUCE_LOGS_DIRNAME
@@ -1160,6 +1220,7 @@ def cmd_plan_workflow(
             codex_bin=args.codex_bin,
             planner_max_tries=planner_max_tries,
             auditor_max_tries=auditor_max_tries,
+            dry_run=dry_run,
         )
         cli._materialize_mode_plan(
             run_dir=run_dir,
@@ -1185,6 +1246,7 @@ def cmd_plan_workflow(
         state=state,
         source_description=source_description,
         workflow_name=workflow_name,
+        dry_run=dry_run,
     )
     if plan_synced:
         cli._print_tagged(workflow_name, "synced plan from plan.json")
@@ -1343,6 +1405,8 @@ def cmd_plan_workflow(
             workflow_prompt_preamble_lines.append(
                 "- No archived memory exists yet for this run."
             )
+        if dry_run:
+            workflow_prompt_preamble_lines.extend(["", WORKFLOW_DRY_RUN_LOOP_PREAMBLE])
         workflow_prompt_preamble = "\n".join(workflow_prompt_preamble_lines).strip()
 
         task_runs = int(task_runs_state.get(task_id, 0))
@@ -1358,6 +1422,9 @@ def cmd_plan_workflow(
 
             workflow_context_lines = [
                 f"- workflow: {workflow_name}",
+                "- dry_run: true (prepare artifacts only; do not execute simulations)"
+                if dry_run
+                else "- dry_run: false (normal execution)",
                 f"- plan_json: {_memory_relpath(plan_path)} (overall workflow task plan)",
                 f"- state_json: {_memory_relpath(state_path)} (workflow progress and task status)",
             ]

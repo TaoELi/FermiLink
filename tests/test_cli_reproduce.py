@@ -22,6 +22,7 @@ def test_reproduce_parser_defaults() -> None:
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
+    assert args.dry_run is False
     assert args.resume is True
 
 
@@ -83,6 +84,52 @@ def test_reproduce_plan_only_writes_plan_without_running_loop(
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["status"] == "plan_ready"
     assert state["current_task_index"] == 0
+
+
+def test_reproduce_dry_run_plan_only_forwards_flag_and_persists_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+
+    def fake_generate(**kwargs):
+        captured["dry_run"] = kwargs.get("dry_run")
+        return {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "prepare scripts only",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(cli, "_generate_reproduce_plan", fake_generate)
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    code = cli.main(["reproduce", "paper.md", "--plan-only", "--dry-run"])
+    assert code == 0
+    assert captured.get("dry_run") is True
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["dry_run"] is True
 
 
 def test_reproduce_executes_tasks_with_retries(
@@ -169,6 +216,54 @@ def test_reproduce_executes_tasks_with_retries(
     )
 
 
+def test_reproduce_dry_run_adds_loop_constraints(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "prepare scripts only",
+                }
+            ],
+        },
+    )
+
+    loop_preambles: list[str] = []
+
+    def fake_loop(loop_args) -> int:
+        loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    code = cli.main(["reproduce", "paper.md", "--dry-run", "--skip-report"])
+    assert code == 0
+    assert len(loop_preambles) == 1
+    assert "DRY-RUN mode constraints:" in loop_preambles[0]
+    assert "Do not execute full simulations" in loop_preambles[0]
+    assert "1-4 focused steps" in loop_preambles[0]
+    assert "overrides the default loop guidance of 5-15 steps" in loop_preambles[0]
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["dry_run"] is True
+
+
 def test_reproduce_resume_reuses_existing_plan(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -215,6 +310,45 @@ def test_reproduce_resume_reuses_existing_plan(
         ),
     )
     assert cli.main(["reproduce", "paper.md"]) == 0
+
+
+def test_reproduce_resume_rejects_mismatched_dry_run_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["reproduce", "paper.md", "--plan-only"]) == 0
+    code = cli.main(["reproduce", "paper.md", "--dry-run"])
+    assert code == 2
+    assert "matching dry-run mode" in capsys.readouterr().err
 
 
 def test_reproduce_skip_report_bypasses_report_generation(
@@ -529,3 +663,53 @@ def test_finalize_workflow_report_rejects_stale_audit_outputs(
             codex_bin="codex",
         )
     assert call_counter["count"] == 3
+
+
+def test_generate_reproduce_plan_dry_run_appends_prompt_requirements(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    prompts: list[str] = []
+
+    plan_payload = {
+        "version": 1,
+        "paper_source": "paper.md",
+        "assumptions": [],
+        "tasks": [
+            {
+                "id": "task_001",
+                "title": "task one",
+                "objective": "objective",
+                "prompt_markdown": "prepare only",
+            }
+        ],
+    }
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt") or "")
+        prompts.append(prompt)
+        assistant_text = (
+            "<reproduce_plan>"
+            + json.dumps(plan_payload)
+            + "</reproduce_plan>"
+        )
+        return {"return_code": 0, "assistant_text": assistant_text, "stderr": ""}
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+
+    plan = cli._generate_reproduce_plan(
+        repo_dir=repo_dir,
+        source_text="source",
+        source_description="paper.md",
+        requested_package_id=None,
+        sandbox_override=None,
+        codex_bin="codex",
+        planner_max_tries=1,
+        auditor_max_tries=1,
+        dry_run=True,
+    )
+    assert plan["version"] == 1
+    assert len(prompts) == 2
+    assert "Dry-run planning requirements:" in prompts[0]
+    assert "Dry-run audit requirements:" in prompts[1]

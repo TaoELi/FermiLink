@@ -21,6 +21,7 @@ def test_research_parser_defaults() -> None:
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
+    assert args.dry_run is False
     assert args.resume is True
 
 
@@ -82,6 +83,54 @@ def test_research_plan_only_writes_plan_without_running_loop(
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["status"] == "plan_ready"
     assert state["current_task_index"] == 0
+
+
+def test_research_dry_run_adds_loop_constraints(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "prepare scripts only",
+                }
+            ],
+        },
+    )
+
+    loop_preambles: list[str] = []
+
+    def fake_loop(loop_args) -> int:
+        loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    code = cli.main(["research", "idea.md", "--dry-run", "--skip-report"])
+    assert code == 0
+    assert len(loop_preambles) == 1
+    assert "DRY-RUN mode constraints:" in loop_preambles[0]
+    assert "Do not execute full simulations" in loop_preambles[0]
+    assert "1-4 focused steps" in loop_preambles[0]
+    assert "overrides the default loop guidance of 5-15 steps" in loop_preambles[0]
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["dry_run"] is True
 
 
 def test_research_executes_tasks_with_retries(
@@ -242,6 +291,45 @@ def test_research_resume_uses_user_edited_plan(
     assert len(loop_calls) == 2
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_edited.md"
+
+
+def test_research_resume_rejects_mismatched_dry_run_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
+    code = cli.main(["research", "idea.md", "--dry-run"])
+    assert code == 2
+    assert "matching dry-run mode" in capsys.readouterr().err
 
 
 def test_research_report_only_conflicts_with_restart(

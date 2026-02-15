@@ -129,6 +129,14 @@ def register_workflow_parsers(
         action="store_true",
         help="Skip final report generation after all tasks complete.",
     )
+    reproduce_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Prepare simulation inputs/post-processing/plot scripts without running "
+            "simulations; generate README instructions for later execution."
+        ),
+    )
     resume_group = reproduce_parser.add_mutually_exclusive_group(required=False)
     resume_group.add_argument(
         "--resume",
@@ -250,6 +258,14 @@ def register_workflow_parsers(
         "--skip-report",
         action="store_true",
         help="Skip final report generation after all tasks complete.",
+    )
+    research_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Prepare simulation inputs/post-processing/plot scripts without running "
+            "simulations; generate README instructions for later execution."
+        ),
     )
     research_resume_group = research_parser.add_mutually_exclusive_group(required=False)
     research_resume_group.add_argument(
