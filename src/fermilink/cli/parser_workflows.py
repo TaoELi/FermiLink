@@ -178,14 +178,27 @@ def register_workflow_parsers(
         action="store_true",
         help="Skip final report generation after all tasks complete.",
     )
-    reproduce_parser.add_argument(
+    reproduce_run_mode = reproduce_parser.add_mutually_exclusive_group(required=False)
+    reproduce_run_mode.add_argument(
         "--dry-run",
+        dest="dry_run",
         action="store_true",
         help=(
             "Prepare simulation inputs/post-processing/plot scripts without running "
-            "simulations; generate README instructions for later execution."
+            "simulations (default behavior); generate README instructions for later "
+            "execution."
         ),
     )
+    reproduce_run_mode.add_argument(
+        "--enforce-simulation",
+        dest="dry_run",
+        action="store_false",
+        help=(
+            "Disable dry-run scaffolding and enforce normal simulation execution "
+            "for planned tasks."
+        ),
+    )
+    reproduce_parser.set_defaults(dry_run=True)
     resume_group = reproduce_parser.add_mutually_exclusive_group(required=False)
     resume_group.add_argument(
         "--resume",
@@ -357,14 +370,27 @@ def register_workflow_parsers(
         action="store_true",
         help="Skip final report generation after all tasks complete.",
     )
-    research_parser.add_argument(
+    research_run_mode = research_parser.add_mutually_exclusive_group(required=False)
+    research_run_mode.add_argument(
         "--dry-run",
+        dest="dry_run",
         action="store_true",
         help=(
             "Prepare simulation inputs/post-processing/plot scripts without running "
-            "simulations; generate README instructions for later execution."
+            "simulations (default behavior); generate README instructions for later "
+            "execution."
         ),
     )
+    research_run_mode.add_argument(
+        "--enforce-simulation",
+        dest="dry_run",
+        action="store_false",
+        help=(
+            "Disable dry-run scaffolding and enforce normal simulation execution "
+            "for planned tasks."
+        ),
+    )
+    research_parser.set_defaults(dry_run=True)
     research_resume_group = research_parser.add_mutually_exclusive_group(required=False)
     research_resume_group.add_argument(
         "--resume",

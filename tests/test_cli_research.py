@@ -27,8 +27,14 @@ def test_research_parser_defaults() -> None:
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
-    assert args.dry_run is False
+    assert args.dry_run is True
     assert args.resume is True
+
+
+def test_research_parser_enforce_simulation_disables_dry_run() -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(["research", "idea.md", "--enforce-simulation"])
+    assert args.dry_run is False
 
 
 def test_extract_research_plan_payload_parses_tagged_json() -> None:
@@ -333,7 +339,7 @@ def test_research_resume_rejects_mismatched_dry_run_mode(
     )
 
     assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-    code = cli.main(["research", "idea.md", "--dry-run"])
+    code = cli.main(["research", "idea.md", "--enforce-simulation"])
     assert code == 2
     assert "matching dry-run mode" in capsys.readouterr().err
 

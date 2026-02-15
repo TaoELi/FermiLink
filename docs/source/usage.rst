@@ -97,6 +97,7 @@ publication-scale requests.
    fermilink reproduce paper.tex --plan-only
    fermilink reproduce paper.tex --data-dir ./data
    fermilink reproduce paper.tex --dry-run
+   fermilink reproduce paper.tex --enforce-simulation
    fermilink reproduce paper.tex --report-only
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
@@ -116,9 +117,10 @@ When ``--data-dir`` is provided, additional run-scoped artifacts are written to
 
 By default, ``--data-dir`` is read-only across planner/auditor/loop turns.
 Use ``--data-writable`` only when you intentionally allow mutations.
-Use ``--dry-run`` to keep task execution in scaffold mode (prepare simulation
+By default, ``reproduce`` runs in dry-run scaffold mode (prepare simulation
 inputs, post-processing/plot scripts, and README instructions) without running
-full simulations.
+full simulations. Use ``--enforce-simulation`` to disable dry-run and run
+actual simulations.
 
 Research workflows
 ------------------
@@ -132,6 +134,7 @@ paper.
    fermilink research idea.md --plan-only
    fermilink research idea.md --data-dir ./data
    fermilink research idea.md --dry-run
+   fermilink research idea.md --enforce-simulation
    fermilink research idea.md --report-only
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
