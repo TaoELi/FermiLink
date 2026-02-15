@@ -73,7 +73,7 @@ validation around ``sci-skills-generator`` to create/refine package
 
 Typical compile path:
 
-1. Validate package id does not already exist in registry.
+1. Validate package id does not already exist in registry (unless ``--install-off``).
 2. Copy ``sci-skills-generator`` tool into project root.
 3. Pass 1 discovers project structure and writes ``skills/.compile_profile.json``.
 4. Run deterministic ``generate_skills_folder.py`` using the discovered profile.
@@ -90,6 +90,38 @@ Useful compile options:
 - ``--docs-only``: force docs-only generation mode when source trees are unavailable.
 - ``--keep-compile-artifacts``: keep temporary ``sci-skills-generator/`` folder after compile.
 - ``--strict-compile-validation``: fail compile when validation findings exist.
+- ``--install-off``: skip package install/registry/router updates; only refresh local ``skills/`` outputs.
+
+Recompile existing skills during package development
+----------------------------------------------------
+
+Use ``recompile`` when a package already has ``skills/`` and you want to refresh
+link consistency and source coverage after code changes (for example after PRs).
+
+.. code-block:: bash
+
+   fermilink recompile <package_id> <path> \
+     --core-skill-count 6
+
+Typical recompile path:
+
+1. Validate ``skills/`` exists in the target project.
+2. Run pass 1 to rediscover layout and refresh ``skills/.compile_profile.json``.
+3. Build ``skills/.evidence/`` bundle plus ``skills/.evidence/recompile_coverage.md``
+   highlighting potential uncovered source files/functions.
+4. Run pass 2 to update ``skills/`` coverage and source links.
+5. Run pass 3 to audit/finalize link consistency and simulation-readiness.
+6. Validate skills and write ``skills/.compile_report.json``.
+7. Install updated package into scientific package storage (skipped with ``--install-off``).
+
+Useful recompile options:
+
+- ``--strict-compile-validation``: fail recompile when validation findings exist.
+- ``--keep-compile-artifacts``: keep temporary ``sci-skills-generator/`` folder after recompile.
+- ``--docs-only``: force docs-only coverage behavior (skip source-link requirements).
+- ``--install-off``: skip package install/registry/router updates; only refresh local ``skills/`` outputs.
+
+Recompile always updates/replaces the installed package for the same ``package_id``.
 
 Check curated package availability
 ----------------------------------

@@ -6,6 +6,7 @@ import re
 COMPILE_PROFILE_TAG = "compile_profile"
 COMPILE_PROFILE_REL_PATH = "skills/.compile_profile.json"
 COMPILE_EVIDENCE_DIR_REL_PATH = "skills/.evidence"
+RECOMPILE_COVERAGE_REL_PATH = "skills/.evidence/recompile_coverage.md"
 COMPILE_REPORT_REL_PATH = "skills/.compile_report.json"
 COMPILE_PROFILE_TOKEN_RE = re.compile(
     rf"<{COMPILE_PROFILE_TAG}>(.*?)</{COMPILE_PROFILE_TAG}>",
@@ -55,4 +56,40 @@ COMPILE_PROMPT_3 = (
     "under `skills/`. Further enrich the skills/ folder if you find agents cannot start from the skills/ folder to optimally "
     "use this package for advanced scientific simulations or computing. Finally, append a short summary of key fixes to "
     f"`{COMPILE_REPORT_REL_PATH}` under `agent_audit_notes`."
+)
+
+
+RECOMPILE_PROMPT_1 = (
+    "You are running FermiLink recompile pass 1/3 (discovery + delta scoping). "
+    "This repository already has a `skills/` folder. Start from "
+    "`sci-skills-generator/SKILL.md` and follow its workflow for auditing an "
+    "existing skills tree under ongoing package development. Re-check current "
+    "source/docs/tutorial/test directory layout and update "
+    f"`{COMPILE_PROFILE_REL_PATH}` with JSON fields: `package_name`, `docs_dirs`, "
+    "`tutorial_dirs`, `test_dirs`, `source_dirs`, `docs_only`, and optional `notes`. "
+    "Focus on what changed since prior compile and where coverage may be stale. "
+    "Do not regenerate the whole skills folder from scratch in this pass. At the "
+    f"end, echo the JSON profile inside <{COMPILE_PROFILE_TAG}>...</{COMPILE_PROFILE_TAG}> tags."
+)
+
+RECOMPILE_PROMPT_2 = (
+    "You are running FermiLink recompile pass 2/3 (coverage update). Existing "
+    "skills are present. Follow `sci-skills-generator/SKILL.md` and "
+    "`sci-skills-generator/references/generation-rubric.md`. Use evidence under "
+    f"`{COMPILE_EVIDENCE_DIR_REL_PATH}` and especially `{RECOMPILE_COVERAGE_REL_PATH}` "
+    "to find source files/functions not well covered by current skills. Update "
+    "`skills/` accordingly: refresh outdated links, add missing source entry points, "
+    "expand or add concise `## High-Signal Playbook` sections for impacted core skills, "
+    "and merge low-signal one-doc topics into `<package>-advanced-topics` when useful. "
+    "Edits must stay under `skills/`."
+)
+
+RECOMPILE_PROMPT_3 = (
+    "You are running FermiLink recompile pass 3/3 (audit + finalize). Audit the "
+    "updated `skills/` folder for link consistency and development freshness. Ensure "
+    "newly added source files/functions are represented by actionable source links in "
+    "`references/source_map.md` and routed by the right skills. Keep guidance compact "
+    "and simulation-oriented, consistent with `sci-skills-generator/SKILL.md`. Edit only "
+    f"under `skills/`, then append key refresh notes to `{COMPILE_REPORT_REL_PATH}` "
+    "under `agent_audit_notes`."
 )

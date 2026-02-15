@@ -50,6 +50,32 @@ PLAYBOOK_REQUIRED_TOKENS = (
     "pitfalls",
     "convergence/validation",
 )
+SOURCE_IGNORE_DIR_NAMES = {
+    ".git",
+    "__pycache__",
+    "_build",
+    "build",
+    "dist",
+    "venv",
+    ".venv",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+    "cmake-build-debug",
+    "cmake-build-release",
+}
+SOURCE_NON_IMPL_DIR_NAMES = {
+    "tests",
+    "test",
+    "examples",
+    "example",
+    "tutorials",
+    "tutorial",
+    "demos",
+    "demo",
+    "benchmarks",
+    "benchmark",
+}
 
 
 def _cli():
@@ -564,6 +590,175 @@ def _build_compile_evidence_bundle(
         "core_skills": core_skill_names,
         "files": written_files,
     }
+    manifest_path = evidence_root / "manifest.json"
+    _write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+    return manifest
+
+
+def _iter_source_files_for_coverage(source_roots: list[Path]) -> list[Path]:
+    files: list[Path] = []
+    for source_root in source_roots:
+        for path in source_root.rglob("*"):
+            if not path.is_file():
+                continue
+            lowered_parts = {part.lower() for part in path.parts}
+            if lowered_parts.intersection(SOURCE_IGNORE_DIR_NAMES):
+                continue
+            if lowered_parts.intersection(SOURCE_NON_IMPL_DIR_NAMES):
+                continue
+            suffix = path.suffix.lower()
+            basename = path.name.lower()
+            if suffix not in SOURCE_EXTENSIONS and basename not in SOURCE_BASENAMES:
+                continue
+            files.append(path.resolve())
+    return sorted(set(files))
+
+
+def _collect_referenced_source_files(
+    project_root: Path,
+    *,
+    skills_root: Path,
+    source_roots: list[Path],
+) -> set[Path]:
+    references: set[Path] = set()
+    for source_map_path in sorted(skills_root.rglob("references/source_map.md")):
+        skill_dir = source_map_path.parent.parent
+        source_map_text = _read_text(source_map_path)
+        for token in _extract_backtick_tokens(source_map_text):
+            if not _looks_like_path(token):
+                continue
+            resolved = _resolve_existing_path(
+                project_root,
+                token,
+                context_dirs=[source_map_path.parent, skill_dir],
+            )
+            if resolved is None:
+                continue
+            if _is_source_file(resolved, source_roots=source_roots):
+                references.add(resolved.resolve())
+    return references
+
+
+def _extract_source_symbol_hints(path: Path, *, limit: int = 8) -> list[str]:
+    text = _read_text(path)
+    if not text:
+        return []
+    patterns = (
+        re.compile(r"^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", re.MULTILINE),
+        re.compile(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\s*[\(:]", re.MULTILINE),
+        re.compile(
+            r"^\s*(?:[A-Za-z_][A-Za-z0-9_:\<\>\*\&\s]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;\)]*\)\s*\{?",
+            re.MULTILINE,
+        ),
+    )
+    hints: list[str] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            symbol = str(match.group(1) or "").strip()
+            if not symbol or symbol in seen:
+                continue
+            seen.add(symbol)
+            hints.append(symbol)
+            if len(hints) >= limit:
+                return hints
+    return hints
+
+
+def _build_recompile_evidence_bundle(
+    project_root: Path,
+    *,
+    profile: dict[str, object],
+    core_skill_count: int,
+) -> dict[str, object]:
+    cli = _cli()
+    manifest = _build_compile_evidence_bundle(
+        project_root,
+        core_skill_count=core_skill_count,
+    )
+    skills_root = project_root / "skills"
+    evidence_root = project_root / cli.COMPILE_EVIDENCE_DIR_REL_PATH
+    coverage_report_path = project_root / cli.RECOMPILE_COVERAGE_REL_PATH
+    source_roots = _inferred_source_roots(project_root, profile)
+
+    if not source_roots:
+        lines = [
+            "# Recompile source coverage report",
+            "",
+            "No source roots discovered from compile profile.",
+            "Use docs-only recompile behavior or update `skills/.compile_profile.json`.",
+        ]
+        _write_text(coverage_report_path, "\n".join(lines))
+        manifest["coverage_report"] = str(coverage_report_path.relative_to(project_root))
+        manifest["source_inventory"] = {
+            "source_roots": [],
+            "total_source_files": 0,
+            "referenced_source_files": 0,
+            "uncovered_source_files": 0,
+        }
+        return manifest
+
+    source_candidates = _iter_source_files_for_coverage(source_roots)
+    referenced_sources = _collect_referenced_source_files(
+        project_root,
+        skills_root=skills_root,
+        source_roots=source_roots,
+    )
+    uncovered = [
+        path
+        for path in source_candidates
+        if path.resolve() not in referenced_sources
+    ]
+
+    uncovered_lines: list[str] = []
+    for path in uncovered[:80]:
+        symbol_hints = _extract_source_symbol_hints(path, limit=6)
+        if symbol_hints:
+            uncovered_lines.append(
+                f"- `{path.relative_to(project_root)}` | symbols: {', '.join(symbol_hints)}"
+            )
+        else:
+            uncovered_lines.append(f"- `{path.relative_to(project_root)}`")
+
+    source_root_lines = [f"- `{root.relative_to(project_root)}`" for root in source_roots]
+    coverage_lines = [
+        "# Recompile source coverage report",
+        "",
+        "## Source roots",
+        *(source_root_lines if source_root_lines else ["- (none)"]),
+        "",
+        "## Coverage summary",
+        f"- Total source files discovered: {len(source_candidates)}",
+        f"- Source files referenced by skills source maps: {len(referenced_sources)}",
+        f"- Potential uncovered source files: {len(uncovered)}",
+        "",
+        "## Potential uncovered source files/functions",
+        *(
+            uncovered_lines
+            if uncovered_lines
+            else ["- No uncovered source files detected from current source-map links."]
+        ),
+    ]
+    _write_text(coverage_report_path, "\n".join(coverage_lines))
+
+    existing_files = manifest.get("files")
+    files_list = list(existing_files) if isinstance(existing_files, list) else []
+    coverage_rel = str(coverage_report_path.relative_to(project_root))
+    if coverage_rel not in files_list:
+        files_list.append(coverage_rel)
+    manifest["files"] = files_list
+    manifest["coverage_report"] = coverage_rel
+    manifest["source_inventory"] = {
+        "source_roots": [str(root.relative_to(project_root)) for root in source_roots],
+        "total_source_files": len(source_candidates),
+        "referenced_source_files": len(referenced_sources),
+        "uncovered_source_files": len(uncovered),
+    }
+    if uncovered:
+        manifest["uncovered_source_examples"] = [
+            str(path.relative_to(project_root)) for path in uncovered[:20]
+        ]
+
     manifest_path = evidence_root / "manifest.json"
     _write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
     return manifest

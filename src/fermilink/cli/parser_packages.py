@@ -13,10 +13,11 @@ def register_package_install_compile_parsers(
     add_json_option: Callable[[argparse.ArgumentParser], None],
     cmd_install: CommandHandler,
     cmd_compile: CommandHandler,
+    cmd_recompile: CommandHandler,
     default_max_zip_bytes: int,
 ) -> None:
     """
-    Register parser arguments for package install compile.
+    Register parser arguments for package install/compile/recompile.
 
     Parameters
     ----------
@@ -28,6 +29,8 @@ def register_package_install_compile_parsers(
         Command handler for `install` subcommands.
     cmd_compile : CommandHandler
         Command handler for `compile` subcommands.
+    cmd_recompile : CommandHandler
+        Command handler for `recompile` subcommands.
     default_max_zip_bytes : int
         Default maximum zip size (bytes) for package install validation.
 
@@ -155,6 +158,14 @@ def register_package_install_compile_parsers(
         ),
     )
     compile_parser.add_argument(
+        "--install-off",
+        action="store_true",
+        help=(
+            "Skip install/registry/router steps and only update `skills/` artifacts "
+            "inside the target project."
+        ),
+    )
+    compile_parser.add_argument(
         "--activate",
         "--active",
         action="store_true",
@@ -166,6 +177,82 @@ def register_package_install_compile_parsers(
         help="Skip automatic router_rules.json synchronization.",
     )
     compile_parser.set_defaults(func=cmd_compile)
+
+    recompile_parser = subparsers.add_parser(
+        "recompile",
+        help=(
+            "Re-audit/update an existing skills folder during package development "
+            "using three Codex passes, then install locally."
+        ),
+    )
+    add_json_option(recompile_parser)
+    recompile_parser.add_argument("package_id", help="Target package id to register.")
+    recompile_parser.add_argument(
+        "project_path",
+        nargs="?",
+        default=".",
+        help="Project root path to recompile (default: current directory).",
+    )
+    recompile_parser.add_argument(
+        "--title",
+        help="Optional display title for installed package metadata.",
+    )
+    recompile_parser.add_argument(
+        "--core-skill-count",
+        type=int,
+        default=6,
+        help=(
+            "How many top topic skills to enrich with compact high-signal playbooks "
+            "(default: 6)."
+        ),
+    )
+    recompile_parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="Force docs-only coverage behavior for source-link validation.",
+    )
+    recompile_parser.add_argument(
+        "--keep-compile-artifacts",
+        action="store_true",
+        help="Keep temporary `sci-skills-generator/` folder after recompile completes.",
+    )
+    recompile_parser.add_argument(
+        "--strict-compile-validation",
+        action="store_true",
+        help=(
+            "Fail recompile when validation detects broken links or missing playbook "
+            "requirements. By default, validation findings are reported but do not "
+            "block install."
+        ),
+    )
+    recompile_parser.add_argument(
+        "--install-off",
+        action="store_true",
+        help=(
+            "Skip install/registry/router steps and only refresh `skills/` artifacts "
+            "inside the target project."
+        ),
+    )
+    recompile_parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Compatibility flag (no-op): recompile already replaces existing "
+            "installed package files/metadata for this package id."
+        ),
+    )
+    recompile_parser.add_argument(
+        "--activate",
+        "--active",
+        action="store_true",
+        help="Activate package after recompile+install.",
+    )
+    recompile_parser.add_argument(
+        "--no-router-sync",
+        action="store_true",
+        help="Skip automatic router_rules.json synchronization.",
+    )
+    recompile_parser.set_defaults(func=cmd_recompile)
 
 
 def register_package_management_parsers(

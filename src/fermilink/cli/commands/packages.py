@@ -65,7 +65,10 @@ def cmd_compile(args: argparse.Namespace) -> int:
         Process exit code (`0` on success, non-zero on failure).
     """
     cli = _cli()
-    scipkg_root = cli.resolve_scipkg_root()
+    install_off = bool(getattr(args, "install_off", False))
+    scipkg_root: Path | None = None
+    if not install_off:
+        scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)
     project_root = cli._resolve_project_path(args.project_path)
     if not project_root.exists() or not project_root.is_dir():
@@ -82,13 +85,14 @@ def cmd_compile(args: argparse.Namespace) -> int:
         getattr(args, "strict_compile_validation", False)
     )
 
-    registry = cli.load_registry(scipkg_root)
-    packages = registry.get("packages", {})
-    if isinstance(packages, dict) and package_id in packages:
-        raise cli.PackageError(
-            f"Warning: package id '{package_id}' already exists. "
-            "Choose a new package id for compile."
-        )
+    if not install_off and scipkg_root is not None:
+        registry = cli.load_registry(scipkg_root)
+        packages = registry.get("packages", {})
+        if isinstance(packages, dict) and package_id in packages:
+            raise cli.PackageError(
+                f"Warning: package id '{package_id}' already exists. "
+                "Choose a new package id for compile."
+            )
 
     tool_source = cli._resolve_compile_tool_source()
     if not tool_source.is_dir():
@@ -199,20 +203,23 @@ def cmd_compile(args: argparse.Namespace) -> int:
             f"Failed to clean up temporary tool directory: {tool_dest}"
         )
 
-    installed = cli.install_from_local_path(
-        scipkg_root,
-        package_id,
-        local_path=project_root,
-        title=args.title,
-        activate=args.activate,
-        force=False,
-    )
-
-    router_sync = None
-    if not args.no_router_sync:
-        router_sync = cli.sync_router_rules(scipkg_root)
-
-    active = cli.load_registry(scipkg_root).get("active_package")
+    installed: dict[str, object] | None = None
+    router_sync: dict[str, object] | None = None
+    active: str | None = None
+    if not install_off and scipkg_root is not None:
+        installed = cli.install_from_local_path(
+            scipkg_root,
+            package_id,
+            local_path=project_root,
+            title=args.title,
+            activate=args.activate,
+            force=False,
+        )
+        if not args.no_router_sync:
+            router_sync = cli.sync_router_rules(scipkg_root)
+        active_raw = cli.load_registry(scipkg_root).get("active_package")
+        if isinstance(active_raw, str):
+            active = active_raw
     payload = {
         "compiled_package_id": package_id,
         "project_root": str(project_root),
@@ -226,7 +233,8 @@ def cmd_compile(args: argparse.Namespace) -> int:
         "installed": installed,
         "active_package": active,
         "router_sync": router_sync,
-        "scipkg_root": str(scipkg_root),
+        "install_off": install_off,
+        "scipkg_root": str(scipkg_root) if isinstance(scipkg_root, Path) else None,
     }
     source_links_total = validation_payload.get("source_links_total", 0)
     validation_ok = bool(validation_payload.get("ok", False))
@@ -248,9 +256,226 @@ def cmd_compile(args: argparse.Namespace) -> int:
             )
         ),
         (
-            f"Installed to scientific packages. Active package: {active}."
-            if isinstance(active, str) and active
-            else "Installed to scientific packages."
+            "Install step skipped (--install-off); updated local skills only."
+            if install_off
+            else (
+                f"Installed to scientific packages. Active package: {active}."
+                if isinstance(active, str) and active
+                else "Installed to scientific packages."
+            )
+        ),
+    ]
+    cli._emit_output(args, payload, lines)
+    return 0
+
+
+def cmd_recompile(args: argparse.Namespace) -> int:
+    """
+    Execute the `recompile` CLI subcommand.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments namespace for the subcommand.
+
+    Returns
+    -------
+    int
+        Process exit code (`0` on success, non-zero on failure).
+    """
+    cli = _cli()
+    install_off = bool(getattr(args, "install_off", False))
+    scipkg_root: Path | None = None
+    if not install_off:
+        scipkg_root = cli.resolve_scipkg_root()
+    package_id = cli.normalize_package_id(args.package_id)
+    project_root = cli._resolve_project_path(args.project_path)
+    if not project_root.exists() or not project_root.is_dir():
+        raise cli.PackageError(f"Recompile path is not a directory: {project_root}")
+
+    core_skill_count = int(getattr(args, "core_skill_count", 6))
+    if core_skill_count < 1:
+        raise cli.PackageError("--core-skill-count must be >= 1.")
+    docs_only_override = bool(getattr(args, "docs_only", False))
+    keep_compile_artifacts = bool(getattr(args, "keep_compile_artifacts", False))
+    strict_compile_validation = bool(
+        getattr(args, "strict_compile_validation", False)
+    )
+    # Recompile is an in-place refresh workflow and should always replace the
+    # installed package payload for the same package id.
+    force_install = True
+
+    skills_root = project_root / "skills"
+    if not skills_root.is_dir():
+        raise cli.PackageError(
+            f"Recompile requires an existing skills/ folder: {skills_root}"
+        )
+
+    tool_source = cli._resolve_compile_tool_source()
+    if not tool_source.is_dir():
+        raise cli.PackageError(f"Missing compile tool source: {tool_source}")
+
+    runtime_policy = cli.resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    provider_bin = cli.resolve_provider_binary(
+        provider,
+        codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN if provider == "codex" else None,
+    )
+
+    tool_dest = project_root / "sci-skills-generator"
+    if tool_dest.exists():
+        raise cli.PackageError(
+            f"Recompile path already contains {tool_dest.name}/. "
+            "Remove it first or choose a different path."
+        )
+
+    shutil.copytree(tool_source, tool_dest)
+    compile_runs: list[dict[str, object]] = []
+    profile_payload: dict[str, object] = {}
+    evidence_payload: dict[str, object] = {}
+    validation_payload: dict[str, object] = {}
+    compile_report_path = ""
+    try:
+        pass_1 = cli._run_codex_compile_pass(
+            project_root,
+            prompt=cli.RECOMPILE_PROMPT_1,
+            pass_index=1,
+            total_passes=3,
+            provider=provider,
+            provider_bin=provider_bin,
+        )
+        pass_1_assistant_text = str(pass_1.pop("assistant_text", "") or "")
+        compile_runs.append(pass_1)
+
+        profile_payload = cli._load_compile_profile(
+            project_root,
+            default_package_name=package_id,
+            assistant_text=pass_1_assistant_text,
+        )
+        if docs_only_override:
+            profile_payload["docs_only"] = True
+
+        evidence_payload = cli._build_recompile_evidence_bundle(
+            project_root,
+            profile=profile_payload,
+            core_skill_count=core_skill_count,
+        )
+
+        pass_2 = cli._run_codex_compile_pass(
+            project_root,
+            prompt=cli.RECOMPILE_PROMPT_2,
+            pass_index=2,
+            total_passes=3,
+            provider=provider,
+            provider_bin=provider_bin,
+        )
+        pass_2.pop("assistant_text", None)
+        compile_runs.append(pass_2)
+
+        pass_3 = cli._run_codex_compile_pass(
+            project_root,
+            prompt=cli.RECOMPILE_PROMPT_3,
+            pass_index=3,
+            total_passes=3,
+            provider=provider,
+            provider_bin=provider_bin,
+        )
+        pass_3.pop("assistant_text", None)
+        compile_runs.append(pass_3)
+
+        validation_payload = cli._validate_compiled_skills(
+            project_root,
+            profile=profile_payload,
+            core_skill_count=core_skill_count,
+        )
+        compile_report_path = cli._write_compile_report(
+            project_root,
+            payload={
+                "mode": "recompile",
+                "recompiled_package_id": package_id,
+                "project_root": str(project_root),
+                "profile": profile_payload,
+                "evidence": evidence_payload,
+                "passes": compile_runs,
+                "validation": validation_payload,
+            },
+        )
+        if strict_compile_validation and not bool(validation_payload.get("ok", False)):
+            errors = validation_payload.get("errors")
+            if isinstance(errors, list) and errors:
+                summary = "; ".join(str(item) for item in errors[:5])
+            else:
+                summary = "unknown validation error"
+            raise cli.PackageError(f"Recompile validation failed: {summary}")
+    finally:
+        if not keep_compile_artifacts:
+            shutil.rmtree(tool_dest, ignore_errors=True)
+
+    if not keep_compile_artifacts and tool_dest.exists():
+        raise cli.PackageError(
+            f"Failed to clean up temporary tool directory: {tool_dest}"
+        )
+
+    installed: dict[str, object] | None = None
+    router_sync: dict[str, object] | None = None
+    active: str | None = None
+    if not install_off and scipkg_root is not None:
+        installed = cli.install_from_local_path(
+            scipkg_root,
+            package_id,
+            local_path=project_root,
+            title=args.title,
+            activate=args.activate,
+            force=force_install,
+        )
+        if not args.no_router_sync:
+            router_sync = cli.sync_router_rules(scipkg_root)
+        active_raw = cli.load_registry(scipkg_root).get("active_package")
+        if isinstance(active_raw, str):
+            active = active_raw
+    payload = {
+        "recompiled_package_id": package_id,
+        "project_root": str(project_root),
+        "compile_runs": compile_runs,
+        "compile_profile": profile_payload,
+        "evidence": evidence_payload,
+        "validation": validation_payload,
+        "validation_enforced": strict_compile_validation,
+        "compile_report": compile_report_path,
+        "installed": installed,
+        "active_package": active,
+        "router_sync": router_sync,
+        "force_install": force_install,
+        "install_off": install_off,
+        "scipkg_root": str(scipkg_root) if isinstance(scipkg_root, Path) else None,
+    }
+    source_links_total = validation_payload.get("source_links_total", 0)
+    validation_ok = bool(validation_payload.get("ok", False))
+    validation_errors = validation_payload.get("errors", [])
+    error_count = (
+        len(validation_errors)
+        if isinstance(validation_errors, list)
+        else 0
+    )
+    lines = [
+        f"Recompiled skills for '{package_id}' from {project_root}.",
+        f"Validated skills with {source_links_total} source-code links.",
+        (
+            "Validation status: ok."
+            if validation_ok
+            else (
+                f"Validation status: {error_count} finding(s) (non-blocking). "
+                "Use --strict-compile-validation to enforce failures."
+            )
+        ),
+        (
+            "Install step skipped (--install-off); updated local skills only."
+            if install_off
+            else (
+                f"Installed to scientific packages. Active package: {active}."
+                if isinstance(active, str) and active
+                else "Installed to scientific packages."
+            )
         ),
     ]
     cli._emit_output(args, payload, lines)

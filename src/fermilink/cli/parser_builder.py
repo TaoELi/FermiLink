@@ -29,6 +29,7 @@ def _build_parser() -> argparse.ArgumentParser:
         add_json_option=_add_json_option,
         cmd_install=cli._cmd_install,
         cmd_compile=cli._cmd_compile,
+        cmd_recompile=cli._cmd_recompile,
         default_max_zip_bytes=cli.DEFAULT_MAX_ZIP_BYTES,
     )
     cli.register_exec_loop_parsers(

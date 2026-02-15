@@ -35,6 +35,10 @@ from fermilink.cli.compile_prompts import (
     COMPILE_PROMPT_1,
     COMPILE_PROMPT_2,
     COMPILE_PROMPT_3,
+    RECOMPILE_COVERAGE_REL_PATH,
+    RECOMPILE_PROMPT_1,
+    RECOMPILE_PROMPT_2,
+    RECOMPILE_PROMPT_3,
 )
 from fermilink.cli.parser_agent import register_agent_parser
 from fermilink.cli.parser_packages import (
@@ -226,6 +230,7 @@ _resolve_compile_tool_source = compile_helpers._resolve_compile_tool_source
 _load_compile_profile = compile_helpers._load_compile_profile
 _run_compile_generator = compile_helpers._run_compile_generator
 _build_compile_evidence_bundle = compile_helpers._build_compile_evidence_bundle
+_build_recompile_evidence_bundle = compile_helpers._build_recompile_evidence_bundle
 _validate_compiled_skills = compile_helpers._validate_compiled_skills
 _write_compile_report = compile_helpers._write_compile_report
 _run_codex_compile_pass = compile_helpers._run_codex_compile_pass
@@ -263,6 +268,7 @@ _cmd_reproduce = workflow_commands.cmd_reproduce
 _cmd_research = workflow_commands.cmd_research
 
 _cmd_compile = package_commands.cmd_compile
+_cmd_recompile = package_commands.cmd_recompile
 _save_curated_install_metadata = package_commands._save_curated_install_metadata
 _cmd_install = package_commands.cmd_install
 _cmd_list = package_commands.cmd_list

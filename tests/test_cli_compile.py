@@ -48,6 +48,83 @@ def test_compile_rejects_existing_package_id(
     assert "already exists" in err
 
 
+def test_compile_install_off_skips_registry_and_install(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+
+    def _fail(*_a, **_k):
+        raise AssertionError("unexpected install/registry call")
+
+    monkeypatch.setattr(cli, "resolve_scipkg_root", _fail)
+    monkeypatch.setattr(cli, "load_registry", _fail)
+    monkeypatch.setattr(cli, "install_from_local_path", _fail)
+    monkeypatch.setattr(cli, "sync_router_rules", _fail)
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_compile_generator",
+        lambda *_a, **_k: {"status": "ok", "return_code": 0},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence", "core_skills": []},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 9,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+
+    code = cli.main(
+        [
+            "compile",
+            "existingpkg",
+            str(project_root),
+            "--install-off",
+            "--json",
+        ]
+    )
+    assert code == 0
+    assert payloads
+    assert payloads[0].get("install_off") is True
+    assert payloads[0].get("installed") is None
+    assert payloads[0].get("active_package") is None
+    assert payloads[0].get("router_sync") is None
+    assert payloads[0].get("scipkg_root") is None
+
+
 def test_compile_runs_staged_pipeline_then_installs(monkeypatch, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir(parents=True, exist_ok=True)
@@ -645,3 +722,54 @@ def test_validate_compiled_skills_accepts_source_links_and_playbook(
     )
     assert result["ok"] is True
     assert int(result["source_links_total"]) >= 1
+
+
+def test_validate_compiled_skills_allows_relative_doc_map_reference_in_source_map(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    (project_root / "src").mkdir(parents=True, exist_ok=True)
+    (project_root / "src" / "solver.py").write_text(
+        "def solve():\n    return 1\n",
+        encoding="utf-8",
+    )
+
+    skill_topic = project_root / "skills" / "mypkg-api"
+    skill_index = project_root / "skills" / "mypkg-index"
+    (skill_topic / "references").mkdir(parents=True, exist_ok=True)
+    skill_index.mkdir(parents=True, exist_ok=True)
+
+    (skill_index / "SKILL.md").write_text("index", encoding="utf-8")
+    (skill_topic / "SKILL.md").write_text(
+        """# API
+
+## High-Signal Playbook
+- Route: pick for solver API usage.
+- Triage questions: which solver and tolerance?
+- Canonical workflow: configure -> run -> inspect output.
+- Minimal working example: python run.py --solver cg
+- Pitfalls: unstable step size.
+- Convergence/validation checklist: tolerances and residual trend.
+""",
+        encoding="utf-8",
+    )
+    (skill_topic / "references" / "doc_map.md").write_text(
+        "- `docs/guide.md`\n",
+        encoding="utf-8",
+    )
+    (skill_topic / "references" / "source_map.md").write_text(
+        "- Related docs: `doc_map.md`\n"
+        "- Entry: `src/solver.py`\n",
+        encoding="utf-8",
+    )
+
+    result = cli._validate_compiled_skills(
+        project_root,
+        profile={
+            "docs_only": False,
+            "source_dirs": ["src"],
+        },
+        core_skill_count=1,
+    )
+    assert result["ok"] is True
+    assert not any("doc_map.md" in err for err in result["errors"])
