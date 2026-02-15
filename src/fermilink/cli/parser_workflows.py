@@ -112,6 +112,55 @@ def register_workflow_parsers(
         ),
     )
     reproduce_parser.add_argument(
+        "--data-dir",
+        default=None,
+        help=(
+            "Optional data directory to analyze for task planning/execution context. "
+            "Supports relative paths (e.g. ./data)."
+        ),
+    )
+    reproduce_parser.add_argument(
+        "--data-writable",
+        action="store_true",
+        help=(
+            "Allow writes to --data-dir. Default is read-only verification across "
+            "planning/auditing/task runs."
+        ),
+    )
+    reproduce_parser.add_argument(
+        "--data-max-files",
+        type=int,
+        default=4000,
+        help="Maximum number of files to index from --data-dir (default: 4000).",
+    )
+    reproduce_parser.add_argument(
+        "--data-max-total-bytes",
+        type=int,
+        default=1073741824,
+        help=(
+            "Maximum cumulative bytes to index from --data-dir "
+            "(default: 1073741824 = 1 GiB)."
+        ),
+    )
+    reproduce_parser.add_argument(
+        "--data-max-file-bytes",
+        type=int,
+        default=67108864,
+        help=(
+            "Skip files larger than this byte size while indexing --data-dir "
+            "(default: 67108864 = 64 MiB)."
+        ),
+    )
+    reproduce_parser.add_argument(
+        "--data-hash-max-bytes",
+        type=int,
+        default=1048576,
+        help=(
+            "Compute optional SHA256 only for files <= this size in bytes "
+            "(default: 1048576 = 1 MiB)."
+        ),
+    )
+    reproduce_parser.add_argument(
         "--plan-only",
         action="store_true",
         help="Only generate and persist plan/prompts; do not execute tasks.",
@@ -239,6 +288,55 @@ def register_workflow_parsers(
         help=(
             "Forwarded to inner loop hard cap for per-iteration waits "
             "(default: 600)."
+        ),
+    )
+    research_parser.add_argument(
+        "--data-dir",
+        default=None,
+        help=(
+            "Optional data directory to analyze for task planning/execution context. "
+            "Supports relative paths (e.g. ./data)."
+        ),
+    )
+    research_parser.add_argument(
+        "--data-writable",
+        action="store_true",
+        help=(
+            "Allow writes to --data-dir. Default is read-only verification across "
+            "planning/auditing/task runs."
+        ),
+    )
+    research_parser.add_argument(
+        "--data-max-files",
+        type=int,
+        default=4000,
+        help="Maximum number of files to index from --data-dir (default: 4000).",
+    )
+    research_parser.add_argument(
+        "--data-max-total-bytes",
+        type=int,
+        default=1073741824,
+        help=(
+            "Maximum cumulative bytes to index from --data-dir "
+            "(default: 1073741824 = 1 GiB)."
+        ),
+    )
+    research_parser.add_argument(
+        "--data-max-file-bytes",
+        type=int,
+        default=67108864,
+        help=(
+            "Skip files larger than this byte size while indexing --data-dir "
+            "(default: 67108864 = 64 MiB)."
+        ),
+    )
+    research_parser.add_argument(
+        "--data-hash-max-bytes",
+        type=int,
+        default=1048576,
+        help=(
+            "Compute optional SHA256 only for files <= this size in bytes "
+            "(default: 1048576 = 1 MiB)."
         ),
     )
     research_parser.add_argument(

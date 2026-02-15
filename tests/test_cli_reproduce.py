@@ -19,6 +19,12 @@ def test_reproduce_parser_defaults() -> None:
     assert args.max_iterations == 10
     assert args.wait_seconds == 0.0
     assert args.max_wait_seconds == 600.0
+    assert args.data_dir is None
+    assert args.data_writable is False
+    assert args.data_max_files == 4000
+    assert args.data_max_total_bytes == 1073741824
+    assert args.data_max_file_bytes == 67108864
+    assert args.data_hash_max_bytes == 1048576
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
@@ -349,6 +355,108 @@ def test_reproduce_resume_rejects_mismatched_dry_run_mode(
     code = cli.main(["reproduce", "paper.md", "--dry-run"])
     assert code == 2
     assert "matching dry-run mode" in capsys.readouterr().err
+
+
+def test_reproduce_resume_rejects_mismatched_data_dir_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    data_dir = repo_dir / "input_data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "input.txt").write_text("alpha", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["reproduce", "paper.md", "--plan-only", "--data-dir", "input_data"]) == 0
+    code = cli.main(["reproduce", "paper.md"])
+    assert code == 2
+    assert "matching data-dir mode" in capsys.readouterr().err
+
+
+def test_reproduce_data_dir_read_only_detects_mutation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    data_dir = repo_dir / "input_data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_file = data_dir / "input.txt"
+    data_file.write_text("before", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["reproduce", "paper.md", "--plan-only", "--data-dir", "input_data"]) == 0
+
+    loop_calls = {"count": 0}
+
+    def fake_loop(_loop_args) -> int:
+        loop_calls["count"] += 1
+        data_file.write_text("after", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    code = cli.main(
+        ["reproduce", "paper.md", "--data-dir", "input_data", "--skip-report"]
+    )
+    assert code == 1
+    assert loop_calls["count"] == 1
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    state = json.loads((runs_root / latest_run / "state.json").read_text(encoding="utf-8"))
+    assert state["status"] == "failed"
+    assert "Read-only data guard violation" in str(state["last_error"])
 
 
 def test_reproduce_skip_report_bypasses_report_generation(
@@ -713,3 +821,165 @@ def test_generate_reproduce_plan_dry_run_appends_prompt_requirements(
     assert len(prompts) == 2
     assert "Dry-run planning requirements:" in prompts[0]
     assert "Dry-run audit requirements:" in prompts[1]
+
+
+def test_generate_reproduce_plan_with_data_auditor_writes_task_data_artifacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = repo_dir / "projects" / "reproduce" / "run-001"
+    data_root = run_dir / "data"
+    data_root.mkdir(parents=True, exist_ok=True)
+
+    source_data_dir = repo_dir / "input_data"
+    (source_data_dir / "inputs").mkdir(parents=True, exist_ok=True)
+    (source_data_dir / "inputs" / "base.json").write_text(
+        '{"alpha": 1}\n', encoding="utf-8"
+    )
+    (source_data_dir / "tables").mkdir(parents=True, exist_ok=True)
+    (source_data_dir / "tables" / "results.csv").write_text(
+        "x,y\n1,2\n", encoding="utf-8"
+    )
+
+    manifest_payload = {
+        "version": 1,
+        "data_dir": str(source_data_dir),
+        "scan_limits": {
+            "max_files": 4000,
+            "max_total_bytes": 1073741824,
+            "max_file_bytes": 67108864,
+            "hash_max_bytes": 1048576,
+        },
+        "fingerprint": "abc123",
+        "files": [
+            {
+                "path": "inputs/base.json",
+                "size": 12,
+                "mtime_ns": 1,
+                "type": "structured_text",
+            },
+            {
+                "path": "tables/results.csv",
+                "size": 10,
+                "mtime_ns": 2,
+                "type": "tabular_or_text",
+            },
+        ],
+        "skipped": [],
+        "stats": {
+            "indexed_files": 2,
+            "indexed_bytes": 22,
+            "skipped_files": 0,
+            "truncated": False,
+            "truncated_reason": "",
+        },
+    }
+    (data_root / "data_manifest.json").write_text(
+        json.dumps(manifest_payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (data_root / "data_summary.md").write_text(
+        "# Data Summary\n- indexed_files: 2\n",
+        encoding="utf-8",
+    )
+
+    planner_plan = {
+        "version": 1,
+        "paper_source": "paper.md",
+        "assumptions": [],
+        "tasks": [
+            {
+                "id": "task_001",
+                "title": "task one",
+                "objective": "objective",
+                "prompt_markdown": "run task one",
+            }
+        ],
+    }
+    task_map_payload = {
+        "version": 1,
+        "tasks": [
+            {
+                "id": "task_001",
+                "files": [
+                    {
+                        "path": "inputs/base.json",
+                        "rationale": "base input",
+                        "confidence": 0.9,
+                    }
+                ],
+                "unknowns": [],
+                "notes": [],
+            }
+        ],
+        "global_unknowns": [],
+    }
+
+    prompts: list[str] = []
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt") or "")
+        prompts.append(prompt)
+        if "workflow data auditor mode" in prompt:
+            return {
+                "return_code": 0,
+                "assistant_text": "<task_data_map>"
+                + json.dumps(task_map_payload)
+                + "</task_data_map>",
+                "stderr": "",
+            }
+        return {
+            "return_code": 0,
+            "assistant_text": "<reproduce_plan>"
+            + json.dumps(planner_plan)
+            + "</reproduce_plan>",
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+
+    data_context = {
+        "enabled": True,
+        "workflow": "reproduce",
+        "source_path": str(source_data_dir),
+        "source_path_input": "input_data",
+        "read_only": True,
+        "limits": {
+            "max_files": 4000,
+            "max_total_bytes": 1073741824,
+            "max_file_bytes": 67108864,
+            "hash_max_bytes": 1048576,
+        },
+        "artifacts": {
+            "root": "projects/reproduce/run-001/data",
+            "manifest": "projects/reproduce/run-001/data/data_manifest.json",
+            "summary": "projects/reproduce/run-001/data/data_summary.md",
+            "task_map": "projects/reproduce/run-001/data/task_data_map.json",
+        },
+    }
+
+    plan = cli._generate_reproduce_plan(
+        repo_dir=repo_dir,
+        run_dir=run_dir,
+        source_text="source",
+        source_description="paper.md",
+        requested_package_id=None,
+        sandbox_override=None,
+        codex_bin="codex",
+        planner_max_tries=1,
+        auditor_max_tries=1,
+        dry_run=False,
+        data_context=data_context,
+    )
+    assert plan["version"] == 1
+    assert len(prompts) == 3
+    assert "workflow data auditor mode" in prompts[1]
+    assert (data_root / "task_data_map.json").is_file()
+    task_context = data_root / "task_001.md"
+    assert task_context.is_file()
+    context_text = task_context.read_text(encoding="utf-8")
+    assert "Only use files listed below" in context_text
+    tasks = plan.get("tasks")
+    assert isinstance(tasks, list)
+    assert str(tasks[0]["data_context_file"]).endswith("data/task_001.md")

@@ -18,6 +18,12 @@ def test_research_parser_defaults() -> None:
     assert args.max_iterations == 10
     assert args.wait_seconds == 0.0
     assert args.max_wait_seconds == 600.0
+    assert args.data_dir is None
+    assert args.data_writable is False
+    assert args.data_max_files == 4000
+    assert args.data_max_total_bytes == 1073741824
+    assert args.data_max_file_bytes == 67108864
+    assert args.data_hash_max_bytes == 1048576
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
@@ -330,6 +336,48 @@ def test_research_resume_rejects_mismatched_dry_run_mode(
     code = cli.main(["research", "idea.md", "--dry-run"])
     assert code == 2
     assert "matching dry-run mode" in capsys.readouterr().err
+
+
+def test_research_resume_rejects_mismatched_data_dir_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+    data_dir = repo_dir / "input_data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "dataset.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["research", "idea.md", "--plan-only", "--data-dir", "input_data"]) == 0
+    code = cli.main(["research", "idea.md"])
+    assert code == 2
+    assert "matching data-dir mode" in capsys.readouterr().err
 
 
 def test_research_report_only_conflicts_with_restart(

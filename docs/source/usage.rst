@@ -95,12 +95,23 @@ publication-scale requests.
    fermilink reproduce paper.tex
    fermilink reproduce "reproduce Figures 1-4 from this paper ..."
    fermilink reproduce paper.tex --plan-only
+   fermilink reproduce paper.tex --data-dir ./data
    fermilink reproduce paper.tex --dry-run
    fermilink reproduce paper.tex --report-only
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
 ``report.md``).
+When ``--data-dir`` is provided, additional run-scoped artifacts are written to
+``projects/reproduce/<run-id>/data/``:
+
+- ``data_manifest.json`` deterministic indexed inventory;
+- ``data_summary.md`` human-readable usefulness summary;
+- ``task_data_map.json`` task-to-file mapping with confidence/rationale;
+- ``task_XXX.md`` per-task data scope context consumed by ``loop``.
+
+By default, ``--data-dir`` is read-only across planner/auditor/loop turns.
+Use ``--data-writable`` only when you intentionally allow mutations.
 Use ``--dry-run`` to keep task execution in scaffold mode (prepare simulation
 inputs, post-processing/plot scripts, and README instructions) without running
 full simulations.
@@ -115,11 +126,14 @@ paper.
 
    fermilink research "Design and validate a cavity QED protocol"
    fermilink research idea.md --plan-only
+   fermilink research idea.md --data-dir ./data
    fermilink research idea.md --dry-run
    fermilink research idea.md --report-only
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
-``report.md``) and support resume from edited plan state.
+``report.md``) and support resume from edited plan state. ``--data-dir`` uses
+the same run-scoped ``data/`` artifact contract and read-only defaults as
+``reproduce``.
 
 Web package controls
 --------------------

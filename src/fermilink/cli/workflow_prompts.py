@@ -33,6 +33,15 @@ RESEARCH_RUNS_DIR = "research"
 REPRODUCE_LATEST_RUN_FILENAME = "latest_run.txt"
 WORKFLOW_SUMMARIES_DIRNAME = "summaries"
 WORKFLOW_REPORT_FILENAME = "report.md"
+WORKFLOW_DATA_DIRNAME = "data"
+WORKFLOW_DATA_MANIFEST_FILENAME = "data_manifest.json"
+WORKFLOW_DATA_SUMMARY_FILENAME = "data_summary.md"
+WORKFLOW_TASK_DATA_MAP_FILENAME = "task_data_map.json"
+WORKFLOW_TASK_DATA_MAP_TAG = "task_data_map"
+WORKFLOW_TASK_DATA_MAP_TOKEN_RE = re.compile(
+    r"<task_data_map>\s*(\{.*?\})\s*</task_data_map>",
+    re.DOTALL,
+)
 
 LOOP_PROMPT_PREFIX = (
     "You are running in **FermiLink loop mode**.\n"
@@ -181,6 +190,43 @@ WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
     "\n"
     "You are an independent reviewer. Read the generated report and improve it for\n"
     "scientific clarity, completeness, and reproducibility.\n"
+)
+
+WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX = (
+    "You are running in **FermiLink workflow data auditor mode**.\n"
+    "\n"
+    "Goal: map available data files to each draft task with explicit rationale and confidence.\n"
+    "Use data summary and manifest metadata only; do not invent files.\n"
+    "\n"
+    "Return exactly one XML-like block:\n"
+    f"<{WORKFLOW_TASK_DATA_MAP_TAG}>{{JSON}}</{WORKFLOW_TASK_DATA_MAP_TAG}>\n"
+    "\n"
+    "JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "tasks": [\n'
+    "    {\n"
+    '      "id": "task_001",\n'
+    '      "files": [\n'
+    "        {\n"
+    '          "path": "relative/path/in/data_dir.ext",\n'
+    '          "rationale": "why this file is relevant",\n'
+    '          "confidence": 0.0\n'
+    "        }\n"
+    "      ],\n"
+    '      "unknowns": ["missing or uncertain data areas"],\n'
+    '      "notes": ["short constraints or caveats"]\n'
+    "    }\n"
+    "  ],\n"
+    '  "global_unknowns": ["cross-task uncertainty notes"]\n'
+    "}\n"
+    "\n"
+    "Rules:\n"
+    "- Use only file paths present in the provided manifest excerpt.\n"
+    "- Keep confidence in [0.0, 1.0].\n"
+    "- Prefer narrow, high-signal file subsets per task.\n"
+    "- Explicitly flag unknown/low-confidence regions.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
 )
 
 WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX = (

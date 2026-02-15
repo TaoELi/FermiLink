@@ -35,6 +35,18 @@ Request flow
 7. Provider command runs and emits structured stream events.
 8. Web/CLI renders output and persists session metadata.
 
+Workflow planning (`reproduce`/`research`)
+------------------------------------------
+
+Workflow command order is explicit:
+
+1. Planner generates draft tasks from source scientific intent.
+2. Optional data pass (`--data-dir`) indexes run-scoped data artifacts under
+   ``projects/<mode>/<run-id>/data/`` and maps files to draft tasks.
+3. Auditor receives both draft plan and data map, then emits corrected tasks.
+4. Loop executes each task with task-scoped data context (`task_XXX.md`) in the
+   preamble and read-only data-dir guard by default.
+
 Workspace and overlay model
 ---------------------------
 
