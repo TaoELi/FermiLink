@@ -30,6 +30,7 @@ def _build_parser() -> argparse.ArgumentParser:
         cmd_install=cli._cmd_install,
         cmd_compile=cli._cmd_compile,
         cmd_recompile=cli._cmd_recompile,
+        cmd_auto_compile=cli._cmd_auto_compile,
         default_max_zip_bytes=cli.DEFAULT_MAX_ZIP_BYTES,
     )
     cli.register_exec_loop_parsers(

@@ -269,6 +269,7 @@ _cmd_research = workflow_commands.cmd_research
 
 _cmd_compile = package_commands.cmd_compile
 _cmd_recompile = package_commands.cmd_recompile
+_cmd_auto_compile = package_commands.cmd_auto_compile
 _save_curated_install_metadata = package_commands._save_curated_install_metadata
 _cmd_install = package_commands.cmd_install
 _cmd_list = package_commands.cmd_list

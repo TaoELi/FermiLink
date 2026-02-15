@@ -123,6 +123,66 @@ Useful recompile options:
 
 Recompile always updates/replaces the installed package for the same ``package_id``.
 
+Auto-compile + curated metadata onboarding
+------------------------------------------
+
+Use ``auto-compile`` to scale scientific package onboarding from upstream
+GitHub repositories into your personal public forks plus local curated metadata.
+
+.. code-block:: bash
+
+   fermilink auto-compile qutip https://github.com/qutip/qutip \
+     --fermilink-repo /absolute/path/to/FermiLink_development
+
+What ``auto-compile`` does per package:
+
+1. Validates input package id and upstream GitHub URL.
+2. Ensures a public fork exists under your authenticated ``gh`` account.
+3. Clones/refreshes the fork under ``--workspace-root``.
+4. Runs ``fermilink compile <package_id> . --install-off`` only when ``skills/``
+   does not already exist.
+5. Commits and pushes to your fork default branch (no PR to upstream).
+6. Calls Codex to generate one package metadata proposal
+   (description/tags/router keywords).
+7. Builds deterministic curated/family entries from that proposal, validates
+   format and cross-file consistency via ``scripts/validate_data.py``, then
+   appends them to:
+
+   - ``src/fermilink/data/curated_channels/tel-research-group.json``
+   - ``src/fermilink/data/router/family_hints.json``
+
+Batch mode from an external JSON spec:
+
+.. code-block:: json
+
+   {
+     "packages": [
+       {
+         "package_id": "qutip",
+         "upstream_repo_url": "https://github.com/qutip/qutip"
+       },
+       {
+         "package_id": "meep",
+         "upstream_repo_url": "https://github.com/NanoComp/meep"
+       }
+     ]
+   }
+
+.. code-block:: bash
+
+   fermilink auto-compile \
+     --spec-file ./packages.json \
+     --fermilink-repo /absolute/path/to/FermiLink_development \
+     --workspace-root ./.fermilink-auto-compile
+
+Useful auto-compile options:
+
+- ``--update-existing``: replace existing curated/family entries for a package id.
+- ``--dry-run``: run fork/clone/compile/push + metadata validation without writing
+  curated/family files.
+- ``--cleanup-clone``: remove local cloned forks after each package.
+- ``--fail-fast``: stop batch processing on first failure.
+
 Check curated package availability
 ----------------------------------
 

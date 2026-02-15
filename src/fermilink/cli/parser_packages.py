@@ -14,6 +14,7 @@ def register_package_install_compile_parsers(
     cmd_install: CommandHandler,
     cmd_compile: CommandHandler,
     cmd_recompile: CommandHandler,
+    cmd_auto_compile: CommandHandler,
     default_max_zip_bytes: int,
 ) -> None:
     """
@@ -31,6 +32,8 @@ def register_package_install_compile_parsers(
         Command handler for `compile` subcommands.
     cmd_recompile : CommandHandler
         Command handler for `recompile` subcommands.
+    cmd_auto_compile : CommandHandler
+        Command handler for `auto-compile` subcommands.
     default_max_zip_bytes : int
         Default maximum zip size (bytes) for package install validation.
 
@@ -253,6 +256,111 @@ def register_package_install_compile_parsers(
         help="Skip automatic router_rules.json synchronization.",
     )
     recompile_parser.set_defaults(func=cmd_recompile)
+
+    auto_compile_parser = subparsers.add_parser(
+        "auto-compile",
+        help=(
+            "Fork an upstream GitHub repo to your account, compile skills if needed, "
+            "push to your fork, then append vetted metadata entries into local "
+            "tel-research-group and family hints data files."
+        ),
+    )
+    add_json_option(auto_compile_parser)
+    auto_compile_parser.add_argument(
+        "package_id",
+        nargs="?",
+        help="Target package id (required unless --spec-file is used).",
+    )
+    auto_compile_parser.add_argument(
+        "upstream_repo_url",
+        nargs="?",
+        help="Upstream GitHub repo URL (required unless --spec-file is used).",
+    )
+    auto_compile_parser.add_argument(
+        "--spec-file",
+        help=(
+            'JSON file with `{ "packages": [{"package_id": ..., '
+            '"upstream_repo_url": ...}, ...] }` for batch processing.'
+        ),
+    )
+    auto_compile_parser.add_argument(
+        "--fermilink-repo",
+        required=True,
+        help=(
+            "Local FermiLink repository path where "
+            "src/fermilink/data/curated_channels/tel-research-group.json and "
+            "src/fermilink/data/router/family_hints.json will be updated."
+        ),
+    )
+    auto_compile_parser.add_argument(
+        "--workspace-root",
+        default="./.fermilink-auto-compile",
+        help=(
+            "Workspace directory for cloned fork repositories "
+            "(default: ./.fermilink-auto-compile)."
+        ),
+    )
+    auto_compile_parser.add_argument(
+        "--channel",
+        default="tel-research-group",
+        help="Curated channel file to update (default: tel-research-group).",
+    )
+    auto_compile_parser.add_argument(
+        "--max-skills",
+        type=int,
+        default=30,
+        help=("Maximum generated skills when compile is needed " "(default: 30)."),
+    )
+    auto_compile_parser.add_argument(
+        "--core-skill-count",
+        type=int,
+        default=6,
+        help=("Top topic skills to enrich during compile " "(default: 6)."),
+    )
+    auto_compile_parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="Force docs-only mode if compile is needed.",
+    )
+    auto_compile_parser.add_argument(
+        "--keep-compile-artifacts",
+        action="store_true",
+        help="Keep temporary sci-skills-generator folder after compile.",
+    )
+    auto_compile_parser.add_argument(
+        "--strict-compile-validation",
+        action="store_true",
+        help=("Fail compile when generated skills validation has findings."),
+    )
+    auto_compile_parser.add_argument(
+        "--update-existing",
+        action="store_true",
+        help=(
+            "Allow replacing existing package entries in curated channel/family hints."
+        ),
+    )
+    auto_compile_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Run fork/clone/compile/push and metadata validation, but do not write "
+            "curated channel or family hints files."
+        ),
+    )
+    auto_compile_parser.add_argument(
+        "--cleanup-clone",
+        action="store_true",
+        help=(
+            "Remove cloned repository directories after each package completes. "
+            "By default, cloned forks are kept under --workspace-root."
+        ),
+    )
+    auto_compile_parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop batch processing after the first package failure.",
+    )
+    auto_compile_parser.set_defaults(func=cmd_auto_compile)
 
 
 def register_package_management_parsers(

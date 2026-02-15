@@ -142,6 +142,28 @@ Key artifacts are written under ``projects/research/<run-id>/`` (including
 the same run-scoped ``data/`` artifact contract and read-only defaults as
 ``reproduce``.
 
+Automated package onboarding
+----------------------------
+
+Use ``auto-compile`` to onboard scientific repositories at scale:
+
+.. code-block:: bash
+
+   fermilink auto-compile qutip https://github.com/qutip/qutip \
+     --fermilink-repo /absolute/path/to/FermiLink_development
+
+Batch mode:
+
+.. code-block:: bash
+
+   fermilink auto-compile \
+     --spec-file ./packages.json \
+     --fermilink-repo /absolute/path/to/FermiLink_development
+
+This workflow automates GitHub fork/clone, conditional ``skills/`` compilation,
+push to your fork, Codex-driven metadata drafting, and validated append/update
+of curated channel plus router family hints data.
+
 Web package controls
 --------------------
 
