@@ -14,6 +14,7 @@ AUTO_COMPILE_METADATA_TOKEN_RE = re.compile(
     rf"<{AUTO_COMPILE_METADATA_TAG}>(.*?)</{AUTO_COMPILE_METADATA_TAG}>",
     re.IGNORECASE | re.DOTALL,
 )
+GITHUB_OWNER_TOKEN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 AUTO_COMPILE_COMMIT_TEMPLATE = "Add FermiLink skills for {package_id}"
 
 
@@ -282,6 +283,21 @@ def _resolve_github_login() -> str:
     return login
 
 
+def _normalize_github_owner(raw_owner: str | None, *, field_name: str) -> str | None:
+    cli = _cli()
+    value = str(raw_owner or "").strip()
+    if value.startswith("@"):
+        value = value[1:].strip()
+    if not value:
+        return None
+    if not GITHUB_OWNER_TOKEN_RE.fullmatch(value):
+        raise cli.PackageError(
+            f"{field_name} must be a GitHub account/organization name "
+            "(letters, numbers, hyphens)."
+        )
+    return value
+
+
 def _repo_default_branch(
     repo_info: dict[str, object], *, fallback: str = "main"
 ) -> str:
@@ -298,23 +314,19 @@ def _ensure_public_fork(
     upstream_owner: str,
     upstream_repo: str,
     github_login: str,
+    organization: str | None,
 ) -> dict[str, str]:
     cli = _cli()
     upstream = f"{upstream_owner}/{upstream_repo}"
-    fork_name = f"{github_login}/{upstream_repo}"
+    fork_owner = organization or github_login
+    fork_name = f"{fork_owner}/{upstream_repo}"
 
     fork_info = _try_fetch_repo_info(fork_name)
     if fork_info is None:
-        _run_external_command(
-            [
-                "gh",
-                "repo",
-                "fork",
-                upstream,
-                "--public",
-                "--clone=false",
-            ]
-        )
+        command = ["gh", "repo", "fork", upstream, "--clone=false"]
+        if organization:
+            command.extend(["--org", organization])
+        _run_external_command(command)
         fork_info = _fetch_repo_info(fork_name)
 
     visibility = str(fork_info.get("visibility") or "").strip().lower()
@@ -945,6 +957,7 @@ def _process_auto_compile_package(
     package_id: str,
     upstream_repo_url: str,
     github_login: str,
+    organization: str | None,
     fermilink_repo: Path,
     workspace_root: Path,
     channel: str,
@@ -965,6 +978,7 @@ def _process_auto_compile_package(
         upstream_owner=upstream_owner,
         upstream_repo=upstream_repo,
         github_login=github_login,
+        organization=organization,
     )
     clone_dir: Path | None = None
     try:
@@ -1101,8 +1115,13 @@ def cmd_auto_compile(args: argparse.Namespace) -> int:
     if core_skill_count < 1:
         raise cli.PackageError("--core-skill-count must be >= 1.")
 
-    channel = cli.normalize_channel_id(getattr(args, "channel", "tel-research-group"))
+    channel = cli.normalize_channel_id(getattr(args, "channel", "skilled-scipkg"))
     github_login = _resolve_github_login()
+    organization = _normalize_github_owner(
+        getattr(args, "organization", None),
+        field_name="--organization",
+    )
+    fork_owner = organization or github_login
 
     processed: list[dict[str, object]] = []
     failed: list[dict[str, object]] = []
@@ -1114,6 +1133,7 @@ def cmd_auto_compile(args: argparse.Namespace) -> int:
                 package_id=package_id,
                 upstream_repo_url=upstream_repo_url,
                 github_login=github_login,
+                organization=organization,
                 fermilink_repo=fermilink_repo,
                 workspace_root=workspace_root,
                 channel=channel,
@@ -1149,6 +1169,8 @@ def cmd_auto_compile(args: argparse.Namespace) -> int:
 
     payload = {
         "github_login": github_login,
+        "organization": organization,
+        "fork_owner": fork_owner,
         "channel": channel,
         "fermilink_repo": str(fermilink_repo),
         "workspace_root": str(workspace_root),
@@ -1165,6 +1187,11 @@ def cmd_auto_compile(args: argparse.Namespace) -> int:
             f"{len(failed)} failure(s)."
         ),
         f"GitHub account: {github_login}.",
+        (
+            f"Fork owner organization: {organization}."
+            if isinstance(organization, str) and organization
+            else f"Fork owner account: {fork_owner}."
+        ),
         f"Curated channel: {channel}.",
     ]
     if failed:

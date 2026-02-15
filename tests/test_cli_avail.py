@@ -11,7 +11,7 @@ def test_cli_avail_exact_match(capsys) -> None:
     out = capsys.readouterr().out
     assert "Found" in out
     assert "ase: ASE" in out
-    assert "TEL-Research-Group/ase" in out
+    assert "skilled-scipkg/ase" in out
 
 
 def test_cli_avail_missing_match(capsys) -> None:
@@ -25,7 +25,7 @@ def test_cli_avail_json_output(capsys) -> None:
     code = cli.main(["avail", "ase", "--json"])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["channel"] == "tel-research-group"
+    assert payload["channel"] == "skilled-scipkg"
     assert payload["query"] == "ase"
     assert payload["found"] is True
     results = payload["results"]

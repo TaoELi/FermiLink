@@ -22,10 +22,10 @@ def _base_repo_payloads(repo_root: Path) -> None:
         / "fermilink"
         / "data"
         / "curated_channels"
-        / "tel-research-group.json",
+        / "skilled-scipkg.json",
         {
             "schema_version": 2,
-            "channel_id": "tel-research-group",
+            "channel_id": "skilled-scipkg",
             "packages": [],
         },
     )
@@ -267,6 +267,182 @@ def test_cli_auto_compile_requires_codex_provider(
     assert "requires Codex provider" in err
 
 
+def test_cli_auto_compile_forwards_organization_target(
+    monkeypatch, tmp_path: Path
+) -> None:
+    repo_root = tmp_path / "fermilink-repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        package_commands, "_ensure_required_commands_available", lambda **_k: None
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex", sandbox_policy="enforce", sandbox_mode="workspace-write"
+        ),
+    )
+    monkeypatch.setattr(package_commands, "_resolve_github_login", lambda: "tester")
+
+    seen_kwargs: dict[str, object] = {}
+
+    def _fake_process(**kwargs):
+        seen_kwargs.update(kwargs)
+        return {
+            "status": "ok",
+            "package_id": kwargs["package_id"],
+            "upstream_repo_url": kwargs["upstream_repo_url"],
+        }
+
+    monkeypatch.setattr(package_commands, "_process_auto_compile_package", _fake_process)
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+
+    code = cli.main(
+        [
+            "auto-compile",
+            "qutip",
+            "https://github.com/qutip/qutip",
+            "--fermilink-repo",
+            str(repo_root),
+            "--organization",
+            "fermilink-org",
+            "--dry-run",
+            "--json",
+        ]
+    )
+    assert code == 0
+    assert seen_kwargs["organization"] == "fermilink-org"
+    assert payloads
+    assert payloads[0]["organization"] == "fermilink-org"
+    assert payloads[0]["fork_owner"] == "fermilink-org"
+
+
+def test_cli_auto_compile_rejects_invalid_organization_name(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    repo_root = tmp_path / "fermilink-repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        package_commands, "_ensure_required_commands_available", lambda **_k: None
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex", sandbox_policy="enforce", sandbox_mode="workspace-write"
+        ),
+    )
+    monkeypatch.setattr(package_commands, "_resolve_github_login", lambda: "tester")
+
+    code = cli.main(
+        [
+            "auto-compile",
+            "qutip",
+            "https://github.com/qutip/qutip",
+            "--fermilink-repo",
+            str(repo_root),
+            "--organization",
+            "bad/org",
+        ]
+    )
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "--organization must be a GitHub account/organization name" in err
+
+
+def test_ensure_public_fork_uses_org_flag_when_requested(monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(package_commands, "_try_fetch_repo_info", lambda _name: None)
+    monkeypatch.setattr(
+        package_commands,
+        "_fetch_repo_info",
+        lambda name: {
+            "nameWithOwner": name,
+            "url": f"https://github.com/{name}",
+            "visibility": "PUBLIC",
+            "defaultBranchRef": {"name": "main"},
+        },
+    )
+
+    def _fake_run(command, **_kwargs):
+        commands.append(command)
+
+        class _Completed:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _Completed()
+
+    monkeypatch.setattr(package_commands, "_run_external_command", _fake_run)
+
+    result = package_commands._ensure_public_fork(
+        upstream_owner="qutip",
+        upstream_repo="qutip",
+        github_login="tester",
+        organization="fermilink-org",
+    )
+    assert commands == [
+        [
+            "gh",
+            "repo",
+            "fork",
+            "qutip/qutip",
+            "--clone=false",
+            "--org",
+            "fermilink-org",
+        ]
+    ]
+    assert result["fork_name"] == "fermilink-org/qutip"
+
+
+def test_ensure_public_fork_omits_org_flag_for_personal_owner(monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(package_commands, "_try_fetch_repo_info", lambda _name: None)
+    monkeypatch.setattr(
+        package_commands,
+        "_fetch_repo_info",
+        lambda name: {
+            "nameWithOwner": name,
+            "url": f"https://github.com/{name}",
+            "visibility": "PUBLIC",
+            "defaultBranchRef": {"name": "main"},
+        },
+    )
+
+    def _fake_run(command, **_kwargs):
+        commands.append(command)
+
+        class _Completed:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _Completed()
+
+    monkeypatch.setattr(package_commands, "_run_external_command", _fake_run)
+
+    result = package_commands._ensure_public_fork(
+        upstream_owner="qutip",
+        upstream_repo="qutip",
+        github_login="tester",
+        organization=None,
+    )
+    assert commands == [
+        [
+            "gh",
+            "repo",
+            "fork",
+            "qutip/qutip",
+            "--clone=false",
+        ]
+    ]
+    assert result["fork_name"] == "tester/qutip"
+
+
 def test_merge_metadata_entries_writes_payloads(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "fermilink-repo"
     _base_repo_payloads(repo_root)
@@ -278,7 +454,7 @@ def test_merge_metadata_entries_writes_payloads(monkeypatch, tmp_path: Path) -> 
 
     result = package_commands._merge_metadata_entries(
         fermilink_repo=repo_root,
-        channel_id="tel-research-group",
+        channel_id="skilled-scipkg",
         package_id="qutip",
         curated_entry=_sample_curated_entry("qutip"),
         family_entry=_sample_family_entry("qutip"),
@@ -294,7 +470,7 @@ def test_merge_metadata_entries_writes_payloads(monkeypatch, tmp_path: Path) -> 
             / "fermilink"
             / "data"
             / "curated_channels"
-            / "tel-research-group.json"
+            / "skilled-scipkg.json"
         ).read_text(encoding="utf-8")
     )
     package_ids = [item["package_id"] for item in curated_payload["packages"]]
@@ -320,10 +496,10 @@ def test_merge_metadata_entries_blocks_duplicate_without_update(
         / "fermilink"
         / "data"
         / "curated_channels"
-        / "tel-research-group.json",
+        / "skilled-scipkg.json",
         {
             "schema_version": 2,
-            "channel_id": "tel-research-group",
+            "channel_id": "skilled-scipkg",
             "packages": [existing_curated],
         },
     )
@@ -343,7 +519,7 @@ def test_merge_metadata_entries_blocks_duplicate_without_update(
     with pytest.raises(cli.PackageError):
         package_commands._merge_metadata_entries(
             fermilink_repo=repo_root,
-            channel_id="tel-research-group",
+            channel_id="skilled-scipkg",
             package_id="qutip",
             curated_entry=_sample_curated_entry("qutip"),
             family_entry=_sample_family_entry("qutip"),

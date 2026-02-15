@@ -15,12 +15,12 @@ from fermilink.packages.curated_channels import (
 
 
 def test_curated_alias_resolution() -> None:
-    assert normalize_channel_id("tle-research-group") == "tel-research-group"
+    assert normalize_channel_id("skiled-scipkg") == "skilled-scipkg"
 
 
 def test_resolve_curated_package() -> None:
-    pkg = resolve_curated_package("ase", channel="tel-research-group")
-    assert "TEL-Research-Group/ase" in pkg.zip_url
+    pkg = resolve_curated_package("ase", channel="skilled-scipkg")
+    assert "skilled-scipkg/ase" in pkg.zip_url
     assert pkg.default_version == "branch-head"
     assert pkg.description
     assert pkg.upstream_repo_url
@@ -31,17 +31,17 @@ def test_resolve_curated_package() -> None:
 
 def test_resolve_curated_package_missing() -> None:
     with pytest.raises(ValueError):
-        resolve_curated_package("not-a-real-package", channel="tel-research-group")
+        resolve_curated_package("not-a-real-package", channel="skilled-scipkg")
 
 
-def test_list_curated_packages_contains_tel_entries() -> None:
-    packages = list_curated_packages(channel="tel-research-group")
+def test_list_curated_packages_contains_skilled_entries() -> None:
+    packages = list_curated_packages(channel="skilled-scipkg")
     assert "ase" in packages
     assert "maxwelllink" in packages
 
 
 def test_select_curated_package_version_missing_raises() -> None:
-    pkg = resolve_curated_package("ase", channel="tel-research-group")
+    pkg = resolve_curated_package("ase", channel="skilled-scipkg")
     with pytest.raises(ValueError):
         select_package_version(pkg, version_id="v0.0.1")
 
@@ -58,7 +58,7 @@ def test_curated_loader_supports_v1_payload(monkeypatch, tmp_path: Path) -> None
             }
         ]
     }
-    (data_dir / "tel-research-group.json").write_text(
+    (data_dir / "skilled-scipkg.json").write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -67,7 +67,7 @@ def test_curated_loader_supports_v1_payload(monkeypatch, tmp_path: Path) -> None
     curated_channels._load_channel_packages.cache_clear()
     monkeypatch.setattr(curated_channels, "DATA_DIR", data_dir)
 
-    packages = curated_channels.list_curated_packages(channel="tel-research-group")
+    packages = curated_channels.list_curated_packages(channel="skilled-scipkg")
     assert "demo" in packages
     demo = packages["demo"]
     assert demo.default_version == "branch-head"

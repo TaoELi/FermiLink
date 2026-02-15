@@ -33,21 +33,22 @@ class ChannelPackageVersion:
 DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "curated_channels"
 
 CHANNEL_ALIASES = {
-    "tel": "tel-research-group",
-    "tel-research-group": "tel-research-group",
-    "tle-research-group": "tel-research-group",
+    "tel": "skilled-scipkg",
+    "scipkg": "skilled-scipkg",
+    "skiled-scipkg": "skilled-scipkg",
+    "skilled-scipkg": "skilled-scipkg",
 }
 
 
 @functools.lru_cache(maxsize=1)
 def _available_channel_ids() -> tuple[str, ...]:
     if not DATA_DIR.exists():
-        return ("tel-research-group",)
+        return ("skilled-scipkg",)
     channel_ids = sorted(path.stem.strip().lower() for path in DATA_DIR.glob("*.json"))
     cleaned = tuple(channel_id for channel_id in channel_ids if channel_id)
     if cleaned:
         return cleaned
-    return ("tel-research-group",)
+    return ("skilled-scipkg",)
 
 
 def _normalize_tag_list(raw: Any) -> tuple[str, ...]:
@@ -279,7 +280,7 @@ def normalize_channel_id(channel: str | None) -> str:
     str
         Normalized curated channel id.
     """
-    value = (channel or "tel-research-group").strip().lower()
+    value = (channel or "skilled-scipkg").strip().lower()
     return CHANNEL_ALIASES.get(value, value)
 
 

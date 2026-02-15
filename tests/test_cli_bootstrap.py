@@ -74,7 +74,7 @@ def test_bootstrap_installs_maxwelllink_when_registry_empty(
     assert result["package_id"] == "maxwelllink"
     assert result["installed"]["id"] == "maxwelllink"
     assert called["resolve_package_id"] == "maxwelllink"
-    assert called["resolve_channel"] == "tel-research-group"
+    assert called["resolve_channel"] == "skilled-scipkg"
     assert called["install_root"] == scipkg_root
     assert called["install_activate"] is True
     assert called["install_force"] is False

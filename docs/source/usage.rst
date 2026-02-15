@@ -150,7 +150,8 @@ Use ``auto-compile`` to onboard scientific repositories at scale:
 .. code-block:: bash
 
    fermilink auto-compile qutip https://github.com/qutip/qutip \
-     --fermilink-repo /absolute/path/to/FermiLink_development
+     --fermilink-repo /absolute/path/to/FermiLink_development \
+     --organization your-org
 
 Batch mode:
 
@@ -162,7 +163,8 @@ Batch mode:
 
 This workflow automates GitHub fork/clone, conditional ``skills/`` compilation,
 push to your fork, Codex-driven metadata drafting, and validated append/update
-of curated channel plus router family hints data.
+of curated channel plus router family hints data. Omit ``--organization`` to
+target your authenticated personal ``gh`` account.
 
 Web package controls
 --------------------

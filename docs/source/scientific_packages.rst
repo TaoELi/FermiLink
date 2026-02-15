@@ -127,7 +127,8 @@ Auto-compile + curated metadata onboarding
 ------------------------------------------
 
 Use ``auto-compile`` to scale scientific package onboarding from upstream
-GitHub repositories into your personal public forks plus local curated metadata.
+GitHub repositories into your authenticated account (or a specified
+organization) plus local curated metadata.
 
 .. code-block:: bash
 
@@ -137,7 +138,8 @@ GitHub repositories into your personal public forks plus local curated metadata.
 What ``auto-compile`` does per package:
 
 1. Validates input package id and upstream GitHub URL.
-2. Ensures a public fork exists under your authenticated ``gh`` account.
+2. Ensures a fork exists under your authenticated ``gh`` account or the
+   ``--organization`` owner when provided, and validates fork visibility.
 3. Clones/refreshes the fork under ``--workspace-root``.
 4. Runs ``fermilink compile <package_id> . --install-off`` only when ``skills/``
    does not already exist.
@@ -148,7 +150,7 @@ What ``auto-compile`` does per package:
    format and cross-file consistency via ``scripts/validate_data.py``, then
    appends them to:
 
-   - ``src/fermilink/data/curated_channels/tel-research-group.json``
+   - ``src/fermilink/data/curated_channels/skilled-scipkg.json``
    - ``src/fermilink/data/router/family_hints.json``
 
 Batch mode from an external JSON spec:
@@ -178,6 +180,8 @@ Batch mode from an external JSON spec:
 Useful auto-compile options:
 
 - ``--update-existing``: replace existing curated/family entries for a package id.
+- ``--organization``: force forks to a specific GitHub organization
+  (uses ``gh repo fork --org <organization>``).
 - ``--dry-run``: run fork/clone/compile/push + metadata validation without writing
   curated/family files.
 - ``--cleanup-clone``: remove local cloned forks after each package.

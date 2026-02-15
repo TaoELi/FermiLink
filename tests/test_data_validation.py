@@ -18,7 +18,7 @@ def _script_path() -> Path:
 def test_validate_data_script_passes_for_valid_payload(tmp_path: Path) -> None:
     curated_payload = {
         "schema_version": 2,
-        "channel_id": "tel-research-group",
+        "channel_id": "skilled-scipkg",
         "packages": [
             {
                 "package_id": "demo",
@@ -57,7 +57,7 @@ def test_validate_data_script_passes_for_valid_payload(tmp_path: Path) -> None:
         / "fermilink"
         / "data"
         / "curated_channels"
-        / "tel-research-group.json",
+        / "skilled-scipkg.json",
         curated_payload,
     )
     _write_json(
@@ -78,7 +78,7 @@ def test_validate_data_script_passes_for_valid_payload(tmp_path: Path) -> None:
 def test_validate_data_script_fails_when_family_is_missing(tmp_path: Path) -> None:
     curated_payload = {
         "schema_version": 2,
-        "channel_id": "tel-research-group",
+        "channel_id": "skilled-scipkg",
         "packages": [
             {
                 "package_id": "demo",
@@ -114,7 +114,7 @@ def test_validate_data_script_fails_when_family_is_missing(tmp_path: Path) -> No
         / "fermilink"
         / "data"
         / "curated_channels"
-        / "tel-research-group.json",
+        / "skilled-scipkg.json",
         curated_payload,
     )
     _write_json(

@@ -54,8 +54,8 @@ def register_package_install_compile_parsers(
     )
     install_parser.add_argument(
         "--channel",
-        default="tel-research-group",
-        help="Curated source channel (default: tel-research-group).",
+        default="skilled-scipkg",
+        help="Curated source channel (default: skilled-scipkg).",
     )
     install_parser.add_argument(
         "--version",
@@ -260,9 +260,9 @@ def register_package_install_compile_parsers(
     auto_compile_parser = subparsers.add_parser(
         "auto-compile",
         help=(
-            "Fork an upstream GitHub repo to your account, compile skills if needed, "
-            "push to your fork, then append vetted metadata entries into local "
-            "tel-research-group and family hints data files."
+            "Fork an upstream GitHub repo to your account (or an organization), "
+            "compile skills if needed, push to your fork, then append vetted "
+            "metadata entries into local skilled-scipkg and family hints data files."
         ),
     )
     add_json_option(auto_compile_parser)
@@ -288,7 +288,7 @@ def register_package_install_compile_parsers(
         required=True,
         help=(
             "Local FermiLink repository path where "
-            "src/fermilink/data/curated_channels/tel-research-group.json and "
+            "src/fermilink/data/curated_channels/skilled-scipkg.json and "
             "src/fermilink/data/router/family_hints.json will be updated."
         ),
     )
@@ -301,9 +301,16 @@ def register_package_install_compile_parsers(
         ),
     )
     auto_compile_parser.add_argument(
+        "--organization",
+        help=(
+            "GitHub organization that should own created forks "
+            "(uses `gh repo fork --org <organization>`)."
+        ),
+    )
+    auto_compile_parser.add_argument(
         "--channel",
-        default="tel-research-group",
-        help="Curated channel file to update (default: tel-research-group).",
+        default="skilled-scipkg",
+        help="Curated channel file to update (default: skilled-scipkg).",
     )
     auto_compile_parser.add_argument(
         "--max-skills",
@@ -417,8 +424,8 @@ def register_package_management_parsers(
     )
     avail_parser.add_argument(
         "--channel",
-        default="tel-research-group",
-        help="Curated source channel to query (default: tel-research-group).",
+        default="skilled-scipkg",
+        help="Curated source channel to query (default: skilled-scipkg).",
     )
     avail_parser.set_defaults(func=cmd_avail)
 
