@@ -70,6 +70,17 @@ def cmd_compile(args: argparse.Namespace) -> int:
     project_root = cli._resolve_project_path(args.project_path)
     if not project_root.exists() or not project_root.is_dir():
         raise cli.PackageError(f"Compile path is not a directory: {project_root}")
+    max_skills = int(getattr(args, "max_skills", 30))
+    if max_skills < 2:
+        raise cli.PackageError("--max-skills must be >= 2.")
+    core_skill_count = int(getattr(args, "core_skill_count", 6))
+    if core_skill_count < 1:
+        raise cli.PackageError("--core-skill-count must be >= 1.")
+    docs_only_override = bool(getattr(args, "docs_only", False))
+    keep_compile_artifacts = bool(getattr(args, "keep_compile_artifacts", False))
+    strict_compile_validation = bool(
+        getattr(args, "strict_compile_validation", False)
+    )
 
     registry = cli.load_registry(scipkg_root)
     packages = registry.get("packages", {})
@@ -99,38 +110,52 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
     shutil.copytree(tool_source, tool_dest)
     compile_runs: list[dict[str, object]] = []
-
+    profile_payload: dict[str, object] = {}
+    generation_result: dict[str, object] = {}
+    evidence_payload: dict[str, object] = {}
+    validation_payload: dict[str, object] = {}
+    compile_report_path = ""
     try:
-        compile_runs.append(
-            cli._run_codex_compile_pass(
-                project_root,
-                prompt=cli.COMPILE_PROMPT_1,
-                pass_index=1,
-                total_passes=3,
-                provider=provider,
-                provider_bin=provider_bin,
-            )
+        pass_1 = cli._run_codex_compile_pass(
+            project_root,
+            prompt=cli.COMPILE_PROMPT_1,
+            pass_index=1,
+            total_passes=3,
+            provider=provider,
+            provider_bin=provider_bin,
         )
-        compile_runs.append(
-            cli._run_codex_compile_pass(
-                project_root,
-                prompt=cli.COMPILE_PROMPT_2,
-                pass_index=2,
-                total_passes=3,
-                provider=provider,
-                provider_bin=provider_bin,
-            )
-        )
-    finally:
-        shutil.rmtree(tool_dest, ignore_errors=True)
+        pass_1_assistant_text = str(pass_1.pop("assistant_text", "") or "")
+        compile_runs.append(pass_1)
 
-    if tool_dest.exists():
-        raise cli.PackageError(
-            f"Failed to clean up temporary tool directory: {tool_dest}"
+        profile_payload = cli._load_compile_profile(
+            project_root,
+            default_package_name=package_id,
+            assistant_text=pass_1_assistant_text,
+        )
+        generation_result = cli._run_compile_generator(
+            project_root,
+            tool_dir=tool_dest,
+            profile=profile_payload,
+            max_skills=max_skills,
+            docs_only_override=docs_only_override,
+        )
+        evidence_payload = cli._build_compile_evidence_bundle(
+            project_root,
+            core_skill_count=core_skill_count,
         )
 
-    compile_runs.append(
-        cli._run_codex_compile_pass(
+        pass_2 = cli._run_codex_compile_pass(
+            project_root,
+            prompt=cli.COMPILE_PROMPT_2,
+            pass_index=2,
+            total_passes=3,
+            provider=provider,
+            provider_bin=provider_bin,
+        )
+        pass_2.pop("assistant_text", None)
+        compile_runs.append(pass_2)
+
+        pass_3 = cli._run_codex_compile_pass(
             project_root,
             prompt=cli.COMPILE_PROMPT_3,
             pass_index=3,
@@ -138,7 +163,41 @@ def cmd_compile(args: argparse.Namespace) -> int:
             provider=provider,
             provider_bin=provider_bin,
         )
-    )
+        pass_3.pop("assistant_text", None)
+        compile_runs.append(pass_3)
+
+        validation_payload = cli._validate_compiled_skills(
+            project_root,
+            profile=profile_payload,
+            core_skill_count=core_skill_count,
+        )
+        compile_report_path = cli._write_compile_report(
+            project_root,
+            payload={
+                "compiled_package_id": package_id,
+                "project_root": str(project_root),
+                "profile": profile_payload,
+                "generation": generation_result,
+                "evidence": evidence_payload,
+                "passes": compile_runs,
+                "validation": validation_payload,
+            },
+        )
+        if strict_compile_validation and not bool(validation_payload.get("ok", False)):
+            errors = validation_payload.get("errors")
+            if isinstance(errors, list) and errors:
+                summary = "; ".join(str(item) for item in errors[:5])
+            else:
+                summary = "unknown validation error"
+            raise cli.PackageError(f"Compile validation failed: {summary}")
+    finally:
+        if not keep_compile_artifacts:
+            shutil.rmtree(tool_dest, ignore_errors=True)
+
+    if not keep_compile_artifacts and tool_dest.exists():
+        raise cli.PackageError(
+            f"Failed to clean up temporary tool directory: {tool_dest}"
+        )
 
     installed = cli.install_from_local_path(
         scipkg_root,
@@ -158,13 +217,36 @@ def cmd_compile(args: argparse.Namespace) -> int:
         "compiled_package_id": package_id,
         "project_root": str(project_root),
         "compile_runs": compile_runs,
+        "compile_profile": profile_payload,
+        "generation": generation_result,
+        "evidence": evidence_payload,
+        "validation": validation_payload,
+        "validation_enforced": strict_compile_validation,
+        "compile_report": compile_report_path,
         "installed": installed,
         "active_package": active,
         "router_sync": router_sync,
         "scipkg_root": str(scipkg_root),
     }
+    source_links_total = validation_payload.get("source_links_total", 0)
+    validation_ok = bool(validation_payload.get("ok", False))
+    validation_errors = validation_payload.get("errors", [])
+    error_count = (
+        len(validation_errors)
+        if isinstance(validation_errors, list)
+        else 0
+    )
     lines = [
         f"Compiled skills for '{package_id}' from {project_root}.",
+        f"Validated skills with {source_links_total} source-code links.",
+        (
+            "Validation status: ok."
+            if validation_ok
+            else (
+                f"Validation status: {error_count} finding(s) (non-blocking). "
+                "Use --strict-compile-validation to enforce failures."
+            )
+        ),
         (
             f"Installed to scientific packages. Active package: {active}."
             if isinstance(active, str) and active

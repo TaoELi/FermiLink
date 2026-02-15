@@ -27,6 +27,11 @@ from fermilink.cli.commands import services as service_commands
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.cli.compile_prompts import (
+    COMPILE_EVIDENCE_DIR_REL_PATH,
+    COMPILE_PROFILE_REL_PATH,
+    COMPILE_PROFILE_TAG,
+    COMPILE_PROFILE_TOKEN_RE,
+    COMPILE_REPORT_REL_PATH,
     COMPILE_PROMPT_1,
     COMPILE_PROMPT_2,
     COMPILE_PROMPT_3,
@@ -218,6 +223,11 @@ _resolve_exec_like_user_prompt = input_repo_helpers._resolve_exec_like_user_prom
 
 # Compile helpers
 _resolve_compile_tool_source = compile_helpers._resolve_compile_tool_source
+_load_compile_profile = compile_helpers._load_compile_profile
+_run_compile_generator = compile_helpers._run_compile_generator
+_build_compile_evidence_bundle = compile_helpers._build_compile_evidence_bundle
+_validate_compiled_skills = compile_helpers._validate_compiled_skills
+_write_compile_report = compile_helpers._write_compile_report
 _run_codex_compile_pass = compile_helpers._run_codex_compile_pass
 
 # Workflow internals moved to fermilink.cli.commands.workflows.

@@ -101,7 +101,8 @@ def register_package_install_compile_parsers(
         "compile",
         help=(
             "Compile a local scientific project into a fermilink package by running "
-            "three codex passes with sci-skills-generator, then install locally."
+            "three Codex passes with a deterministic skills generation+validation "
+            "pipeline, then install locally."
         ),
     )
     add_json_option(compile_parser)
@@ -115,6 +116,43 @@ def register_package_install_compile_parsers(
     compile_parser.add_argument(
         "--title",
         help="Optional display title for installed package metadata.",
+    )
+    compile_parser.add_argument(
+        "--max-skills",
+        type=int,
+        default=30,
+        help=(
+            "Maximum number of generated skills (including index) during deterministic "
+            "generation (default: 30)."
+        ),
+    )
+    compile_parser.add_argument(
+        "--core-skill-count",
+        type=int,
+        default=6,
+        help=(
+            "How many top topic skills to enrich with compact high-signal playbooks "
+            "(default: 6)."
+        ),
+    )
+    compile_parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="Force docs-only generation mode (skip source discovery in generator).",
+    )
+    compile_parser.add_argument(
+        "--keep-compile-artifacts",
+        action="store_true",
+        help="Keep temporary `sci-skills-generator/` folder after compile completes.",
+    )
+    compile_parser.add_argument(
+        "--strict-compile-validation",
+        action="store_true",
+        help=(
+            "Fail compile when validation detects broken links or missing playbook "
+            "requirements. By default, validation findings are reported but do not "
+            "block install."
+        ),
     )
     compile_parser.add_argument(
         "--activate",

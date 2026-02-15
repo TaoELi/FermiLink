@@ -63,20 +63,33 @@ Compile local project into a package
 
 .. code-block:: bash
 
-   fermilink compile <package_id> <path>
+   fermilink compile <package_id> <path> \
+     --max-skills 30 \
+     --core-skill-count 6
 
-Compile uses a three-pass Codex workflow around ``sci-skills-generator`` to
-create/refine package ``skills/`` and then installs into scientific package
-storage.
+Compile uses a three-pass Codex workflow plus deterministic generation and
+validation around ``sci-skills-generator`` to create/refine package
+``skills/`` and then installs into scientific package storage.
 
 Typical compile path:
 
 1. Validate package id does not already exist in registry.
 2. Copy ``sci-skills-generator`` tool into project root.
-3. Run generation/audit passes for ``skills/`` quality.
-4. Remove temporary tool folder.
-5. Run final consistency/enrichment pass.
-6. Install resulting project as a package.
+3. Pass 1 discovers project structure and writes ``skills/.compile_profile.json``.
+4. Run deterministic ``generate_skills_folder.py`` using the discovered profile.
+5. Build ``skills/.evidence/`` bundle for core topic skills.
+6. Pass 2 enriches compact high-signal playbooks in core skills.
+7. Pass 3 audits/fixes path consistency and source-link quality.
+8. Validate required files, links, source entry points, and playbook sections.
+9. Write ``skills/.compile_report.json`` and install the package (validation findings are reported by default).
+
+Useful compile options:
+
+- ``--max-skills``: cap generated skill count including index skill.
+- ``--core-skill-count``: number of topic skills to enrich with high-signal playbooks.
+- ``--docs-only``: force docs-only generation mode when source trees are unavailable.
+- ``--keep-compile-artifacts``: keep temporary ``sci-skills-generator/`` folder after compile.
+- ``--strict-compile-validation``: fail compile when validation findings exist.
 
 Check curated package availability
 ----------------------------------

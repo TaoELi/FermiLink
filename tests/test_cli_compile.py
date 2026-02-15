@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 
-from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink import cli
+from fermilink.agent_runtime import AgentRuntimePolicy
 
 
 def _make_tool_source(path: Path) -> None:
@@ -14,6 +13,20 @@ def _make_tool_source(path: Path) -> None:
     (path / "scripts" / "generate_skills_folder.py").write_text(
         "print('ok')\n", encoding="utf-8"
     )
+
+
+def _default_profile() -> dict[str, object]:
+    return {
+        "package_name": "newpkg",
+        "docs_only": False,
+        "docs_dirs": ["docs"],
+        "tutorial_dirs": ["examples"],
+        "test_dirs": ["tests"],
+        "source_dirs": ["src"],
+        "profile_source": "file",
+        "profile_path": "skills/.compile_profile.json",
+        "warnings": [],
+    }
 
 
 def test_compile_rejects_existing_package_id(
@@ -35,7 +48,7 @@ def test_compile_rejects_existing_package_id(
     assert "already exists" in err
 
 
-def test_compile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) -> None:
+def test_compile_runs_staged_pipeline_then_installs(monkeypatch, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir(parents=True, exist_ok=True)
     tool_source = tmp_path / "tool-source"
@@ -51,17 +64,106 @@ def test_compile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) ->
     )
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
 
-    call_state = {"calls": 0, "tool_exists": []}
+    pass_calls: list[dict[str, object]] = []
 
-    def fake_subprocess_run(cmd, check=False):
-        _ = check
-        call_state["calls"] += 1
-        call_state["tool_exists"].append(
-            (project_root / "sci-skills-generator").exists()
+    def fake_pass(
+        _project_root: Path,
+        *,
+        prompt: str,
+        pass_index: int,
+        total_passes: int,
+        provider: str,
+        provider_bin: str,
+    ) -> dict[str, object]:
+        pass_calls.append(
+            {
+                "pass": pass_index,
+                "prompt": prompt,
+                "total": total_passes,
+                "provider": provider,
+                "provider_bin": provider_bin,
+            }
         )
-        return SimpleNamespace(returncode=0, cmd=cmd)
+        assistant_text = (
+            "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+            if pass_index == 1
+            else ""
+        )
+        return {
+            "pass": pass_index,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": assistant_text,
+        }
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+
+    profile_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda project_root, default_package_name, assistant_text: profile_calls.append(
+            {
+                "project_root": project_root,
+                "default_package_name": default_package_name,
+                "assistant_text": assistant_text,
+            }
+        )
+        or _default_profile(),
+    )
+
+    generation_calls: list[dict[str, object]] = []
+
+    def fake_generation(
+        project_root: Path,
+        *,
+        tool_dir: Path,
+        profile: dict[str, object],
+        max_skills: int,
+        docs_only_override: bool = False,
+    ) -> dict[str, object]:
+        generation_calls.append(
+            {
+                "project_root": project_root,
+                "tool_dir": tool_dir,
+                "profile": dict(profile),
+                "max_skills": max_skills,
+                "docs_only_override": docs_only_override,
+            }
+        )
+        return {
+            "status": "ok",
+            "return_code": 0,
+            "docs_only": False,
+            "max_skills": max_skills,
+            "generator_script": "sci-skills-generator/scripts/generate_skills_folder.py",
+        }
+
+    monkeypatch.setattr(cli, "_run_compile_generator", fake_generation)
+
+    evidence_calls: list[int] = []
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda _root, core_skill_count: evidence_calls.append(core_skill_count)
+        or {"evidence_dir": "skills/.evidence", "core_skills": ["newpkg-api"]},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 17,
+            "core_skills_checked": ["newpkg-api"],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_write_compile_report",
+        lambda _root, payload: "skills/.compile_report.json",
+    )
 
     install_calls: list[dict[str, object]] = []
 
@@ -91,11 +193,25 @@ def test_compile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) ->
     payloads: list[dict[str, object]] = []
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
 
-    code = cli.main(["compile", "newpkg", str(project_root), "--json"])
+    code = cli.main(
+        [
+            "compile",
+            "newpkg",
+            str(project_root),
+            "--json",
+            "--max-skills",
+            "25",
+            "--core-skill-count",
+            "4",
+        ]
+    )
     assert code == 0
-    assert call_state["calls"] == 3
-    assert call_state["tool_exists"] == [True, True, False]
-    assert not (project_root / "sci-skills-generator").exists()
+    assert len(pass_calls) == 3
+    assert [entry["pass"] for entry in pass_calls] == [1, 2, 3]
+    assert profile_calls and "compile_profile" in profile_calls[0]["assistant_text"]
+    assert len(generation_calls) == 1
+    assert generation_calls[0]["max_skills"] == 25
+    assert evidence_calls == [4]
 
     assert len(install_calls) == 1
     assert install_calls[0]["root"] == scipkg_root
@@ -103,14 +219,79 @@ def test_compile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) ->
     assert install_calls[0]["local_path"] == project_root
     assert install_calls[0]["force"] is False
 
+    assert not (project_root / "sci-skills-generator").exists()
     assert payloads
     compile_runs = payloads[0].get("compile_runs")
     assert isinstance(compile_runs, list)
     assert len(compile_runs) == 3
     assert all(item.get("status") == "ok" for item in compile_runs)
+    assert payloads[0].get("compile_report") == "skills/.compile_report.json"
+    assert payloads[0].get("validation", {}).get("source_links_total") == 17
+    assert payloads[0].get("validation_enforced") is False
 
 
-def test_compile_cleans_up_tool_on_pass_failure(
+def test_compile_keep_compile_artifacts_retains_tool_dir(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    scipkg_root = tmp_path / "scientific_packages"
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(
+        cli,
+        "load_registry",
+        lambda _root: {"packages": {}, "active_package": "newpkg"},
+    )
+    monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_compile_generator",
+        lambda *_a, **_k: {"status": "ok", "return_code": 0},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence", "core_skills": []},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {"ok": True, "errors": [], "warnings": [], "source_links_total": 0},
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+    monkeypatch.setattr(
+        cli, "install_from_local_path", lambda *_a, **_k: {"id": "newpkg"}
+    )
+
+    code = cli.main(
+        ["compile", "newpkg", str(project_root), "--keep-compile-artifacts"]
+    )
+    assert code == 0
+    assert (project_root / "sci-skills-generator").is_dir()
+
+
+def test_compile_validation_findings_are_non_blocking_by_default(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     project_root = tmp_path / "project"
@@ -122,16 +303,107 @@ def test_compile_cleans_up_tool_on_pass_failure(
     monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
     monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
     monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_compile_generator",
+        lambda *_a, **_k: {"status": "ok", "return_code": 0},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence", "core_skills": []},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": False,
+            "errors": ["skills/newpkg-api/references/source_map.md missing source links"],
+            "warnings": [],
+            "source_links_total": 0,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+    monkeypatch.setattr(
+        cli,
+        "install_from_local_path",
+        lambda *_a, **_k: {"id": "newpkg"},
+    )
 
-    call_count = {"value": 0}
+    code = cli.main(["compile", "newpkg", str(project_root)])
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "non-blocking" in out
+    assert not (project_root / "sci-skills-generator").exists()
 
-    def fake_subprocess_run(_cmd, check=False):
-        _ = check
-        call_count["value"] += 1
-        returncode = 1 if call_count["value"] == 2 else 0
-        return SimpleNamespace(returncode=returncode)
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_subprocess_run)
+def test_compile_strict_validation_blocks_install(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    scipkg_root = tmp_path / "scientific_packages"
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_compile_generator",
+        lambda *_a, **_k: {"status": "ok", "return_code": 0},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence", "core_skills": []},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": False,
+            "errors": ["skills/newpkg-api/references/source_map.md missing source links"],
+            "warnings": [],
+            "source_links_total": 0,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
     monkeypatch.setattr(
         cli,
         "install_from_local_path",
@@ -140,12 +412,18 @@ def test_compile_cleans_up_tool_on_pass_failure(
         ),
     )
 
-    code = cli.main(["compile", "newpkg", str(project_root)])
+    code = cli.main(
+        [
+            "compile",
+            "newpkg",
+            str(project_root),
+            "--strict-compile-validation",
+        ]
+    )
     assert code == 2
-    assert call_count["value"] == 2
-    assert not (project_root / "sci-skills-generator").exists()
     err = capsys.readouterr().err
-    assert "compile pass 2/3" in err
+    assert "Compile validation failed" in err
+    assert not (project_root / "sci-skills-generator").exists()
 
 
 def test_compile_inherits_provider_from_runtime_policy(
@@ -180,53 +458,66 @@ def test_compile_inherits_provider_from_runtime_policy(
         lambda provider, codex_bin=None: f"{provider}-bin",
     )
 
-    build_calls: list[dict[str, object]] = []
+    pass_calls: list[dict[str, object]] = []
 
-    def fake_build_exec_command(
+    def fake_pass(
+        _project_root: Path,
         *,
+        prompt: str,
+        pass_index: int,
+        total_passes: int,
         provider: str,
         provider_bin: str,
-        repo_dir: Path,
-        prompt: str,
-        sandbox_policy: str,
-        sandbox_mode: str | None,
-        json_output: bool,
-    ) -> list[str]:
-        build_calls.append(
+    ) -> dict[str, object]:
+        pass_calls.append(
             {
                 "provider": provider,
                 "provider_bin": provider_bin,
-                "repo_dir": repo_dir,
                 "prompt": prompt,
-                "sandbox_policy": sandbox_policy,
-                "sandbox_mode": sandbox_mode,
-                "json_output": json_output,
+                "pass_index": pass_index,
+                "total_passes": total_passes,
             }
         )
-        return [provider_bin, "exec", prompt]
+        return {
+            "pass": pass_index,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        }
 
-    monkeypatch.setattr(cli, "build_exec_command", fake_build_exec_command)
+    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
     monkeypatch.setattr(
-        cli.subprocess,
-        "run",
-        lambda _cmd, check=False: SimpleNamespace(returncode=0),
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
     )
     monkeypatch.setattr(
         cli,
-        "install_from_local_path",
-        lambda *_a, **_k: {"id": "newpkg"},
+        "_run_compile_generator",
+        lambda *_a, **_k: {"status": "ok", "return_code": 0},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence", "core_skills": []},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {"ok": True, "errors": [], "warnings": [], "source_links_total": 5},
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+    monkeypatch.setattr(
+        cli, "install_from_local_path", lambda *_a, **_k: {"id": "newpkg"}
     )
 
     code = cli.main(["compile", "newpkg", str(project_root)])
     assert code == 0
-    assert len(build_calls) == 3
-    assert all(call["provider"] == "gemini" for call in build_calls)
-    assert all(call["provider_bin"] == "gemini-bin" for call in build_calls)
-    assert all(call["sandbox_policy"] == "enforce" for call in build_calls)
-    assert all(
-        call["sandbox_mode"] == cli.DEFAULT_COMPILE_SANDBOX for call in build_calls
-    )
-    assert all(call["json_output"] is False for call in build_calls)
+    assert len(pass_calls) == 3
+    assert all(call["provider"] == "gemini" for call in pass_calls)
+    assert all(call["provider_bin"] == "gemini-bin" for call in pass_calls)
 
 
 def test_compile_errors_for_unimplemented_runtime_provider(
@@ -255,16 +546,102 @@ def test_compile_errors_for_unimplemented_runtime_provider(
         "resolve_provider_binary",
         lambda provider, codex_bin=None: f"{provider}-bin",
     )
-    monkeypatch.setattr(
-        cli.subprocess,
-        "run",
-        lambda *_a, **_k: (_ for _ in ()).throw(
-            AssertionError("subprocess should not run")
-        ),
-    )
 
     code = cli.main(["compile", "newpkg", str(project_root)])
     assert code == 2
     err = capsys.readouterr().err
     assert "not implemented yet" in err
     assert "fermilink agent codex" in err
+    assert not (project_root / "sci-skills-generator").exists()
+
+
+def test_validate_compiled_skills_flags_missing_source_links(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    skill_topic = project_root / "skills" / "mypkg-workflows"
+    skill_index = project_root / "skills" / "mypkg-index"
+    (skill_topic / "references").mkdir(parents=True, exist_ok=True)
+    skill_index.mkdir(parents=True, exist_ok=True)
+
+    (skill_index / "SKILL.md").write_text("index", encoding="utf-8")
+    (skill_topic / "SKILL.md").write_text(
+        """# Topic
+
+## High-Signal Playbook
+- Route: workflow
+- Triage questions: q1
+- Canonical workflow: step
+- Minimal working example: run
+- Pitfalls: check
+- Convergence/validation checklist: criteria
+""",
+        encoding="utf-8",
+    )
+    (skill_topic / "references" / "doc_map.md").write_text(
+        "Total docs grouped in this topic: 1\n",
+        encoding="utf-8",
+    )
+    (skill_topic / "references" / "source_map.md").write_text(
+        "- `src/missing_solver.py`\n",
+        encoding="utf-8",
+    )
+
+    result = cli._validate_compiled_skills(
+        project_root,
+        profile={
+            "docs_only": False,
+            "source_dirs": ["src"],
+        },
+        core_skill_count=1,
+    )
+    assert result["ok"] is False
+    assert any("no valid source-code entry links" in err for err in result["errors"])
+
+
+def test_validate_compiled_skills_accepts_source_links_and_playbook(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    (project_root / "src").mkdir(parents=True, exist_ok=True)
+    (project_root / "docs").mkdir(parents=True, exist_ok=True)
+    (project_root / "src" / "solver.py").write_text(
+        "def solve():\n    return 1\n", encoding="utf-8"
+    )
+    (project_root / "docs" / "guide.md").write_text("# Guide\n", encoding="utf-8")
+
+    skill_topic = project_root / "skills" / "mypkg-workflows"
+    skill_index = project_root / "skills" / "mypkg-index"
+    (skill_topic / "references").mkdir(parents=True, exist_ok=True)
+    skill_index.mkdir(parents=True, exist_ok=True)
+    (skill_index / "SKILL.md").write_text("index", encoding="utf-8")
+    (skill_topic / "SKILL.md").write_text(
+        """# Topic
+
+## High-Signal Playbook
+- Route: use this skill for workflow setup.
+- Triage questions: what model, what boundary, what runtime?
+- Canonical workflow: configure -> run -> inspect output.
+- Minimal working example: python run.py --config config.yaml
+- Pitfalls: unstable timestep, wrong units.
+- Convergence/validation checklist: mesh, timestep, boundary, tolerances.
+""",
+        encoding="utf-8",
+    )
+    (skill_topic / "references" / "doc_map.md").write_text(
+        "Total docs grouped in this topic: 1\n- `docs/guide.md`\n",
+        encoding="utf-8",
+    )
+    (skill_topic / "references" / "source_map.md").write_text(
+        "- `src/solver.py` | score: 10\n",
+        encoding="utf-8",
+    )
+
+    result = cli._validate_compiled_skills(
+        project_root,
+        profile={
+            "docs_only": False,
+            "source_dirs": ["src"],
+        },
+        core_skill_count=1,
+    )
+    assert result["ok"] is True
+    assert int(result["source_links_total"]) >= 1
