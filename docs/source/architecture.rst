@@ -41,10 +41,15 @@ Workflow planning (`reproduce`/`research`)
 Workflow command order is explicit:
 
 1. Planner generates draft tasks from source scientific intent.
-2. Optional data pass (`--data-dir`) indexes run-scoped data artifacts under
-   ``projects/<mode>/<run-id>/data/`` and maps files to draft tasks.
-3. Auditor receives both draft plan and data map, then emits corrected tasks.
-4. Loop executes each task with task-scoped data context (`task_XXX.md`) in the
+2. Optional data pass (`--data-dir`) writes both deterministic full inventory
+   (``data_manifest_full.json``) and compact LLM-facing inventory
+   (``data_manifest.json``) under ``projects/<mode>/<run-id>/data/`` after
+   deterministic filtering/family-collapse compaction.
+3. Data mapping adapts by compact-manifest size: small inventories use one
+   global mapping call, large inventories use an internal per-task mapping loop
+   with per-task fallback/resume-safe artifact writes.
+4. Auditor receives both draft plan and data map, then emits corrected tasks.
+5. Loop executes each task with task-scoped data context (`task_XXX.md`) in the
    preamble and read-only data-dir guard by default.
 
 Workspace and overlay model

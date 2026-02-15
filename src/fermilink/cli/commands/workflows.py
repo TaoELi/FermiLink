@@ -7,7 +7,7 @@ import math
 import os
 import re
 import shutil
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,6 +33,7 @@ from fermilink.cli.workflow_prompts import (
     WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX,
     WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX,
     WORKFLOW_DATA_DIRNAME,
+    WORKFLOW_DATA_MANIFEST_FULL_FILENAME,
     WORKFLOW_DATA_MANIFEST_FILENAME,
     WORKFLOW_DATA_SUMMARY_FILENAME,
     WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX,
@@ -71,6 +72,65 @@ DEFAULT_DATA_MAX_TOTAL_BYTES = 1_073_741_824
 DEFAULT_DATA_MAX_FILE_BYTES = 67_108_864
 DEFAULT_DATA_HASH_MAX_BYTES = 1_048_576
 DEFAULT_DATA_PROMPT_MAX_FILES = 240
+DEFAULT_DATA_LARGE_THRESHOLD_FILES = 500
+DEFAULT_DATA_LARGE_THRESHOLD_CHARS = 125_000
+DEFAULT_DATA_TASK_SLICE_MAX_FILES = 120
+DEFAULT_DATA_TASK_SLICE_MAX_CHARS = 45_000
+DEFAULT_DATA_TASK_FALLBACK_FILES = 8
+
+DATA_MANIFEST_SCHEMA_VERSION = 2
+DATA_FILTER_RULES_VERSION = 1
+DATA_MAPPING_MODE_GLOBAL = "global"
+DATA_MAPPING_MODE_PER_TASK_LARGE = "per_task_large"
+
+NOISE_DIR_NAMES = {
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".ipynb_checkpoints",
+}
+NOISE_BASENAME_EXACT = {".ds_store", "nohup.out"}
+NOISE_SUFFIXES = {".tmp", ".swp", ".bak"}
+SLURM_BASENAME_RE = re.compile(r"^slurm-[^/]+\.(?:out|err)$")
+
+USEFUL_SUFFIXES = {
+    ".json",
+    ".yaml",
+    ".yml",
+    ".csv",
+    ".py",
+    ".ipynb",
+    ".xyz",
+    ".cif",
+    ".npy",
+    ".npz",
+    ".h5",
+}
+
+BOOST_PATH_TOKENS = {
+    "input",
+    "inputs",
+    "config",
+    "configs",
+    "geometry",
+    "geom",
+    "postprocess",
+    "post_process",
+    "plot",
+    "plots",
+    "script",
+    "scripts",
+}
+PENALTY_PATH_TOKENS = {"dump", "stderr", "stdout", "debug", "tmp", "temp", "cache"}
+
+TASK_SLICE_COVERAGE_CATEGORIES = {
+    "input",
+    "config",
+    "postprocess",
+    "plot",
+    "script",
+}
 
 
 def _repo_relative_path(repo_dir: Path, path: Path) -> str:
@@ -126,6 +186,28 @@ def _normalize_data_scan_limits(args: argparse.Namespace) -> dict[str, int]:
     }
 
 
+def _default_data_filter_settings() -> dict[str, object]:
+    return {
+        "ignore_noise": True,
+        "drop_slurm_outputs": True,
+        "drop_cache_dirs": True,
+        "drop_ephemeral_suffixes": True,
+        "family_collapse": {
+            "enabled": True,
+            "max_examples_per_family": 3,
+        },
+    }
+
+
+def _default_data_mapping_thresholds() -> dict[str, int]:
+    return {
+        "large_threshold_files": DEFAULT_DATA_LARGE_THRESHOLD_FILES,
+        "large_threshold_chars": DEFAULT_DATA_LARGE_THRESHOLD_CHARS,
+        "task_slice_max_files": DEFAULT_DATA_TASK_SLICE_MAX_FILES,
+        "task_slice_max_chars": DEFAULT_DATA_TASK_SLICE_MAX_CHARS,
+    }
+
+
 def _resolve_invocation_data_context(
     *,
     repo_dir: Path,
@@ -135,6 +217,8 @@ def _resolve_invocation_data_context(
 ) -> dict[str, object]:
     cli = _cli()
     limits = _normalize_data_scan_limits(args)
+    filter_settings = _default_data_filter_settings()
+    mapping_thresholds = _default_data_mapping_thresholds()
     raw_data_dir = str(getattr(args, "data_dir", "") or "").strip()
     if not raw_data_dir:
         return {
@@ -142,6 +226,8 @@ def _resolve_invocation_data_context(
             "workflow": workflow_name,
             "read_only": True,
             "limits": limits,
+            "filter_settings": filter_settings,
+            "mapping_thresholds": mapping_thresholds,
             "artifacts": {},
         }
 
@@ -163,6 +249,7 @@ def _resolve_invocation_data_context(
         ) from exc
 
     data_artifacts_root = run_dir / WORKFLOW_DATA_DIRNAME
+    data_manifest_full_path = data_artifacts_root / WORKFLOW_DATA_MANIFEST_FULL_FILENAME
     data_manifest_path = data_artifacts_root / WORKFLOW_DATA_MANIFEST_FILENAME
     data_summary_path = data_artifacts_root / WORKFLOW_DATA_SUMMARY_FILENAME
     task_data_map_path = data_artifacts_root / WORKFLOW_TASK_DATA_MAP_FILENAME
@@ -173,8 +260,12 @@ def _resolve_invocation_data_context(
         "source_path_input": raw_data_dir,
         "read_only": not bool(getattr(args, "data_writable", False)),
         "limits": limits,
+        "filter_settings": filter_settings,
+        "mapping_thresholds": mapping_thresholds,
         "artifacts": {
             "root": _repo_relative_path(repo_dir, data_artifacts_root),
+            "manifest_full": _repo_relative_path(repo_dir, data_manifest_full_path),
+            "manifest_compact": _repo_relative_path(repo_dir, data_manifest_path),
             "manifest": _repo_relative_path(repo_dir, data_manifest_path),
             "summary": _repo_relative_path(repo_dir, data_summary_path),
             "task_map": _repo_relative_path(repo_dir, task_data_map_path),
@@ -193,16 +284,33 @@ def _coerce_saved_data_context(state: dict[str, object]) -> dict[str, object]:
             "enabled": False,
             "read_only": True,
             "limits": {},
+            "filter_settings": _default_data_filter_settings(),
+            "mapping_thresholds": _default_data_mapping_thresholds(),
             "artifacts": {},
         }
     enabled = bool(raw.get("enabled"))
+    artifacts = raw.get("artifacts")
+    normalized_artifacts: dict[str, object] = {}
+    if isinstance(artifacts, dict):
+        normalized_artifacts = dict(artifacts)
+        manifest_rel = str(artifacts.get("manifest") or "").strip()
+        if manifest_rel and not str(artifacts.get("manifest_compact") or "").strip():
+            normalized_artifacts["manifest_compact"] = manifest_rel
+        manifest_full_rel = str(artifacts.get("manifest_full") or "").strip()
+        if manifest_full_rel and not manifest_rel:
+            normalized_artifacts["manifest"] = manifest_full_rel
+
     normalized: dict[str, object] = {
         "enabled": enabled,
         "read_only": bool(raw.get("read_only", True)),
         "limits": raw.get("limits") if isinstance(raw.get("limits"), dict) else {},
-        "artifacts": raw.get("artifacts")
-        if isinstance(raw.get("artifacts"), dict)
-        else {},
+        "filter_settings": raw.get("filter_settings")
+        if isinstance(raw.get("filter_settings"), dict)
+        else _default_data_filter_settings(),
+        "mapping_thresholds": raw.get("mapping_thresholds")
+        if isinstance(raw.get("mapping_thresholds"), dict)
+        else _default_data_mapping_thresholds(),
+        "artifacts": normalized_artifacts,
     }
     source_path = str(raw.get("source_path") or "").strip()
     if source_path:
@@ -213,6 +321,15 @@ def _coerce_saved_data_context(state: dict[str, object]) -> dict[str, object]:
     manifest_fingerprint = str(raw.get("manifest_fingerprint") or "").strip()
     if manifest_fingerprint:
         normalized["manifest_fingerprint"] = manifest_fingerprint
+    manifest_full_fingerprint = str(raw.get("manifest_full_fingerprint") or "").strip()
+    if manifest_full_fingerprint:
+        normalized["manifest_full_fingerprint"] = manifest_full_fingerprint
+    manifest_compact_fingerprint = str(raw.get("manifest_compact_fingerprint") or "").strip()
+    if manifest_compact_fingerprint:
+        normalized["manifest_compact_fingerprint"] = manifest_compact_fingerprint
+    mapping_mode = str(raw.get("mapping_mode") or "").strip()
+    if mapping_mode:
+        normalized["mapping_mode"] = mapping_mode
     manifest_stats = raw.get("manifest_stats")
     if isinstance(manifest_stats, dict):
         normalized["manifest_stats"] = manifest_stats
@@ -277,6 +394,38 @@ def _assert_data_context_compatible(
             "Use --restart or rerun with matching --data-max-* flags."
         )
 
+    state_filter_settings = (
+        state_data_context.get("filter_settings")
+        if isinstance(state_data_context.get("filter_settings"), dict)
+        else {}
+    )
+    invocation_filter_settings = (
+        invocation_data_context.get("filter_settings")
+        if isinstance(invocation_data_context.get("filter_settings"), dict)
+        else {}
+    )
+    if state_filter_settings != invocation_filter_settings:
+        raise cli.PackageError(
+            f"Run {run_id} was created with different data filtering settings. "
+            "Use --restart or rerun with matching filter configuration."
+        )
+
+    state_mapping_thresholds = (
+        state_data_context.get("mapping_thresholds")
+        if isinstance(state_data_context.get("mapping_thresholds"), dict)
+        else {}
+    )
+    invocation_mapping_thresholds = (
+        invocation_data_context.get("mapping_thresholds")
+        if isinstance(invocation_data_context.get("mapping_thresholds"), dict)
+        else {}
+    )
+    if state_mapping_thresholds != invocation_mapping_thresholds:
+        raise cli.PackageError(
+            f"Run {run_id} was created with different data mapping thresholds. "
+            "Use --restart or rerun with matching thresholds."
+        )
+
 
 def _infer_data_file_type(path: Path) -> str:
     ext = path.suffix.lower()
@@ -313,7 +462,9 @@ def _infer_data_file_type(path: Path) -> str:
 def _data_file_usefulness_score(entry: dict[str, object]) -> float:
     file_type = str(entry.get("type") or "unknown")
     size = int(entry.get("size") or 0)
-    path = str(entry.get("path") or "")
+    path = str(entry.get("path") or "").replace("\\", "/")
+    suffix = Path(path).suffix.lower()
+    basename = Path(path).name.lower()
     score = 0.0
     if file_type == "tabular_or_text":
         score += 4.0
@@ -331,21 +482,28 @@ def _data_file_usefulness_score(entry: dict[str, object]) -> float:
         score += 0.8
 
     lowered = path.lower()
+    if any(token in lowered for token in BOOST_PATH_TOKENS):
+        score += 1.5
     if any(
         token in lowered
         for token in (
-            "input",
-            "config",
             "param",
             "dataset",
             "data",
             "reference",
             "figure",
-            "plot",
             "result",
         )
     ):
         score += 1.2
+    if suffix in USEFUL_SUFFIXES:
+        score += 1.0
+    if any(token in lowered for token in PENALTY_PATH_TOKENS):
+        score -= 1.2
+    if basename.startswith("slurm-") and basename.endswith((".out", ".err")):
+        score -= 4.0
+    if basename in {"nohup.out"}:
+        score -= 4.0
     if size == 0:
         score -= 1.0
     elif size > 0 and size <= 1024:
@@ -448,6 +606,221 @@ def _scan_data_dir_inventory(
     }
 
 
+def _stable_payload_fingerprint(payload: object) -> str:
+    serialized = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _noise_exclusion_rule_for_path(
+    rel_path: str, *, filter_settings: dict[str, object]
+) -> str:
+    normalized = rel_path.replace("\\", "/").strip("/")
+    if not normalized:
+        return "invalid_path"
+    parts = [part for part in normalized.split("/") if part]
+    basename = parts[-1]
+    basename_lower = basename.lower()
+
+    drop_cache_dirs = bool(filter_settings.get("drop_cache_dirs", True))
+    if drop_cache_dirs and any(part in NOISE_DIR_NAMES for part in parts):
+        return "cache_dir_noise"
+
+    ignore_noise = bool(filter_settings.get("ignore_noise", True))
+    if ignore_noise and basename_lower in NOISE_BASENAME_EXACT:
+        return "system_noise"
+
+    drop_slurm_outputs = bool(filter_settings.get("drop_slurm_outputs", True))
+    if drop_slurm_outputs and SLURM_BASENAME_RE.match(basename_lower):
+        return "slurm_output_noise"
+
+    drop_ephemeral_suffixes = bool(
+        filter_settings.get("drop_ephemeral_suffixes", True)
+    )
+    suffix = Path(basename).suffix.lower()
+    if drop_ephemeral_suffixes and suffix in NOISE_SUFFIXES:
+        return "ephemeral_suffix_noise"
+    return ""
+
+
+def _normalize_family_stem(stem: str) -> str:
+    normalized = stem.lower().strip()
+    normalized = re.sub(r"[a-f0-9]{8,}", "{hash}", normalized)
+    normalized = re.sub(
+        r"(job|run|seed|step|iter|trial|chunk|batch)[-_]?\d+",
+        r"\1_{num}",
+        normalized,
+    )
+    normalized = re.sub(r"\d+", "{num}", normalized)
+    normalized = re.sub(r"[_-]{2,}", "_", normalized)
+    normalized = normalized.strip("_-")
+    return normalized or "file"
+
+
+def _build_compact_data_manifest(
+    *,
+    full_manifest: dict[str, object],
+    filter_settings: dict[str, object],
+) -> dict[str, object]:
+    full_files = _manifest_file_items(full_manifest)
+    excluded_count_by_rule: Counter[str] = Counter()
+    retained_files: list[dict[str, object]] = []
+    for item in full_files:
+        path = str(item.get("path") or "").strip().replace("\\", "/")
+        if not path:
+            excluded_count_by_rule["invalid_path"] += 1
+            continue
+        rule = _noise_exclusion_rule_for_path(path, filter_settings=filter_settings)
+        if rule:
+            excluded_count_by_rule[rule] += 1
+            continue
+        retained_files.append(dict(item))
+
+    grouped: dict[tuple[str, str, str], list[dict[str, object]]] = defaultdict(list)
+    for item in retained_files:
+        path = str(item.get("path") or "").strip().replace("\\", "/")
+        if not path:
+            continue
+        parsed = Path(path)
+        parent_dir = str(parsed.parent).replace("\\", "/")
+        if parent_dir == ".":
+            parent_dir = ""
+        key = (parent_dir, _normalize_family_stem(parsed.stem), parsed.suffix.lower())
+        grouped[key].append(item)
+
+    family_settings = (
+        filter_settings.get("family_collapse")
+        if isinstance(filter_settings.get("family_collapse"), dict)
+        else {}
+    )
+    max_examples = int(family_settings.get("max_examples_per_family") or 3)
+    compact_files: list[dict[str, object]] = []
+    collapsed_file_count = 0
+    for family_key in sorted(grouped.keys()):
+        family_items = grouped[family_key]
+        ranked_family = sorted(
+            family_items,
+            key=lambda item: (
+                -_data_file_usefulness_score(item),
+                str(item.get("path") or ""),
+            ),
+        )
+        representative = dict(ranked_family[0])
+        representative_path = str(representative.get("path") or "").strip()
+        family_paths = sorted(
+            str(item.get("path") or "").strip()
+            for item in ranked_family
+            if str(item.get("path") or "").strip()
+        )
+        family_examples = [
+            path for path in family_paths if path and path != representative_path
+        ][:max_examples]
+        family_count = len(family_paths)
+        collapsed_file_count += max(0, family_count - 1)
+        representative["family_count"] = family_count
+        representative["family_examples"] = family_examples
+        representative["representative_score"] = round(
+            _data_file_usefulness_score(representative), 4
+        )
+        compact_files.append(representative)
+
+    compact_files.sort(
+        key=lambda item: (
+            -_data_file_usefulness_score(item),
+            str(item.get("path") or ""),
+        )
+    )
+
+    excluded_by_rule_sorted = {
+        key: int(excluded_count_by_rule[key]) for key in sorted(excluded_count_by_rule)
+    }
+    prompt_char_estimate = sum(
+        len(str(item.get("path") or "")) + 96 for item in compact_files
+    )
+    full_stats = full_manifest.get("stats")
+    if not isinstance(full_stats, dict):
+        full_stats = {}
+
+    compact_stats = {
+        "indexed_files": len(compact_files),
+        "indexed_bytes": sum(int(item.get("size") or 0) for item in compact_files),
+        "skipped_files": len(full_manifest.get("skipped") or []),
+        "truncated": bool(full_stats.get("truncated")),
+        "truncated_reason": str(full_stats.get("truncated_reason") or ""),
+        "full_indexed_files": int(full_stats.get("indexed_files") or len(full_files)),
+        "full_indexed_bytes": int(full_stats.get("indexed_bytes") or 0),
+        "excluded_files": int(sum(excluded_count_by_rule.values())),
+        "excluded_count_by_rule": excluded_by_rule_sorted,
+        "family_collapsed_files": collapsed_file_count,
+        "family_group_count": len(grouped),
+        "prompt_char_estimate": prompt_char_estimate,
+    }
+
+    compact_payload: dict[str, object] = {
+        "manifest_kind": "compact",
+        "schema_version": DATA_MANIFEST_SCHEMA_VERSION,
+        "filter_rules_version": DATA_FILTER_RULES_VERSION,
+        "generated_at_utc": _utc_now_z(),
+        "data_dir": str(full_manifest.get("data_dir") or ""),
+        "scan_limits": full_manifest.get("scan_limits")
+        if isinstance(full_manifest.get("scan_limits"), dict)
+        else {},
+        "filter_settings": filter_settings,
+        "full_manifest_fingerprint": str(full_manifest.get("fingerprint") or ""),
+        "files": compact_files,
+        "skipped": full_manifest.get("skipped")
+        if isinstance(full_manifest.get("skipped"), list)
+        else [],
+        "stats": compact_stats,
+    }
+    compact_payload["fingerprint"] = _stable_payload_fingerprint(
+        {
+            "manifest_kind": "compact",
+            "schema_version": DATA_MANIFEST_SCHEMA_VERSION,
+            "filter_rules_version": DATA_FILTER_RULES_VERSION,
+            "full_manifest_fingerprint": compact_payload["full_manifest_fingerprint"],
+            "filter_settings": filter_settings,
+            "files": compact_files,
+            "stats": compact_stats,
+        }
+    )
+    return compact_payload
+
+
+def _is_manifest_payload_compatible(
+    payload: dict[str, object],
+    *,
+    manifest_kind: str,
+    source_data_dir: Path,
+    limits: dict[str, object],
+    fingerprint: str | None = None,
+    filter_settings: dict[str, object] | None = None,
+) -> bool:
+    if str(payload.get("manifest_kind") or "") != manifest_kind:
+        return False
+    if int(payload.get("schema_version") or 0) != DATA_MANIFEST_SCHEMA_VERSION:
+        return False
+    if int(payload.get("filter_rules_version") or 0) != DATA_FILTER_RULES_VERSION:
+        return False
+    if str(payload.get("data_dir") or "") != str(source_data_dir):
+        return False
+    payload_limits = payload.get("scan_limits")
+    if not isinstance(payload_limits, dict) or payload_limits != limits:
+        return False
+    if isinstance(filter_settings, dict):
+        payload_filters = payload.get("filter_settings")
+        if not isinstance(payload_filters, dict) or payload_filters != filter_settings:
+            return False
+    if isinstance(fingerprint, str) and fingerprint:
+        if str(payload.get("fingerprint") or "") != fingerprint:
+            return False
+    return True
+
+
 def _load_json_if_exists(path: Path) -> dict[str, object] | None:
     if not path.is_file():
         return None
@@ -500,18 +873,39 @@ def _render_data_summary_markdown(manifest: dict[str, object]) -> str:
         if str(item.get("type") or "") == "unknown"
     ][:12]
 
+    manifest_kind = str(manifest.get("manifest_kind") or "legacy")
     indexed_files = int(stats.get("indexed_files") or len(files))
     indexed_bytes = int(stats.get("indexed_bytes") or 0)
     truncated = bool(stats.get("truncated"))
     truncated_reason = str(stats.get("truncated_reason") or "").strip()
+    full_indexed_files = int(stats.get("full_indexed_files") or indexed_files)
+    full_indexed_bytes = int(stats.get("full_indexed_bytes") or indexed_bytes)
+    excluded_files = int(stats.get("excluded_files") or 0)
+    family_collapsed_files = int(stats.get("family_collapsed_files") or 0)
+    prompt_char_estimate = int(stats.get("prompt_char_estimate") or 0)
+    compact_ratio = (
+        (indexed_files / full_indexed_files) if full_indexed_files > 0 else 1.0
+    )
+    excluded_count_by_rule = stats.get("excluded_count_by_rule")
+    if not isinstance(excluded_count_by_rule, dict):
+        excluded_count_by_rule = {}
 
     lines = [
         "# Data Summary",
         "",
         "## Scope",
         f"- source_data_dir: {manifest.get('data_dir')}",
+        f"- manifest_kind: {manifest_kind}",
+        f"- schema_version: {manifest.get('schema_version')}",
+        f"- filter_rules_version: {manifest.get('filter_rules_version')}",
         f"- indexed_files: {indexed_files}",
         f"- indexed_bytes: {indexed_bytes}",
+        f"- full_indexed_files: {full_indexed_files}",
+        f"- full_indexed_bytes: {full_indexed_bytes}",
+        f"- compact_ratio: {compact_ratio:.4f}",
+        f"- excluded_files: {excluded_files}",
+        f"- family_collapsed_files: {family_collapsed_files}",
+        f"- prompt_char_estimate: {prompt_char_estimate}",
         f"- skipped_files: {len(skipped)}",
         f"- inventory_truncated: {truncated}",
     ]
@@ -555,6 +949,11 @@ def _render_data_summary_markdown(manifest: dict[str, object]) -> str:
         if len(skipped) > 12:
             lines.append(f"- ... {len(skipped) - 12} more skipped entries")
 
+    if excluded_count_by_rule:
+        lines.extend(["", "## Excluded By Rule"])
+        for rule, count in sorted(excluded_count_by_rule.items(), key=lambda item: item[0]):
+            lines.append(f"- {rule}: {int(count)}")
+
     return "\n".join(lines).strip() + "\n"
 
 
@@ -575,6 +974,12 @@ def _prepare_workflow_data_artifacts(
     limits = data_context.get("limits")
     if not isinstance(limits, dict):
         raise cli.PackageError("Data context is missing scan limits.")
+    filter_settings = data_context.get("filter_settings")
+    if not isinstance(filter_settings, dict):
+        filter_settings = _default_data_filter_settings()
+    mapping_thresholds = data_context.get("mapping_thresholds")
+    if not isinstance(mapping_thresholds, dict):
+        mapping_thresholds = _default_data_mapping_thresholds()
 
     max_files = int(limits.get("max_files") or DEFAULT_DATA_MAX_FILES)
     max_total_bytes = int(
@@ -585,7 +990,8 @@ def _prepare_workflow_data_artifacts(
 
     data_root = run_dir / WORKFLOW_DATA_DIRNAME
     data_root.mkdir(parents=True, exist_ok=True)
-    manifest_path = data_root / WORKFLOW_DATA_MANIFEST_FILENAME
+    full_manifest_path = data_root / WORKFLOW_DATA_MANIFEST_FULL_FILENAME
+    compact_manifest_path = data_root / WORKFLOW_DATA_MANIFEST_FILENAME
     summary_path = data_root / WORKFLOW_DATA_SUMMARY_FILENAME
 
     fast_scan = _scan_data_dir_inventory(
@@ -596,26 +1002,34 @@ def _prepare_workflow_data_artifacts(
         hash_max_bytes=hash_max_bytes,
         include_hash=False,
     )
+    fast_fingerprint = str(fast_scan.get("fingerprint") or "")
 
-    existing_manifest = _load_json_if_exists(manifest_path)
+    existing_full_manifest = _load_json_if_exists(full_manifest_path)
+    existing_compact_manifest = _load_json_if_exists(compact_manifest_path)
     use_cached_manifest = False
-    manifest_payload: dict[str, object]
-    if isinstance(existing_manifest, dict):
-        existing_fingerprint = str(existing_manifest.get("fingerprint") or "")
-        existing_dir = str(existing_manifest.get("data_dir") or "")
-        existing_limits = existing_manifest.get("scan_limits")
-        if (
-            existing_fingerprint == str(fast_scan.get("fingerprint") or "")
-            and existing_dir == str(source_data_dir)
-            and isinstance(existing_limits, dict)
-            and existing_limits == limits
-        ):
-            manifest_payload = existing_manifest
+    full_manifest_payload: dict[str, object] = {}
+    compact_manifest_payload: dict[str, object] = {}
+    if isinstance(existing_full_manifest, dict) and isinstance(existing_compact_manifest, dict):
+        full_ok = _is_manifest_payload_compatible(
+            existing_full_manifest,
+            manifest_kind="full",
+            source_data_dir=source_data_dir,
+            limits=limits,
+            fingerprint=fast_fingerprint,
+        )
+        compact_ok = _is_manifest_payload_compatible(
+            existing_compact_manifest,
+            manifest_kind="compact",
+            source_data_dir=source_data_dir,
+            limits=limits,
+            filter_settings=filter_settings,
+        )
+        linked = str(existing_compact_manifest.get("full_manifest_fingerprint") or "")
+        full_fingerprint = str(existing_full_manifest.get("fingerprint") or "")
+        if full_ok and compact_ok and linked == full_fingerprint:
+            full_manifest_payload = existing_full_manifest
+            compact_manifest_payload = existing_compact_manifest
             use_cached_manifest = True
-        else:
-            manifest_payload = {}
-    else:
-        manifest_payload = {}
 
     if not use_cached_manifest:
         full_scan = _scan_data_dir_inventory(
@@ -626,11 +1040,14 @@ def _prepare_workflow_data_artifacts(
             hash_max_bytes=hash_max_bytes,
             include_hash=True,
         )
-        manifest_payload = {
-            "version": 1,
+        full_manifest_payload = {
+            "manifest_kind": "full",
+            "schema_version": DATA_MANIFEST_SCHEMA_VERSION,
+            "filter_rules_version": DATA_FILTER_RULES_VERSION,
             "generated_at_utc": _utc_now_z(),
             "data_dir": str(source_data_dir),
             "scan_limits": limits,
+            "filter_settings": filter_settings,
             "fingerprint": str(full_scan.get("fingerprint") or ""),
             "files": full_scan.get("files") if isinstance(full_scan.get("files"), list) else [],
             "skipped": full_scan.get("skipped")
@@ -644,22 +1061,39 @@ def _prepare_workflow_data_artifacts(
                 "truncated_reason": str(full_scan.get("truncated_reason") or ""),
             },
         }
-        _write_json_atomic(manifest_path, manifest_payload)
+        compact_manifest_payload = _build_compact_data_manifest(
+            full_manifest=full_manifest_payload,
+            filter_settings=filter_settings,
+        )
+        _write_json_atomic(full_manifest_path, full_manifest_payload)
+        _write_json_atomic(compact_manifest_path, compact_manifest_payload)
 
-    summary_text = _render_data_summary_markdown(manifest_payload)
+    summary_text = _render_data_summary_markdown(compact_manifest_payload)
     _write_text_file(summary_path, summary_text)
 
-    stats = manifest_payload.get("stats")
+    stats = compact_manifest_payload.get("stats")
     data_context["artifacts"] = {
         "root": _repo_relative_path(repo_dir, data_root),
-        "manifest": _repo_relative_path(repo_dir, manifest_path),
+        "manifest_full": _repo_relative_path(repo_dir, full_manifest_path),
+        "manifest_compact": _repo_relative_path(repo_dir, compact_manifest_path),
+        "manifest": _repo_relative_path(repo_dir, compact_manifest_path),
         "summary": _repo_relative_path(repo_dir, summary_path),
         "task_map": _repo_relative_path(
             repo_dir, data_root / WORKFLOW_TASK_DATA_MAP_FILENAME
         ),
     }
-    data_context["manifest_fingerprint"] = str(manifest_payload.get("fingerprint") or "")
-    data_context["guard_fingerprint"] = str(fast_scan.get("fingerprint") or "")
+    data_context["filter_settings"] = filter_settings
+    data_context["mapping_thresholds"] = mapping_thresholds
+    data_context["manifest_full_fingerprint"] = str(
+        full_manifest_payload.get("fingerprint") or ""
+    )
+    data_context["manifest_compact_fingerprint"] = str(
+        compact_manifest_payload.get("fingerprint") or ""
+    )
+    data_context["manifest_fingerprint"] = str(
+        compact_manifest_payload.get("fingerprint") or ""
+    )
+    data_context["guard_fingerprint"] = fast_fingerprint
     if isinstance(stats, dict):
         data_context["manifest_stats"] = stats
     return data_context
@@ -847,18 +1281,179 @@ def _tokenize_task_text(raw_text: str) -> set[str]:
     }
 
 
+def _task_blob(task: dict[str, object]) -> str:
+    return " ".join(
+        [
+            str(task.get("id") or ""),
+            str(task.get("title") or ""),
+            str(task.get("objective") or ""),
+            " ".join(_normalize_string_list(task.get("figure_targets"))),
+            " ".join(_normalize_string_list(task.get("simulation_requirements"))),
+            " ".join(_normalize_string_list(task.get("parameter_constraints"))),
+            " ".join(_normalize_string_list(task.get("plot_requirements"))),
+            " ".join(_normalize_string_list(task.get("acceptance_checks"))),
+        ]
+    )
+
+
+def _manifest_entry_category(item: dict[str, object]) -> str:
+    path = str(item.get("path") or "").lower()
+    suffix = Path(path).suffix.lower()
+    if any(token in path for token in ("input", "inputs", "dataset", "raw")):
+        return "input"
+    if any(token in path for token in ("config", "configs", "param", "setting")):
+        return "config"
+    if any(token in path for token in ("postprocess", "post_process", "analysis")):
+        return "postprocess"
+    if any(token in path for token in ("plot", "plots", "figure", "fig")):
+        return "plot"
+    if any(token in path for token in ("script", "scripts", "code")) or suffix in {
+        ".py",
+        ".ipynb",
+    }:
+        return "script"
+    return "other"
+
+
+def _task_manifest_relevance_score(
+    *,
+    task_tokens: set[str],
+    file_item: dict[str, object],
+) -> float:
+    path = str(file_item.get("path") or "").replace("/", " ")
+    path_tokens = _tokenize_task_text(path)
+    overlap = len(task_tokens.intersection(path_tokens))
+    score = _data_file_usefulness_score(file_item) + overlap * 1.4
+    if overlap > 0:
+        score += 1.5
+    return score
+
+
+def _select_task_manifest_slice(
+    *,
+    task: dict[str, object],
+    manifest_payload: dict[str, object],
+    mapping_thresholds: dict[str, object],
+) -> list[dict[str, object]]:
+    manifest_files = _manifest_file_items(manifest_payload)
+    if not manifest_files:
+        return []
+    task_tokens = _tokenize_task_text(_task_blob(task))
+    scored = sorted(
+        (
+            (
+                _task_manifest_relevance_score(
+                    task_tokens=task_tokens,
+                    file_item=item,
+                ),
+                item,
+            )
+            for item in manifest_files
+        ),
+        key=lambda pair: (-pair[0], str(pair[1].get("path") or "")),
+    )
+    max_files = int(
+        mapping_thresholds.get("task_slice_max_files") or DEFAULT_DATA_TASK_SLICE_MAX_FILES
+    )
+    max_chars = int(
+        mapping_thresholds.get("task_slice_max_chars") or DEFAULT_DATA_TASK_SLICE_MAX_CHARS
+    )
+    selected: list[dict[str, object]] = []
+    selected_paths: set[str] = set()
+    selected_chars = 0
+
+    def _try_add(item: dict[str, object]) -> bool:
+        nonlocal selected_chars
+        path = str(item.get("path") or "").strip()
+        if not path or path in selected_paths:
+            return False
+        estimated_chars = len(path) + 128
+        if len(selected) >= max_files:
+            return False
+        if selected and selected_chars + estimated_chars > max_chars:
+            return False
+        selected.append(item)
+        selected_paths.add(path)
+        selected_chars += estimated_chars
+        return True
+
+    for category in sorted(TASK_SLICE_COVERAGE_CATEGORIES):
+        for _, item in scored:
+            if _manifest_entry_category(item) != category:
+                continue
+            if _try_add(item):
+                break
+
+    for _, item in scored:
+        _try_add(item)
+        if len(selected) >= max_files or selected_chars >= max_chars:
+            break
+
+    if not selected:
+        for _, item in scored[:max_files]:
+            if not _try_add(item):
+                break
+    return selected
+
+
+def _estimate_mapping_prompt_chars(
+    *,
+    manifest_payload: dict[str, object],
+    planner_plan: dict[str, object],
+    summary_text: str,
+) -> int:
+    stats = manifest_payload.get("stats")
+    prompt_char_estimate = 0
+    if isinstance(stats, dict):
+        prompt_char_estimate = int(stats.get("prompt_char_estimate") or 0)
+    if prompt_char_estimate <= 0:
+        prompt_char_estimate = sum(
+            len(str(item.get("path") or "")) + 96
+            for item in _manifest_file_items(manifest_payload)
+        )
+    plan_chars = len(json.dumps(planner_plan, separators=(",", ":"), sort_keys=True))
+    return prompt_char_estimate + len(summary_text) + plan_chars + 2_000
+
+
+def _select_data_mapping_mode(
+    *,
+    manifest_payload: dict[str, object],
+    planner_plan: dict[str, object],
+    summary_text: str,
+    mapping_thresholds: dict[str, object],
+) -> str:
+    file_count = len(_manifest_file_items(manifest_payload))
+    estimated_chars = _estimate_mapping_prompt_chars(
+        manifest_payload=manifest_payload,
+        planner_plan=planner_plan,
+        summary_text=summary_text,
+    )
+    large_threshold_files = int(
+        mapping_thresholds.get("large_threshold_files")
+        or DEFAULT_DATA_LARGE_THRESHOLD_FILES
+    )
+    large_threshold_chars = int(
+        mapping_thresholds.get("large_threshold_chars")
+        or DEFAULT_DATA_LARGE_THRESHOLD_CHARS
+    )
+    if file_count > large_threshold_files or estimated_chars > large_threshold_chars:
+        return DATA_MAPPING_MODE_PER_TASK_LARGE
+    return DATA_MAPPING_MODE_GLOBAL
+
+
 def _normalize_task_data_map(
     raw_payload: object,
     *,
     plan_tasks: list[dict[str, object]],
     manifest_payload: dict[str, object],
     source_stage: str,
+    allowed_paths: set[str] | None = None,
 ) -> dict[str, object]:
     cli = _cli()
     if not isinstance(raw_payload, dict):
         raise cli.PackageError("Task data map must be a JSON object.")
 
-    manifest_paths = _manifest_paths_set(manifest_payload)
+    manifest_paths = allowed_paths if isinstance(allowed_paths, set) else _manifest_paths_set(manifest_payload)
     raw_tasks = raw_payload.get("tasks")
     if not isinstance(raw_tasks, list):
         raise cli.PackageError("Task data map must include `tasks` list.")
@@ -894,7 +1489,9 @@ def _normalize_task_data_map(
                 if not path or path in seen_paths:
                     continue
                 if path not in manifest_paths:
-                    continue
+                    raise cli.PackageError(
+                        f"Task {task_id} references unknown manifest path: {path}"
+                    )
                 seen_paths.add(path)
                 normalized_files.append(
                     {
@@ -913,13 +1510,17 @@ def _normalize_task_data_map(
         }
         normalized_tasks.append(normalized_task)
 
-    return {
+    normalized_payload = {
         "version": 1,
         "source_stage": source_stage,
         "generated_at_utc": _utc_now_z(),
         "tasks": normalized_tasks,
         "global_unknowns": _normalize_string_list(raw_payload.get("global_unknowns")),
     }
+    mapping_mode = str(raw_payload.get("mapping_mode") or "").strip()
+    if mapping_mode:
+        normalized_payload["mapping_mode"] = mapping_mode
+    return normalized_payload
 
 
 def _build_fallback_task_data_map(
@@ -963,9 +1564,9 @@ def _build_fallback_task_data_map(
                 score += 1.0
             scored.append((score, file_item))
         scored.sort(key=lambda item: (-item[0], str(item[1].get("path") or "")))
-        selected = [item for _, item in scored[:8]]
+        selected = [item for _, item in scored[:DEFAULT_DATA_TASK_FALLBACK_FILES]]
         if not selected:
-            selected = default_candidates[:8]
+            selected = default_candidates[:DEFAULT_DATA_TASK_FALLBACK_FILES]
 
         files_payload: list[dict[str, object]] = []
         for file_item in selected:
@@ -1000,22 +1601,53 @@ def _build_fallback_task_data_map(
 
 
 def _build_manifest_prompt_excerpt(
-    manifest_payload: dict[str, object], *, max_files: int = DEFAULT_DATA_PROMPT_MAX_FILES
+    manifest_payload: dict[str, object],
+    *,
+    file_items: list[dict[str, object]] | None = None,
+    max_files: int = DEFAULT_DATA_PROMPT_MAX_FILES,
+    max_chars: int | None = None,
 ) -> str:
-    files = _manifest_file_items(manifest_payload)
+    files = (
+        [item for item in file_items if isinstance(item, dict)]
+        if isinstance(file_items, list)
+        else _manifest_file_items(manifest_payload)
+    )
+    files = sorted(
+        files,
+        key=lambda item: (
+            -_data_file_usefulness_score(item),
+            str(item.get("path") or ""),
+        ),
+    )
     lines: list[str] = []
-    for item in files[:max_files]:
-        lines.append(
-            (
-                f"- {item.get('path')} | type={item.get('type')} | "
-                f"size={item.get('size')} | mtime_ns={item.get('mtime_ns')}"
-            )
+    char_budget = max_chars if isinstance(max_chars, int) and max_chars > 0 else None
+    used_chars = 0
+    used_files = 0
+    for item in files:
+        if used_files >= max_files:
+            break
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        family_count = int(item.get("family_count") or 1)
+        examples = _normalize_string_list(item.get("family_examples"))
+        line = (
+            f"- {path} | type={item.get('type')} | size={item.get('size')} | "
+            f"mtime_ns={item.get('mtime_ns')} | family_count={family_count}"
         )
-    if len(files) > max_files:
-        lines.append(f"- ... {len(files) - max_files} more indexed files")
+        if examples:
+            line += f" | more_like_this={', '.join(examples)}"
+        projected = used_chars + len(line) + 1
+        if char_budget is not None and used_files > 0 and projected > char_budget:
+            break
+        lines.append(line)
+        used_chars = projected
+        used_files += 1
+    if len(files) > used_files:
+        lines.append(f"- ... {len(files) - used_files} more indexed files")
 
     skipped = manifest_payload.get("skipped")
-    if isinstance(skipped, list) and skipped:
+    if file_items is None and isinstance(skipped, list) and skipped:
         lines.append("")
         lines.append("Skipped entries:")
         for item in skipped[:24]:
@@ -1032,10 +1664,11 @@ def _build_manifest_prompt_excerpt(
 def _generate_task_data_map(
     *,
     repo_dir: Path,
-    source_text: str,
+    run_dir: Path | None,
     source_description: str,
     planner_plan: dict[str, object],
-    manifest_payload: dict[str, object],
+    compact_manifest_payload: dict[str, object],
+    full_manifest_payload: dict[str, object] | None,
     summary_text: str,
     requested_package_id: str | None,
     sandbox_override: str | None,
@@ -1045,78 +1678,210 @@ def _generate_task_data_map(
     data_context: dict[str, object],
 ) -> dict[str, object]:
     cli = _cli()
-    plan_tasks = planner_plan.get("tasks")
-    if not isinstance(plan_tasks, list):
+    raw_plan_tasks = planner_plan.get("tasks")
+    if not isinstance(raw_plan_tasks, list):
         raise cli.PackageError("Planner plan is missing task list for data mapping.")
-
-    prompt = (
-        f"{WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX}\n\n"
-        f"Workflow: {log_tag}\n"
-        f"Source description: {source_description}\n"
-        f"Data directory: {data_context.get('source_path')}\n"
-        "\n"
-        "Original source request:\n"
-        f"{source_text.strip()}\n\n"
-        "Draft planner task JSON:\n"
-        f"{json.dumps(planner_plan, indent=2)}\n\n"
-        "Data summary markdown:\n"
-        f"{summary_text.strip()}\n\n"
-        "Data manifest excerpt:\n"
-        f"{_build_manifest_prompt_excerpt(manifest_payload)}\n"
+    plan_tasks = [task for task in raw_plan_tasks if isinstance(task, dict)]
+    mapping_thresholds = (
+        data_context.get("mapping_thresholds")
+        if isinstance(data_context.get("mapping_thresholds"), dict)
+        else _default_data_mapping_thresholds()
     )
+    mapping_mode = _select_data_mapping_mode(
+        manifest_payload=compact_manifest_payload,
+        planner_plan=planner_plan,
+        summary_text=summary_text,
+        mapping_thresholds=mapping_thresholds,
+    )
+    data_context["mapping_mode"] = mapping_mode
+    data_context["mapping_mode_selected_at_utc"] = _utc_now_z()
+    cli._print_tagged(log_tag, f"data mapping mode: {mapping_mode}")
 
-    normalized_payload: dict[str, object] | None = None
-    for attempt in range(1, max_tries + 1):
-        cli._print_tagged(log_tag, f"data auditor attempt {attempt}/{max_tries}")
-        run_result = _run_reproduce_exec_turn(
-            repo_dir=repo_dir,
+    allowed_paths = _manifest_paths_set(compact_manifest_payload)
+    if isinstance(full_manifest_payload, dict):
+        allowed_paths = allowed_paths.union(_manifest_paths_set(full_manifest_payload))
+
+    def _run_and_normalize_map(
+        *,
+        prompt: str,
+        target_tasks: list[dict[str, object]],
+        source_stage: str,
+        attempt_label: str,
+    ) -> dict[str, object] | None:
+        for attempt in range(1, max_tries + 1):
+            cli._print_tagged(
+                log_tag,
+                f"{attempt_label} attempt {attempt}/{max_tries}",
+            )
+            run_result = _run_reproduce_exec_turn(
+                repo_dir=repo_dir,
+                prompt=prompt,
+                requested_package_id=requested_package_id,
+                sandbox_override=sandbox_override,
+                codex_bin=codex_bin,
+                data_context=data_context,
+            )
+            return_code = int(run_result.get("return_code") or 0)
+            if return_code != 0:
+                cli._print_tagged(
+                    log_tag,
+                    f"{attempt_label} run exited with code {return_code}.",
+                    stderr=True,
+                )
+                continue
+            assistant_text = str(run_result.get("assistant_text") or "")
+            raw_payload = _extract_task_data_map_payload(assistant_text)
+            if raw_payload is None:
+                cli._print_tagged(
+                    log_tag,
+                    f"{attempt_label} response missing <{WORKFLOW_TASK_DATA_MAP_TAG}> block.",
+                    stderr=True,
+                )
+                continue
+            try:
+                return _normalize_task_data_map(
+                    raw_payload,
+                    plan_tasks=target_tasks,
+                    manifest_payload=compact_manifest_payload,
+                    source_stage=source_stage,
+                    allowed_paths=allowed_paths,
+                )
+            except cli.PackageError as exc:
+                cli._print_tagged(
+                    log_tag,
+                    f"{attempt_label} response invalid: {exc}",
+                    stderr=True,
+                )
+                continue
+        return None
+
+    if mapping_mode == DATA_MAPPING_MODE_GLOBAL:
+        prompt = (
+            f"{WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX}\n\n"
+            f"Workflow: {log_tag}\n"
+            f"Source description: {source_description}\n"
+            f"Data directory: {data_context.get('source_path')}\n"
+            "Mapping mode: global\n\n"
+            "Draft planner task JSON:\n"
+            f"{json.dumps(planner_plan, indent=2)}\n\n"
+            "Data summary markdown:\n"
+            f"{summary_text.strip()}\n\n"
+            "Compact data manifest excerpt:\n"
+            f"{_build_manifest_prompt_excerpt(compact_manifest_payload)}\n"
+        )
+        normalized_payload = _run_and_normalize_map(
             prompt=prompt,
-            requested_package_id=requested_package_id,
-            sandbox_override=sandbox_override,
-            codex_bin=codex_bin,
-            data_context=data_context,
+            target_tasks=plan_tasks,
+            source_stage="data_auditor_global",
+            attempt_label="data auditor global",
         )
-        return_code = int(run_result.get("return_code") or 0)
-        if return_code != 0:
+        if normalized_payload is None:
+            normalized_payload = _build_fallback_task_data_map(
+                plan_tasks=plan_tasks,
+                manifest_payload=compact_manifest_payload,
+                reason="data auditor output invalid; used deterministic fallback mapping",
+            )
             cli._print_tagged(
                 log_tag,
-                f"data auditor run exited with code {return_code}.",
+                "data auditor fallback activated (deterministic heuristic map).",
                 stderr=True,
             )
-            continue
-        assistant_text = str(run_result.get("assistant_text") or "")
-        raw_payload = _extract_task_data_map_payload(assistant_text)
-        if raw_payload is None:
-            cli._print_tagged(
-                log_tag,
-                f"data auditor response missing <{WORKFLOW_TASK_DATA_MAP_TAG}> block.",
-                stderr=True,
-            )
-            continue
-        try:
-            normalized_payload = _normalize_task_data_map(
-                raw_payload,
-                plan_tasks=[task for task in plan_tasks if isinstance(task, dict)],
-                manifest_payload=manifest_payload,
-                source_stage="data_auditor",
-            )
-        except cli.PackageError as exc:
-            cli._print_tagged(log_tag, f"data auditor response invalid: {exc}", stderr=True)
-            continue
-        break
+        normalized_payload["mapping_mode"] = DATA_MAPPING_MODE_GLOBAL
+        return normalized_payload
 
-    if normalized_payload is None:
-        normalized_payload = _build_fallback_task_data_map(
-            plan_tasks=[task for task in plan_tasks if isinstance(task, dict)],
-            manifest_payload=manifest_payload,
-            reason="data auditor output invalid; used deterministic fallback mapping",
+    task_entries: list[dict[str, object]] = []
+    global_unknowns: list[str] = []
+    max_slice_files = int(
+        mapping_thresholds.get("task_slice_max_files") or DEFAULT_DATA_TASK_SLICE_MAX_FILES
+    )
+    max_slice_chars = int(
+        mapping_thresholds.get("task_slice_max_chars") or DEFAULT_DATA_TASK_SLICE_MAX_CHARS
+    )
+    for index, task in enumerate(plan_tasks, start=1):
+        task_id = str(task.get("id") or f"task_{index:03d}").strip()
+        task_slice = _select_task_manifest_slice(
+            task=task,
+            manifest_payload=compact_manifest_payload,
+            mapping_thresholds=mapping_thresholds,
         )
-        cli._print_tagged(
-            log_tag,
-            "data auditor fallback activated (deterministic heuristic map).",
-            stderr=True,
+        slice_excerpt = _build_manifest_prompt_excerpt(
+            compact_manifest_payload,
+            file_items=task_slice,
+            max_files=max_slice_files,
+            max_chars=max_slice_chars,
         )
-    return normalized_payload
+        prompt = (
+            f"{WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX}\n\n"
+            f"Workflow: {log_tag}\n"
+            f"Source description: {source_description}\n"
+            f"Data directory: {data_context.get('source_path')}\n"
+            "Mapping mode: per_task_large\n\n"
+            "Task JSON:\n"
+            f"{json.dumps(task, indent=2)}\n\n"
+            "Data summary markdown:\n"
+            f"{summary_text.strip()}\n\n"
+            "Task-specific compact manifest slice:\n"
+            f"{slice_excerpt}\n"
+        )
+        normalized_payload = _run_and_normalize_map(
+            prompt=prompt,
+            target_tasks=[task],
+            source_stage="data_auditor_per_task",
+            attempt_label=f"data auditor task {task_id}",
+        )
+        if normalized_payload is None:
+            fallback_reason = (
+                f"data auditor output invalid for {task_id}; used deterministic fallback mapping"
+            )
+            normalized_payload = _build_fallback_task_data_map(
+                plan_tasks=[task],
+                manifest_payload=compact_manifest_payload,
+                reason=fallback_reason,
+            )
+            global_unknowns.append(fallback_reason)
+            cli._print_tagged(
+                log_tag,
+                f"data auditor fallback activated for {task_id}.",
+                stderr=True,
+            )
+        mapped_tasks = normalized_payload.get("tasks")
+        if isinstance(mapped_tasks, list) and mapped_tasks and isinstance(mapped_tasks[0], dict):
+            task_entries.append(mapped_tasks[0])
+        else:
+            task_entries.append(
+                {
+                    "id": task_id,
+                    "files": [],
+                    "unknowns": [
+                        "LLM task-data mapping returned no parseable task entry."
+                    ],
+                    "notes": ["empty per-task mapping payload"],
+                }
+            )
+        if run_dir is not None:
+            partial_payload = {
+                "version": 1,
+                "source_stage": "data_auditor_per_task_large",
+                "generated_at_utc": _utc_now_z(),
+                "mapping_mode": DATA_MAPPING_MODE_PER_TASK_LARGE,
+                "tasks": [dict(item) for item in task_entries],
+                "global_unknowns": list(global_unknowns),
+            }
+            _materialize_task_data_artifacts(
+                repo_dir=repo_dir,
+                run_dir=run_dir,
+                plan=planner_plan,
+                task_data_map=partial_payload,
+            )
+
+    return {
+        "version": 1,
+        "source_stage": "data_auditor_per_task_large",
+        "generated_at_utc": _utc_now_z(),
+        "mapping_mode": DATA_MAPPING_MODE_PER_TASK_LARGE,
+        "tasks": task_entries,
+        "global_unknowns": global_unknowns,
+    }
 
 
 def _render_task_data_context_markdown(
@@ -1638,15 +2403,24 @@ def _generate_mode_plan(
         artifacts = data_context.get("artifacts")
         if not isinstance(artifacts, dict):
             raise cli.PackageError("Data context artifacts are missing.")
-        manifest_rel = str(artifacts.get("manifest") or "").strip()
+        manifest_rel = str(
+            artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+        ).strip()
+        manifest_full_rel = str(artifacts.get("manifest_full") or "").strip()
         summary_rel = str(artifacts.get("summary") or "").strip()
         if not manifest_rel or not summary_rel:
             raise cli.PackageError("Data context artifacts are incomplete.")
         manifest_path = repo_dir / manifest_rel
+        manifest_full_path = repo_dir / manifest_full_rel if manifest_full_rel else None
         summary_path = repo_dir / summary_rel
-        manifest_payload = _load_json_if_exists(manifest_path)
-        if not isinstance(manifest_payload, dict):
+        compact_manifest_payload = _load_json_if_exists(manifest_path)
+        if not isinstance(compact_manifest_payload, dict):
             raise cli.PackageError(f"Missing data manifest: {manifest_path}")
+        full_manifest_payload = (
+            _load_json_if_exists(manifest_full_path)
+            if isinstance(manifest_full_path, Path)
+            else None
+        )
         try:
             summary_text = summary_path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -1655,10 +2429,11 @@ def _generate_mode_plan(
             ) from exc
         draft_task_data_map = _generate_task_data_map(
             repo_dir=repo_dir,
-            source_text=source_text,
+            run_dir=run_dir,
             source_description=source_description,
             planner_plan=planner_plan,
-            manifest_payload=manifest_payload,
+            compact_manifest_payload=compact_manifest_payload,
+            full_manifest_payload=full_manifest_payload,
             summary_text=summary_text,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
@@ -1687,12 +2462,21 @@ def _generate_mode_plan(
         artifacts = data_context.get("artifacts")
         if isinstance(artifacts, dict):
             summary_rel = str(artifacts.get("summary") or "").strip()
-            manifest_rel = str(artifacts.get("manifest") or "").strip()
+            manifest_rel = str(
+                artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+            ).strip()
+            manifest_full_rel = str(artifacts.get("manifest_full") or "").strip()
             task_map_rel = str(artifacts.get("task_map") or "").strip()
             if summary_rel:
                 auditor_prompt_parts.append(f"\nData summary file: {summary_rel}\n")
             if manifest_rel:
-                auditor_prompt_parts.append(f"Data manifest file: {manifest_rel}\n")
+                auditor_prompt_parts.append(
+                    f"Compact data manifest file: {manifest_rel}\n"
+                )
+            if manifest_full_rel:
+                auditor_prompt_parts.append(
+                    f"Full data manifest file: {manifest_full_rel}\n"
+                )
             if task_map_rel:
                 auditor_prompt_parts.append(
                     f"Draft task-data map file: {task_map_rel}\n"
@@ -1754,7 +2538,9 @@ def _generate_mode_plan(
         artifacts = data_context.get("artifacts")
         if not isinstance(artifacts, dict):
             raise cli.PackageError("Data context artifacts are missing.")
-        manifest_rel = str(artifacts.get("manifest") or "").strip()
+        manifest_rel = str(
+            artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+        ).strip()
         if not manifest_rel:
             raise cli.PackageError("Data context manifest artifact is missing.")
         manifest_payload = _load_json_if_exists(repo_dir / manifest_rel)
@@ -2084,7 +2870,9 @@ def _maybe_sync_mode_plan_from_disk(
         artifacts = data_context.get("artifacts") if isinstance(data_context, dict) else {}
         if not isinstance(artifacts, dict):
             raise cli.PackageError("Data context artifacts missing during plan sync.")
-        manifest_rel = str(artifacts.get("manifest") or "").strip()
+        manifest_rel = str(
+            artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+        ).strip()
         task_map_rel = str(artifacts.get("task_map") or "").strip()
         if not manifest_rel:
             raise cli.PackageError("Data context manifest path missing during plan sync.")
@@ -2566,10 +3354,19 @@ def cmd_plan_workflow(
             else {}
         )
         if isinstance(artifacts, dict):
-            manifest_rel = str(artifacts.get("manifest") or "").strip()
+            manifest_rel = str(
+                artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+            ).strip()
+            manifest_full_rel = str(artifacts.get("manifest_full") or "").strip()
             summary_rel = str(artifacts.get("summary") or "").strip()
             if manifest_rel:
-                cli._print_tagged(workflow_name, f"data manifest: {manifest_rel}")
+                cli._print_tagged(
+                    workflow_name, f"data manifest (compact): {manifest_rel}"
+                )
+            if manifest_full_rel:
+                cli._print_tagged(
+                    workflow_name, f"data manifest (full): {manifest_full_rel}"
+                )
             if summary_rel:
                 cli._print_tagged(workflow_name, f"data summary: {summary_rel}")
     cli._print_tagged(workflow_name, f"run dir: {run_dir.relative_to(repo_dir)}")
@@ -2683,7 +3480,14 @@ def cmd_plan_workflow(
         else {}
     )
     data_manifest_rel = (
-        str(data_artifacts.get("manifest") or "").strip()
+        str(
+            data_artifacts.get("manifest_compact") or data_artifacts.get("manifest") or ""
+        ).strip()
+        if isinstance(data_artifacts, dict)
+        else ""
+    )
+    data_manifest_full_rel = (
+        str(data_artifacts.get("manifest_full") or "").strip()
         if isinstance(data_artifacts, dict)
         else ""
     )
@@ -2882,7 +3686,11 @@ def cmd_plan_workflow(
             if _is_data_context_enabled(state_data_context):
                 if data_manifest_rel:
                     workflow_context_lines.append(
-                        f"- data_manifest_json: {data_manifest_rel} (indexed data inventory)"
+                        f"- data_manifest_json: {data_manifest_rel} (compact indexed data inventory)"
+                    )
+                if data_manifest_full_rel:
+                    workflow_context_lines.append(
+                        f"- data_manifest_full_json: {data_manifest_full_rel} (full deterministic indexed data inventory)"
                     )
                 if data_summary_rel:
                     workflow_context_lines.append(
@@ -2895,6 +3703,11 @@ def cmd_plan_workflow(
                 if task_data_path is not None:
                     workflow_context_lines.append(
                         f"- task_data_context: {_memory_relpath(task_data_path)} (allowed per-task files)"
+                    )
+                mapping_mode = str(state_data_context.get("mapping_mode") or "").strip()
+                if mapping_mode:
+                    workflow_context_lines.append(
+                        f"- data_mapping_mode: {mapping_mode}"
                     )
             if archived_memory_paths:
                 workflow_context_lines.append(

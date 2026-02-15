@@ -105,9 +105,13 @@ Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 When ``--data-dir`` is provided, additional run-scoped artifacts are written to
 ``projects/reproduce/<run-id>/data/``:
 
-- ``data_manifest.json`` deterministic indexed inventory;
-- ``data_summary.md`` human-readable usefulness summary;
-- ``task_data_map.json`` task-to-file mapping with confidence/rationale;
+- ``data_manifest_full.json`` deterministic full indexed inventory (traceability);
+- ``data_manifest.json`` compact relevance-first manifest used for LLM mapping
+  (deterministic noise filtering + family collapse metadata);
+- ``data_summary.md`` compact-manifest summary including exclusion/collapse stats;
+- ``task_data_map.json`` task-to-file mapping with confidence/rationale
+  (single global mapping for small manifests, per-task internal mapping loop for
+  large manifests);
 - ``task_XXX.md`` per-task data scope context consumed by ``loop``.
 
 By default, ``--data-dir`` is read-only across planner/auditor/loop turns.
