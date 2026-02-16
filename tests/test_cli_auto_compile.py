@@ -480,6 +480,7 @@ def test_generate_metadata_with_codex_uses_repo_dir(monkeypatch, tmp_path: Path)
         upstream_description="Quantum toolbox in Python.",
         upstream_homepage="https://qutip.org",
         readme_excerpt="README excerpt",
+        disambiguation_package_ids=["meep", "lammps", "psi4"],
     )
     assert payload["title"] == "QuTiP metadata"
     assert seen_kwargs["repo_dir"] == repo_root
@@ -508,8 +509,46 @@ def test_generate_metadata_with_codex_rejects_invalid_repo_dir(
             upstream_description="Quantum toolbox in Python.",
             upstream_homepage="https://qutip.org",
             readme_excerpt="README excerpt",
+            disambiguation_package_ids=["meep", "lammps", "psi4"],
         )
     assert "Invalid metadata repo directory for auto-compile" in str(exc_info.value)
+
+
+def test_build_family_entry_refines_noise_and_backfills_negative_keywords() -> None:
+    entry = package_commands._build_family_entry_from_metadata(
+        package_id="qutip",
+        metadata_payload={
+            "family_description": "Routing hints for qutip workflows.",
+            "strong_keywords": [
+                "qutip",
+                "open quantum systems",
+                "lindblad master equation",
+                "quantum optics",
+            ],
+            "keywords": [
+                "density matrix",
+                "quantum trajectory",
+                "mesolve",
+                "sesolve",
+                "numpy scipy",
+                "cython backend",
+            ],
+            "negative_keywords": [
+                "web frontend",
+                "mobile app",
+                "devops",
+            ],
+        },
+        disambiguation_package_ids=["meep", "lammps", "psi4"],
+    )
+    assert "numpy scipy" not in entry["keywords"]
+    assert "cython backend" not in entry["keywords"]
+    assert "web frontend" not in entry["negative_keywords"]
+    assert "mobile app" not in entry["negative_keywords"]
+    assert "devops" not in entry["negative_keywords"]
+    assert "meep" in entry["negative_keywords"]
+    assert "lammps" in entry["negative_keywords"]
+    assert "psi4" in entry["negative_keywords"]
 
 
 def test_merge_metadata_entries_writes_payloads(monkeypatch, tmp_path: Path) -> None:

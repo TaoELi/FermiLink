@@ -16,6 +16,26 @@ AUTO_COMPILE_METADATA_TOKEN_RE = re.compile(
 )
 GITHUB_OWNER_TOKEN_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 AUTO_COMPILE_COMMIT_TEMPLATE = "Add FermiLink skills for {package_id}"
+ROUTER_KEYWORD_NOISE_TERMS = {
+    "backend",
+    "conda",
+    "conda-forge",
+    "cython",
+    "cython backend",
+    "numpy",
+    "numpy scipy",
+    "pip",
+    "scipy",
+}
+ROUTER_NEGATIVE_NONSCIENTIFIC_TERMS = {
+    "blockchain",
+    "computer vision",
+    "devops",
+    "mobile app",
+    "natural language processing",
+    "relational database",
+    "web frontend",
+}
 
 
 def _cli():
@@ -500,6 +520,57 @@ def _read_repo_excerpt(repo_dir: Path, *, max_chars: int = 5000) -> str:
     return ""
 
 
+def _load_disambiguation_package_ids(
+    *,
+    fermilink_repo: Path,
+    channel_id: str,
+    package_id: str,
+) -> list[str]:
+    cli = _cli()
+    normalized_channel = cli.normalize_channel_id(channel_id)
+    normalized_package_id = cli.normalize_package_id(package_id)
+    curated_path = (
+        fermilink_repo
+        / "src"
+        / "fermilink"
+        / "data"
+        / "curated_channels"
+        / f"{normalized_channel}.json"
+    )
+    family_path = (
+        fermilink_repo / "src" / "fermilink" / "data" / "router" / "family_hints.json"
+    )
+
+    candidates: list[str] = []
+    if curated_path.is_file():
+        curated_payload = _read_json_object(curated_path)
+        packages_raw = curated_payload.get("packages")
+        if isinstance(packages_raw, list):
+            for item in packages_raw:
+                if not isinstance(item, dict):
+                    continue
+                candidate = cli.normalize_package_id(str(item.get("package_id") or ""))
+                if candidate and candidate != normalized_package_id:
+                    candidates.append(candidate)
+
+    if family_path.is_file():
+        family_payload = _read_json_object(family_path)
+        families_raw = family_payload.get("families")
+        if isinstance(families_raw, dict):
+            for family_name in families_raw:
+                candidate = cli.normalize_package_id(str(family_name or ""))
+                if candidate and candidate != normalized_package_id:
+                    candidates.append(candidate)
+
+    return _normalize_unique_terms(
+        candidates,
+        field_name="disambiguation_package_ids",
+        min_items=0,
+        max_items=200,
+        lowercase=True,
+    )
+
+
 def _normalize_unique_terms(
     raw: object,
     *,
@@ -544,8 +615,10 @@ def _build_auto_compile_metadata_prompt(
     upstream_description: str,
     upstream_homepage: str,
     readme_excerpt: str,
+    disambiguation_package_ids: list[str],
 ) -> str:
     excerpt_block = readme_excerpt.strip() or "(no README excerpt available)"
+    disambiguation_block = ", ".join(disambiguation_package_ids[:30]) or "(none)"
     return (
         "Generate metadata for onboarding one scientific package into FermiLink.\n"
         "Return only one tagged JSON payload and no extra text.\n"
@@ -557,18 +630,26 @@ def _build_auto_compile_metadata_prompt(
         "- family_description: one concise sentence for router family hints.\n"
         "- strong_keywords: list of 4-12 high-confidence routing terms.\n"
         "- keywords: list of 4-14 secondary routing terms.\n"
-        "- negative_keywords: list of 0-10 terms likely belonging to other domains.\n"
+        "- negative_keywords: list of 0-10 disambiguation terms likely belonging "
+        "to other scientific packages.\n"
         "Constraints:\n"
         "- Terms must be plain strings, no punctuation-only tokens.\n"
         "- Keep terms domain-specific and useful for routing user intents.\n"
         "- Avoid generic AI words.\n"
         "- Include package canonical name in strong_keywords.\n"
+        "- For strong_keywords/keywords, avoid generic dependency/toolchain labels "
+        "(numpy/scipy/cython/conda/backend) unless absolutely central to intent.\n"
+        "- For negative_keywords, prefer entries from candidate disambiguation package "
+        "ids when suitable.\n"
+        "- Do not include non-scientific software/product terms "
+        "(web frontend, mobile app, blockchain, devops).\n"
         f"- Package id: {package_id}\n"
         f"- Upstream repo: {upstream_repo_url}\n"
         f"- Fork repo: {fork_repo_url}\n"
         f"- Fork default branch: {default_branch}\n"
         f"- Upstream description: {upstream_description or '(none)'}\n"
         f"- Upstream homepage: {upstream_homepage or '(none)'}\n"
+        f"- Candidate disambiguation package ids: {disambiguation_block}\n"
         "README excerpt:\n"
         "<<<README\n"
         f"{excerpt_block}\n"
@@ -586,6 +667,7 @@ def _generate_metadata_with_codex(
     upstream_description: str,
     upstream_homepage: str,
     readme_excerpt: str,
+    disambiguation_package_ids: list[str],
 ) -> dict[str, object]:
     cli = _cli()
     runtime_policy = cli.resolve_agent_runtime_policy()
@@ -603,6 +685,7 @@ def _generate_metadata_with_codex(
         upstream_description=upstream_description,
         upstream_homepage=upstream_homepage,
         readme_excerpt=readme_excerpt,
+        disambiguation_package_ids=disambiguation_package_ids,
     )
     if not metadata_repo_dir.is_dir():
         raise cli.PackageError(
@@ -693,6 +776,7 @@ def _build_family_entry_from_metadata(
     *,
     package_id: str,
     metadata_payload: dict[str, object],
+    disambiguation_package_ids: list[str] | None = None,
 ) -> dict[str, object]:
     description = str(metadata_payload.get("family_description") or "").strip()
     if not description:
@@ -711,8 +795,37 @@ def _build_family_entry_from_metadata(
         max_items=14,
         lowercase=True,
     )
+    filtered_keywords = [
+        term for term in keywords if term not in ROUTER_KEYWORD_NOISE_TERMS
+    ]
+    if len(filtered_keywords) >= 4:
+        keywords = filtered_keywords
     negative_keywords = _normalize_unique_terms(
         metadata_payload.get("negative_keywords"),
+        field_name="negative_keywords",
+        min_items=0,
+        max_items=10,
+        lowercase=True,
+    )
+    negative_keywords = [
+        term
+        for term in negative_keywords
+        if term not in ROUTER_NEGATIVE_NONSCIENTIFIC_TERMS
+    ]
+    if isinstance(disambiguation_package_ids, list) and disambiguation_package_ids:
+        peer_terms = _normalize_unique_terms(
+            disambiguation_package_ids,
+            field_name="disambiguation_package_ids",
+            min_items=0,
+            max_items=200,
+            lowercase=True,
+        )
+        for peer in peer_terms:
+            if peer == package_id or peer in negative_keywords:
+                continue
+            negative_keywords.append(peer)
+    negative_keywords = _normalize_unique_terms(
+        negative_keywords,
         field_name="negative_keywords",
         min_items=0,
         max_items=10,
@@ -1014,6 +1127,11 @@ def _process_auto_compile_package(
         upstream_description = str(upstream_info.get("description") or "").strip()
         upstream_homepage = str(upstream_info.get("homepageUrl") or "").strip()
         readme_excerpt = _read_repo_excerpt(clone_dir)
+        disambiguation_package_ids = _load_disambiguation_package_ids(
+            fermilink_repo=fermilink_repo,
+            channel_id=channel,
+            package_id=package_id,
+        )
 
         codex_metadata = _generate_metadata_with_codex(
             metadata_repo_dir=clone_dir,
@@ -1024,6 +1142,7 @@ def _process_auto_compile_package(
             upstream_description=upstream_description,
             upstream_homepage=upstream_homepage,
             readme_excerpt=readme_excerpt,
+            disambiguation_package_ids=disambiguation_package_ids,
         )
 
         curated_entry = _build_curated_entry_from_metadata(
@@ -1037,6 +1156,7 @@ def _process_auto_compile_package(
         family_entry = _build_family_entry_from_metadata(
             package_id=package_id,
             metadata_payload=codex_metadata,
+            disambiguation_package_ids=disambiguation_package_ids,
         )
         _validate_curated_entry_shape(
             package_id=package_id,

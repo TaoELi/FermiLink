@@ -146,7 +146,8 @@ What ``auto-compile`` does per package:
 5. Commits and pushes to your fork default branch (no PR to upstream).
 6. Calls Codex to generate one package metadata proposal
    (description/tags/router keywords), using the cloned fork repository as the
-   Codex working directory.
+   Codex working directory and passing existing curated package ids as
+   disambiguation candidates.
 7. Builds deterministic curated/family entries from that proposal, validates
    format and cross-file consistency via ``scripts/validate_data.py``, then
    appends them to:
