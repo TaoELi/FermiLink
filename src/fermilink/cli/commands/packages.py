@@ -578,6 +578,7 @@ def _build_auto_compile_metadata_prompt(
 
 def _generate_metadata_with_codex(
     *,
+    metadata_repo_dir: Path,
     package_id: str,
     upstream_repo_url: str,
     fork_repo_url: str,
@@ -603,18 +604,23 @@ def _generate_metadata_with_codex(
         upstream_homepage=upstream_homepage,
         readme_excerpt=readme_excerpt,
     )
-    with cli.tempfile.TemporaryDirectory(
-        prefix="fermilink-auto-compile-metadata-"
-    ) as temp_dir:
-        response = cli._run_exec_chat_turn(
-            repo_dir=Path(temp_dir),
-            prompt=prompt,
-            sandbox="read-only",
-            codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN,
-            provider="codex",
-            sandbox_policy="enforce",
+    if not metadata_repo_dir.is_dir():
+        raise cli.PackageError(
+            f"Invalid metadata repo directory for auto-compile: {metadata_repo_dir}"
         )
-    return_code = int(response.get("return_code") or 1)
+    response = cli._run_exec_chat_turn(
+        repo_dir=metadata_repo_dir,
+        prompt=prompt,
+        sandbox="read-only",
+        codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN,
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+    return_code_raw = response.get("return_code")
+    try:
+        return_code = int(1 if return_code_raw is None else return_code_raw)
+    except (TypeError, ValueError):
+        return_code = 1
     if return_code != 0:
         stderr = str(response.get("stderr") or "").strip()
         detail = stderr or f"exit code {return_code}"
@@ -1010,6 +1016,7 @@ def _process_auto_compile_package(
         readme_excerpt = _read_repo_excerpt(clone_dir)
 
         codex_metadata = _generate_metadata_with_codex(
+            metadata_repo_dir=clone_dir,
             package_id=package_id,
             upstream_repo_url=canonical_upstream,
             fork_repo_url=fork["fork_url"],

@@ -443,6 +443,75 @@ def test_ensure_public_fork_omits_org_flag_for_personal_owner(monkeypatch) -> No
     assert result["fork_name"] == "tester/qutip"
 
 
+def test_generate_metadata_with_codex_uses_repo_dir(monkeypatch, tmp_path: Path) -> None:
+    repo_root = tmp_path / "fork-repo"
+    repo_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(package_commands, "_cli", lambda: cli)
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex", sandbox_policy="enforce", sandbox_mode="workspace-write"
+        ),
+    )
+
+    seen_kwargs: dict[str, object] = {}
+
+    def _fake_run_exec_chat_turn(**kwargs):
+        seen_kwargs.update(kwargs)
+        return {
+            "return_code": 0,
+            "stderr": "",
+            "assistant_text": (
+                "<auto_compile_metadata>"
+                '{"title":"QuTiP metadata"}'
+                "</auto_compile_metadata>"
+            ),
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", _fake_run_exec_chat_turn)
+
+    payload = package_commands._generate_metadata_with_codex(
+        metadata_repo_dir=repo_root,
+        package_id="qutip",
+        upstream_repo_url="https://github.com/qutip/qutip",
+        fork_repo_url="https://github.com/skilled-scipkg/qutip",
+        default_branch="main",
+        upstream_description="Quantum toolbox in Python.",
+        upstream_homepage="https://qutip.org",
+        readme_excerpt="README excerpt",
+    )
+    assert payload["title"] == "QuTiP metadata"
+    assert seen_kwargs["repo_dir"] == repo_root
+
+
+def test_generate_metadata_with_codex_rejects_invalid_repo_dir(
+    monkeypatch, tmp_path: Path
+) -> None:
+    missing_repo = tmp_path / "missing-repo"
+    monkeypatch.setattr(package_commands, "_cli", lambda: cli)
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex", sandbox_policy="enforce", sandbox_mode="workspace-write"
+        ),
+    )
+
+    with pytest.raises(cli.PackageError) as exc_info:
+        package_commands._generate_metadata_with_codex(
+            metadata_repo_dir=missing_repo,
+            package_id="qutip",
+            upstream_repo_url="https://github.com/qutip/qutip",
+            fork_repo_url="https://github.com/skilled-scipkg/qutip",
+            default_branch="main",
+            upstream_description="Quantum toolbox in Python.",
+            upstream_homepage="https://qutip.org",
+            readme_excerpt="README excerpt",
+        )
+    assert "Invalid metadata repo directory for auto-compile" in str(exc_info.value)
+
+
 def test_merge_metadata_entries_writes_payloads(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "fermilink-repo"
     _base_repo_payloads(repo_root)
