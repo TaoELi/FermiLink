@@ -551,6 +551,60 @@ def test_build_family_entry_refines_noise_and_backfills_negative_keywords() -> N
     assert "psi4" in entry["negative_keywords"]
 
 
+def test_process_auto_compile_package_fails_fast_on_duplicate_without_update(
+    monkeypatch, tmp_path: Path
+) -> None:
+    repo_root = tmp_path / "fermilink-repo"
+    _base_repo_payloads(repo_root)
+    _write_json(
+        repo_root
+        / "src"
+        / "fermilink"
+        / "data"
+        / "curated_channels"
+        / "skilled-scipkg.json",
+        {
+            "schema_version": 2,
+            "channel_id": "skilled-scipkg",
+            "packages": [_sample_curated_entry("qutip")],
+        },
+    )
+
+    fork_called = {"value": False}
+
+    def _unexpected_fork(**_kwargs):
+        fork_called["value"] = True
+        return {
+            "fork_name": "tester/qutip",
+            "fork_url": "https://github.com/tester/qutip",
+            "fork_clone_url": "https://github.com/tester/qutip.git",
+            "default_branch": "main",
+        }
+
+    monkeypatch.setattr(package_commands, "_ensure_public_fork", _unexpected_fork)
+
+    with pytest.raises(cli.PackageError) as exc_info:
+        package_commands._process_auto_compile_package(
+            package_id="qutip",
+            upstream_repo_url="https://github.com/qutip/qutip",
+            github_login="tester",
+            organization=None,
+            fermilink_repo=repo_root,
+            workspace_root=tmp_path / "workspace",
+            channel="skilled-scipkg",
+            max_skills=30,
+            core_skill_count=6,
+            docs_only=False,
+            keep_compile_artifacts=False,
+            strict_compile_validation=False,
+            update_existing=False,
+            dry_run=False,
+            cleanup_clone=False,
+        )
+    assert "Use --update-existing to replace it." in str(exc_info.value)
+    assert fork_called["value"] is False
+
+
 def test_merge_metadata_entries_writes_payloads(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "fermilink-repo"
     _base_repo_payloads(repo_root)

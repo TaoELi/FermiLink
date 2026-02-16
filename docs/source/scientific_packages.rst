@@ -182,6 +182,7 @@ Batch mode from an external JSON spec:
 Useful auto-compile options:
 
 - ``--update-existing``: replace existing curated/family entries for a package id.
+  Without this flag, duplicate package ids fail fast before fork/compile/Codex metadata steps.
 - ``--organization``: force forks to a specific GitHub organization
   (uses ``gh repo fork --org <organization>``).
 - ``--dry-run``: run fork/clone/compile/push + metadata validation without writing

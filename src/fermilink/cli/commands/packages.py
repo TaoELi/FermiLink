@@ -975,6 +975,60 @@ def _validate_data_payloads_with_script(
         raise cli.PackageError(f"Data validation failed after merge preview: {detail}")
 
 
+def _precheck_metadata_merge_conflicts(
+    *,
+    fermilink_repo: Path,
+    channel_id: str,
+    package_id: str,
+    update_existing: bool,
+) -> None:
+    if update_existing:
+        return
+
+    cli = _cli()
+    normalized_channel = cli.normalize_channel_id(channel_id)
+    curated_path = (
+        fermilink_repo
+        / "src"
+        / "fermilink"
+        / "data"
+        / "curated_channels"
+        / f"{normalized_channel}.json"
+    )
+    family_path = (
+        fermilink_repo / "src" / "fermilink" / "data" / "router" / "family_hints.json"
+    )
+    if not curated_path.is_file():
+        raise cli.PackageError(f"Missing curated channel file: {curated_path}")
+    if not family_path.is_file():
+        raise cli.PackageError(f"Missing family hints file: {family_path}")
+
+    curated_payload = _read_json_object(curated_path)
+    family_payload = _read_json_object(family_path)
+    packages_raw = curated_payload.get("packages")
+    if not isinstance(packages_raw, list):
+        raise cli.PackageError(f"Invalid curated channel file: {curated_path}")
+    existing_package_ids = {
+        str(item.get("package_id") or "").strip().lower()
+        for item in packages_raw
+        if isinstance(item, dict)
+    }
+    if package_id in existing_package_ids:
+        raise cli.PackageError(
+            f"Package '{package_id}' already exists in {curated_path}. "
+            "Use --update-existing to replace it."
+        )
+
+    families_raw = family_payload.get("families")
+    if not isinstance(families_raw, dict):
+        raise cli.PackageError(f"Invalid family hints file: {family_path}")
+    if package_id in families_raw:
+        raise cli.PackageError(
+            f"Family '{package_id}' already exists in {family_path}. "
+            "Use --update-existing to replace it."
+        )
+
+
 def _merge_metadata_entries(
     *,
     fermilink_repo: Path,
@@ -1092,6 +1146,12 @@ def _process_auto_compile_package(
     cli = _cli()
     upstream_owner, upstream_repo, canonical_upstream = _normalize_github_repo_url(
         upstream_repo_url
+    )
+    _precheck_metadata_merge_conflicts(
+        fermilink_repo=fermilink_repo,
+        channel_id=channel,
+        package_id=package_id,
+        update_existing=update_existing,
     )
     fork = _ensure_public_fork(
         upstream_owner=upstream_owner,
