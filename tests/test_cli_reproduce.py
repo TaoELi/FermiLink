@@ -19,6 +19,7 @@ def test_reproduce_parser_defaults() -> None:
     assert args.max_iterations == 10
     assert args.wait_seconds == 0.0
     assert args.max_wait_seconds == 600.0
+    assert args.hpc_profile is None
     assert args.data_dir is None
     assert args.data_writable is False
     assert args.data_max_files == 4000
@@ -36,6 +37,14 @@ def test_reproduce_parser_enforce_simulation_disables_dry_run() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(["reproduce", "paper.md", "--enforce-simulation"])
     assert args.dry_run is False
+
+
+def test_reproduce_parser_accepts_hpc_profile() -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        ["reproduce", "paper.md", "--hpc-profile", "scripts/hpc_profile_anvil.json"]
+    )
+    assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
 
 
 def test_extract_reproduce_plan_payload_parses_tagged_json() -> None:
@@ -96,6 +105,10 @@ def test_reproduce_plan_only_writes_plan_without_running_loop(
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["status"] == "plan_ready"
     assert state["current_task_index"] == 0
+    hpc_context = state.get("hpc_context")
+    assert isinstance(hpc_context, dict)
+    assert hpc_context.get("enabled") is False
+    assert hpc_context.get("mode") == "local"
 
 
 def test_reproduce_dry_run_plan_only_forwards_flag_and_persists_state(
@@ -405,6 +418,169 @@ def test_reproduce_resume_rejects_mismatched_data_dir_mode(
     assert "matching data-dir mode" in capsys.readouterr().err
 
 
+def test_reproduce_resume_rejects_mismatched_hpc_profile_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    profile_path = repo_dir / "anvil.json"
+    profile_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cluster_name": "Purdue Anvil",
+                "scheduler": "slurm",
+                "default_partition": "shared",
+                "partitions": {
+                    "shared": {"cpus_per_node": 128, "max_nodes": 1},
+                    "wholenode": {"cpus_per_node": 128, "max_nodes": 36},
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["reproduce", "paper.md", "--plan-only"]) == 0
+    code = cli.main(
+        [
+            "reproduce",
+            "paper.md",
+            "--hpc-profile",
+            str(profile_path),
+        ]
+    )
+    assert code == 2
+    assert "matching --hpc-profile mode" in capsys.readouterr().err
+
+
+def test_reproduce_hpc_profile_requires_valid_json(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    (repo_dir / "invalid_profile.json").write_text("{bad json\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+
+    code = cli.main(
+        [
+            "reproduce",
+            "paper.md",
+            "--plan-only",
+            "--hpc-profile",
+            "invalid_profile.json",
+        ]
+    )
+    assert code == 2
+    assert "--hpc-profile must contain valid JSON" in capsys.readouterr().err
+
+
+def test_reproduce_hpc_profile_persists_state_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    (repo_dir / "anvil.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cluster_name": "Purdue Anvil",
+                "scheduler": "slurm",
+                "default_partition": "shared",
+                "partitions": {
+                    "shared": {"cpus_per_node": 128, "max_nodes": 1},
+                    "wholenode": {"cpus_per_node": 128, "max_nodes": 36},
+                },
+                "defaults": {"nodes": 1, "ntasks_per_node": 128, "time": "02:00:00"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "prepare scripts only",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    code = cli.main(
+        [
+            "reproduce",
+            "paper.md",
+            "--plan-only",
+            "--hpc-profile",
+            "anvil.json",
+        ]
+    )
+    assert code == 0
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    hpc_context = state.get("hpc_context")
+    assert isinstance(hpc_context, dict)
+    assert hpc_context.get("enabled") is True
+    assert hpc_context.get("mode") == "hpc_slurm"
+    assert hpc_context.get("scheduler") == "slurm"
+    profile = hpc_context.get("profile")
+    assert isinstance(profile, dict)
+    assert profile.get("cluster_name") == "Purdue Anvil"
+    assert profile.get("default_partition") == "shared"
+
+
 def test_reproduce_data_dir_read_only_detects_mutation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -665,9 +841,24 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
         prompt = str(kwargs.get("prompt") or "")
         summary_path = run_dir / "summaries" / "task_001" / "summary.md"
         summary_path.parent.mkdir(parents=True, exist_ok=True)
+        simulation_script = summary_path.parent / "run_simulation.sh"
+        postprocess_script = summary_path.parent / "run_postprocess.sh"
+        plot_script = summary_path.parent / "run_plot.sh"
         report_path = run_dir / "report.md"
         if "workflow report generation mode" in prompt:
             summary_path.write_text("# Task 1 summary\n", encoding="utf-8")
+            simulation_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\necho sim\n",
+                encoding="utf-8",
+            )
+            postprocess_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\necho post\n",
+                encoding="utf-8",
+            )
+            plot_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\necho plot\n",
+                encoding="utf-8",
+            )
             report_path.write_text(
                 f"# Report\n{generation_marker}\n",
                 encoding="utf-8",
@@ -694,6 +885,13 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     )
     assert Path(str(info["report_path"])) == run_dir / "report.md"
     assert not (runs_root / "report.md").exists()
+    assert Path(str(info["simulation_script_path"])) == run_dir / "01_run_simulations.sh"
+    assert Path(str(info["postprocess_script_path"])) == run_dir / "02_run_postprocess.sh"
+    assert Path(str(info["plot_script_path"])) == run_dir / "03_run_plots.sh"
+    simulation_driver = (run_dir / "01_run_simulations.sh").read_text(encoding="utf-8")
+    assert "FAILURES=()" in simulation_driver
+    assert "run_simulation.sh" in simulation_driver
+    assert "continue" in simulation_driver
 
 
 def test_finalize_workflow_report_rejects_stale_generation_outputs(
@@ -753,9 +951,24 @@ def test_finalize_workflow_report_rejects_stale_audit_outputs(
         prompt = str(kwargs.get("prompt") or "")
         summary_path = run_dir / "summaries" / "task_001" / "summary.md"
         summary_path.parent.mkdir(parents=True, exist_ok=True)
+        simulation_script = summary_path.parent / "run_simulation.sh"
+        postprocess_script = summary_path.parent / "run_postprocess.sh"
+        plot_script = summary_path.parent / "run_plot.sh"
         report_path = run_dir / "report.md"
         if "workflow report generation mode" in prompt:
             summary_path.write_text("# Task 1 summary\n", encoding="utf-8")
+            simulation_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\necho sim\n",
+                encoding="utf-8",
+            )
+            postprocess_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\necho post\n",
+                encoding="utf-8",
+            )
+            plot_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\necho plot\n",
+                encoding="utf-8",
+            )
             report_path.write_text(
                 f"# Report\n{generation_marker}\n",
                 encoding="utf-8",
@@ -827,6 +1040,71 @@ def test_generate_reproduce_plan_dry_run_appends_prompt_requirements(
     assert len(prompts) == 2
     assert "Dry-run planning requirements:" in prompts[0]
     assert "Dry-run audit requirements:" in prompts[1]
+
+
+def test_generate_reproduce_plan_appends_hpc_prompt_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    prompts: list[str] = []
+
+    plan_payload = {
+        "version": 1,
+        "paper_source": "paper.md",
+        "assumptions": [],
+        "tasks": [
+            {
+                "id": "task_001",
+                "title": "task one",
+                "objective": "objective",
+                "prompt_markdown": "prepare only",
+            }
+        ],
+    }
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt") or "")
+        prompts.append(prompt)
+        assistant_text = (
+            "<reproduce_plan>"
+            + json.dumps(plan_payload)
+            + "</reproduce_plan>"
+        )
+        return {"return_code": 0, "assistant_text": assistant_text, "stderr": ""}
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+
+    plan = cli._generate_reproduce_plan(
+        repo_dir=repo_dir,
+        source_text="source",
+        source_description="paper.md",
+        requested_package_id=None,
+        sandbox_override=None,
+        codex_bin="codex",
+        planner_max_tries=1,
+        auditor_max_tries=1,
+        dry_run=True,
+        hpc_context={
+            "enabled": True,
+            "mode": "hpc_slurm",
+            "scheduler": "slurm",
+            "source": "cli_hpc_profile",
+            "profile": {
+                "cluster_name": "Purdue Anvil",
+                "default_partition": "shared",
+                "partitions": {
+                    "shared": {"cpus_per_node": 128, "max_nodes": 1},
+                    "wholenode": {"cpus_per_node": 128, "max_nodes": 36},
+                },
+            },
+        },
+    )
+    assert plan["version"] == 1
+    assert len(prompts) == 2
+    assert "Execution target constraints:" in prompts[0]
+    assert "--hpc-profile` overrides package/skill/default machine settings" in prompts[0]
+    assert "execution_target: HPC SLURM (`Purdue Anvil`)." in prompts[0]
 
 
 def test_generate_reproduce_plan_with_data_auditor_writes_task_data_artifacts(

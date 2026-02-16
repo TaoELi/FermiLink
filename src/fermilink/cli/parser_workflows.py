@@ -112,6 +112,14 @@ def register_workflow_parsers(
         ),
     )
     reproduce_parser.add_argument(
+        "--hpc-profile",
+        default=None,
+        help=(
+            "Optional path to an HPC JSON profile used to generate SLURM-ready "
+            "artifacts. When omitted, defaults to local-machine mode (no SLURM)."
+        ),
+    )
+    reproduce_parser.add_argument(
         "--data-dir",
         default=None,
         help=(
@@ -301,6 +309,14 @@ def register_workflow_parsers(
         help=(
             "Forwarded to inner loop hard cap for per-iteration waits "
             "(default: 600)."
+        ),
+    )
+    research_parser.add_argument(
+        "--hpc-profile",
+        default=None,
+        help=(
+            "Optional path to an HPC JSON profile used to generate SLURM-ready "
+            "artifacts. When omitted, defaults to local-machine mode (no SLURM)."
         ),
     )
     research_parser.add_argument(

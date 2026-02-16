@@ -18,6 +18,7 @@ def test_research_parser_defaults() -> None:
     assert args.max_iterations == 10
     assert args.wait_seconds == 0.0
     assert args.max_wait_seconds == 600.0
+    assert args.hpc_profile is None
     assert args.data_dir is None
     assert args.data_writable is False
     assert args.data_max_files == 4000
@@ -35,6 +36,14 @@ def test_research_parser_enforce_simulation_disables_dry_run() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(["research", "idea.md", "--enforce-simulation"])
     assert args.dry_run is False
+
+
+def test_research_parser_accepts_hpc_profile() -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        ["research", "idea.md", "--hpc-profile", "scripts/hpc_profile_anvil.json"]
+    )
+    assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
 
 
 def test_extract_research_plan_payload_parses_tagged_json() -> None:
@@ -95,6 +104,10 @@ def test_research_plan_only_writes_plan_without_running_loop(
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["status"] == "plan_ready"
     assert state["current_task_index"] == 0
+    hpc_context = state.get("hpc_context")
+    assert isinstance(hpc_context, dict)
+    assert hpc_context.get("enabled") is False
+    assert hpc_context.get("mode") == "local"
 
 
 def test_research_dry_run_adds_loop_constraints(
@@ -137,6 +150,7 @@ def test_research_dry_run_adds_loop_constraints(
     assert "Do not execute full simulations" in loop_preambles[0]
     assert "1-4 focused steps" in loop_preambles[0]
     assert "overrides the default loop guidance of 5-15 steps" in loop_preambles[0]
+    assert "execution_target: local machine (default when `--hpc-profile` is omitted)." in loop_preambles[0]
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()

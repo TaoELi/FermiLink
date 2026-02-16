@@ -6,6 +6,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -93,6 +94,12 @@ NOISE_DIR_NAMES = {
 NOISE_BASENAME_EXACT = {".ds_store", "nohup.out"}
 NOISE_SUFFIXES = {".tmp", ".swp", ".bak"}
 SLURM_BASENAME_RE = re.compile(r"^slurm-[^/]+\.(?:out|err)$")
+WORKFLOW_SIMULATION_BATCH_SCRIPT_FILENAME = "01_run_simulations.sh"
+WORKFLOW_POSTPROCESS_BATCH_SCRIPT_FILENAME = "02_run_postprocess.sh"
+WORKFLOW_PLOT_BATCH_SCRIPT_FILENAME = "03_run_plots.sh"
+WORKFLOW_TASK_SIMULATION_SCRIPT_FILENAME = "run_simulation.sh"
+WORKFLOW_TASK_POSTPROCESS_SCRIPT_FILENAME = "run_postprocess.sh"
+WORKFLOW_TASK_PLOT_SCRIPT_FILENAME = "run_plot.sh"
 
 USEFUL_SUFFIXES = {
     ".json",
@@ -206,6 +213,335 @@ def _default_data_mapping_thresholds() -> dict[str, int]:
         "task_slice_max_files": DEFAULT_DATA_TASK_SLICE_MAX_FILES,
         "task_slice_max_chars": DEFAULT_DATA_TASK_SLICE_MAX_CHARS,
     }
+
+
+def _default_local_hpc_context() -> dict[str, object]:
+    return {
+        "enabled": False,
+        "mode": "local",
+        "scheduler": "none",
+        "source": "default_local",
+        "profile": {},
+    }
+
+
+def _normalize_hpc_profile(
+    *, raw_profile: dict[str, object], profile_path: Path
+) -> dict[str, object]:
+    cli = _cli()
+    profile_label = str(profile_path)
+    version_raw = raw_profile.get("version", 1)
+    try:
+        version = int(version_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError(
+            f"--hpc-profile invalid `version` in {profile_label}: expected integer >= 1."
+        ) from exc
+    if version < 1:
+        raise cli.PackageError(
+            f"--hpc-profile invalid `version` in {profile_label}: expected integer >= 1."
+        )
+
+    cluster_name = str(raw_profile.get("cluster_name") or "").strip()
+    if not cluster_name:
+        raise cli.PackageError(
+            f"--hpc-profile missing required `cluster_name` in {profile_label}."
+        )
+
+    scheduler = str(raw_profile.get("scheduler") or "").strip().lower()
+    if scheduler != "slurm":
+        raise cli.PackageError(
+            f"--hpc-profile `scheduler` must be `slurm` in {profile_label}."
+        )
+
+    partitions_raw = raw_profile.get("partitions")
+    if not isinstance(partitions_raw, dict) or not partitions_raw:
+        raise cli.PackageError(
+            f"--hpc-profile missing non-empty `partitions` object in {profile_label}."
+        )
+    normalized_partitions: dict[str, object] = {}
+    for partition_name_raw, partition_payload in partitions_raw.items():
+        partition_name = str(partition_name_raw).strip()
+        if not partition_name:
+            raise cli.PackageError(
+                f"--hpc-profile has an empty partition name in {profile_label}."
+            )
+        if not isinstance(partition_payload, dict):
+            raise cli.PackageError(
+                "--hpc-profile partition entry must be an object for "
+                f"`{partition_name}` in {profile_label}."
+            )
+        entry: dict[str, object] = dict(partition_payload)
+        cpus_per_node = entry.get("cpus_per_node")
+        if cpus_per_node is not None:
+            entry["cpus_per_node"] = _normalize_positive_int(
+                cpus_per_node,
+                flag_name=(
+                    f"--hpc-profile partitions.{partition_name}.cpus_per_node"
+                ),
+                minimum=1,
+            )
+        max_nodes = entry.get("max_nodes")
+        if max_nodes is not None:
+            entry["max_nodes"] = _normalize_positive_int(
+                max_nodes,
+                flag_name=f"--hpc-profile partitions.{partition_name}.max_nodes",
+                minimum=1,
+            )
+        normalized_partitions[partition_name] = entry
+
+    default_partition = str(raw_profile.get("default_partition") or "").strip()
+    if not default_partition:
+        default_partition = sorted(normalized_partitions.keys())[0]
+    if default_partition not in normalized_partitions:
+        raise cli.PackageError(
+            "--hpc-profile `default_partition` must be one of the keys in "
+            f"`partitions` for {profile_label}."
+        )
+
+    defaults_raw = raw_profile.get("defaults")
+    normalized_defaults: dict[str, object] = {}
+    if defaults_raw is not None:
+        if not isinstance(defaults_raw, dict):
+            raise cli.PackageError(
+                f"--hpc-profile `defaults` must be an object in {profile_label}."
+            )
+        normalized_defaults = dict(defaults_raw)
+        for int_field in ("nodes", "ntasks", "ntasks_per_node"):
+            raw_value = defaults_raw.get(int_field)
+            if raw_value is None:
+                continue
+            normalized_defaults[int_field] = _normalize_positive_int(
+                raw_value,
+                flag_name=f"--hpc-profile defaults.{int_field}",
+                minimum=1,
+            )
+        raw_time = defaults_raw.get("time")
+        if raw_time is not None:
+            time_text = str(raw_time).strip()
+            if not time_text:
+                raise cli.PackageError(
+                    f"--hpc-profile defaults.time cannot be empty in {profile_label}."
+                )
+            normalized_defaults["time"] = time_text
+
+    normalized: dict[str, object] = dict(raw_profile)
+    normalized["version"] = version
+    normalized["cluster_name"] = cluster_name
+    normalized["scheduler"] = scheduler
+    normalized["default_partition"] = default_partition
+    normalized["partitions"] = normalized_partitions
+    if defaults_raw is not None:
+        normalized["defaults"] = normalized_defaults
+    return normalized
+
+
+def _resolve_invocation_hpc_context(
+    *, repo_dir: Path, args: argparse.Namespace
+) -> dict[str, object]:
+    cli = _cli()
+    raw_hpc_profile = str(getattr(args, "hpc_profile", "") or "").strip()
+    if not raw_hpc_profile:
+        return _default_local_hpc_context()
+
+    resolved_profile_path = cli._resolve_project_path(raw_hpc_profile)
+    if not resolved_profile_path.exists():
+        raise cli.PackageError(
+            f"--hpc-profile does not exist: {resolved_profile_path}"
+        )
+    if not resolved_profile_path.is_file():
+        raise cli.PackageError(
+            f"--hpc-profile must be a file: {resolved_profile_path}"
+        )
+    try:
+        payload = json.loads(resolved_profile_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read --hpc-profile: {resolved_profile_path}: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise cli.PackageError(
+            f"--hpc-profile must contain valid JSON: {resolved_profile_path}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise cli.PackageError(
+            f"--hpc-profile root JSON must be an object: {resolved_profile_path}"
+        )
+
+    normalized_profile = _normalize_hpc_profile(
+        raw_profile=payload, profile_path=resolved_profile_path
+    )
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            normalized_profile, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "enabled": True,
+        "mode": "hpc_slurm",
+        "scheduler": "slurm",
+        "source": "cli_hpc_profile",
+        "profile_path": str(resolved_profile_path),
+        "profile_path_input": raw_hpc_profile,
+        "profile_relpath": _repo_relative_path(repo_dir, resolved_profile_path),
+        "fingerprint": fingerprint,
+        "profile": normalized_profile,
+    }
+
+
+def _is_hpc_context_enabled(hpc_context: object) -> bool:
+    return isinstance(hpc_context, dict) and bool(hpc_context.get("enabled"))
+
+
+def _coerce_saved_hpc_context(state: dict[str, object]) -> dict[str, object]:
+    raw = state.get("hpc_context")
+    if not isinstance(raw, dict):
+        return _default_local_hpc_context()
+
+    enabled = bool(raw.get("enabled"))
+    if not enabled:
+        normalized_local = _default_local_hpc_context()
+        source = str(raw.get("source") or "").strip()
+        if source:
+            normalized_local["source"] = source
+        return normalized_local
+
+    profile = raw.get("profile")
+    normalized: dict[str, object] = {
+        "enabled": True,
+        "mode": "hpc_slurm",
+        "scheduler": "slurm",
+        "source": str(raw.get("source") or "cli_hpc_profile").strip()
+        or "cli_hpc_profile",
+        "profile": profile if isinstance(profile, dict) else {},
+    }
+    profile_path = str(raw.get("profile_path") or "").strip()
+    if profile_path:
+        normalized["profile_path"] = profile_path
+    profile_path_input = str(raw.get("profile_path_input") or "").strip()
+    if profile_path_input:
+        normalized["profile_path_input"] = profile_path_input
+    profile_relpath = str(raw.get("profile_relpath") or "").strip()
+    if profile_relpath:
+        normalized["profile_relpath"] = profile_relpath
+    fingerprint = str(raw.get("fingerprint") or "").strip()
+    if fingerprint:
+        normalized["fingerprint"] = fingerprint
+    return normalized
+
+
+def _assert_hpc_context_compatible(
+    *,
+    run_id: str,
+    workflow_name: str,
+    state_hpc_context: dict[str, object],
+    invocation_hpc_context: dict[str, object],
+) -> None:
+    cli = _cli()
+    state_enabled = bool(state_hpc_context.get("enabled"))
+    invocation_enabled = bool(invocation_hpc_context.get("enabled"))
+    if state_enabled != invocation_enabled:
+        expected = "--hpc-profile <json>" if state_enabled else "without --hpc-profile"
+        current = "--hpc-profile <json>" if invocation_enabled else "without --hpc-profile"
+        raise cli.PackageError(
+            f"Run {run_id} was created {expected}; current invocation is {current}. "
+            "Use --restart or rerun with matching --hpc-profile mode."
+        )
+    if not state_enabled:
+        return
+
+    state_scheduler = str(state_hpc_context.get("scheduler") or "").strip().lower()
+    invocation_scheduler = str(invocation_hpc_context.get("scheduler") or "").strip().lower()
+    if state_scheduler != invocation_scheduler:
+        raise cli.PackageError(
+            f"Run {run_id} was created with scheduler={state_scheduler!r}; "
+            f"current {workflow_name} invocation uses {invocation_scheduler!r}. "
+            "Use --restart or rerun with matching --hpc-profile."
+        )
+
+    state_profile_path = str(state_hpc_context.get("profile_path") or "").strip()
+    invocation_profile_path = str(
+        invocation_hpc_context.get("profile_path") or ""
+    ).strip()
+    if state_profile_path and invocation_profile_path and state_profile_path != invocation_profile_path:
+        raise cli.PackageError(
+            f"Run {run_id} was created with --hpc-profile={state_profile_path!r}; "
+            f"current {workflow_name} invocation uses {invocation_profile_path!r}. "
+            "Use --restart or rerun with matching --hpc-profile."
+        )
+
+    state_fingerprint = str(state_hpc_context.get("fingerprint") or "").strip()
+    invocation_fingerprint = str(invocation_hpc_context.get("fingerprint") or "").strip()
+    if (
+        state_fingerprint
+        and invocation_fingerprint
+        and state_fingerprint != invocation_fingerprint
+    ):
+        raise cli.PackageError(
+            f"Run {run_id} was created with a different --hpc-profile content fingerprint. "
+            "Use --restart or rerun with matching --hpc-profile content."
+        )
+
+
+def _summarize_hpc_partitions(profile: object) -> str:
+    if not isinstance(profile, dict):
+        return ""
+    partitions = profile.get("partitions")
+    if not isinstance(partitions, dict) or not partitions:
+        return ""
+    parts: list[str] = []
+    for partition_name in sorted(partitions.keys()):
+        payload = partitions.get(partition_name)
+        if isinstance(payload, dict):
+            cpus = payload.get("cpus_per_node")
+            max_nodes = payload.get("max_nodes")
+            suffix_bits: list[str] = []
+            if cpus is not None:
+                suffix_bits.append(f"cpus_per_node={cpus}")
+            if max_nodes is not None:
+                suffix_bits.append(f"max_nodes={max_nodes}")
+            if suffix_bits:
+                parts.append(f"{partition_name} ({', '.join(suffix_bits)})")
+                continue
+        parts.append(str(partition_name))
+    return ", ".join(parts)
+
+
+def _build_hpc_prompt_lines(hpc_context: dict[str, object] | None) -> list[str]:
+    context = hpc_context if isinstance(hpc_context, dict) else _default_local_hpc_context()
+    lines = [
+        "- CLI precedence: `--hpc-profile` overrides package/skill/default machine settings.",
+    ]
+    if not bool(context.get("enabled")):
+        lines.extend(
+            [
+                "- execution_target: local machine (default when `--hpc-profile` is omitted).",
+                "- Do not assume SLURM/HPC resources by default.",
+                "- Generate local-run-ready commands/scripts in dry-run artifacts.",
+            ]
+        )
+        return lines
+
+    profile = context.get("profile") if isinstance(context.get("profile"), dict) else {}
+    cluster_name = str(profile.get("cluster_name") or "unknown").strip()
+    default_partition = str(profile.get("default_partition") or "").strip()
+    partition_summary = _summarize_hpc_partitions(profile)
+    lines.extend(
+        [
+            f"- execution_target: HPC SLURM (`{cluster_name}`).",
+            (
+                f"- slurm_default_partition: `{default_partition}`."
+                if default_partition
+                else "- slurm_default_partition: not specified."
+            ),
+        ]
+    )
+    if partition_summary:
+        lines.append(f"- slurm_partition_options: {partition_summary}.")
+    lines.append(
+        "- Generate SLURM-ready scripts and machine-tuned run instructions using this profile."
+    )
+    return lines
 
 
 def _resolve_invocation_data_context(
@@ -1132,7 +1468,10 @@ def _sanitize_task_id(raw_id: object, index: int, used: set[str]) -> str:
 
 
 def _render_reproduce_task_prompt(
-    task: dict[str, object], *, dry_run: bool = False
+    task: dict[str, object],
+    *,
+    dry_run: bool = False,
+    hpc_context: dict[str, object] | None = None,
 ) -> str:
     task_id = str(task.get("id") or "task")
     title = str(task.get("title") or "Reproduce task").strip()
@@ -1179,7 +1518,11 @@ def _render_reproduce_task_prompt(
         lines.extend(
             ["", "## Acceptance checks", *[f"- {item}" for item in acceptance_checks]]
         )
+    lines.extend(["", "## Execution target", *_build_hpc_prompt_lines(hpc_context)])
     if dry_run:
+        profile_mode = bool(
+            isinstance(hpc_context, dict) and hpc_context.get("enabled")
+        )
         lines.extend(
             [
                 "",
@@ -1188,6 +1531,11 @@ def _render_reproduce_task_prompt(
                 "- Prepare post-processing scripts for expected simulation outputs.",
                 "- Prepare plotting scripts for the target figures.",
                 "- Create or update README.md with exact future simulation commands and validation steps.",
+                (
+                    "- Prepare SLURM-ready submission scripts from the provided `--hpc-profile`."
+                    if profile_mode
+                    else "- Prepare local-machine run commands/scripts by default (no SLURM)."
+                ),
             ]
         )
     lines.extend(
@@ -2097,6 +2445,7 @@ def _normalize_automation_plan(
     *,
     source_description: str,
     dry_run: bool = False,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     cli = _cli()
     if not isinstance(raw_plan, dict):
@@ -2141,7 +2490,7 @@ def _normalize_automation_plan(
             normalized_task["data_context_file"] = data_context_file
         if not prompt_markdown:
             prompt_markdown = _render_reproduce_task_prompt(
-                normalized_task, dry_run=dry_run
+                normalized_task, dry_run=dry_run, hpc_context=hpc_context
             ).strip()
         normalized_task["prompt_markdown"] = prompt_markdown
         normalized_tasks.append(normalized_task)
@@ -2160,11 +2509,13 @@ def _normalize_reproduce_plan(
     *,
     source_description: str,
     dry_run: bool = False,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _normalize_automation_plan(
         raw_plan,
         source_description=source_description,
         dry_run=dry_run,
+        hpc_context=hpc_context,
     )
 
 
@@ -2173,11 +2524,13 @@ def _normalize_research_plan(
     *,
     source_description: str,
     dry_run: bool = False,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _normalize_automation_plan(
         raw_plan,
         source_description=source_description,
         dry_run=dry_run,
+        hpc_context=hpc_context,
     )
 
 
@@ -2343,6 +2696,7 @@ def _generate_mode_plan(
     log_tag: str,
     dry_run: bool = False,
     data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Generate + audit a workflow plan used by both `reproduce` and `research`."""
 
@@ -2355,6 +2709,11 @@ def _generate_mode_plan(
     ]
     if dry_run:
         planner_prompt_parts.append(f"\n{WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX}\n")
+    planner_prompt_parts.append(
+        "\nExecution target constraints:\n"
+        + "\n".join(_build_hpc_prompt_lines(hpc_context))
+        + "\n"
+    )
     planner_prompt = "".join(planner_prompt_parts)
     planner_plan: dict[str, object] | None = None
     for attempt in range(1, planner_max_tries + 1):
@@ -2386,6 +2745,7 @@ def _generate_mode_plan(
                 raw_payload,
                 source_description=source_description,
                 dry_run=dry_run,
+                hpc_context=hpc_context,
             )
         except cli.PackageError as exc:
             cli._print_tagged(log_tag, f"planner response invalid: {exc}", stderr=True)
@@ -2493,6 +2853,11 @@ def _generate_mode_plan(
         )
     if dry_run:
         auditor_prompt_parts.append(f"\n{WORKFLOW_DRY_RUN_AUDITOR_PROMPT_SUFFIX}\n")
+    auditor_prompt_parts.append(
+        "\nExecution target constraints:\n"
+        + "\n".join(_build_hpc_prompt_lines(hpc_context))
+        + "\n"
+    )
     auditor_prompt = "".join(auditor_prompt_parts)
     for attempt in range(1, auditor_max_tries + 1):
         cli._print_tagged(log_tag, f"auditor attempt {attempt}/{auditor_max_tries}")
@@ -2523,6 +2888,7 @@ def _generate_mode_plan(
                 raw_payload,
                 source_description=source_description,
                 dry_run=dry_run,
+                hpc_context=hpc_context,
             )
         except cli.PackageError as exc:
             cli._print_tagged(log_tag, f"auditor response invalid: {exc}", stderr=True)
@@ -2571,6 +2937,7 @@ def _generate_reproduce_plan(
     dry_run: bool = False,
     run_dir: Path | None = None,
     data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _generate_mode_plan(
         repo_dir=repo_dir,
@@ -2590,6 +2957,7 @@ def _generate_reproduce_plan(
         log_tag="reproduce",
         dry_run=dry_run,
         data_context=data_context,
+        hpc_context=hpc_context,
     )
 
 
@@ -2606,6 +2974,7 @@ def _generate_research_plan(
     dry_run: bool = False,
     run_dir: Path | None = None,
     data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _generate_mode_plan(
         repo_dir=repo_dir,
@@ -2625,6 +2994,7 @@ def _generate_research_plan(
         log_tag="research",
         dry_run=dry_run,
         data_context=data_context,
+        hpc_context=hpc_context,
     )
 
 
@@ -2835,6 +3205,7 @@ def _maybe_sync_mode_plan_from_disk(
     workflow_name: str,
     dry_run: bool = False,
     data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
 ) -> bool:
     cli = _cli()
     state_status = str(state.get("status") or "")
@@ -2865,6 +3236,7 @@ def _maybe_sync_mode_plan_from_disk(
         raw_plan,
         source_description=source_description,
         dry_run=dry_run,
+        hpc_context=hpc_context,
     )
     if _is_data_context_enabled(data_context):
         artifacts = data_context.get("artifacts") if isinstance(data_context, dict) else {}
@@ -2928,6 +3300,151 @@ def _capture_signatures(
     return {str(path): _capture_file_signature(path) for path in paths}
 
 
+def _set_file_executable(path: Path) -> None:
+    cli = _cli()
+    try:
+        mode = path.stat().st_mode
+        path.chmod(mode | 0o111)
+    except OSError as exc:
+        raise cli.PackageError(f"Failed to mark script executable: {path}: {exc}") from exc
+
+
+def _render_workflow_stage_driver_script(
+    *,
+    workflow_name: str,
+    run_id: str,
+    stage_label: str,
+    task_script_relpaths: list[tuple[str, str]],
+) -> str:
+    stage_slug = stage_label.lower().replace(" ", "_")
+    entries = [
+        f"  {shlex.quote(task_id + '|' + rel_path)}"
+        for task_id, rel_path in task_script_relpaths
+    ]
+    entries_block = "\n".join(entries) if entries else "  ''"
+    total_count = len(task_script_relpaths)
+    return (
+        "#!/usr/bin/env bash\n"
+        "set -u -o pipefail\n"
+        "\n"
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        'RUN_DIR="$SCRIPT_DIR"\n'
+        "\n"
+        f'STAGE_LABEL="{stage_label}"\n'
+        f'STAGE_SLUG="{stage_slug}"\n'
+        f'WORKFLOW_NAME="{workflow_name}"\n'
+        f'RUN_ID="{run_id}"\n'
+        f"TOTAL_COUNT={total_count}\n"
+        "SUCCESS_COUNT=0\n"
+        "FAILURES=()\n"
+        "\n"
+        "TASK_ENTRIES=(\n"
+        f"{entries_block}\n"
+        ")\n"
+        "\n"
+        'echo "[${STAGE_SLUG}] workflow=${WORKFLOW_NAME} run_id=${RUN_ID}"\n'
+        'echo "[${STAGE_SLUG}] tasks=${TOTAL_COUNT}"\n'
+        "\n"
+        "for entry in \"${TASK_ENTRIES[@]}\"; do\n"
+        "  if [[ -z \"$entry\" ]]; then\n"
+        "    continue\n"
+        "  fi\n"
+        "  task_id=\"${entry%%|*}\"\n"
+        "  rel_script=\"${entry#*|}\"\n"
+        "  task_script=\"$RUN_DIR/$rel_script\"\n"
+        "\n"
+        "  if [[ ! -f \"$task_script\" ]]; then\n"
+        "    echo \"[warn] ${task_id}: missing script ${rel_script}\" >&2\n"
+        "    FAILURES+=(\"${task_id}:missing_script\")\n"
+        "    continue\n"
+        "  fi\n"
+        "\n"
+        "  echo \"[run] ${task_id}: bash ${rel_script}\"\n"
+        "  if bash \"$task_script\"; then\n"
+        "    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))\n"
+        "    echo \"[ok] ${task_id}\"\n"
+        "  else\n"
+        "    exit_code=$?\n"
+        "    echo \"[error] ${task_id}: exit=${exit_code}\" >&2\n"
+        "    FAILURES+=(\"${task_id}:exit_${exit_code}\")\n"
+        "  fi\n"
+        "done\n"
+        "\n"
+        'echo "[summary] ${STAGE_SLUG}: success=${SUCCESS_COUNT}/${TOTAL_COUNT}"\n'
+        "if [[ ${#FAILURES[@]} -gt 0 ]]; then\n"
+        '  echo "[summary] ${STAGE_SLUG}: failures=${#FAILURES[@]}" >&2\n'
+        "  for item in \"${FAILURES[@]}\"; do\n"
+        '    echo "  - ${item}" >&2\n'
+        "  done\n"
+        "  exit 1\n"
+        "fi\n"
+        "exit 0\n"
+    )
+
+
+def _write_workflow_stage_driver_scripts(
+    *,
+    run_dir: Path,
+    workflow_name: str,
+    run_id: str,
+    simulation_task_scripts: list[tuple[str, Path]],
+    postprocess_task_scripts: list[tuple[str, Path]],
+    plot_task_scripts: list[tuple[str, Path]],
+) -> dict[str, object]:
+    simulation_path = run_dir / WORKFLOW_SIMULATION_BATCH_SCRIPT_FILENAME
+    postprocess_path = run_dir / WORKFLOW_POSTPROCESS_BATCH_SCRIPT_FILENAME
+    plot_path = run_dir / WORKFLOW_PLOT_BATCH_SCRIPT_FILENAME
+
+    simulation_rel = [
+        (task_id, str(path.relative_to(run_dir)))
+        for task_id, path in simulation_task_scripts
+    ]
+    postprocess_rel = [
+        (task_id, str(path.relative_to(run_dir)))
+        for task_id, path in postprocess_task_scripts
+    ]
+    plot_rel = [
+        (task_id, str(path.relative_to(run_dir)))
+        for task_id, path in plot_task_scripts
+    ]
+
+    _write_text_file(
+        simulation_path,
+        _render_workflow_stage_driver_script(
+            workflow_name=workflow_name,
+            run_id=run_id,
+            stage_label="simulation",
+            task_script_relpaths=simulation_rel,
+        ),
+    )
+    _write_text_file(
+        postprocess_path,
+        _render_workflow_stage_driver_script(
+            workflow_name=workflow_name,
+            run_id=run_id,
+            stage_label="postprocess",
+            task_script_relpaths=postprocess_rel,
+        ),
+    )
+    _write_text_file(
+        plot_path,
+        _render_workflow_stage_driver_script(
+            workflow_name=workflow_name,
+            run_id=run_id,
+            stage_label="plot",
+            task_script_relpaths=plot_rel,
+        ),
+    )
+    _set_file_executable(simulation_path)
+    _set_file_executable(postprocess_path)
+    _set_file_executable(plot_path)
+    return {
+        "simulation_script_path": str(simulation_path),
+        "postprocess_script_path": str(postprocess_path),
+        "plot_script_path": str(plot_path),
+    }
+
+
 def _validate_report_stage_artifacts(
     *,
     stage_label: str,
@@ -2936,6 +3453,8 @@ def _validate_report_stage_artifacts(
     before_report_signature: tuple[int, int, str] | None,
     before_summary_signatures: dict[str, tuple[int, int, str] | None],
     required_marker: str,
+    required_files: list[Path] | None = None,
+    before_required_signatures: dict[str, tuple[int, int, str] | None] | None = None,
 ) -> str | None:
     errors: list[str] = []
     report_signature = _capture_file_signature(report_path)
@@ -2961,10 +3480,30 @@ def _validate_report_stage_artifacts(
         if summary_signature[0] <= 0:
             errors.append(f"empty summary file: {summary_path}")
 
+    required_signatures: dict[str, tuple[int, int, str] | None] = {}
+    if isinstance(required_files, list):
+        required_signatures = _capture_signatures(required_files)
+        for required_path in required_files:
+            required_signature = required_signatures.get(str(required_path))
+            if required_signature is None:
+                errors.append(f"missing required file: {required_path}")
+                continue
+            if required_signature[0] <= 0:
+                errors.append(f"empty required file: {required_path}")
+
     artifacts_updated = report_signature != before_report_signature
     if not artifacts_updated:
         for path_text, after_signature in summary_signatures.items():
             if after_signature != before_summary_signatures.get(path_text):
+                artifacts_updated = True
+                break
+    if (
+        not artifacts_updated
+        and isinstance(before_required_signatures, dict)
+        and required_signatures
+    ):
+        for path_text, after_signature in required_signatures.items():
+            if after_signature != before_required_signatures.get(path_text):
                 artifacts_updated = True
                 break
     if not artifacts_updated:
@@ -2987,6 +3526,7 @@ def _finalize_workflow_report(
     sandbox_override: str | None,
     codex_bin: str,
     data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Generate and audit final workflow reports for `reproduce` and `research`."""
 
@@ -3013,6 +3553,9 @@ def _finalize_workflow_report(
             return str(path)
 
     summary_paths: list[Path] = []
+    simulation_task_scripts: list[tuple[str, Path]] = []
+    postprocess_task_scripts: list[tuple[str, Path]] = []
+    plot_task_scripts: list[tuple[str, Path]] = []
     task_lines: list[str] = []
     for index, task in enumerate(tasks_state, start=1):
         task_id = (
@@ -3021,8 +3564,36 @@ def _finalize_workflow_report(
         summary_path = summaries_root / task_id / "summary.md"
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         summary_paths.append(summary_path)
+        simulation_task_script = (
+            summaries_root / task_id / WORKFLOW_TASK_SIMULATION_SCRIPT_FILENAME
+        )
+        postprocess_task_script = (
+            summaries_root / task_id / WORKFLOW_TASK_POSTPROCESS_SCRIPT_FILENAME
+        )
+        plot_task_script = summaries_root / task_id / WORKFLOW_TASK_PLOT_SCRIPT_FILENAME
+        simulation_task_scripts.append((task_id, simulation_task_script))
+        postprocess_task_scripts.append((task_id, postprocess_task_script))
+        plot_task_scripts.append((task_id, plot_task_script))
         task_title = str(task.get("title") or task_id).strip() or task_id
-        task_lines.append(f"- {task_id}: {task_title} -> {_display_path(summary_path)}")
+        task_lines.append(
+            "\n".join(
+                [
+                    f"- {task_id}: {task_title}",
+                    f"  - summary: {_display_path(summary_path)}",
+                    f"  - simulation script: {_display_path(simulation_task_script)}",
+                    f"  - postprocess script: {_display_path(postprocess_task_script)}",
+                    f"  - plot script: {_display_path(plot_task_script)}",
+                ]
+            )
+        )
+
+    required_stage_files: list[Path] = (
+        [path for _, path in simulation_task_scripts]
+        + [path for _, path in postprocess_task_scripts]
+        + [path for _, path in plot_task_scripts]
+    )
+    hpc_prompt_lines = _build_hpc_prompt_lines(hpc_context)
+    execution_target_block = "\n".join(hpc_prompt_lines)
 
     generator_prompt = (
         f"{WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX}\n"
@@ -3035,11 +3606,22 @@ def _finalize_workflow_report(
         f"- Task memory archive directory: {_display_path(run_dir / REPRODUCE_ARCHIVE_DIRNAME)}\n"
         f"- Existing run logs directory: {_display_path(run_dir / REPRODUCE_LOGS_DIRNAME)}\n"
         "\n"
-        "Create/update one summary for each completed task at:\n"
+        "Execution target constraints:\n"
+        f"{execution_target_block}\n"
+        "\n"
+        "For each task, create/update one summary and three runnable task scripts at:\n"
         + "\n".join(task_lines)
         + "\n\n"
         "Then create/update a polished top-level markdown report at:\n"
         f"- {_display_path(report_path)}\n"
+        "\n"
+        "Task script requirements:\n"
+        "1) Each task script must be valid bash with shebang (`#!/usr/bin/env bash`).\n"
+        "2) Each task script should use `set -euo pipefail`.\n"
+        "3) `run_simulation.sh` should contain simulation submission/execution commands for that task.\n"
+        "4) `run_postprocess.sh` should contain post-processing commands for that task.\n"
+        "5) `run_plot.sh` should contain plotting commands for that task.\n"
+        "6) Prefer concrete commands from task artifacts; if uncertain, include explicit TODO comments while keeping script syntax valid.\n"
         "\n"
         "Report requirements:\n"
         "1) Brief objective and methodology sections.\n"
@@ -3056,6 +3638,7 @@ def _finalize_workflow_report(
         cli._print_tagged(workflow_name, f"report generation attempt {attempt}/2")
         before_report_signature = _capture_file_signature(report_path)
         before_summary_signatures = _capture_signatures(summary_paths)
+        before_required_signatures = _capture_signatures(required_stage_files)
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
             prompt=generator_prompt,
@@ -3073,6 +3656,8 @@ def _finalize_workflow_report(
                 before_report_signature=before_report_signature,
                 before_summary_signatures=before_summary_signatures,
                 required_marker=generation_marker,
+                required_files=required_stage_files,
+                before_required_signatures=before_required_signatures,
             )
             if generation_validation_error is None:
                 break
@@ -3115,6 +3700,7 @@ def _finalize_workflow_report(
         cli._print_tagged(workflow_name, f"report audit attempt {attempt}/2")
         before_report_signature = _capture_file_signature(report_path)
         before_summary_signatures = _capture_signatures(summary_paths)
+        before_required_signatures = _capture_signatures(required_stage_files)
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
             prompt=auditor_prompt,
@@ -3132,6 +3718,8 @@ def _finalize_workflow_report(
                 before_report_signature=before_report_signature,
                 before_summary_signatures=before_summary_signatures,
                 required_marker=audit_marker,
+                required_files=required_stage_files,
+                before_required_signatures=before_required_signatures,
             )
             if audit_validation_error is None:
                 break
@@ -3147,10 +3735,20 @@ def _finalize_workflow_report(
                 or f"{workflow_name.title()} report audit failed (exit code {return_code})."
             )
 
+    stage_driver_paths = _write_workflow_stage_driver_scripts(
+        run_dir=run_dir,
+        workflow_name=workflow_name,
+        run_id=run_id,
+        simulation_task_scripts=simulation_task_scripts,
+        postprocess_task_scripts=postprocess_task_scripts,
+        plot_task_scripts=plot_task_scripts,
+    )
+
     return {
         "report_path": str(report_path),
         "summaries_root": str(summaries_root),
         "summary_count": len(summary_paths),
+        **stage_driver_paths,
     }
 
 
@@ -3302,6 +3900,10 @@ def cmd_plan_workflow(
         workflow_name=workflow_name,
         args=args,
     )
+    invocation_hpc_context = _resolve_invocation_hpc_context(
+        repo_dir=repo_dir,
+        args=args,
+    )
 
     state_data_context = _coerce_saved_data_context(state)
     if created_new_run:
@@ -3313,6 +3915,16 @@ def cmd_plan_workflow(
         invocation_data_context=invocation_data_context,
     )
     state["data_context"] = state_data_context
+    state_hpc_context = _coerce_saved_hpc_context(state)
+    if created_new_run:
+        state_hpc_context = invocation_hpc_context
+    _assert_hpc_context_compatible(
+        run_id=str(run_dir.name),
+        workflow_name=workflow_name,
+        state_hpc_context=state_hpc_context,
+        invocation_hpc_context=invocation_hpc_context,
+    )
+    state["hpc_context"] = state_hpc_context
 
     if created_new_run:
         cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
@@ -3370,6 +3982,15 @@ def cmd_plan_workflow(
             if summary_rel:
                 cli._print_tagged(workflow_name, f"data summary: {summary_rel}")
     cli._print_tagged(workflow_name, f"run dir: {run_dir.relative_to(repo_dir)}")
+    if _is_hpc_context_enabled(state_hpc_context):
+        hpc_profile_rel = str(state_hpc_context.get("profile_relpath") or "").strip()
+        hpc_profile_path = str(state_hpc_context.get("profile_path") or "").strip()
+        hpc_profile_label = hpc_profile_rel or hpc_profile_path
+        cli._print_tagged(workflow_name, "execution target: hpc_slurm")
+        if hpc_profile_label:
+            cli._print_tagged(workflow_name, f"hpc profile: {hpc_profile_label}")
+    else:
+        cli._print_tagged(workflow_name, "execution target: local")
 
     state_status = str(state.get("status") or "planning")
     tasks_state_raw = state.get("tasks")
@@ -3391,6 +4012,7 @@ def cmd_plan_workflow(
             auditor_max_tries=auditor_max_tries,
             dry_run=dry_run,
             data_context=state_data_context,
+            hpc_context=state_hpc_context,
         )
         cli._materialize_mode_plan(
             run_dir=run_dir,
@@ -3419,6 +4041,7 @@ def cmd_plan_workflow(
         workflow_name=workflow_name,
         dry_run=dry_run,
         data_context=state_data_context,
+        hpc_context=state_hpc_context,
     )
     if plan_synced:
         cli._print_tagged(workflow_name, "synced plan from plan.json")
@@ -3437,6 +4060,25 @@ def cmd_plan_workflow(
         task_runs_state = {}
         state["task_runs"] = task_runs_state
 
+    def _print_report_artifacts(report_payload: object) -> None:
+        if not isinstance(report_payload, dict):
+            return
+        artifact_labels = [
+            ("report_path", "report"),
+            ("simulation_script_path", "simulation script"),
+            ("postprocess_script_path", "postprocess script"),
+            ("plot_script_path", "plot script"),
+        ]
+        for key, label in artifact_labels:
+            raw_path = str(report_payload.get(key) or "").strip()
+            if not raw_path:
+                continue
+            try:
+                relative = str(Path(raw_path).relative_to(repo_dir))
+            except Exception:
+                relative = raw_path
+            cli._print_tagged(workflow_name, f"{label}: {relative}")
+
     if report_only:
         try:
             report_info = cli._finalize_workflow_report(
@@ -3450,6 +4092,7 @@ def cmd_plan_workflow(
                 sandbox_override=args.sandbox,
                 codex_bin=args.codex_bin,
                 data_context=state_data_context,
+                hpc_context=state_hpc_context,
             )
         except cli.PackageError as exc:
             state["last_error"] = str(exc)
@@ -3461,13 +4104,7 @@ def cmd_plan_workflow(
         state["last_error"] = ""
         state["updated_at_utc"] = cli._utc_now_z()
         cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
-        report_path = str(report_info.get("report_path") or "").strip()
-        if report_path:
-            try:
-                relative_report = str(Path(report_path).relative_to(repo_dir))
-            except Exception:
-                relative_report = report_path
-            cli._print_tagged(workflow_name, f"report: {relative_report}")
+        _print_report_artifacts(report_info)
         return 0
 
     state["status"] = "running_tasks"
@@ -3563,6 +4200,7 @@ def cmd_plan_workflow(
                         sandbox_override=args.sandbox,
                         codex_bin=args.codex_bin,
                         data_context=state_data_context,
+                        hpc_context=state_hpc_context,
                     )
                 except cli.PackageError as exc:
                     state["status"] = "failed"
@@ -3578,18 +4216,7 @@ def cmd_plan_workflow(
             state["last_error"] = ""
             state["updated_at_utc"] = cli._utc_now_z()
             cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
-            report_payload = state.get("report")
-            report_path = (
-                str(report_payload.get("report_path") or "").strip()
-                if isinstance(report_payload, dict)
-                else ""
-            )
-            if report_path:
-                try:
-                    relative_report = str(Path(report_path).relative_to(repo_dir))
-                except Exception:
-                    relative_report = report_path
-                cli._print_tagged(workflow_name, f"report: {relative_report}")
+            _print_report_artifacts(state.get("report"))
             print(cli.LOOP_DONE_TOKEN)
             return 0
 
@@ -3660,6 +4287,9 @@ def cmd_plan_workflow(
             workflow_prompt_preamble_lines.append(
                 "- No archived memory exists yet for this run."
             )
+        workflow_prompt_preamble_lines.extend(
+            ["", "Execution target constraints:", *_build_hpc_prompt_lines(state_hpc_context)]
+        )
         if dry_run:
             workflow_prompt_preamble_lines.extend(["", WORKFLOW_DRY_RUN_LOOP_PREAMBLE])
         workflow_prompt_preamble = "\n".join(workflow_prompt_preamble_lines).strip()
@@ -3683,6 +4313,9 @@ def cmd_plan_workflow(
                 f"- plan_json: {_memory_relpath(plan_path)} (overall workflow task plan)",
                 f"- state_json: {_memory_relpath(state_path)} (workflow progress and task status)",
             ]
+            workflow_context_lines.extend(
+                ["- execution_target_context:", *_build_hpc_prompt_lines(state_hpc_context)]
+            )
             if _is_data_context_enabled(state_data_context):
                 if data_manifest_rel:
                     workflow_context_lines.append(

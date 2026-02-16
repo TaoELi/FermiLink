@@ -98,11 +98,21 @@ publication-scale requests.
    fermilink reproduce paper.tex --data-dir ./data
    fermilink reproduce paper.tex --dry-run
    fermilink reproduce paper.tex --enforce-simulation
+   fermilink reproduce paper.tex --hpc-profile scripts/hpc_profile_anvil.json
    fermilink reproduce paper.tex --report-only
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
 ``report.md``).
+After successful report finalization, three orchestration scripts are generated
+at run root:
+
+- ``01_run_simulations.sh``: executes all task-level simulation scripts while
+  continuing across per-task failures;
+- ``02_run_postprocess.sh``: executes all task-level post-processing scripts
+  with the same failure-tolerant behavior;
+- ``03_run_plots.sh``: executes all task-level plotting scripts with the same
+  failure-tolerant behavior.
 When ``--data-dir`` is provided, additional run-scoped artifacts are written to
 ``projects/reproduce/<run-id>/data/``:
 
@@ -121,6 +131,10 @@ By default, ``reproduce`` runs in dry-run scaffold mode (prepare simulation
 inputs, post-processing/plot scripts, and README instructions) without running
 full simulations. Use ``--enforce-simulation`` to disable dry-run and run
 actual simulations.
+By default, workflow execution target is local-machine mode (no SLURM).
+Use ``--hpc-profile <json>`` to switch planning/prompts to HPC SLURM-ready
+artifacts. ``--hpc-profile`` has highest precedence over package/skill defaults.
+An example profile is available at ``scripts/hpc_profile_anvil.json``.
 
 Research workflows
 ------------------
@@ -135,12 +149,17 @@ paper.
    fermilink research idea.md --data-dir ./data
    fermilink research idea.md --dry-run
    fermilink research idea.md --enforce-simulation
+   fermilink research idea.md --hpc-profile scripts/hpc_profile_anvil.json
    fermilink research idea.md --report-only
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
 ``report.md``) and support resume from edited plan state. ``--data-dir`` uses
 the same run-scoped ``data/`` artifact contract and read-only defaults as
 ``reproduce``.
+``research`` uses the same local-default / ``--hpc-profile`` override behavior
+as ``reproduce`` for execution-target-specific artifact generation.
+The same three end-stage orchestration scripts are also generated under
+``projects/research/<run-id>/``.
 
 Automated package onboarding
 ----------------------------

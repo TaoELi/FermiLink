@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "cluster_name": "Purdue Anvil",
+  "scheduler": "slurm",
+  "default_partition": "shared",
+  "partitions": {
+    "shared": {
+      "description": "Single-node small jobs (up to 128 CPUs on one node).",
+      "max_nodes": 1,
+      "cpus_per_node": 128
+    },
+    "wholenode": {
+      "description": "Large multi-node jobs or job arrays (up to 36 nodes).",
+      "max_nodes": 36,
+      "cpus_per_node": 128
+    }
+  },
+  "defaults": {
+    "nodes": 1,
+    "ntasks_per_node": 1,
+    "time": "24:00:00",
+    "job_name_prefix": "fermilink"
+  }
+}
