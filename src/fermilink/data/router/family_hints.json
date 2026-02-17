@@ -1,59 +1,81 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-02-14T00:00:00Z",
+  "updated_at": "2026-02-17T17:00:36.476905Z",
   "families": {
     "maxwelllink": {
-      "description": "Routing hints for maxwelllink workflows.",
+      "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
       "strong_keywords": [
         "maxwelllink",
-        "light matter",
-        "maxwell bloch",
-        "quantum optics",
-        "spontaneous emission",
-        "two level system",
-        "two-level system",
-        "weakly excited",
-        "quantum emitter"
+        "self-consistent light-matter simulation",
+        "electromagnetic molecular co-simulation",
+        "socket-based light-matter coupling",
+        "meep fdtd integration",
+        "single-mode cavity solver",
+        "multilevel open quantum systems",
+        "fix mxl coupling"
       ],
       "keywords": [
-        "radiative decay",
-        "driven two level",
-        "photonics",
-        "population dynamics",
-        "density matrix",
-        "dephasing",
-        "purcell",
-        "vacuum coupling"
+        "cavity qed simulation",
+        "first-principles molecular dynamics coupling",
+        "real-time tddft ehrenfest",
+        "heterogeneous molecular drivers",
+        "embedded molecular driver interface",
+        "hpc slurm simulation workflow",
+        "maxwelllink input generation",
+        "tls cavity dynamics",
+        "psi4 ase interoperability",
+        "unified em molecular python framework"
       ],
       "negative_keywords": [
-        "gromacs"
+        "astropy",
+        "lightkurve",
+        "exoplanet",
+        "batman",
+        "cantera",
+        "openbabel",
+        "gromacs",
+        "hoomd-blue",
+        "mitgcm",
+        "amuse"
       ]
     },
     "meep": {
-      "description": "Routing hints for meep workflows.",
+      "description": "Use this family for intents about FDTD Maxwell-wave simulations, photonic device modeling, and electromagnetic field spectrum analysis.",
       "strong_keywords": [
         "meep",
-        "fdtd",
-        "finite difference time domain"
+        "finite-difference time-domain",
+        "fdtd electromagnetics",
+        "maxwell equations time domain",
+        "electromagnetic wave propagation",
+        "computational photonics",
+        "pml absorbing boundaries",
+        "bloch periodic boundaries",
+        "frequency-domain eigensolver"
       ],
       "keywords": [
-        "waveguide",
-        "pml",
-        "photonic crystal",
-        "dielectric"
+        "photonic crystal simulation",
+        "waveguide mode decomposition",
+        "near to far field transform",
+        "poynting flux spectrum",
+        "local density of states",
+        "resonant cavity modes",
+        "dispersive anisotropic materials",
+        "nonlinear kerr pockels media",
+        "gdsii layout import",
+        "s parameter extraction",
+        "cylindrical coordinate simulation"
       ],
       "negative_keywords": [
-        "qchem",
-        "gaussian",
-        "lammps",
         "gromacs",
-        "spontaneous emission",
-        "two level system",
-        "two-level system",
-        "weakly excited",
-        "density matrix",
-        "population dynamics",
-        "maxwell bloch"
+        "lammps",
+        "hoomd-blue",
+        "astropy",
+        "lightkurve",
+        "openbabel",
+        "cantera",
+        "nwchem",
+        "cesm",
+        "mitgcm"
       ]
     },
     "qchem": {
@@ -96,149 +118,82 @@
         "gromacs"
       ]
     },
-    "elk": {
-      "description": "Routing hints for elk workflows.",
-      "strong_keywords": [
-        "elk",
-        "electronic structure",
-        "density functional theory",
-        "fp-lapw"
-      ],
-      "keywords": [
-        "all-electron",
-        "full-potential linearized augmented-plane wave",
-        "band structure",
-        "k-point",
-        "muffin-tin",
-        "dft",
-        "scf"
-      ],
-      "negative_keywords": [
-        "fdtd",
-        "lammps",
-        "gromacs"
-      ]
-    },
     "lammps": {
-      "description": "Routing hints for lammps workflows.",
+      "description": "Route requests about classical molecular dynamics, force-field driven atomistic modeling, and large-scale parallel particle simulations to this package family.",
       "strong_keywords": [
         "lammps",
+        "molecular dynamics",
         "classical md",
-        "molecular dynamics"
+        "atomistic simulation",
+        "force fields",
+        "pair styles",
+        "fix nvt",
+        "reaxff",
+        "eam potential"
       ],
       "keywords": [
-        "force field",
-        "pair style",
-        "nvt",
-        "npt"
+        "materials modeling",
+        "coarse grained simulation",
+        "polymer simulation",
+        "granular dynamics",
+        "long range electrostatics",
+        "neighbor list",
+        "thermostat barostat",
+        "npt ensemble",
+        "langevin dynamics",
+        "trajectory dump",
+        "input script",
+        "mpi scaling"
       ],
       "negative_keywords": [
-        "qchem",
-        "gaussian",
-        "fdtd"
-      ]
-    },
-    "ase": {
-      "description": "Routing hints for ase workflows.",
-      "strong_keywords": [
-        "ase",
-        "atomic simulation environment",
-        "atoms object"
-      ],
-      "keywords": [
-        "calculator",
-        "geometry optimization",
-        "structure relaxation",
-        "build surface",
-        "neb",
-        "trajectory"
-      ],
-      "negative_keywords": [
-        "fdtd",
-        "maxwell bloch",
-        "gromacs"
+        "astropy",
+        "lightkurve",
+        "cantera",
+        "openbabel",
+        "nwchem",
+        "meep",
+        "mitgcm",
+        "mom6",
+        "amuse",
+        "arc"
       ]
     },
     "qutip": {
-      "description": "Routing hints for qutip workflows.",
+      "description": "Routes requests about numerical quantum dynamics, Lindblad open-system solvers, operator-state representations, and quantum optics modeling in Python.",
       "strong_keywords": [
         "qutip",
         "quantum toolbox in python",
-        "lindblad",
-        "master equation"
+        "open quantum systems",
+        "lindblad master equation",
+        "schrodinger equation solver",
+        "quantum optics simulation",
+        "collapse operators",
+        "density matrix dynamics"
       ],
       "keywords": [
-        "open quantum system",
-        "hamiltonian",
-        "collapse operator",
-        "density matrix",
+        "time dependent hamiltonian",
+        "liouvillian superoperator",
+        "quantum trajectories",
+        "monte carlo wave function",
+        "steady state solver",
         "bloch sphere",
-        "time evolution"
+        "fock basis",
+        "spin systems",
+        "jaynes cummings model",
+        "dissipative dynamics",
+        "entanglement entropy"
       ],
       "negative_keywords": [
-        "fdtd",
-        "lammps",
-        "gromacs"
-      ]
-    },
-    "kwant": {
-      "description": "Routing hints for kwant workflows.",
-      "strong_keywords": [
+        "ase",
         "kwant",
-        "quantum transport",
-        "tight-binding",
-        "tight binding",
-        "scattering matrix"
-      ],
-      "keywords": [
-        "conductance",
-        "greens function",
-        "wave function",
-        "dispersion relation",
-        "band structure",
-        "builder",
-        "smatrix",
-        "quantum hall",
-        "topological insulator"
-      ],
-      "negative_keywords": [
-        "fdtd",
-        "finite difference time domain",
-        "maxwell bloch",
-        "qchem",
-        "gaussian",
-        "hartree fock",
-        "molecular dynamics",
         "lammps",
-        "gromacs"
-      ]
-    },
-    "tkwant": {
-      "description": "Routing hints for tkwant workflows.",
-      "strong_keywords": [
-        "tkwant",
-        "time-dependent quantum transport",
-        "time dependent quantum transport"
-      ],
-      "keywords": [
-        "time-dependent quantum dynamics",
-        "mesoscopic systems",
-        "time-dependent generalization of kwant",
-        "transient quantum transport",
-        "nonequilibrium dynamics",
-        "kwant"
-      ],
-      "negative_keywords": [
-        "fdtd",
-        "finite difference time domain",
-        "maxwell bloch",
+        "meep",
+        "oqupy",
+        "packmol",
+        "psi4",
+        "pyscf",
         "qchem",
-        "gaussian",
-        "hartree fock",
-        "classical md",
-        "molecular dynamics",
-        "lammps",
-        "gromacs"
+        "gaussian"
       ]
     },
     "oqupy": {
@@ -280,98 +235,1924 @@
       ]
     },
     "psi4": {
-      "description": "Routing hints for psi4 workflows.",
+      "description": "Use this family for molecular quantum chemistry intents involving ab initio electronic structure methods and Psi4 job workflows.",
       "strong_keywords": [
         "psi4",
-        "electronic structure",
+        "psithon",
+        "psiapi",
         "quantum chemistry",
-        "ab initio"
+        "electronic structure",
+        "ab initio",
+        "density functional theory",
+        "hartree fock",
+        "coupled cluster",
+        "basis set"
       ],
       "keywords": [
-        "scf",
+        "molecular properties",
+        "geometry optimization",
+        "vibrational frequencies",
         "mp2",
         "ccsd",
-        "basis set",
-        "hartree fock",
-        "dft"
+        "scf convergence",
+        "wavefunction",
+        "molecular orbitals",
+        "energy gradients",
+        "response properties"
       ],
       "negative_keywords": [
-        "fdtd",
+        "pyscf",
         "lammps",
-        "gromacs",
-        "pyscf"
+        "rdkit",
+        "openbabel",
+        "astropy",
+        "photutils",
+        "qutip",
+        "deepchem",
+        "amuse",
+        "arc"
       ]
     },
     "pyscf": {
-      "description": "Routing hints for pyscf workflows.",
+      "description": "Route intents about first-principles electronic-structure chemistry in Python, including SCF and correlated wavefunction methods for molecules and materials, to this package family.",
       "strong_keywords": [
         "pyscf",
-        "python-based simulations of chemistry framework",
+        "quantum chemistry",
         "electronic structure",
-        "quantum chemistry"
+        "self-consistent field",
+        "hartree fock",
+        "post-hf methods",
+        "multireference",
+        "molecular integrals",
+        "gaussian basis",
+        "periodic electronic structure"
       ],
       "keywords": [
-        "scf",
-        "hartree fock",
-        "dft",
+        "density functional theory",
+        "kohn sham",
+        "coupled cluster",
         "mp2",
-        "ccsd",
         "casscf",
-        "active space",
-        "basis set",
-        "molecular orbital",
-        "density fitting"
+        "fci",
+        "ao to mo transformation",
+        "relativistic quantum chemistry",
+        "periodic boundary conditions",
+        "k-point sampling",
+        "pyscf-forge",
+        "dmrgscf"
       ],
       "negative_keywords": [
-        "fdtd",
+        "psi4",
+        "rdkit",
+        "openbabel",
+        "openff-toolkit",
         "lammps",
-        "gromacs",
-        "psi4"
+        "qutip",
+        "astropy",
+        "lightkurve",
+        "deepchem",
+        "meep"
       ]
     },
     "gromacs": {
-      "description": "Routing hints for gromacs workflows.",
+      "description": "Use this route for atomistic molecular dynamics simulations, force-field based system preparation, production runs, and trajectory analysis in biomolecular or soft-matter studies.",
       "strong_keywords": [
         "gromacs",
-        "gmx",
-        "classical md",
-        "molecular dynamics"
+        "molecular dynamics",
+        "md simulation",
+        "biomolecular simulation",
+        "free energy calculations",
+        "trajectory analysis",
+        "force fields",
+        "pme electrostatics",
+        "gpu acceleration"
       ],
       "keywords": [
-        "mdp",
-        "topol",
-        "nvt",
-        "npt"
+        "protein simulation",
+        "lipid bilayer",
+        "solvent equilibration",
+        "energy minimization",
+        "nvt ensemble",
+        "npt ensemble",
+        "umbrella sampling",
+        "replica exchange",
+        "periodic boundary conditions",
+        "topology generation",
+        "neighbor lists",
+        "thermostat barostat"
       ],
       "negative_keywords": [
-        "qchem",
-        "gaussian",
-        "fdtd"
+        "lammps",
+        "psi4",
+        "pyscf",
+        "nwchem",
+        "rdkit",
+        "openbabel",
+        "packmol",
+        "deepchem",
+        "astropy",
+        "qutip"
       ]
     },
     "packmol": {
-      "description": "Routing hints for packmol workflows.",
+      "description": "Use this family for software that prepares initial molecular simulation structures through geometric packing constraints before dynamics runs.",
       "strong_keywords": [
         "packmol",
-        "initial configurations for molecular dynamics simulations",
-        "spatial constraints"
+        "molecular dynamics initial configuration",
+        "molecule packing",
+        "geometric constraints",
+        "minimum interatomic distance",
+        "steric clash avoidance",
+        "solvent box packing",
+        "lipid bilayer assembly"
       ],
       "keywords": [
-        "molecule packing",
-        "solvation box",
-        "lipid bilayer",
-        "pdb",
-        "xyz",
-        "inside box",
-        "outside sphere",
-        "tolerance"
+        "pdb input",
+        "xyz input",
+        "tinker input",
+        "md system setup",
+        "coordinate generation",
+        "packing optimization",
+        "lamellar structures",
+        "spherical assemblies",
+        "tubular assemblies",
+        "mixture initialization",
+        "docking starting configuration",
+        "simulation pre-processing"
       ],
       "negative_keywords": [
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "astropy",
+        "exoplanet",
+        "nwchem",
+        "espresso",
+        "deepchem",
+        "amuse"
+      ]
+    },
+    "bloqade": {
+      "description": "Use this family for neutral-atom quantum programming, pulse-level control, and compilation or simulation tasks targeting QuEra-style Rydberg platforms.",
+      "strong_keywords": [
+        "bloqade",
+        "neutral atom quantum computing",
+        "neutral atom sdk",
+        "rydberg atom arrays",
+        "quera",
+        "quantum edsl",
+        "pulse sequence programming",
+        "qasm2 dialect",
+        "stim dialect"
+      ],
+      "keywords": [
+        "analog quantum simulation",
+        "quantum compilation",
+        "quantum algorithm prototyping",
+        "atom array programming",
+        "noise extensions",
+        "qasm2 parser",
+        "stim code generation",
+        "structural gate dialect",
+        "atom move dialect",
+        "neutral atom hardware control"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "maxwelllink",
+        "meep",
+        "packmol",
+        "psi4",
+        "pyscf",
         "qchem",
         "gaussian",
-        "fdtd",
-        "meep",
+        "gromacs",
         "qutip"
+      ]
+    },
+    "arc": {
+      "description": "Routes atomic-physics and quantum-optics requests about Rydberg atom structure, interactions, and transition calculations for alkali and alkaline-earth species.",
+      "strong_keywords": [
+        "arc",
+        "arc-alkali-rydberg-calculator",
+        "alkali rydberg calculator",
+        "rydberg atoms",
+        "alkali atoms",
+        "divalent atoms",
+        "stark shift",
+        "transition strengths"
+      ],
+      "keywords": [
+        "single atom properties",
+        "two atom interactions",
+        "level diagrams",
+        "quantum defects",
+        "dipole matrix elements",
+        "van der waals coefficients",
+        "blockade radius",
+        "rubidium",
+        "cesium",
+        "strontium",
+        "ytterbium",
+        "ac stark",
+        "shirley method",
+        "rwa stark shift"
+      ],
+      "negative_keywords": [
+        "bloqade",
+        "lammps",
+        "meep",
+        "oqupy",
+        "packmol",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "qchem",
+        "gaussian"
+      ]
+    },
+    "pylcp": {
+      "description": "Use this family for AMO laser-cooling modeling tasks involving optical Bloch equation construction, atom or molecule internal-state Hamiltonians, laser beam setups, and magnetic-field-dependent force calculations.",
+      "strong_keywords": [
+        "pylcp",
+        "laser cooling physics",
+        "optical bloch equations",
+        "atom-light interaction",
+        "internal hamiltonian blocks",
+        "laser beams",
+        "magnetic field coupling",
+        "force profile"
+      ],
+      "keywords": [
+        "molecular laser cooling",
+        "quadrupole magnetic field",
+        "counterpropagating beams",
+        "detuning",
+        "saturation parameter",
+        "infinite plane wave beam",
+        "governing equation",
+        "zeeman interaction",
+        "radiation pressure force",
+        "magneto optical trap"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "packmol",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian",
+        "meep",
+        "oqupy",
+        "bloqade"
+      ]
+    },
+    "molecool": {
+      "description": "Use this family for atomic, molecular, and optical physics tasks focused on molecular laser cooling, light-matter dynamics, and spectroscopy-informed trapping optimization.",
+      "strong_keywords": [
+        "molecool",
+        "molecular laser cooling",
+        "optical bloch equations",
+        "rate equation dynamics",
+        "light matter interaction simulation",
+        "molecular spectra simulation",
+        "cooling force profiles",
+        "amo physics",
+        "molecule trapping optimization",
+        "magnetic field remixing"
+      ],
+      "keywords": [
+        "diatomic cooling models",
+        "polyatomic cooling models",
+        "hyperfine structure modeling",
+        "dipole matrix elements",
+        "zeeman effects",
+        "sideband laser configuration",
+        "multi-level molecular system",
+        "monte carlo trajectory simulation",
+        "effective hamiltonian fitting",
+        "spectroscopic constant extraction",
+        "laser molecule interactions",
+        "state population dynamics"
+      ],
+      "negative_keywords": [
+        "pylcp",
+        "arc",
+        "bloqade",
+        "lammps",
+        "gromacs",
+        "packmol",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian"
+      ]
+    },
+    "atomsmltr": {
+      "description": "Use this family for cold-atom physics simulations involving atom-light interactions, laser beam setups, magnetic trapping fields, and motional dynamics.",
+      "strong_keywords": [
+        "atomsmltr",
+        "laser cooling",
+        "magneto optical trap",
+        "atom light coupling",
+        "cold atom simulation",
+        "magnetic field trapping",
+        "optical molasses",
+        "atomic trajectory integration"
+      ],
+      "keywords": [
+        "ytterbium atom model",
+        "plane wave laser beam",
+        "zeeman shift detuning",
+        "radiation pressure force",
+        "doppler cooling dynamics",
+        "quadrupole magnetic field",
+        "3d atomic motion",
+        "laser beam geometry",
+        "saturation intensity",
+        "trap loading dynamics"
+      ],
+      "negative_keywords": [
+        "pylcp",
+        "lammps",
+        "gromacs",
+        "packmol",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian",
+        "qutip",
+        "meep"
+      ]
+    },
+    "astropy": {
+      "description": "Use this family for observational astronomy and astrophysics tasks involving celestial coordinates, time standards, physical units, FITS metadata, and cosmological calculations.",
+      "strong_keywords": [
+        "astropy",
+        "astronomy",
+        "astrophysics",
+        "fits",
+        "wcs",
+        "skycoord",
+        "celestial coordinates",
+        "astronomical time",
+        "cosmology",
+        "astropy units"
+      ],
+      "keywords": [
+        "coordinate transformations",
+        "julian date",
+        "sidereal time",
+        "barycentric correction",
+        "spectral coordinate",
+        "fits header",
+        "astropy table",
+        "nddata",
+        "quantity equivalencies",
+        "time scale conversion",
+        "vo table",
+        "uncertainty propagation"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian",
+        "qutip",
+        "packmol",
+        "arc",
+        "atomsmltr"
+      ]
+    },
+    "photutils": {
+      "description": "Use this family for astronomy workflows centered on extracting and measuring sources in 2D telescope images via aperture, PSF, and segmentation-based photometry.",
+      "strong_keywords": [
+        "photutils",
+        "astronomical photometry",
+        "aperture photometry",
+        "psf photometry",
+        "source detection",
+        "star finding",
+        "image segmentation",
+        "background estimation",
+        "isophote fitting"
+      ],
+      "keywords": [
+        "centroiding",
+        "radial profiles",
+        "source extraction",
+        "segmentation maps",
+        "crowded field photometry",
+        "point spread function fitting",
+        "astronomical image analysis",
+        "ccd image processing",
+        "deblending",
+        "detection thresholds"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "packmol",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian",
+        "qutip",
+        "bloqade",
+        "meep"
+      ]
+    },
+    "ccdproc": {
+      "description": "Use for astronomy workflows focused on CCD detector calibration and reduction of raw optical or infrared imaging frames into science-ready data products.",
+      "strong_keywords": [
+        "ccdproc",
+        "ccd image reduction",
+        "astronomical ccd calibration",
+        "bias dark flat correction",
+        "overscan subtraction",
+        "bad pixel mask",
+        "cosmic ray cleaning",
+        "uncertainty propagation"
+      ],
+      "keywords": [
+        "ccddata processing",
+        "master bias",
+        "master dark",
+        "master flat",
+        "trim image",
+        "gain correction",
+        "image combination",
+        "calibrated science frames",
+        "optical astronomy imaging",
+        "infrared detector reduction"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "qchem",
+        "gaussian",
+        "packmol",
+        "meep",
+        "bloqade"
+      ]
+    },
+    "specutils": {
+      "description": "Use this family for astronomy tasks focused on one-dimensional spectral data, spectral line analysis, continuum estimation, and wavelength-domain processing.",
+      "strong_keywords": [
+        "specutils",
+        "astronomical spectroscopy",
+        "astronomical spectra",
+        "spectrum1d",
+        "spectral region",
+        "equivalent width",
+        "continuum fitting",
+        "line flux measurement"
+      ],
+      "keywords": [
+        "emission lines",
+        "absorption lines",
+        "redshift estimation",
+        "doppler shift",
+        "spectral resampling",
+        "spectral smoothing",
+        "spectral masks",
+        "wavelength calibration",
+        "signal to noise",
+        "uncertainty propagation",
+        "region extraction"
+      ],
+      "negative_keywords": [
+        "photutils",
+        "ccdproc",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian",
+        "qutip",
+        "meep"
+      ]
+    },
+    "yt": {
+      "description": "Use this family for requests about analyzing and visualizing multidimensional simulation fields, meshes, and particles in scientific datasets.",
+      "strong_keywords": [
+        "yt",
+        "adaptive mesh refinement",
+        "volumetric data analysis",
+        "volume rendering",
+        "slice plots",
+        "projection plots",
+        "derived fields",
+        "simulation data visualization"
+      ],
+      "keywords": [
+        "unstructured meshes",
+        "structured meshes",
+        "particle data",
+        "data objects",
+        "time series analysis",
+        "profile plots",
+        "astrophysical simulations",
+        "seismology data",
+        "nuclear engineering simulations",
+        "oceanography models",
+        "molecular dynamics outputs"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "photutils",
+        "specutils",
+        "ccdproc",
+        "lammps",
+        "gromacs",
+        "pyscf",
+        "psi4",
+        "qutip",
+        "meep"
+      ]
+    },
+    "swift": {
+      "description": "Routes to astrophysical and cosmological particle-simulation codes centered on gravity and SPH hydrodynamics at extreme scale.",
+      "strong_keywords": [
+        "swift",
+        "swiftsim",
+        "cosmological simulation",
+        "astrophysical hydrodynamics",
+        "smoothed particle hydrodynamics",
+        "gravity solver",
+        "particle based simulation",
+        "swift_mpi"
+      ],
+      "keywords": [
+        "cosmology",
+        "galaxy formation",
+        "nbody dynamics",
+        "hydrodynamical code",
+        "self gravity",
+        "petascale computing",
+        "task based parallelism",
+        "mpi scaling",
+        "baryonic physics",
+        "star formation feedback",
+        "radiative cooling",
+        "dark matter"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "yt",
+        "photutils",
+        "specutils",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "meep"
+      ]
+    },
+    "amuse": {
+      "description": "Use this family for requests about orchestrating astrophysical codes into unified multi-physics simulation pipelines for computational astronomy.",
+      "strong_keywords": [
+        "amuse",
+        "astrophysical multipurpose software environment",
+        "multiphysics astrophysical simulation",
+        "gravitational nbody dynamics",
+        "stellar evolution simulation",
+        "astrophysical hydrodynamics coupling",
+        "community code framework",
+        "computational astrophysics workflows"
+      ],
+      "keywords": [
+        "star cluster modeling",
+        "galaxy evolution simulation",
+        "planetary system dynamics",
+        "few body integrators",
+        "radiative transfer coupling",
+        "bridge method",
+        "initial condition generators",
+        "binary stellar evolution",
+        "self gravitating gas",
+        "research astronomy simulations"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "ccdproc",
+        "photutils",
+        "specutils",
+        "yt",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip"
+      ]
+    },
+    "enzo-e": {
+      "description": "Route requests about adaptive mesh astrophysical or cosmological fluid simulations on large HPC systems, especially Enzo-E or Cello based workflows.",
+      "strong_keywords": [
+        "enzo-e",
+        "cello",
+        "adaptive mesh refinement",
+        "astrophysics simulation",
+        "cosmology simulation",
+        "hydrodynamics solver",
+        "exascale simulation"
+      ],
+      "keywords": [
+        "star formation",
+        "molecular cloud turbulence",
+        "interstellar medium",
+        "intergalactic medium",
+        "galaxy formation",
+        "first stars",
+        "galaxy clusters",
+        "cosmic reionization",
+        "parallel amr",
+        "extreme scale computing"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "yt",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "meep",
+        "photutils"
+      ]
+    },
+    "pynbody": {
+      "description": "Routes astronomy simulation-analysis queries involving cosmological particle snapshots, halo measurements, and AMR hydrodynamics across common astrophysical code outputs.",
+      "strong_keywords": [
+        "pynbody",
+        "n-body astrophysical simulation analysis",
+        "hydrodynamic simulation post-processing",
+        "gadget gadget4 arepo snapshots",
+        "pkdgrav gasoline outputs",
+        "ramses amr analysis",
+        "n-chilada data format",
+        "cosmological halo profiling"
+      ],
+      "keywords": [
+        "dark matter halo properties",
+        "stellar and gas particle data",
+        "cosmological snapshot visualization",
+        "sph and amr workflows",
+        "structure formation analysis",
+        "simulation image generation",
+        "astrophysical source code library",
+        "zenodo code citation",
+        "readthedocs quickstart tutorial",
+        "python astronomy postprocessing"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "yt",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "photutils",
+        "specutils",
+        "packmol"
+      ]
+    },
+    "lightkurve": {
+      "description": "Use this family for space-telescope photometric time-series workflows focused on Kepler and TESS light curves, target pixel files, detrending, period searches, and transit analysis.",
+      "strong_keywords": [
+        "lightkurve",
+        "kepler",
+        "tess",
+        "light curve",
+        "target pixel file",
+        "box least squares",
+        "periodogram",
+        "sap flux",
+        "pdcsap flux",
+        "exoplanet transit"
+      ],
+      "keywords": [
+        "astronomical time series",
+        "stellar variability",
+        "detrending",
+        "flattening",
+        "folding",
+        "quality flags",
+        "cadence",
+        "aperture photometry",
+        "pixel-level analysis",
+        "transit search",
+        "flares",
+        "asteroseismology"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "packmol",
+        "meep",
+        "enzo-e",
+        "photutils",
+        "specutils"
+      ]
+    },
+    "exoplanet": {
+      "description": "Route requests about Bayesian exoplanet data analysis, orbital parameter estimation, and probabilistic modeling of stellar light curves or radial velocities.",
+      "strong_keywords": [
+        "exoplanet",
+        "exoplanet transit modeling",
+        "radial velocity modeling",
+        "bayesian exoplanet inference",
+        "astronomical time series modeling",
+        "pymc exoplanet"
+      ],
+      "keywords": [
+        "mcmc sampling",
+        "orbital parameter estimation",
+        "transit light curve fitting",
+        "stellar variability modeling",
+        "probabilistic programming astronomy",
+        "planet ephemeris inference",
+        "hierarchical bayesian models",
+        "gaussian process noise in light curves"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "packmol",
+        "ccdproc",
+        "photutils",
+        "lightkurve",
+        "yt"
+      ]
+    },
+    "celerite2": {
+      "description": "Routes requests about scalable one-dimensional Gaussian process kernels, fast GP inference, and celerite-style time-series regression for astronomy and related sequential scientific data.",
+      "strong_keywords": [
+        "celerite2",
+        "celerite",
+        "one dimensional gaussian process",
+        "fast gaussian process regression",
+        "scalable gp time series",
+        "celerite kernel",
+        "exoplanet time series gp"
+      ],
+      "keywords": [
+        "gaussian process kernel",
+        "state space gp solver",
+        "numerically stable gp recursion",
+        "stellar variability modeling",
+        "radial velocity noise modeling",
+        "probabilistic time series inference",
+        "jax gaussian process",
+        "pymc gaussian process"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "photutils",
+        "specutils",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "meep",
+        "yt"
+      ]
+    },
+    "batman": {
+      "description": "Routes queries about exoplanet transit light-curve generation and fitting, especially fast forward models with limb-darkening parameterizations in observational astronomy.",
+      "strong_keywords": [
+        "batman",
+        "exoplanet transit",
+        "transit light curve",
+        "limb darkening",
+        "planet transit model",
+        "bad-ass transit model calculation"
+      ],
+      "keywords": [
+        "occultation curve",
+        "eclipse light curve",
+        "transit depth",
+        "orbital inclination",
+        "scaled semi-major axis",
+        "planet-star radius ratio",
+        "mid-transit time",
+        "impact parameter",
+        "photometric transit fitting",
+        "stellar limb-darkening laws"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "lightkurve",
+        "photutils",
+        "specutils",
+        "exoplanet",
+        "celerite2",
+        "amuse",
+        "yt",
+        "pyscf",
+        "gromacs"
+      ]
+    },
+    "starry": {
+      "description": "Route intents about astrophysical light curve forward modeling, spherical harmonic surface maps, and star planet transit or eclipse mapping to this package.",
+      "strong_keywords": [
+        "starry",
+        "stellar surface mapping",
+        "exoplanet light curves",
+        "spherical harmonic maps",
+        "transit occultation modeling",
+        "eclipse mapping",
+        "phase curve modeling",
+        "doppler imaging"
+      ],
+      "keywords": [
+        "limb darkening",
+        "rotational modulation",
+        "reflected light",
+        "thermal emission maps",
+        "planetary albedo mapping",
+        "analytic light curve model",
+        "stellar variability modeling",
+        "secondary eclipse",
+        "starspot mapping",
+        "occultation light curve"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "batman",
+        "exoplanet",
+        "lightkurve",
+        "photutils",
+        "ccdproc",
+        "psi4",
+        "gromacs",
+        "amuse",
+        "arc"
+      ]
+    },
+    "rdkit": {
+      "description": "Route chemistry and drug-discovery intents here when users mention molecular structures, fingerprints, descriptors, reaction SMARTS, or substructure matching.",
+      "strong_keywords": [
+        "rdkit",
+        "cheminformatics",
+        "smiles parsing",
+        "substructure search",
+        "molecular descriptors",
+        "morgan fingerprint",
+        "reaction smarts",
+        "conformer generation",
+        "similarity search"
+      ],
+      "keywords": [
+        "canonical smiles",
+        "inchi conversion",
+        "murcko scaffold",
+        "tautomer enumeration",
+        "fingerprint similarity",
+        "molecular graph",
+        "2d depiction",
+        "3d embedding",
+        "postgres cartridge",
+        "knime rdkit nodes"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "photutils",
+        "lammps",
+        "gromacs",
+        "psi4",
+        "pyscf",
+        "qutip",
+        "meep",
+        "exoplanet",
+        "yt"
+      ]
+    },
+    "openbabel": {
+      "description": "Use for requests on translating chemical structure files, SMARTS substructure queries, and coordinate generation in cheminformatics pipelines.",
+      "strong_keywords": [
+        "openbabel",
+        "open babel",
+        "obabel",
+        "cheminformatics",
+        "chemical file formats",
+        "molecule conversion",
+        "smiles",
+        "inchi",
+        "smarts"
+      ],
+      "keywords": [
+        "sdf",
+        "mol2",
+        "cml",
+        "pdb chemistry",
+        "substructure search",
+        "fingerprint generation",
+        "2d coordinate generation",
+        "3d coordinate generation",
+        "molecular descriptors",
+        "format translation",
+        "solid-state materials chemistry"
+      ],
+      "negative_keywords": [
+        "rdkit",
+        "psi4",
+        "pyscf",
+        "qchem",
+        "gaussian",
+        "lammps",
+        "astropy",
+        "photutils",
+        "qutip",
+        "yt"
+      ]
+    },
+    "deepchem": {
+      "description": "Best for requests on cheminformatics workflows, molecular ML models, and deep-learning pipelines for drug, materials, quantum, or biology tasks.",
+      "strong_keywords": [
+        "deepchem",
+        "molecular property prediction",
+        "cheminformatics",
+        "drug discovery",
+        "qsar",
+        "molecule featurization",
+        "graph neural networks",
+        "virtual screening",
+        "bioactivity modeling"
+      ],
+      "keywords": [
+        "materials informatics",
+        "quantum chemistry machine learning",
+        "protein ligand affinity",
+        "toxicity prediction",
+        "molecular graph models",
+        "reaction prediction",
+        "generative molecular design",
+        "scientific datasets for chemistry",
+        "biological sequence modeling",
+        "atomistic machine learning"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "ccdproc",
+        "photutils",
+        "lightkurve",
+        "lammps",
+        "meep",
+        "qutip",
+        "pyscf",
+        "psi4",
+        "qchem"
+      ]
+    },
+    "openff-toolkit": {
+      "description": "Use this family for intents about OpenFF SMIRNOFF force field typing, parameter assignment, and direct chemical perception in molecular simulation preparation.",
+      "strong_keywords": [
+        "openff-toolkit",
+        "open force field toolkit",
+        "smirnoff",
+        "smirks",
+        "direct chemical perception",
+        "molecular mechanics force field",
+        "force field parameterization",
+        "small molecule parameter assignment"
+      ],
+      "keywords": [
+        "openff",
+        "open force field initiative",
+        "chemical environment perception",
+        "small molecule force fields",
+        "valence parameter assignment",
+        "torsion parameter fitting",
+        "partial charge workflows",
+        "parameter typing",
+        "parsley force field",
+        "sage force field"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "photutils",
+        "lightkurve",
+        "specutils",
+        "lammps",
+        "pyscf",
+        "psi4",
+        "qutip",
+        "amuse",
+        "arc"
+      ]
+    },
+    "datamol": {
+      "description": "Route small-molecule cheminformatics requests here, especially RDKit Mol-centric tasks involving cleaning, featurization, conformers, and conversion between common molecular representations and file formats.",
+      "strong_keywords": [
+        "datamol",
+        "rdkit mol",
+        "molecular standardization",
+        "molecule sanitization",
+        "smiles to mol",
+        "molecular fingerprints",
+        "conformer generation",
+        "sdf read write"
+      ],
+      "keywords": [
+        "inchi conversion",
+        "selfies conversion",
+        "canonical smiles",
+        "molecule dataframe conversion",
+        "freesolv dataset",
+        "molecular visualization",
+        "sasa calculation",
+        "remote molecular io",
+        "fsspec molecule files",
+        "molecule preprocessing"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "ccdproc",
+        "deepchem",
+        "exoplanet",
+        "lammps",
+        "openbabel",
+        "openff-toolkit",
+        "psi4",
+        "pyscf"
+      ]
+    },
+    "nwchem": {
+      "description": "Routes intents about ab initio quantum chemistry and large-scale electronic structure workflows, especially DFT, wavefunction, and parallel molecular simulation tasks.",
+      "strong_keywords": [
+        "nwchem",
+        "computational chemistry",
+        "quantum chemistry",
+        "electronic structure",
+        "density functional theory",
+        "ab initio",
+        "coupled cluster",
+        "hartree fock",
+        "molecular dynamics",
+        "hpc chemistry"
+      ],
+      "keywords": [
+        "mp2",
+        "ccsd",
+        "time dependent dft",
+        "geometry optimization",
+        "vibrational frequencies",
+        "reaction energetics",
+        "qm mm",
+        "solvation models",
+        "gaussian basis sets",
+        "parallel electronic structure"
+      ],
+      "negative_keywords": [
+        "psi4",
+        "pyscf",
+        "lammps",
+        "rdkit",
+        "openbabel",
+        "deepchem",
+        "astropy",
+        "meep",
+        "qutip",
+        "packmol"
+      ]
+    },
+    "xtb": {
+      "description": "Routes user intents about semiempirical electronic-structure calculations, fast geometry optimization, and molecular property prediction in the xTB and GFN tight-binding family.",
+      "strong_keywords": [
+        "xtb",
+        "gfn-xtb",
+        "gfn2-xtb",
+        "extended tight binding",
+        "semiempirical quantum chemistry",
+        "geometry optimization",
+        "conformer search",
+        "vibrational frequencies",
+        "noncovalent interactions"
+      ],
+      "keywords": [
+        "gfn1-xtb",
+        "electronic structure",
+        "molecular energies",
+        "implicit solvation",
+        "gbsa",
+        "alpb solvation",
+        "thermochemistry",
+        "hessian",
+        "conformational analysis",
+        "large molecule screening",
+        "binding energy estimation"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "psi4",
+        "pyscf",
+        "openbabel",
+        "openff-toolkit",
+        "rdkit",
+        "packmol",
+        "deepchem",
+        "astropy",
+        "qutip"
+      ]
+    },
+    "dftd4": {
+      "description": "Use for quantum-chemistry requests involving D4 London dispersion corrections to DFT energies, gradients, Hessians, pairwise terms, or periodic calculations.",
+      "strong_keywords": [
+        "dftd4",
+        "d4 dispersion correction",
+        "atomic-charge dependent london dispersion",
+        "grimme d4 model",
+        "dft dispersion energy",
+        "pairwise-resolved dispersion"
+      ],
+      "keywords": [
+        "d4s",
+        "dispersion gradients",
+        "dispersion hessian",
+        "three-body dispersion",
+        "periodic systems",
+        "coordination numbers",
+        "c6 coefficients",
+        "polarizabilities",
+        "quantum chemistry post-correction",
+        "fortran dispersion library",
+        "c api",
+        "python interface"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "photutils",
+        "lightkurve",
+        "lammps",
+        "rdkit",
+        "openff-toolkit",
+        "qutip",
+        "meep",
+        "amuse",
+        "arc"
+      ]
+    },
+    "openmm": {
+      "description": "Use this family for atomistic molecular dynamics, force-field-driven simulations, and GPU-accelerated biophysical modeling tasks.",
+      "strong_keywords": [
+        "openmm",
+        "molecular dynamics",
+        "molecular simulation",
+        "custom forces",
+        "custom integrators",
+        "gpu acceleration",
+        "langevin dynamics",
+        "nonbonded force",
+        "periodic boundary conditions",
+        "biomolecular simulation"
+      ],
+      "keywords": [
+        "protein simulation",
+        "small molecule simulation",
+        "free energy calculation",
+        "alchemical transformations",
+        "integrator tuning",
+        "thermostat barostat",
+        "trajectory generation",
+        "energy minimization",
+        "restraints",
+        "explicit solvent",
+        "implicit solvent",
+        "cuda platform",
+        "opencl platform"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "ccdproc",
+        "photutils",
+        "lightkurve",
+        "gromacs",
+        "lammps",
+        "psi4",
+        "pyscf",
+        "openbabel"
+      ]
+    },
+    "hoomd-blue": {
+      "description": "Use this family for particle-based simulation intents centered on soft matter, molecular dynamics, and hard-particle Monte Carlo workflows.",
+      "strong_keywords": [
+        "hoomd-blue",
+        "hoomd",
+        "molecular dynamics",
+        "hard particle monte carlo",
+        "hpmc",
+        "soft matter simulation",
+        "gpu particle simulation",
+        "particle systems"
+      ],
+      "keywords": [
+        "pair potentials",
+        "bonded interactions",
+        "angle potentials",
+        "lj potential",
+        "nvt ensemble",
+        "thermostats",
+        "neighbor list",
+        "gsd files",
+        "anisotropic particles",
+        "colloidal systems",
+        "self-assembly",
+        "trajectory analysis"
+      ],
+      "negative_keywords": [
+        "gromacs",
+        "lammps",
+        "openmm",
+        "astropy",
+        "photutils",
+        "lightkurve",
+        "pyscf",
+        "psi4",
+        "openbabel",
+        "datamol"
+      ]
+    },
+    "espresso": {
+      "description": "Routes user intents about coarse-grained molecular dynamics, soft-matter many-particle simulations, and mesoscale interaction models controlled through Python scripts.",
+      "strong_keywords": [
+        "espresso",
+        "espressomd",
+        "coarse-grained molecular dynamics",
+        "soft matter simulation",
+        "bead-spring models",
+        "lattice boltzmann",
+        "p3m electrostatics",
+        "many-particle simulation"
+      ],
+      "keywords": [
+        "polymer simulation",
+        "colloid simulation",
+        "liquid crystal modeling",
+        "ferrofluid modeling",
+        "dna membrane models",
+        "reaction ensemble",
+        "constant ph ensemble",
+        "gibbs ensemble",
+        "morse potential",
+        "lennard-jones potential",
+        "virtual sites",
+        "hydrodynamic interactions"
+      ],
+      "negative_keywords": [
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "openmm",
+        "psi4",
+        "astropy",
+        "photutils",
+        "deepchem",
+        "meep",
+        "openbabel"
+      ]
+    },
+    "cantera": {
+      "description": "Routes questions about reacting-chemistry and combustion simulations using kinetics mechanisms, thermodynamic states, transport models, flames, and reactor networks.",
+      "strong_keywords": [
+        "cantera",
+        "chemical kinetics",
+        "combustion chemistry",
+        "thermodynamic properties",
+        "transport properties",
+        "chemical equilibrium",
+        "reaction mechanisms",
+        "reactor network simulation",
+        "one dimensional flame",
+        "reaction path analysis"
+      ],
+      "keywords": [
+        "laminar flame speed",
+        "adiabatic flame temperature",
+        "species production rates",
+        "ignition delay",
+        "stirred reactor",
+        "plug flow reactor",
+        "gas mixture thermodynamics",
+        "nonideal fluid modeling",
+        "kinetics mechanism files",
+        "combustion modeling",
+        "reacting flow"
+      ],
+      "negative_keywords": [
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "openmm",
+        "psi4",
+        "astropy",
+        "photutils",
+        "deepchem",
+        "openbabel",
+        "meep"
+      ]
+    },
+    "rmg-py": {
+      "description": "Routes queries about automated chemical reaction mechanism generation, gas-phase kinetics, and thermochemistry estimation workflows centered on RMG and Arkane.",
+      "strong_keywords": [
+        "rmg-py",
+        "reaction mechanism generator",
+        "chemical kinetic mechanism generation",
+        "arkane",
+        "pressure-dependent kinetics",
+        "thermochemistry estimation",
+        "combustion mechanism modeling",
+        "pyrolysis chemistry"
+      ],
+      "keywords": [
+        "reaction network generation",
+        "gas-phase reaction mechanisms",
+        "kinetic parameter estimation",
+        "rate coefficient calculation",
+        "high-pressure-limit rates",
+        "master equation kinetics",
+        "atmospheric chemistry mechanisms",
+        "quantum chemistry output parsing",
+        "rmg-database",
+        "species thermodynamic properties"
+      ],
+      "negative_keywords": [
+        "cantera",
+        "openbabel",
+        "openff-toolkit",
+        "psi4",
+        "gromacs",
+        "lammps",
+        "openmm",
+        "deepchem",
+        "astropy",
+        "photutils"
+      ]
+    },
+    "chempy": {
+      "description": "Use this family for chemistry computation tasks involving reaction systems, equilibrium solvers, rate expressions, and physicochemical property formulas.",
+      "strong_keywords": [
+        "chempy",
+        "chemical kinetics",
+        "integrated rate expressions",
+        "chemical equilibrium solver",
+        "multiphase equilibria",
+        "debye-huckel",
+        "arrhenius equation",
+        "eyring equation"
+      ],
+      "keywords": [
+        "physical chemistry",
+        "analytical chemistry",
+        "inorganic chemistry",
+        "reaction network modeling",
+        "ode reaction integration",
+        "rate law fitting",
+        "einstein-smoluchowski relation",
+        "ionic strength",
+        "water density",
+        "water permittivity",
+        "water diffusivity",
+        "water viscosity",
+        "sulfuric acid density"
+      ],
+      "negative_keywords": [
+        "cantera",
+        "openbabel",
+        "openff-toolkit",
+        "deepchem",
+        "psi4",
+        "gromacs",
+        "lammps",
+        "openmm",
+        "nwchem",
+        "packmol"
+      ]
+    },
+    "thermo": {
+      "description": "Routes intents about chemical thermophysical properties, vapor liquid equilibrium, and equation of state flash modeling for pure compounds and mixtures.",
+      "strong_keywords": [
+        "thermo",
+        "chemical thermodynamics",
+        "phase equilibrium",
+        "vapor liquid equilibrium",
+        "flash calculation",
+        "equation of state",
+        "peng robinson",
+        "mixture properties",
+        "chemical constants"
+      ],
+      "keywords": [
+        "thermophysical properties",
+        "transport properties",
+        "enthalpy",
+        "entropy",
+        "heat capacity",
+        "fugacity",
+        "activity coefficient models",
+        "critical properties",
+        "flashvl",
+        "flashpurevls",
+        "ceosgas",
+        "ceosliquid"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "photutils",
+        "lightkurve",
+        "openmm",
+        "gromacs",
+        "lammps",
+        "deepchem",
+        "openbabel",
+        "cantera",
+        "chempy"
+      ]
+    },
+    "chemicals": {
+      "description": "Use this package for CAS-based chemical property lookup, thermodynamic correlation methods, and flash or equilibrium utilities in process and unit-operation modeling.",
+      "strong_keywords": [
+        "chemicals",
+        "chemical engineering design library",
+        "casrn lookup",
+        "pure component constants",
+        "thermophysical property correlations",
+        "vapor pressure correlation",
+        "phase equilibrium flash",
+        "rachford rice equation",
+        "critical properties"
+      ],
+      "keywords": [
+        "molecular weight",
+        "boiling point",
+        "melting point",
+        "heat of formation",
+        "heat of fusion",
+        "heat capacity",
+        "molar volume",
+        "thermal conductivity",
+        "surface tension",
+        "dynamic viscosity",
+        "heat of vaporization",
+        "relative permittivity",
+        "acentric factor",
+        "li johns ahmadi equation"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "cantera",
+        "chempy",
+        "datamol",
+        "deepchem",
+        "openbabel",
+        "openff-toolkit",
+        "gromacs",
+        "lammps"
+      ]
+    },
+    "wrf": {
+      "description": "Route requests here for WRF ARW workflows involving namelists, WPS preprocessing, physics configuration, and time evolving regional atmosphere simulations.",
+      "strong_keywords": [
+        "wrf",
+        "weather research and forecasting",
+        "wrf-arw",
+        "advanced research wrf",
+        "numerical weather prediction",
+        "mesoscale atmospheric model",
+        "namelist.input",
+        "wrf.exe",
+        "real.exe",
+        "nested domains"
+      ],
+      "keywords": [
+        "wps",
+        "geogrid",
+        "ungrib",
+        "metgrid",
+        "initial conditions",
+        "boundary conditions",
+        "physics parameterization",
+        "microphysics",
+        "planetary boundary layer",
+        "data assimilation",
+        "regional climate downscaling",
+        "convection permitting simulation"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "ccdproc",
+        "lightkurve",
+        "gromacs",
+        "lammps",
+        "openmm",
+        "cantera",
+        "deepchem",
+        "openbabel",
+        "packmol"
+      ]
+    },
+    "cesm": {
+      "description": "Use this for coupled climate and Earth system model setup, case configuration, compilation, and production runs.",
+      "strong_keywords": [
+        "cesm",
+        "community earth system model",
+        "cesm3",
+        "cime",
+        "compset",
+        "grid resolution",
+        "externals.cfg",
+        "git-fleximod"
+      ],
+      "keywords": [
+        "climate simulation",
+        "coupled model",
+        "atmosphere ocean coupling",
+        "cam pop clm cice",
+        "case.setup",
+        "case.build",
+        "case.submit",
+        "control and perturbation experiments",
+        "decadal climate runs",
+        "machine config",
+        "fortran climate code"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "exoplanet",
+        "openmm",
+        "gromacs",
+        "lammps",
+        "cantera",
+        "deepchem",
+        "packmol",
+        "meep"
+      ]
+    },
+    "mpas-model": {
+      "description": "Routes earth-system modeling intents covering MPAS cores, mesh-based dynamical operators, and atmosphere-ocean-seaice-land-ice simulation workflows.",
+      "strong_keywords": [
+        "mpas-model",
+        "model for prediction across scales",
+        "mpas framework",
+        "mpas atmosphere",
+        "mpas ocean",
+        "mpas seaice",
+        "mpas land ice",
+        "unstructured mesh climate model",
+        "earth system core"
+      ],
+      "keywords": [
+        "climate modeling",
+        "regional climate studies",
+        "weather studies",
+        "numerical weather prediction",
+        "voronoi mesh operators",
+        "c-grid discretization",
+        "registry xml parser",
+        "streams and namelist files",
+        "coupled atmosphere ocean seaice",
+        "lanl ncar climate model"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "cantera",
+        "deepchem",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "openmm",
+        "openbabel",
+        "meep"
+      ]
+    },
+    "mitgcm": {
+      "description": "Use this family for user intents about numerical ocean atmosphere circulation experiments, geophysical flow dynamics, and coupled ocean sea ice simulations.",
+      "strong_keywords": [
+        "mitgcm",
+        "mit general circulation model",
+        "general circulation model",
+        "ocean circulation model",
+        "atmospheric circulation model",
+        "geophysical fluid dynamics",
+        "primitive equation model",
+        "coupled ocean sea ice"
+      ],
+      "keywords": [
+        "ocean modeling",
+        "atmospheric modeling",
+        "climate dynamics",
+        "global circulation",
+        "regional ocean simulation",
+        "hydrostatic model",
+        "nonhydrostatic model",
+        "tracer transport",
+        "adjoint modeling",
+        "state estimation"
+      ],
+      "negative_keywords": [
+        "cesm",
+        "mpas-model",
+        "gromacs",
+        "lammps",
+        "openmm",
+        "cantera",
+        "astropy",
+        "meep",
+        "amuse",
+        "arc"
+      ]
+    },
+    "mom6": {
+      "description": "Use this family for requests about ocean general circulation, tracer advection, and coupled climate ocean components rather than atmospheric, molecular, or astronomy simulation packages.",
+      "strong_keywords": [
+        "mom6",
+        "modular ocean model",
+        "ocean general circulation model",
+        "finite-volume ocean dynamics",
+        "ocean-only simulation",
+        "coupled climate ocean model",
+        "ocean tracer advection"
+      ],
+      "keywords": [
+        "gfdl ocean model",
+        "ocean stratification",
+        "baroclinic circulation",
+        "eddy parameterization",
+        "vertical mixing schemes",
+        "sea level dynamics",
+        "ocean model configuration",
+        "coupled earth system ocean component",
+        "ocean tracer transport",
+        "regional ocean experiments"
+      ],
+      "negative_keywords": [
+        "mitgcm",
+        "mpas-model",
+        "cesm",
+        "astropy",
+        "lightkurve",
+        "deepchem",
+        "openbabel",
+        "openff-toolkit",
+        "gromacs",
+        "lammps"
+      ]
+    },
+    "cavity-md-ipi": {
+      "description": "Use for chemical-physics routing on cavity-modified molecular dynamics, including photon-coupled nuclei, vibrational strong or ultrastrong coupling, Fabry-Perot multimode effects, and reactive or nonreactive CavMD studies.",
+      "strong_keywords": [
+        "cavity-md-ipi",
+        "cavmd",
+        "cavity molecular dynamics",
+        "vibrational strong coupling",
+        "vibrational ultrastrong coupling",
+        "photon-nuclear dynamics",
+        "fabry-perot vsc",
+        "collective rabi splitting"
+      ],
+      "keywords": [
+        "optical cavity molecular simulation",
+        "plasmonic cavity coupling",
+        "trpmd",
+        "path integral molecular dynamics",
+        "first-principles reactive dynamics",
+        "qmmm under vsc",
+        "nonreactive vsc dynamics",
+        "condensed-phase vsc",
+        "infrared spectrum splitting",
+        "modified i-pi workflow"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "astropy",
+        "lightkurve",
+        "batman",
+        "exoplanet",
+        "meep",
+        "lammps",
+        "gromacs",
+        "hoomd-blue",
+        "openbabel"
+      ]
+    },
+    "biopython": {
+      "description": "Route to this family for DNA or protein sequence workflows, biological file format parsing, alignment tasks, and bioinformatics database access.",
+      "strong_keywords": [
+        "biopython",
+        "bioinformatics python",
+        "seqio",
+        "entrez",
+        "genbank",
+        "fasta",
+        "blast",
+        "sequence alignment",
+        "phylogenetics",
+        "biological sequence parsing"
+      ],
+      "keywords": [
+        "dna sequence",
+        "protein sequence",
+        "fastq",
+        "pdb parser",
+        "multiple sequence alignment",
+        "pairwise alignment",
+        "ncbi retrieval",
+        "restriction enzyme analysis",
+        "motif analysis",
+        "swissprot",
+        "clustal format",
+        "phylo tree plotting"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "meep",
+        "nwchem",
+        "lightkurve",
+        "amuse",
+        "arc"
+      ]
+    },
+    "pysam": {
+      "description": "Routes intents for high-throughput sequencing file access, indexed genomic region queries, alignment pileups, and variant record manipulation via HTSlib-compatible Python interfaces.",
+      "strong_keywords": [
+        "pysam",
+        "sam",
+        "bam",
+        "cram",
+        "vcf",
+        "bcf",
+        "htslib",
+        "tabix",
+        "samtools",
+        "bcftools",
+        "pileup"
+      ],
+      "keywords": [
+        "next generation sequencing",
+        "alignment records",
+        "variant records",
+        "genomic interval fetch",
+        "cigar parsing",
+        "read group tags",
+        "faidx references",
+        "bgzip indexing",
+        "bam sorting",
+        "vcf header fields"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "lightkurve",
+        "cantera",
+        "meep",
+        "cesm",
+        "mpas-model",
+        "exoplanet"
+      ]
+    },
+    "scikit-bio": {
+      "description": "Route requests about biological sequence objects, phylogenetic trees, diversity statistics, and microbiome or community ecology analysis in Python.",
+      "strong_keywords": [
+        "scikit-bio",
+        "bioinformatics",
+        "biological sequence analysis",
+        "phylogenetic trees",
+        "microbiome analysis",
+        "alpha diversity",
+        "beta diversity",
+        "ordination",
+        "distance matrices",
+        "community ecology"
+      ],
+      "keywords": [
+        "dna sequences",
+        "rna sequences",
+        "protein sequences",
+        "multiple sequence alignment",
+        "taxonomy",
+        "unifrac",
+        "permanova",
+        "anosim",
+        "newick parsing",
+        "fasta fastq io",
+        "qiime 2 integration",
+        "omic data analysis"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "lightkurve",
+        "batman",
+        "mitgcm",
+        "mom6",
+        "deepchem"
+      ]
+    },
+    "snakemake": {
+      "description": "Use this family for intents about authoring Snakefiles, orchestrating rule driven workflows, and scaling scientific pipelines across heterogeneous compute environments.",
+      "strong_keywords": [
+        "snakemake",
+        "snakefile workflows",
+        "workflow management system",
+        "reproducible scientific pipelines",
+        "rule driven workflow execution",
+        "hpc and cloud scaling",
+        "bioinformatics pipeline orchestration"
+      ],
+      "keywords": [
+        "workflow dag scheduling",
+        "pipeline automation",
+        "scientific data analysis workflows",
+        "cluster job submission",
+        "workflow portability",
+        "software environment specification",
+        "wildcards and rules",
+        "checkpoint based workflows",
+        "research reproducibility",
+        "distributed workflow execution"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "biopython",
+        "gromacs",
+        "lammps",
+        "cantera",
+        "hoomd-blue",
+        "meep",
+        "lightkurve",
+        "mpas-model",
+        "deepchem"
+      ]
+    },
+    "nextflow": {
+      "description": "Routes requests about scientific workflow authoring, pipeline execution, and reproducibility across distributed compute backends, especially for bioinformatics and genomics.",
+      "strong_keywords": [
+        "nextflow",
+        "nextflow dsl2",
+        "dataflow pipeline",
+        "scientific workflow engine",
+        "nf-core",
+        "reproducible workflows",
+        "bioinformatics pipelines",
+        "hpc workflow execution",
+        "cloud batch execution"
+      ],
+      "keywords": [
+        "channel and process model",
+        "workflow modules",
+        "pipeline parameterization",
+        "task caching and resume",
+        "slurm executor",
+        "aws batch workflows",
+        "google cloud batch workflows",
+        "azure batch workflows",
+        "kubernetes workflow runs",
+        "genomics workflow automation",
+        "portable pipeline definitions"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "meep",
+        "lightkurve",
+        "cantera",
+        "deepchem",
+        "batman",
+        "mpas-model"
       ]
     }
   }

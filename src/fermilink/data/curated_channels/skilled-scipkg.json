@@ -1,14 +1,675 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-02-14T00:00:00Z",
+  "updated_at": "2026-02-17T17:00:36.476905Z",
   "packages": [
     {
+      "package_id": "amuse",
+      "title": "AMUSE Astrophysical Simulation Environment",
+      "description": "AMUSE is a Python-driven framework that couples specialized community solvers to build multi-physics astrophysical simulations across gravitational dynamics, hydrodynamics, stellar evolution, and other computational astronomy research workflows.",
+      "upstream_repo_url": "https://github.com/amusecode/amuse",
+      "homepage_url": "http://www.amusecode.org",
+      "zip_url": "https://github.com/skilled-scipkg/amuse/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/amuse/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "amuse",
+        "astrophysics",
+        "computational_astronomy",
+        "nbody",
+        "hydrodynamics",
+        "stellar_evolution"
+      ]
+    },
+    {
+      "package_id": "arc",
+      "title": "ARC Alkali Rydberg Calculator",
+      "description": "Python toolkit for computing properties of highly excited Rydberg states and interactions in alkali and divalent atoms, including level structure, transition strengths, and electric-field Stark calculations.",
+      "upstream_repo_url": "https://github.com/nikolasibalic/ARC-Alkali-Rydberg-Calculator",
+      "homepage_url": "https://atomcalc.org",
+      "zip_url": "https://github.com/skilled-scipkg/ARC-Alkali-Rydberg-Calculator/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/ARC-Alkali-Rydberg-Calculator/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "atomic-physics",
+        "rydberg-atoms",
+        "alkali-atoms",
+        "divalent-atoms",
+        "quantum-optics",
+        "stark-shifts"
+      ]
+    },
+    {
+      "package_id": "astropy",
+      "title": "Astropy Astronomy Core Library",
+      "description": "Astropy is the core Python library for astronomy, covering units, coordinates, time handling, FITS files, WCS, tables, and cosmology workflows.",
+      "upstream_repo_url": "https://github.com/astropy/astropy",
+      "homepage_url": "https://www.astropy.org",
+      "zip_url": "https://github.com/skilled-scipkg/astropy/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/astropy/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "astrophysics",
+        "fits",
+        "coordinates",
+        "cosmology",
+        "units"
+      ]
+    },
+    {
+      "package_id": "atomsmltr",
+      "title": "atomSmltr Laser Cooling and Trapping Simulator",
+      "description": "atomSmltr is a modular Python toolkit for simulating laser-cooled atoms in custom laser and magnetic field geometries with trajectory integration.",
+      "upstream_repo_url": "https://github.com/adareau/atomSmltr",
+      "homepage_url": "https://atomsmltr.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/atomSmltr/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/atomSmltr/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "atomic-physics",
+        "laser-cooling",
+        "cold-atoms",
+        "magneto-optical-trap",
+        "numerical-simulation"
+      ]
+    },
+    {
+      "package_id": "batman",
+      "title": "BATMAN Exoplanet Transit Light-Curve Modeler",
+      "description": "BATMAN is a Python package for very fast computation of exoplanet transit light curves, supporting multiple limb-darkening laws for fitting and simulating planetary transit photometry.",
+      "upstream_repo_url": "https://github.com/lkreidberg/batman",
+      "homepage_url": "http://lkreidberg.github.io/batman",
+      "zip_url": "https://github.com/skilled-scipkg/batman/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/batman/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "exoplanets",
+        "transit-light-curves",
+        "photometry",
+        "time-series"
+      ]
+    },
+    {
+      "package_id": "biopython",
+      "title": "Biopython",
+      "description": "Biopython provides Python tools for bioinformatics and computational molecular biology, covering biological sequence parsing, alignments, phylogenetics, and interfaces to common genomics and proteomics data sources.",
+      "upstream_repo_url": "https://github.com/biopython/biopython",
+      "homepage_url": "http://biopython.org/",
+      "zip_url": "https://github.com/skilled-scipkg/biopython/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/biopython/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "bioinformatics",
+        "computational-biology",
+        "molecular-biology",
+        "sequence-analysis",
+        "genomics"
+      ]
+    },
+    {
+      "package_id": "bloqade",
+      "title": "Bloqade Neutral Atom Quantum SDK",
+      "description": "Bloqade is QuEra's Python SDK and eDSL suite for programming, compiling, and simulating neutral-atom quantum computing workflows on Rydberg-atom hardware and related backends.",
+      "upstream_repo_url": "https://github.com/QuEraComputing/bloqade",
+      "homepage_url": "https://bloqade.quera.com/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/bloqade/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/bloqade/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-computing",
+        "neutral-atoms",
+        "rydberg",
+        "quantum-sdk",
+        "edsl",
+        "quera"
+      ]
+    },
+    {
+      "package_id": "cantera",
+      "title": "Cantera Chemical Kinetics and Combustion",
+      "description": "Cantera is an open-source scientific toolkit for modeling chemical kinetics, thermodynamics, and transport, supporting equilibrium calculations, reactor-network simulations, and one-dimensional flame analyses across multiple programming interfaces.",
+      "upstream_repo_url": "https://github.com/Cantera/cantera",
+      "homepage_url": "https://cantera.org",
+      "zip_url": "https://github.com/skilled-scipkg/cantera/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/cantera/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "chemical-kinetics",
+        "combustion",
+        "thermodynamics",
+        "transport",
+        "reactor-modeling",
+        "flame-simulation"
+      ]
+    },
+    {
+      "package_id": "cavity-md-ipi",
+      "title": "CavMD: Cavity Molecular Dynamics",
+      "description": "CavMD simulates cavity-coupled molecular dynamics for vibrational strong and ultrastrong coupling, spanning classical and path-integral regimes with workflows for setup, job submission, post-processing, and plotting.",
+      "upstream_repo_url": "https://github.com/TaoELi/cavity-md-ipi",
+      "homepage_url": "https://github.com/TaoELi/cavity-md-ipi",
+      "zip_url": "https://github.com/skilled-scipkg/cavity-md-ipi/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/cavity-md-ipi/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "molecular-dynamics",
+        "cavity-qed",
+        "vibrational-coupling",
+        "chemical-physics",
+        "path-integral",
+        "qmmm"
+      ]
+    },
+    {
+      "package_id": "ccdproc",
+      "title": "CCDProc CCD Image Reduction",
+      "description": "Astropy-affiliated toolkit for calibrating and reducing optical and infrared CCD observations with overscan, bias, dark, flat, bad-pixel masking, cosmic-ray cleaning, and uncertainty-aware processing.",
+      "upstream_repo_url": "https://github.com/astropy/ccdproc",
+      "homepage_url": "https://ccdproc.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/ccdproc/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/ccdproc/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "ccd",
+        "image-reduction",
+        "optical-ir",
+        "calibration"
+      ]
+    },
+    {
+      "package_id": "celerite2",
+      "title": "celerite2 Gaussian Process Toolkit",
+      "description": "celerite2 provides numerically stable, fast one-dimensional Gaussian process regression in Python and C++, optimized for scalable time-series inference with structured kernels and astronomy-focused probabilistic modeling workflows.",
+      "upstream_repo_url": "https://github.com/exoplanet-dev/celerite2",
+      "homepage_url": "https://celerite2.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/celerite2/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/celerite2/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "gaussian-processes",
+        "time-series",
+        "astronomy",
+        "probabilistic-modeling",
+        "celerite"
+      ]
+    },
+    {
+      "package_id": "cesm",
+      "title": "CESM (Community Earth System Model)",
+      "description": "CESM is a coupled Earth system modeling framework for simulating climate dynamics across atmosphere, ocean, land, and sea ice components on HPC systems using CIME workflows.",
+      "upstream_repo_url": "https://github.com/ESCOMP/CESM",
+      "homepage_url": "http://www.cesm.ucar.edu/",
+      "zip_url": "https://github.com/skilled-scipkg/CESM/archive/refs/heads/cesm3.0-alphabranch.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/CESM/archive/refs/heads/cesm3.0-alphabranch.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "cesm3.0-alphabranch"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "climate-modeling",
+        "earth-system",
+        "geoscience",
+        "hpc",
+        "coupled-model"
+      ]
+    },
+    {
+      "package_id": "chemicals",
+      "title": "Chemicals Thermophysical Data Library",
+      "description": "Python library with on-demand databases and correlations for pure-component constants, thermophysical properties, safety information, and phase-equilibrium calculations used in chemical engineering workflows.",
+      "upstream_repo_url": "https://github.com/CalebBell/chemicals",
+      "homepage_url": "https://github.com/CalebBell/chemicals",
+      "zip_url": "https://github.com/skilled-scipkg/chemicals/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/chemicals/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "chemical-engineering",
+        "thermodynamics",
+        "property-database",
+        "phase-equilibrium",
+        "thermophysical-properties",
+        "process-simulation"
+      ]
+    },
+    {
+      "package_id": "chempy",
+      "title": "ChemPy Chemical Modeling Toolkit",
+      "description": "ChemPy is a Python chemistry library focused on reaction kinetics, equilibrium systems, and physical chemistry relations, with practical property models for aqueous and acid solutions.",
+      "upstream_repo_url": "https://github.com/bjodah/chempy",
+      "homepage_url": "https://github.com/bjodah/chempy",
+      "zip_url": "https://github.com/skilled-scipkg/chempy/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/chempy/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "chemistry",
+        "chemical-kinetics",
+        "equilibrium",
+        "physical-chemistry",
+        "analytical-chemistry",
+        "solution-chemistry"
+      ]
+    },
+    {
+      "package_id": "datamol",
+      "title": "Datamol Molecular Processing Toolkit",
+      "description": "Datamol is a lightweight RDKit-first toolkit for molecular standardization, structure conversion, fingerprints, conformer generation, visualization, and molecule file I/O with practical defaults for cheminformatics workflows.",
+      "upstream_repo_url": "https://github.com/datamol-io/datamol",
+      "homepage_url": "https://docs.datamol.io",
+      "zip_url": "https://github.com/skilled-scipkg/datamol/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/datamol/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cheminformatics",
+        "molecular-processing",
+        "rdkit",
+        "small-molecules",
+        "molecular-io"
+      ]
+    },
+    {
+      "package_id": "deepchem",
+      "title": "DeepChem Molecular Machine Learning Toolkit",
+      "description": "DeepChem provides domain-focused machine learning tools for molecular property prediction, drug discovery, and scientific modeling across chemistry, materials science, quantum chemistry, and biology.",
+      "upstream_repo_url": "https://github.com/deepchem/deepchem",
+      "homepage_url": "https://deepchem.io/",
+      "zip_url": "https://github.com/skilled-scipkg/deepchem/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/deepchem/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cheminformatics",
+        "drug-discovery",
+        "molecular-ml",
+        "quantum-chemistry",
+        "materials-science",
+        "computational-biology"
+      ]
+    },
+    {
+      "package_id": "dftd4",
+      "title": "DFT-D4 Dispersion Correction",
+      "description": "Fortran-based implementation of the D4 atomic-charge dependent London dispersion correction for DFT, providing energies, gradients, pairwise decomposition, periodic support, and C and Python interfaces.",
+      "upstream_repo_url": "https://github.com/dftd4/dftd4",
+      "homepage_url": "https://dftd4.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/dftd4/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/dftd4/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-chemistry",
+        "dft",
+        "dispersion",
+        "fortran",
+        "electronic-structure"
+      ]
+    },
+    {
+      "package_id": "enzo-e",
+      "title": "Enzo-E Exascale Astrophysics Simulator",
+      "description": "Enzo-E is an exascale-oriented astrophysics and cosmology simulation code built on the Cello AMR framework for massively parallel hydrodynamics and structure-formation studies.",
+      "upstream_repo_url": "https://github.com/enzo-project/enzo-e",
+      "homepage_url": "https://github.com/enzo-project/enzo-e",
+      "zip_url": "https://github.com/skilled-scipkg/enzo-e/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/enzo-e/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astrophysics",
+        "cosmology",
+        "amr",
+        "hpc",
+        "hydrodynamics",
+        "simulation"
+      ]
+    },
+    {
+      "package_id": "espresso",
+      "title": "ESPResSo Soft-Matter Molecular Dynamics",
+      "description": "ESPResSo is an extensible molecular dynamics engine for coarse-grained soft-matter systems, supporting advanced electrostatics, hydrodynamics coupling, and flexible Python-driven simulation workflows.",
+      "upstream_repo_url": "https://github.com/espressomd/espresso",
+      "homepage_url": "https://espressomd.org",
+      "zip_url": "https://github.com/skilled-scipkg/espresso/archive/refs/heads/python.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/espresso/archive/refs/heads/python.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "python"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "molecular-dynamics",
+        "soft-matter",
+        "coarse-grained",
+        "computational-physics",
+        "mesoscale-simulation"
+      ]
+    },
+    {
+      "package_id": "exoplanet",
+      "title": "exoplanet Bayesian Exoplanet Inference Toolkit",
+      "description": "exoplanet provides fast, scalable probabilistic models for astronomical time-series, enabling Bayesian transit and radial-velocity inference for exoplanet systems using PyMC-based MCMC workflows.",
+      "upstream_repo_url": "https://github.com/exoplanet-dev/exoplanet",
+      "homepage_url": "https://docs.exoplanet.codes",
+      "zip_url": "https://github.com/skilled-scipkg/exoplanet/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/exoplanet/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "exoplanets",
+        "bayesian-inference",
+        "time-series",
+        "mcmc"
+      ]
+    },
+    {
+      "package_id": "gromacs",
+      "title": "GROMACS Molecular Dynamics",
+      "description": "GROMACS is a high-performance molecular dynamics toolkit for simulating biomolecules, polymers, and liquids, with strong support for free-energy workflows and trajectory analysis.",
+      "upstream_repo_url": "https://github.com/gromacs/gromacs",
+      "homepage_url": "http://www.gromacs.org",
+      "zip_url": "https://github.com/skilled-scipkg/gromacs/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/gromacs/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "gromacs",
+        "molecular-dynamics",
+        "computational-chemistry",
+        "biophysics",
+        "free-energy",
+        "trajectory-analysis"
+      ]
+    },
+    {
+      "package_id": "hoomd-blue",
+      "title": "HOOMD-blue Particle Simulation",
+      "description": "HOOMD-blue is a Python package for GPU and CPU molecular dynamics and hard-particle Monte Carlo simulations of soft-matter and general particle systems.",
+      "upstream_repo_url": "https://github.com/glotzerlab/hoomd-blue",
+      "homepage_url": "http://glotzerlab.engin.umich.edu/hoomd-blue",
+      "zip_url": "https://github.com/skilled-scipkg/hoomd-blue/archive/refs/heads/trunk.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/hoomd-blue/archive/refs/heads/trunk.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "trunk"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "molecular-dynamics",
+        "monte-carlo",
+        "soft-matter",
+        "particle-simulation",
+        "gpu-computing",
+        "computational-physics"
+      ]
+    },
+    {
+      "package_id": "lammps",
+      "title": "LAMMPS Molecular Dynamics",
+      "description": "LAMMPS is a high-performance molecular dynamics package for atomistic and coarse-grained simulations of materials, soft matter, and related many-particle systems.",
+      "upstream_repo_url": "https://github.com/lammps/lammps",
+      "homepage_url": "https://www.lammps.org",
+      "zip_url": "https://github.com/skilled-scipkg/lammps/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/lammps/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "molecular-dynamics",
+        "atomistic-simulation",
+        "materials-science",
+        "hpc",
+        "classical-md"
+      ]
+    },
+    {
+      "package_id": "lightkurve",
+      "title": "Lightkurve Kepler and TESS Light-Curve Analysis",
+      "description": "Lightkurve offers user-friendly tools to retrieve, clean, visualize, and analyze Kepler and TESS astronomical flux time series, including light curves and target pixel files for exoplanet and stellar variability studies.",
+      "upstream_repo_url": "https://github.com/lightkurve/lightkurve",
+      "homepage_url": "https://lightkurve.github.io/lightkurve/",
+      "zip_url": "https://github.com/skilled-scipkg/lightkurve/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/lightkurve/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "photometry",
+        "time-series",
+        "exoplanets",
+        "kepler",
+        "tess"
+      ]
+    },
+    {
       "package_id": "maxwelllink",
-      "title": "MaxwellLink",
-      "description": "Framework for light-matter interaction simulations and quantum-optical workflows with reusable skills for coupled electrodynamics and open-system studies.",
-      "upstream_repo_url": "https://github.com/skilled-scipkg/MaxwellLink",
-      "homepage_url": "https://github.com/skilled-scipkg/MaxwellLink",
+      "title": "MaxwellLink Light-Matter Co-Simulation",
+      "description": "MaxwellLink is a modular Python framework for self-consistent electromagnetic molecular co-simulation, coupling EM solvers with quantum, force-field, and first-principles molecular dynamics drivers.",
+      "upstream_repo_url": "https://github.com/TaoELi/MaxwellLink",
+      "homepage_url": "https://taoeli.github.io/MaxwellLink/",
       "zip_url": "https://github.com/skilled-scipkg/MaxwellLink/archive/refs/heads/main.zip",
       "default_version": "branch-head",
       "versions": [
@@ -23,17 +684,20 @@
         }
       ],
       "tags": [
-        "photonics",
-        "quantum-optics",
-        "light-matter"
+        "light-matter",
+        "electrodynamics",
+        "multiphysics",
+        "molecular-dynamics",
+        "quantum-dynamics",
+        "hpc"
       ]
     },
     {
       "package_id": "meep",
-      "title": "Meep",
-      "description": "Finite-difference time-domain electromagnetic solver for photonics, nanophotonics, and device-scale wave propagation modeling.",
+      "title": "Meep Electromagnetic FDTD Simulator",
+      "description": "Meep is an open-source finite-difference time-domain simulator for modeling electromagnetic wave propagation, resonances, and scattering in photonic structures across 1D, 2D, 3D, and cylindrical geometries.",
       "upstream_repo_url": "https://github.com/NanoComp/meep",
-      "homepage_url": "https://meep.readthedocs.io",
+      "homepage_url": "https://github.com/NanoComp/meep",
       "zip_url": "https://github.com/skilled-scipkg/meep/archive/refs/heads/master.zip",
       "default_version": "branch-head",
       "versions": [
@@ -48,23 +712,249 @@
         }
       ],
       "tags": [
-        "fdtd",
         "electromagnetics",
-        "nanophotonics"
+        "fdtd",
+        "photonics",
+        "nanophotonics",
+        "maxwell",
+        "wave-optics"
       ]
     },
     {
-      "package_id": "lammps",
-      "title": "LAMMPS",
-      "description": "Classical molecular dynamics engine for atomistic materials, soft matter, and multiscale simulations with large force-field ecosystems.",
-      "upstream_repo_url": "https://github.com/lammps/lammps",
-      "homepage_url": "https://www.lammps.org",
-      "zip_url": "https://github.com/skilled-scipkg/lammps/archive/refs/heads/master.zip",
+      "package_id": "mitgcm",
+      "title": "MIT General Circulation Model (MITgcm)",
+      "description": "MITgcm is a flexible geophysical fluid dynamics package for simulating ocean and atmospheric circulation, with coupled ocean sea ice and climate process capabilities.",
+      "upstream_repo_url": "https://github.com/MITgcm/MITgcm",
+      "homepage_url": "http://mitgcm.org/",
+      "zip_url": "https://github.com/skilled-scipkg/MITgcm/archive/refs/heads/master.zip",
       "default_version": "branch-head",
       "versions": [
         {
           "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/lammps/archive/refs/heads/master.zip",
+          "source_archive_url": "https://github.com/skilled-scipkg/MITgcm/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "mitgcm",
+        "ocean-model",
+        "climate-model",
+        "atmospheric-circulation",
+        "geophysical-fluids",
+        "sea-ice"
+      ]
+    },
+    {
+      "package_id": "molecool",
+      "title": "MoleCool Molecular Laser Cooling Simulator",
+      "description": "MoleCool simulates laser-driven molecular dynamics and spectra, combining optical Bloch and rate-equation solvers, cooling-force mapping, and Monte Carlo trajectories for AMO cooling and trapping experiment design.",
+      "upstream_repo_url": "https://github.com/LangenGroup/MoleCool",
+      "homepage_url": "https://arxiv.org/abs/2510.16203",
+      "zip_url": "https://github.com/skilled-scipkg/MoleCool/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/MoleCool/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "amo-physics",
+        "laser-cooling",
+        "molecular-spectroscopy",
+        "optical-bloch",
+        "rate-equations",
+        "monte-carlo"
+      ]
+    },
+    {
+      "package_id": "mom6",
+      "title": "MOM6 Modular Ocean Model",
+      "description": "Modular Ocean Model (MOM6) is a finite-volume ocean general circulation model for ocean-only and coupled climate simulations, supporting tracer transport, stratified dynamics, and realistic large-scale ocean process studies.",
+      "upstream_repo_url": "https://github.com/mom-ocean/MOM6",
+      "homepage_url": "https://github.com/mom-ocean/MOM6",
+      "zip_url": "https://github.com/skilled-scipkg/MOM6/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/MOM6/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "ocean-modeling",
+        "climate-modeling",
+        "ocean-circulation",
+        "geophysical-fluid-dynamics",
+        "earth-system"
+      ]
+    },
+    {
+      "package_id": "mpas-model",
+      "title": "MPAS Model for Prediction Across Scales",
+      "description": "MPAS-Model is an unstructured-mesh earth system modeling framework for atmosphere, ocean, sea ice, and land ice simulations used in climate, regional climate, and weather research.",
+      "upstream_repo_url": "https://github.com/MPAS-Dev/MPAS-Model",
+      "homepage_url": "https://github.com/MPAS-Dev/MPAS-Model",
+      "zip_url": "https://github.com/skilled-scipkg/MPAS-Model/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/MPAS-Model/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "mpas",
+        "climate-modeling",
+        "earth-system",
+        "atmosphere",
+        "ocean",
+        "sea-ice",
+        "weather-modeling"
+      ]
+    },
+    {
+      "package_id": "nextflow",
+      "title": "Nextflow Scientific Workflow Engine",
+      "description": "Nextflow is a dataflow-driven DSL and runtime for building reproducible, portable scientific pipelines that scale from laptops to HPC schedulers and cloud batch systems.",
+      "upstream_repo_url": "https://github.com/nextflow-io/nextflow",
+      "homepage_url": "http://nextflow.io",
+      "zip_url": "https://github.com/skilled-scipkg/nextflow/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/nextflow/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "workflow",
+        "pipelines",
+        "bioinformatics",
+        "genomics",
+        "hpc",
+        "reproducibility"
+      ]
+    },
+    {
+      "package_id": "nwchem",
+      "title": "NWChem Computational Chemistry",
+      "description": "NWChem is a high-performance computational chemistry package for scalable ab initio and molecular simulations, including quantum electronic structure, molecular dynamics, and spectroscopy on HPC systems.",
+      "upstream_repo_url": "https://github.com/nwchemgit/nwchem",
+      "homepage_url": "http://nwchemgit.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/nwchem/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/nwchem/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-chemistry",
+        "quantum-chemistry",
+        "electronic-structure",
+        "molecular-dynamics",
+        "hpc",
+        "ab-initio"
+      ]
+    },
+    {
+      "package_id": "openbabel",
+      "title": "Open Babel",
+      "description": "Open Babel is an open-source chemical toolbox for converting, searching, and analyzing molecular and materials data across many cheminformatics file formats.",
+      "upstream_repo_url": "https://github.com/openbabel/openbabel",
+      "homepage_url": "http://openbabel.org/",
+      "zip_url": "https://github.com/skilled-scipkg/openbabel/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/openbabel/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cheminformatics",
+        "chemistry",
+        "molecular-data",
+        "file-conversion",
+        "smiles",
+        "inchi"
+      ]
+    },
+    {
+      "package_id": "openff-toolkit",
+      "title": "Open Force Field Toolkit",
+      "description": "Python toolkit for applying and developing SMIRNOFF molecular mechanics force fields with direct chemical perception, parameter assignment, and cheminformatics workflows for small molecules.",
+      "upstream_repo_url": "https://github.com/openforcefield/openff-toolkit",
+      "homepage_url": "http://openforcefield.org",
+      "zip_url": "https://github.com/skilled-scipkg/openff-toolkit/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/openff-toolkit/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-chemistry",
+        "molecular-mechanics",
+        "force-fields",
+        "cheminformatics",
+        "parameterization"
+      ]
+    },
+    {
+      "package_id": "openmm",
+      "title": "OpenMM Molecular Dynamics Toolkit",
+      "description": "OpenMM is a high-performance molecular dynamics toolkit for biomolecular simulation, offering flexible custom forces and integrators with fast GPU execution through Python and C++ interfaces.",
+      "upstream_repo_url": "https://github.com/openmm/openmm",
+      "homepage_url": "https://github.com/openmm/openmm",
+      "zip_url": "https://github.com/skilled-scipkg/openmm/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/openmm/archive/refs/heads/master.zip",
           "source_ref": {
             "type": "branch",
             "value": "master"
@@ -74,108 +964,10 @@
       ],
       "tags": [
         "molecular-dynamics",
-        "materials",
-        "force-field"
-      ]
-    },
-    {
-      "package_id": "qutip",
-      "title": "QuTiP",
-      "description": "Python framework for open quantum systems, quantum dynamics, and control simulations using operator and master-equation toolkits.",
-      "upstream_repo_url": "https://github.com/qutip/qutip",
-      "homepage_url": "https://qutip.org",
-      "zip_url": "https://github.com/skilled-scipkg/qutip/archive/refs/heads/master.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/qutip/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "quantum",
-        "open-systems",
-        "dynamics"
-      ]
-    },
-    {
-      "package_id": "psi4",
-      "title": "Psi4",
-      "description": "Ab initio quantum chemistry platform for wavefunction and density-functional calculations with advanced electronic-structure methods.",
-      "upstream_repo_url": "https://github.com/psi4/psi4",
-      "homepage_url": "https://psicode.org",
-      "zip_url": "https://github.com/skilled-scipkg/psi4/archive/refs/heads/master.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/psi4/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "quantum-chemistry",
-        "electronic-structure",
-        "ab-initio"
-      ]
-    },
-    {
-      "package_id": "pyscf",
-      "title": "PySCF",
-      "description": "Python-based electronic-structure toolkit for Hartree-Fock, DFT, post-HF, and active-space methods with scriptable workflows.",
-      "upstream_repo_url": "https://github.com/pyscf/pyscf",
-      "homepage_url": "https://pyscf.org",
-      "zip_url": "https://github.com/skilled-scipkg/pyscf/archive/refs/heads/master.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/pyscf/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "quantum-chemistry",
-        "electronic-structure",
-        "python"
-      ]
-    },
-    {
-      "package_id": "ase",
-      "title": "ASE",
-      "description": "Atomic Simulation Environment for building, running, and post-processing atomistic simulations across many external calculators.",
-      "upstream_repo_url": "https://gitlab.com/ase/ase",
-      "homepage_url": "https://wiki.fysik.dtu.dk/ase",
-      "zip_url": "https://github.com/skilled-scipkg/ase/archive/refs/heads/master.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/ase/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "atomistic",
-        "workflow",
-        "materials"
+        "molecular-simulation",
+        "computational-chemistry",
+        "biophysics",
+        "gpu-acceleration"
       ]
     },
     {
@@ -205,8 +997,8 @@
     },
     {
       "package_id": "packmol",
-      "title": "Packmol",
-      "description": "Geometry preparation tool for generating initial molecular configurations under spatial constraints for MD and multicomponent systems.",
+      "title": "Packmol Molecular Configuration Builder",
+      "description": "Packmol generates initial molecular dynamics coordinates by packing molecules into user-defined regions while satisfying minimum-distance constraints to prevent destabilizing atomic overlaps.",
       "upstream_repo_url": "https://github.com/m3g/packmol",
       "homepage_url": "http://m3g.github.io/packmol",
       "zip_url": "https://github.com/skilled-scipkg/packmol/archive/refs/heads/master.zip",
@@ -223,73 +1015,25 @@
         }
       ],
       "tags": [
-        "preprocessing",
         "molecular-dynamics",
-        "packing"
+        "molecule-packing",
+        "initial-configuration",
+        "computational-chemistry",
+        "structure-preparation"
       ]
     },
     {
-      "package_id": "kwant",
-      "title": "Kwant",
-      "description": "Quantum transport simulation package for tight-binding models, scattering calculations, and mesoscopic device conductance analysis.",
-      "upstream_repo_url": "https://gitlab.kwant-project.org/kwant/kwant",
-      "homepage_url": "https://kwant-project.org",
-      "zip_url": "https://github.com/skilled-scipkg/kwant/archive/refs/heads/master.zip",
+      "package_id": "photutils",
+      "title": "Photutils Astronomical Photometry Toolkit",
+      "description": "Photutils provides robust algorithms for detecting astronomical sources and performing aperture and PSF photometry, with background estimation, segmentation, centroiding, and profile analysis for telescope image data.",
+      "upstream_repo_url": "https://github.com/astropy/photutils",
+      "homepage_url": "https://photutils.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/photutils/archive/refs/heads/main.zip",
       "default_version": "branch-head",
       "versions": [
         {
           "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/kwant/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "quantum-transport",
-        "tight-binding",
-        "mesoscopic"
-      ]
-    },
-    {
-      "package_id": "tkwant",
-      "title": "TKwant",
-      "description": "Time-dependent extension of Kwant for non-equilibrium quantum transport and transient dynamics in mesoscopic systems.",
-      "upstream_repo_url": "https://gitlab.kwant-project.org/kwant/tkwant",
-      "homepage_url": "https://kwant-project.org/extensions/tkwant",
-      "zip_url": "https://github.com/skilled-scipkg/tkwant/archive/refs/heads/master.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/tkwant/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "quantum-transport",
-        "time-dependent",
-        "mesoscopic"
-      ]
-    },
-    {
-      "package_id": "elk",
-      "title": "ELK",
-      "description": "All-electron DFT code using full-potential LAPW methods for electronic-structure and solid-state property calculations.",
-      "upstream_repo_url": "https://sourceforge.net/p/elk/code",
-      "homepage_url": "http://elk.sourceforge.net",
-      "zip_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/main.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/main.zip",
+          "source_archive_url": "https://github.com/skilled-scipkg/photutils/archive/refs/heads/main.zip",
           "source_ref": {
             "type": "branch",
             "value": "main"
@@ -298,9 +1042,481 @@
         }
       ],
       "tags": [
-        "dft",
+        "astronomy",
+        "astrophotometry",
+        "source-detection",
+        "aperture-photometry",
+        "psf-photometry",
+        "image-segmentation"
+      ]
+    },
+    {
+      "package_id": "psi4",
+      "title": "Psi4 Quantum Chemistry",
+      "description": "Psi4 is an open source ab initio quantum chemistry package for high accuracy molecular electronic structure calculations, with performant C++ kernels and Python driven user workflows.",
+      "upstream_repo_url": "https://github.com/psi4/psi4",
+      "homepage_url": "http://psicode.org",
+      "zip_url": "https://github.com/skilled-scipkg/psi4/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/psi4/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-chemistry",
         "electronic-structure",
-        "solid-state"
+        "ab-initio",
+        "computational-chemistry",
+        "molecular-modeling"
+      ]
+    },
+    {
+      "package_id": "pylcp",
+      "title": "PyLCP Laser Cooling Physics",
+      "description": "pylcp is a Python toolkit for modeling laser-cooling systems by constructing internal Hamiltonians, laser and magnetic-field configurations, and solving optical Bloch equations to compute forces and dynamics.",
+      "upstream_repo_url": "https://github.com/JQIamo/pylcp",
+      "homepage_url": "https://github.com/JQIamo/pylcp",
+      "zip_url": "https://github.com/skilled-scipkg/pylcp/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pylcp/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "laser-cooling",
+        "amo-physics",
+        "quantum-optics",
+        "optical-bloch",
+        "atomic-physics"
+      ]
+    },
+    {
+      "package_id": "pynbody",
+      "title": "Pynbody Astrophysical Simulation Analysis",
+      "description": "Python framework for analyzing and visualizing N-body and hydrodynamic astrophysical simulation data, including Gadget, Gasoline, Arepo, N-Chilada, and RAMSES AMR outputs.",
+      "upstream_repo_url": "https://github.com/pynbody/pynbody",
+      "homepage_url": "https://pynbody.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/pynbody/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pynbody/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astrophysics",
+        "cosmology",
+        "nbody",
+        "hydrodynamics",
+        "simulation-analysis",
+        "amr"
+      ]
+    },
+    {
+      "package_id": "pysam",
+      "title": "Pysam Genomics I/O",
+      "description": "Python bindings to HTSlib for fast reading, writing, indexing, and querying SAM BAM CRAM and VCF BCF genomics files used in sequencing alignment and variant analysis workflows.",
+      "upstream_repo_url": "https://github.com/pysam-developers/pysam",
+      "homepage_url": "https://pysam.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/pysam/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pysam/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "genomics",
+        "bioinformatics",
+        "sequencing",
+        "htslib",
+        "sam-bam",
+        "vcf-bcf"
+      ]
+    },
+    {
+      "package_id": "pyscf",
+      "title": "PySCF Quantum Chemistry",
+      "description": "PySCF is a Python-based electronic structure and quantum chemistry package for ab initio molecular and periodic calculations, including Hartree-Fock, post-HF, and multireference workflows.",
+      "upstream_repo_url": "https://github.com/pyscf/pyscf",
+      "homepage_url": "https://github.com/pyscf/pyscf",
+      "zip_url": "https://github.com/skilled-scipkg/pyscf/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pyscf/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-chemistry",
+        "electronic-structure",
+        "ab-initio",
+        "molecular-modeling",
+        "computational-chemistry",
+        "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "qutip",
+      "title": "QuTiP Quantum Toolbox",
+      "description": "QuTiP is a Python framework for simulating closed and open quantum system dynamics with Hamiltonians, collapse operators, and time-dependent master-equation solvers used in quantum optics and information research.",
+      "upstream_repo_url": "https://github.com/qutip/qutip",
+      "homepage_url": "https://qutip.org",
+      "zip_url": "https://github.com/skilled-scipkg/qutip/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/qutip/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-physics",
+        "open-quantum-systems",
+        "quantum-optics",
+        "master-equation",
+        "numerical-simulation"
+      ]
+    },
+    {
+      "package_id": "rdkit",
+      "title": "RDKit Cheminformatics Toolkit",
+      "description": "RDKit is an open-source cheminformatics library for molecular representation, property calculation, fingerprinting, and substructure or similarity search across 2D and 3D chemical workflows.",
+      "upstream_repo_url": "https://github.com/rdkit/rdkit",
+      "homepage_url": "https://github.com/rdkit/rdkit",
+      "zip_url": "https://github.com/skilled-scipkg/rdkit/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/rdkit/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cheminformatics",
+        "computational-chemistry",
+        "molecular-fingerprints",
+        "substructure-search",
+        "drug-discovery"
+      ]
+    },
+    {
+      "package_id": "rmg-py",
+      "title": "RMG-Py Reaction Mechanism Generator",
+      "description": "RMG-Py automatically builds detailed chemical kinetic mechanisms and thermochemistry models for combustion, pyrolysis, and atmospheric reaction networks, with Arkane support for pressure-dependent and high-pressure-limit kinetics.",
+      "upstream_repo_url": "https://github.com/ReactionMechanismGenerator/RMG-Py",
+      "homepage_url": "http://reactionmechanismgenerator.github.io/RMG-Py/",
+      "zip_url": "https://github.com/skilled-scipkg/RMG-Py/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/RMG-Py/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "chemical-kinetics",
+        "reaction-mechanism-generation",
+        "combustion",
+        "thermochemistry",
+        "atmospheric-chemistry",
+        "arkane"
+      ]
+    },
+    {
+      "package_id": "scikit-bio",
+      "title": "scikit-bio Bioinformatics Library",
+      "description": "Community-driven Python bioinformatics library with reusable data structures and algorithms for sequence processing, phylogenetics, microbiome ecology, diversity metrics, ordination, and omic data analysis.",
+      "upstream_repo_url": "https://github.com/scikit-bio/scikit-bio",
+      "homepage_url": "https://scikit.bio",
+      "zip_url": "https://github.com/skilled-scipkg/scikit-bio/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/scikit-bio/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "bioinformatics",
+        "omics",
+        "microbiome",
+        "phylogenetics",
+        "sequence-analysis",
+        "community-ecology"
+      ]
+    },
+    {
+      "package_id": "snakemake",
+      "title": "Snakemake Workflow Manager",
+      "description": "Snakemake is a Python based workflow management system for reproducible and scalable scientific data pipelines that execute on local machines, HPC clusters, grids, and cloud environments.",
+      "upstream_repo_url": "https://github.com/snakemake/snakemake",
+      "homepage_url": "https://snakemake.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/snakemake/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/snakemake/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "workflow",
+        "pipelines",
+        "reproducibility",
+        "bioinformatics",
+        "hpc",
+        "orchestration"
+      ]
+    },
+    {
+      "package_id": "specutils",
+      "title": "Specutils Astronomical Spectroscopy",
+      "description": "Specutils provides shared data models and analysis utilities for astronomical spectra, supporting spectral extraction, line measurements, continuum handling, and interoperable spectroscopy workflows in Python astronomy.",
+      "upstream_repo_url": "https://github.com/astropy/specutils",
+      "homepage_url": "http://specutils.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/specutils/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/specutils/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "spectroscopy",
+        "astrophysics",
+        "spectral-analysis",
+        "python"
+      ]
+    },
+    {
+      "package_id": "starry",
+      "title": "starry stellar and exoplanet mapper",
+      "description": "starry provides fast analytic models of stellar and exoplanet surface maps to generate and fit transit, eclipse, and phase light curves.",
+      "upstream_repo_url": "https://github.com/rodluger/starry",
+      "homepage_url": "https://starry.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/starry/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/starry/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "exoplanets",
+        "stellar",
+        "lightcurve",
+        "mapping",
+        "sphericalharmonics"
+      ]
+    },
+    {
+      "package_id": "swift",
+      "title": "SWIFT Astrophysical Simulation Engine",
+      "description": "SWIFT is a high-performance astrophysics engine for cosmological particle simulations, combining gravity and smoothed particle hydrodynamics with fine-grained tasking across large HPC systems.",
+      "upstream_repo_url": "https://github.com/SWIFTSIM/SWIFT",
+      "homepage_url": "http://www.swiftsim.com",
+      "zip_url": "https://github.com/skilled-scipkg/SWIFT/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/SWIFT/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astrophysics",
+        "cosmology",
+        "hydrodynamics",
+        "sph",
+        "gravity",
+        "hpc"
+      ]
+    },
+    {
+      "package_id": "thermo",
+      "title": "Thermo Chemical Engineering Thermodynamics",
+      "description": "Python package for chemical engineering thermodynamics and phase equilibrium, providing pure component and mixture property models, transport correlations, and rigorous flash calculation workflows.",
+      "upstream_repo_url": "https://github.com/CalebBell/thermo",
+      "homepage_url": "https://github.com/CalebBell/thermo",
+      "zip_url": "https://github.com/skilled-scipkg/thermo/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/thermo/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "thermodynamics",
+        "chemicalengineering",
+        "phaseequilibrium",
+        "vle",
+        "flashcalculation",
+        "mixtureproperties"
+      ]
+    },
+    {
+      "package_id": "wrf",
+      "title": "WRF Weather Forecasting Model",
+      "description": "WRF is an open source mesoscale numerical weather prediction system for atmospheric research and operational forecasting, including regional climate downscaling, severe weather studies, and nested domain simulations.",
+      "upstream_repo_url": "https://github.com/wrf-model/WRF",
+      "homepage_url": "https://github.com/wrf-model/WRF",
+      "zip_url": "https://github.com/skilled-scipkg/WRF/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/WRF/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "wrf",
+        "atmospheric-modeling",
+        "numerical-weather-prediction",
+        "mesoscale",
+        "regional-climate",
+        "weather-forecasting"
+      ]
+    },
+    {
+      "package_id": "xtb",
+      "title": "xTB Extended Tight-Binding Quantum Chemistry",
+      "description": "xTB is a semiempirical extended tight-binding quantum chemistry package for fast molecular energies, structures, frequencies, and conformational analyses across large systems with broad element coverage.",
+      "upstream_repo_url": "https://github.com/grimme-lab/xtb",
+      "homepage_url": "https://xtb-docs.readthedocs.io/",
+      "zip_url": "https://github.com/skilled-scipkg/xtb/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/xtb/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-chemistry",
+        "semiempirical",
+        "tight-binding",
+        "molecular-modeling",
+        "computational-chemistry"
+      ]
+    },
+    {
+      "package_id": "yt",
+      "title": "yt Volumetric Simulation Analysis",
+      "description": "yt is a Python library for physically meaningful analysis and visualization of volumetric simulation data across structured and unstructured meshes, particles, and adaptive mesh refinement datasets.",
+      "upstream_repo_url": "https://github.com/yt-project/yt",
+      "homepage_url": "http://yt-project.org",
+      "zip_url": "https://github.com/skilled-scipkg/yt/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/yt/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "scientific-visualization",
+        "simulation-analysis",
+        "volumetric-data",
+        "amr",
+        "computational-physics"
       ]
     }
   ]
