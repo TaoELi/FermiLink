@@ -885,13 +885,31 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     )
     assert Path(str(info["report_path"])) == run_dir / "report.md"
     assert not (runs_root / "report.md").exists()
+    assert Path(str(info["run_all_script_path"])) == run_dir / "00_run_all.sh"
     assert Path(str(info["simulation_script_path"])) == run_dir / "01_run_simulations.sh"
     assert Path(str(info["postprocess_script_path"])) == run_dir / "02_run_postprocess.sh"
     assert Path(str(info["plot_script_path"])) == run_dir / "03_run_plots.sh"
+    assert Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
+    assert Path(str(info["postprocess_job_map_path"])) == run_dir / "postprocess_job_ids.tsv"
+    assert Path(str(info["plot_job_map_path"])) == run_dir / "plot_job_ids.tsv"
     simulation_driver = (run_dir / "01_run_simulations.sh").read_text(encoding="utf-8")
+    postprocess_driver = (run_dir / "02_run_postprocess.sh").read_text(
+        encoding="utf-8"
+    )
+    run_all_driver = (run_dir / "00_run_all.sh").read_text(encoding="utf-8")
     assert "FAILURES=()" in simulation_driver
     assert "run_simulation.sh" in simulation_driver
     assert "continue" in simulation_driver
+    assert "simulation_job_ids.tsv" in simulation_driver
+    assert "FERMILINK_FINAL_JOB_ID" in simulation_driver
+    assert "FERMILINK_UPSTREAM_JOB_ID" in postprocess_driver
+    assert "simulation_job_ids.tsv" in postprocess_driver
+    assert "postprocess_job_ids.tsv" in postprocess_driver
+    assert "_wait_for_slurm_job" in run_all_driver
+    assert "run_simulation.sh" in run_all_driver
+    assert "run_postprocess.sh" in run_all_driver
+    assert "run_plot.sh" in run_all_driver
+    assert "FERMILINK_UPSTREAM_JOB_ID" in run_all_driver
 
 
 def test_finalize_workflow_report_rejects_stale_generation_outputs(
@@ -990,6 +1008,264 @@ def test_finalize_workflow_report_rejects_stale_audit_outputs(
             codex_bin="codex",
         )
     assert call_counter["count"] == 3
+
+
+def test_validate_hpc_workflow_task_scripts_rejects_incomplete_dependency_contract(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    summaries_root = repo_dir / "projects" / "reproduce" / "run-010" / "summaries"
+    summaries_root.mkdir(parents=True, exist_ok=True)
+
+    sim_path = summaries_root / "task_001" / "run_simulation.sh"
+    post_path = summaries_root / "task_001" / "run_postprocess.sh"
+    plot_path = summaries_root / "task_001" / "run_plot.sh"
+    sim_path.parent.mkdir(parents=True, exist_ok=True)
+
+    sim_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "jid1=$(sbatch sim_eq.slurm)",
+                "jid2=$(sbatch sim_prod.slurm)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    post_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "jid=$(sbatch post.slurm)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    plot_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "jid=$(sbatch plot.slurm)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    validation_error = workflow_commands._validate_hpc_workflow_task_scripts(
+        repo_dir=repo_dir,
+        simulation_task_scripts=[("task_001", sim_path)],
+        postprocess_task_scripts=[("task_001", post_path)],
+        plot_task_scripts=[("task_001", plot_path)],
+    )
+
+    assert isinstance(validation_error, str)
+    assert "simulation:task_001" in validation_error
+    assert "postprocess:task_001" in validation_error
+    assert "plot:task_001" in validation_error
+    assert "--dependency=afterok" in validation_error
+    assert "FERMILINK_FINAL_JOB_ID=<job_id>" in validation_error
+
+
+def test_validate_hpc_workflow_task_scripts_accepts_dependency_contract(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    summaries_root = repo_dir / "projects" / "reproduce" / "run-011" / "summaries"
+    summaries_root.mkdir(parents=True, exist_ok=True)
+
+    sim_path = summaries_root / "task_001" / "run_simulation.sh"
+    post_path = summaries_root / "task_001" / "run_postprocess.sh"
+    plot_path = summaries_root / "task_001" / "run_plot.sh"
+    sim_path.parent.mkdir(parents=True, exist_ok=True)
+
+    sim_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "jid_eq=$(sbatch --parsable eq.slurm)",
+                "jid_prod=$(sbatch --parsable --dependency=afterok:${jid_eq} prod.slurm)",
+                "echo FERMILINK_FINAL_JOB_ID=${jid_prod}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    post_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "dep_flags=()",
+                'if [[ -n "${FERMILINK_UPSTREAM_JOB_ID:-}" ]]; then',
+                "  dep_flags+=(--dependency=afterok:${FERMILINK_UPSTREAM_JOB_ID})",
+                "fi",
+                'jid_post=$(sbatch --parsable "${dep_flags[@]}" post.slurm)',
+                "echo FERMILINK_FINAL_JOB_ID=${jid_post}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    plot_path.write_text(
+        "\n".join(
+            [
+                "#!/usr/bin/env bash",
+                "set -euo pipefail",
+                "dep_flags=()",
+                'if [[ -n "${FERMILINK_UPSTREAM_JOB_ID:-}" ]]; then',
+                "  dep_flags+=(--dependency=afterok:${FERMILINK_UPSTREAM_JOB_ID})",
+                "fi",
+                'jid_plot=$(sbatch --parsable "${dep_flags[@]}" plot.slurm)',
+                "echo FERMILINK_FINAL_JOB_ID=${jid_plot}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    validation_error = workflow_commands._validate_hpc_workflow_task_scripts(
+        repo_dir=repo_dir,
+        simulation_task_scripts=[("task_001", sim_path)],
+        postprocess_task_scripts=[("task_001", post_path)],
+        plot_task_scripts=[("task_001", plot_path)],
+    )
+    assert validation_error is None
+
+
+def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    run_dir = repo_dir / "projects" / "reproduce" / "run-012"
+    runs_root = run_dir.parent
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+
+    run_id = run_dir.name
+    generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
+    audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
+    generation_calls = {"count": 0}
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt") or "")
+        summary_path = run_dir / "summaries" / "task_001" / "summary.md"
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        simulation_script = summary_path.parent / "run_simulation.sh"
+        postprocess_script = summary_path.parent / "run_postprocess.sh"
+        plot_script = summary_path.parent / "run_plot.sh"
+        report_path = run_dir / "report.md"
+        if "workflow report generation mode" in prompt:
+            generation_calls["count"] += 1
+            summary_path.write_text("# Task 1 summary\n", encoding="utf-8")
+            if generation_calls["count"] == 1:
+                simulation_script.write_text(
+                    "\n".join(
+                        [
+                            "#!/usr/bin/env bash",
+                            "set -euo pipefail",
+                            "jid1=$(sbatch eq.slurm)",
+                            "jid2=$(sbatch prod.slurm)",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                postprocess_script.write_text(
+                    "#!/usr/bin/env bash\nset -euo pipefail\necho post\n",
+                    encoding="utf-8",
+                )
+                plot_script.write_text(
+                    "#!/usr/bin/env bash\nset -euo pipefail\necho plot\n",
+                    encoding="utf-8",
+                )
+            else:
+                simulation_script.write_text(
+                    "\n".join(
+                        [
+                            "#!/usr/bin/env bash",
+                            "set -euo pipefail",
+                            "jid_eq=$(sbatch --parsable eq.slurm)",
+                            "jid_prod=$(sbatch --parsable --dependency=afterok:${jid_eq} prod.slurm)",
+                            "echo FERMILINK_FINAL_JOB_ID=${jid_prod}",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                postprocess_script.write_text(
+                    "\n".join(
+                        [
+                            "#!/usr/bin/env bash",
+                            "set -euo pipefail",
+                            "dep_flags=()",
+                            'if [[ -n "${FERMILINK_UPSTREAM_JOB_ID:-}" ]]; then',
+                            "  dep_flags+=(--dependency=afterok:${FERMILINK_UPSTREAM_JOB_ID})",
+                            "fi",
+                            'jid_post=$(sbatch --parsable "${dep_flags[@]}" post.slurm)',
+                            "echo FERMILINK_FINAL_JOB_ID=${jid_post}",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                plot_script.write_text(
+                    "\n".join(
+                        [
+                            "#!/usr/bin/env bash",
+                            "set -euo pipefail",
+                            "dep_flags=()",
+                            'if [[ -n "${FERMILINK_UPSTREAM_JOB_ID:-}" ]]; then',
+                            "  dep_flags+=(--dependency=afterok:${FERMILINK_UPSTREAM_JOB_ID})",
+                            "fi",
+                            'jid_plot=$(sbatch --parsable "${dep_flags[@]}" plot.slurm)',
+                            "echo FERMILINK_FINAL_JOB_ID=${jid_plot}",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+            report_path.write_text(f"# Report\n{generation_marker}\n", encoding="utf-8")
+        elif "workflow report audit mode" in prompt:
+            report_path.write_text(
+                f"# Report (audited)\n{generation_marker}\n{audit_marker}\n",
+                encoding="utf-8",
+            )
+        return {"return_code": 0, "assistant_text": "", "stderr": ""}
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+
+    info = cli._finalize_workflow_report(
+        repo_dir=repo_dir,
+        run_dir=run_dir,
+        runs_root=runs_root,
+        workflow_name="reproduce",
+        source_description="paper.md",
+        tasks_state=[{"id": "task_001", "title": "Task one"}],
+        requested_package_id=None,
+        sandbox_override=None,
+        codex_bin="codex",
+        hpc_context={
+            "enabled": True,
+            "mode": "hpc_slurm",
+            "scheduler": "slurm",
+            "profile": {
+                "cluster_name": "Test Cluster",
+                "partitions": {"shared": {"cpus_per_node": 128, "max_nodes": 1}},
+            },
+        },
+    )
+    assert generation_calls["count"] == 2
+    assert Path(str(info["run_all_script_path"])) == run_dir / "00_run_all.sh"
+    assert Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
+    assert Path(str(info["postprocess_job_map_path"])) == run_dir / "postprocess_job_ids.tsv"
+    assert Path(str(info["plot_job_map_path"])) == run_dir / "plot_job_ids.tsv"
 
 
 def test_generate_reproduce_plan_dry_run_appends_prompt_requirements(

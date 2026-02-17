@@ -104,8 +104,13 @@ publication-scale requests.
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
 ``report.md``).
-After successful report finalization, three orchestration scripts are generated
+After successful report finalization, four orchestration scripts are generated
 at run root:
+
+- ``00_run_all.sh``: per-task orchestration that runs simulation, then
+  post-processing, then plotting for each task in order; when stage scripts
+  emit SLURM job ids, it waits for successful completion before advancing to
+  downstream stages or the next task;
 
 - ``01_run_simulations.sh``: executes all task-level simulation scripts while
   continuing across per-task failures;
@@ -113,6 +118,18 @@ at run root:
   with the same failure-tolerant behavior;
 - ``03_run_plots.sh``: executes all task-level plotting scripts with the same
   failure-tolerant behavior.
+For HPC/SLURM workflows, these stage drivers also propagate inter-stage job
+dependencies via run-scoped map files:
+
+- ``simulation_job_ids.tsv``: task-to-job-id mapping emitted by
+  ``01_run_simulations.sh`` from ``FERMILINK_FINAL_JOB_ID=<job_id>`` markers;
+- ``postprocess_job_ids.tsv``: task-to-job-id mapping emitted by
+  ``02_run_postprocess.sh`` and used to gate plotting jobs;
+- ``plot_job_ids.tsv``: task-to-job-id mapping emitted by ``03_run_plots.sh``.
+When task scripts use ``sbatch``, they should emit
+``FERMILINK_FINAL_JOB_ID=<job_id>`` and, for post-processing/plot stages,
+consume optional ``FERMILINK_UPSTREAM_JOB_ID`` to submit dependent jobs with
+``--dependency=afterok:<job_id>``.
 When ``--data-dir`` is provided, additional run-scoped artifacts are written to
 ``projects/reproduce/<run-id>/data/``:
 
@@ -162,7 +179,9 @@ the same run-scoped ``data/`` artifact contract and read-only defaults as
 ``reproduce``.
 ``research`` uses the same local-default / ``--hpc-profile`` override behavior
 as ``reproduce`` for execution-target-specific artifact generation.
-The same three end-stage orchestration scripts are also generated under
+The same four orchestration scripts (``00_run_all.sh`` plus
+``01_run_simulations.sh`` / ``02_run_postprocess.sh`` / ``03_run_plots.sh``)
+are also generated under
 ``projects/research/<run-id>/``.
 
 Automated package onboarding

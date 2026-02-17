@@ -94,9 +94,18 @@ NOISE_DIR_NAMES = {
 NOISE_BASENAME_EXACT = {".ds_store", "nohup.out"}
 NOISE_SUFFIXES = {".tmp", ".swp", ".bak"}
 SLURM_BASENAME_RE = re.compile(r"^slurm-[^/]+\.(?:out|err)$")
+SBATCH_TOKEN_RE = re.compile(r"(^|[^A-Za-z0-9_])sbatch($|[^A-Za-z0-9_])")
+SBATCH_PARSABLE_RE = re.compile(r"--parsable(?:\s|$)")
+SBATCH_AFTEROK_RE = re.compile(r"--dependency\s*=\s*afterok\s*:")
+WORKFLOW_FINAL_JOB_ID_MARKER = "FERMILINK_FINAL_JOB_ID="
+WORKFLOW_UPSTREAM_JOB_ID_ENV = "FERMILINK_UPSTREAM_JOB_ID"
+WORKFLOW_ALLINONE_BATCH_SCRIPT_FILENAME = "00_run_all.sh"
 WORKFLOW_SIMULATION_BATCH_SCRIPT_FILENAME = "01_run_simulations.sh"
 WORKFLOW_POSTPROCESS_BATCH_SCRIPT_FILENAME = "02_run_postprocess.sh"
 WORKFLOW_PLOT_BATCH_SCRIPT_FILENAME = "03_run_plots.sh"
+WORKFLOW_SIMULATION_JOB_MAP_FILENAME = "simulation_job_ids.tsv"
+WORKFLOW_POSTPROCESS_JOB_MAP_FILENAME = "postprocess_job_ids.tsv"
+WORKFLOW_PLOT_JOB_MAP_FILENAME = "plot_job_ids.tsv"
 WORKFLOW_TASK_SIMULATION_SCRIPT_FILENAME = "run_simulation.sh"
 WORKFLOW_TASK_POSTPROCESS_SCRIPT_FILENAME = "run_postprocess.sh"
 WORKFLOW_TASK_PLOT_SCRIPT_FILENAME = "run_plot.sh"
@@ -3372,71 +3381,380 @@ def _render_workflow_stage_driver_script(
     run_id: str,
     stage_label: str,
     task_script_relpaths: list[tuple[str, str]],
+    upstream_job_map_filename: str | None = None,
+    emitted_job_map_filename: str | None = None,
 ) -> str:
     stage_slug = stage_label.lower().replace(" ", "_")
+    upstream_job_map_rel = (
+        str(upstream_job_map_filename or "").strip()
+        if upstream_job_map_filename is not None
+        else ""
+    )
+    emitted_job_map_rel = (
+        str(emitted_job_map_filename or "").strip()
+        if emitted_job_map_filename is not None
+        else ""
+    )
     entries = [
         f"  {shlex.quote(task_id + '|' + rel_path)}"
         for task_id, rel_path in task_script_relpaths
     ]
-    entries_block = "\n".join(entries) if entries else "  ''"
     total_count = len(task_script_relpaths)
-    return (
-        "#!/usr/bin/env bash\n"
-        "set -u -o pipefail\n"
-        "\n"
-        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
-        'RUN_DIR="$SCRIPT_DIR"\n'
-        "\n"
-        f'STAGE_LABEL="{stage_label}"\n'
-        f'STAGE_SLUG="{stage_slug}"\n'
-        f'WORKFLOW_NAME="{workflow_name}"\n'
-        f'RUN_ID="{run_id}"\n'
-        f"TOTAL_COUNT={total_count}\n"
-        "SUCCESS_COUNT=0\n"
-        "FAILURES=()\n"
-        "\n"
-        "TASK_ENTRIES=(\n"
-        f"{entries_block}\n"
-        ")\n"
-        "\n"
-        'echo "[${STAGE_SLUG}] workflow=${WORKFLOW_NAME} run_id=${RUN_ID}"\n'
-        'echo "[${STAGE_SLUG}] tasks=${TOTAL_COUNT}"\n'
-        "\n"
-        "for entry in \"${TASK_ENTRIES[@]}\"; do\n"
-        "  if [[ -z \"$entry\" ]]; then\n"
-        "    continue\n"
-        "  fi\n"
-        "  task_id=\"${entry%%|*}\"\n"
-        "  rel_script=\"${entry#*|}\"\n"
-        "  task_script=\"$RUN_DIR/$rel_script\"\n"
-        "\n"
-        "  if [[ ! -f \"$task_script\" ]]; then\n"
-        "    echo \"[warn] ${task_id}: missing script ${rel_script}\" >&2\n"
-        "    FAILURES+=(\"${task_id}:missing_script\")\n"
-        "    continue\n"
-        "  fi\n"
-        "\n"
-        "  echo \"[run] ${task_id}: bash ${rel_script}\"\n"
-        "  if bash \"$task_script\"; then\n"
-        "    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))\n"
-        "    echo \"[ok] ${task_id}\"\n"
-        "  else\n"
-        "    exit_code=$?\n"
-        "    echo \"[error] ${task_id}: exit=${exit_code}\" >&2\n"
-        "    FAILURES+=(\"${task_id}:exit_${exit_code}\")\n"
-        "  fi\n"
-        "done\n"
-        "\n"
-        'echo "[summary] ${STAGE_SLUG}: success=${SUCCESS_COUNT}/${TOTAL_COUNT}"\n'
-        "if [[ ${#FAILURES[@]} -gt 0 ]]; then\n"
-        '  echo "[summary] ${STAGE_SLUG}: failures=${#FAILURES[@]}" >&2\n'
-        "  for item in \"${FAILURES[@]}\"; do\n"
-        '    echo "  - ${item}" >&2\n'
-        "  done\n"
-        "  exit 1\n"
-        "fi\n"
-        "exit 0\n"
+    lines: list[str] = [
+        "#!/usr/bin/env bash",
+        "set -u -o pipefail",
+        "",
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        'RUN_DIR="$SCRIPT_DIR"',
+        "",
+        f'STAGE_LABEL="{stage_label}"',
+        f'STAGE_SLUG="{stage_slug}"',
+        f'WORKFLOW_NAME="{workflow_name}"',
+        f'RUN_ID="{run_id}"',
+        f"TOTAL_COUNT={total_count}",
+        "SUCCESS_COUNT=0",
+        "FAILURES=()",
+        f'UPSTREAM_JOB_MAP_REL="{upstream_job_map_rel}"',
+        f'EMITTED_JOB_MAP_REL="{emitted_job_map_rel}"',
+        'UPSTREAM_JOB_MAP=""',
+        'EMITTED_JOB_MAP=""',
+        'if [[ -n "$UPSTREAM_JOB_MAP_REL" ]]; then',
+        '  UPSTREAM_JOB_MAP="$RUN_DIR/$UPSTREAM_JOB_MAP_REL"',
+        "fi",
+        'if [[ -n "$EMITTED_JOB_MAP_REL" ]]; then',
+        '  EMITTED_JOB_MAP="$RUN_DIR/$EMITTED_JOB_MAP_REL"',
+        '  : > "$EMITTED_JOB_MAP"',
+        "fi",
+        "",
+        "_lookup_upstream_job_id() {",
+        '  local lookup_task="$1"',
+        '  if [[ -z "$UPSTREAM_JOB_MAP" || ! -f "$UPSTREAM_JOB_MAP" ]]; then',
+        "    return 0",
+        "  fi",
+        "  while IFS=$'\\t' read -r map_task map_job_id; do",
+        '    if [[ "$map_task" == "$lookup_task" ]]; then',
+        '      printf "%s" "$map_job_id"',
+        "      return 0",
+        "    fi",
+        '  done < "$UPSTREAM_JOB_MAP"',
+        "  return 0",
+        "}",
+        "",
+        "_extract_final_job_id() {",
+        '  local log_path="$1"',
+        '  local marker_line=""',
+        '  if [[ ! -f "$log_path" ]]; then',
+        "    return 0",
+        "  fi",
+        f"  marker_line=\"$(grep -E '^{WORKFLOW_FINAL_JOB_ID_MARKER}' \"$log_path\" | tail -n 1 || true)\"",
+        '  if [[ -z "$marker_line" ]]; then',
+        "    return 0",
+        "  fi",
+        f"  marker_line=\"${{marker_line#{WORKFLOW_FINAL_JOB_ID_MARKER}}}\"",
+        "  marker_line=\"${marker_line//$'\\r'/}\"",
+        '  marker_line="$(printf "%s" "$marker_line" | tr -d "[:space:]")"',
+        '  printf "%s" "$marker_line"',
+        "}",
+        "",
+        "TASK_ENTRIES=(",
+    ]
+    if entries:
+        lines.extend(entries)
+    else:
+        lines.append("  ''")
+    lines.extend(
+        [
+            ")",
+            "",
+            'echo "[${STAGE_SLUG}] workflow=${WORKFLOW_NAME} run_id=${RUN_ID}"',
+            'echo "[${STAGE_SLUG}] tasks=${TOTAL_COUNT}"',
+            "",
+            'for entry in "${TASK_ENTRIES[@]}"; do',
+            '  if [[ -z "$entry" ]]; then',
+            "    continue",
+            "  fi",
+            '  task_id="${entry%%|*}"',
+            '  rel_script="${entry#*|}"',
+            '  task_script="$RUN_DIR/$rel_script"',
+            "",
+            '  if [[ ! -f "$task_script" ]]; then',
+            '    echo "[warn] ${task_id}: missing script ${rel_script}" >&2',
+            '    FAILURES+=("${task_id}:missing_script")',
+            "    continue",
+            "  fi",
+            "",
+            '  upstream_job_id="$(_lookup_upstream_job_id "$task_id")"',
+            '  if [[ -n "$upstream_job_id" ]]; then',
+            '    echo "[run] ${task_id}: bash ${rel_script} (upstream_job_id=${upstream_job_id})"',
+            "  else",
+            '    echo "[run] ${task_id}: bash ${rel_script}"',
+            "  fi",
+            "",
+            '  task_log="$RUN_DIR/.${STAGE_SLUG}_${task_id}.log"',
+            '  : > "$task_log"',
+            '  if [[ -n "$upstream_job_id" ]]; then',
+            f'    {WORKFLOW_UPSTREAM_JOB_ID_ENV}="$upstream_job_id" bash "$task_script" > >(tee "$task_log") 2>&1',
+            "  else",
+            '    bash "$task_script" > >(tee "$task_log") 2>&1',
+            "  fi",
+            "  exit_code=$?",
+            '  final_job_id="$(_extract_final_job_id "$task_log")"',
+            '  rm -f "$task_log"',
+            "",
+            "  if [[ $exit_code -eq 0 ]]; then",
+            "    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))",
+            '    if [[ -n "$EMITTED_JOB_MAP" && -n "$final_job_id" ]]; then',
+            '      printf "%s\\t%s\\n" "$task_id" "$final_job_id" >> "$EMITTED_JOB_MAP"',
+            '      echo "[meta] ${task_id}: final_job_id=${final_job_id}"',
+            "    fi",
+            '    echo "[ok] ${task_id}"',
+            "  else",
+            '    echo "[error] ${task_id}: exit=${exit_code}" >&2',
+            '    FAILURES+=("${task_id}:exit_${exit_code}")',
+            "  fi",
+            "done",
+            "",
+            'echo "[summary] ${STAGE_SLUG}: success=${SUCCESS_COUNT}/${TOTAL_COUNT}"',
+            'if [[ -n "$EMITTED_JOB_MAP_REL" ]]; then',
+            '  echo "[summary] ${STAGE_SLUG}: job_map=${EMITTED_JOB_MAP_REL}"',
+            "fi",
+            'if [[ ${#FAILURES[@]} -gt 0 ]]; then',
+            '  echo "[summary] ${STAGE_SLUG}: failures=${#FAILURES[@]}" >&2',
+            '  for item in "${FAILURES[@]}"; do',
+            '    echo "  - ${item}" >&2',
+            "  done",
+            "  exit 1",
+            "fi",
+            "exit 0",
+        ]
     )
+    return "\n".join(lines) + "\n"
+
+
+def _render_workflow_all_in_one_driver_script(
+    *,
+    workflow_name: str,
+    run_id: str,
+    task_stage_script_relpaths: list[tuple[str, str, str, str]],
+) -> str:
+    entries = [
+        f"  {shlex.quote(task_id + '|' + sim_rel + '|' + post_rel + '|' + plot_rel)}"
+        for task_id, sim_rel, post_rel, plot_rel in task_stage_script_relpaths
+    ]
+    total_count = len(task_stage_script_relpaths)
+    lines: list[str] = [
+        "#!/usr/bin/env bash",
+        "set -u -o pipefail",
+        "",
+        'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        'RUN_DIR="$SCRIPT_DIR"',
+        "",
+        f'WORKFLOW_NAME="{workflow_name}"',
+        f'RUN_ID="{run_id}"',
+        f"TOTAL_COUNT={total_count}",
+        "SUCCESS_COUNT=0",
+        "FAILURES=()",
+        'POLL_SECONDS="${FERMILINK_POLL_SECONDS:-20}"',
+        'MAX_POLLS="${FERMILINK_MAX_POLLS:-0}"',
+        'STAGE_FINAL_JOB_ID=""',
+        "",
+        'if ! [[ "$POLL_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then',
+        '  echo "[error] invalid FERMILINK_POLL_SECONDS=${POLL_SECONDS}" >&2',
+        "  exit 2",
+        "fi",
+        'if ! [[ "$MAX_POLLS" =~ ^[0-9]+$ ]]; then',
+        '  echo "[error] invalid FERMILINK_MAX_POLLS=${MAX_POLLS}" >&2',
+        "  exit 2",
+        "fi",
+        "",
+        "_extract_final_job_id() {",
+        '  local log_path="$1"',
+        '  local marker_line=""',
+        '  if [[ ! -f "$log_path" ]]; then',
+        "    return 0",
+        "  fi",
+        f"  marker_line=\"$(grep -E '^{WORKFLOW_FINAL_JOB_ID_MARKER}' \"$log_path\" | tail -n 1 || true)\"",
+        '  if [[ -z "$marker_line" ]]; then',
+        "    return 0",
+        "  fi",
+        f"  marker_line=\"${{marker_line#{WORKFLOW_FINAL_JOB_ID_MARKER}}}\"",
+        "  marker_line=\"${marker_line//$'\\r'/}\"",
+        '  marker_line="$(printf "%s" "$marker_line" | tr -d "[:space:]")"',
+        '  printf "%s" "$marker_line"',
+        "}",
+        "",
+        "_query_slurm_job_state() {",
+        '  local job_id="$1"',
+        '  local state=""',
+        "  if command -v sacct >/dev/null 2>&1; then",
+        '    state="$(sacct -n -o State -j "$job_id" 2>/dev/null | awk \'NF {print $1; exit}\')"',
+        "  fi",
+        '  if [[ -z "$state" ]] && command -v squeue >/dev/null 2>&1; then',
+        '    if squeue -h -j "$job_id" 2>/dev/null | grep -q .; then',
+        '      state="PENDING"',
+        "    fi",
+        "  fi",
+        '  state="${state%%+*}"',
+        '  state="${state%% *}"',
+        '  printf "%s" "$state"',
+        "}",
+        "",
+        "_wait_for_slurm_job() {",
+        '  local job_id="$1"',
+        '  local stage_ref="$2"',
+        '  local poll_count=0',
+        '  if ! command -v sacct >/dev/null 2>&1 && ! command -v squeue >/dev/null 2>&1; then',
+        '    echo "[error] ${stage_ref}: cannot wait for job ${job_id}; both `sacct` and `squeue` are unavailable" >&2',
+        "    return 1",
+        "  fi",
+        "  while true; do",
+        '    local state=""',
+        '    state="$(_query_slurm_job_state "$job_id")"',
+        '    if [[ "$state" == "COMPLETED" ]]; then',
+        '      echo "[wait] ${stage_ref}: job ${job_id} COMPLETED"',
+        "      return 0",
+        "    fi",
+        '    case "$state" in',
+        "      FAILED|CANCELLED|TIMEOUT|NODE_FAIL|OUT_OF_MEMORY|PREEMPTED|BOOT_FAIL|DEADLINE|REVOKED|SPECIAL_EXIT|STOPPED)",
+        '        echo "[error] ${stage_ref}: job ${job_id} finished in state ${state}" >&2',
+        "        return 1",
+        "        ;;",
+        "    esac",
+        "    poll_count=$((poll_count + 1))",
+        '    if [[ "$MAX_POLLS" -gt 0 && "$poll_count" -ge "$MAX_POLLS" ]]; then',
+        '      echo "[error] ${stage_ref}: exceeded FERMILINK_MAX_POLLS=${MAX_POLLS} while waiting for job ${job_id}" >&2',
+        "      return 1",
+        "    fi",
+        '    if [[ -n "$state" ]]; then',
+        '      echo "[wait] ${stage_ref}: job ${job_id} state=${state}; sleeping ${POLL_SECONDS}s"',
+        "    else",
+        '      echo "[wait] ${stage_ref}: job ${job_id} state unavailable; sleeping ${POLL_SECONDS}s"',
+        "    fi",
+        '    sleep "$POLL_SECONDS"',
+        "  done",
+        "}",
+        "",
+        "_run_stage_script() {",
+        '  local task_id="$1"',
+        '  local stage_label="$2"',
+        '  local rel_script="$3"',
+        '  local upstream_job_id="${4:-}"',
+        '  local stage_script="$RUN_DIR/$rel_script"',
+        '  local stage_log="$RUN_DIR/.run_all_${task_id}_${stage_label}.log"',
+        '  STAGE_FINAL_JOB_ID=""',
+        '  if [[ ! -f "$stage_script" ]]; then',
+        '    echo "[error] ${task_id}/${stage_label}: missing script ${rel_script}" >&2',
+        "    return 127",
+        "  fi",
+        '  if [[ -n "$upstream_job_id" ]]; then',
+        '    echo "[run] ${task_id}/${stage_label}: bash ${rel_script} (upstream_job_id=${upstream_job_id})"',
+        "  else",
+        '    echo "[run] ${task_id}/${stage_label}: bash ${rel_script}"',
+        "  fi",
+        '  : > "$stage_log"',
+        '  if [[ -n "$upstream_job_id" ]]; then',
+        f'    {WORKFLOW_UPSTREAM_JOB_ID_ENV}="$upstream_job_id" bash "$stage_script" > >(tee "$stage_log") 2>&1',
+        "  else",
+        '    bash "$stage_script" > >(tee "$stage_log") 2>&1',
+        "  fi",
+        "  local exit_code=$?",
+        '  local final_job_id=""',
+        '  final_job_id="$(_extract_final_job_id "$stage_log")"',
+        '  rm -f "$stage_log"',
+        '  STAGE_FINAL_JOB_ID="$final_job_id"',
+        '  if [[ "$exit_code" -ne 0 ]]; then',
+        '    echo "[error] ${task_id}/${stage_label}: exit=${exit_code}" >&2',
+        '    return "$exit_code"',
+        "  fi",
+        '  if [[ -n "$final_job_id" ]]; then',
+        '    echo "[meta] ${task_id}/${stage_label}: final_job_id=${final_job_id}"',
+        "  fi",
+        "  return 0",
+        "}",
+        "",
+        "TASK_ENTRIES=(",
+    ]
+    if entries:
+        lines.extend(entries)
+    else:
+        lines.append("  ''")
+    lines.extend(
+        [
+            ")",
+            "",
+            'echo "[run_all] workflow=${WORKFLOW_NAME} run_id=${RUN_ID}"',
+            'echo "[run_all] tasks=${TOTAL_COUNT}"',
+            "",
+            'for entry in "${TASK_ENTRIES[@]}"; do',
+            '  if [[ -z "$entry" ]]; then',
+            "    continue",
+            "  fi",
+            '  task_id="${entry%%|*}"',
+            '  rest="${entry#*|}"',
+            '  sim_rel="${rest%%|*}"',
+            '  rest="${rest#*|}"',
+            '  post_rel="${rest%%|*}"',
+            '  plot_rel="${rest#*|}"',
+            "",
+            '  sim_job_id=""',
+            '  post_job_id=""',
+            '  plot_job_id=""',
+            "",
+            '  if ! _run_stage_script "$task_id" "simulation" "$sim_rel" ""; then',
+            "    exit_code=$?",
+            '    FAILURES+=("${task_id}:simulation_exit_${exit_code}")',
+            "    continue",
+            "  fi",
+            '  sim_job_id="$STAGE_FINAL_JOB_ID"',
+            '  if [[ -n "$sim_job_id" ]]; then',
+            '    if ! _wait_for_slurm_job "$sim_job_id" "${task_id}/simulation"; then',
+            '      FAILURES+=("${task_id}:simulation_job_wait_failed_${sim_job_id}")',
+            "      continue",
+            "    fi",
+            "  fi",
+            "",
+            '  if ! _run_stage_script "$task_id" "postprocess" "$post_rel" "$sim_job_id"; then',
+            "    exit_code=$?",
+            '    FAILURES+=("${task_id}:postprocess_exit_${exit_code}")',
+            "    continue",
+            "  fi",
+            '  post_job_id="$STAGE_FINAL_JOB_ID"',
+            '  if [[ -n "$post_job_id" ]]; then',
+            '    if ! _wait_for_slurm_job "$post_job_id" "${task_id}/postprocess"; then',
+            '      FAILURES+=("${task_id}:postprocess_job_wait_failed_${post_job_id}")',
+            "      continue",
+            "    fi",
+            "  fi",
+            "",
+            '  if ! _run_stage_script "$task_id" "plot" "$plot_rel" "$post_job_id"; then',
+            "    exit_code=$?",
+            '    FAILURES+=("${task_id}:plot_exit_${exit_code}")',
+            "    continue",
+            "  fi",
+            '  plot_job_id="$STAGE_FINAL_JOB_ID"',
+            '  if [[ -n "$plot_job_id" ]]; then',
+            '    if ! _wait_for_slurm_job "$plot_job_id" "${task_id}/plot"; then',
+            '      FAILURES+=("${task_id}:plot_job_wait_failed_${plot_job_id}")',
+            "      continue",
+            "    fi",
+            "  fi",
+            "",
+            "  SUCCESS_COUNT=$((SUCCESS_COUNT + 1))",
+            '  echo "[ok] ${task_id}: simulation + postprocess + plot completed"',
+            "done",
+            "",
+            'echo "[summary] run_all: success=${SUCCESS_COUNT}/${TOTAL_COUNT}"',
+            'if [[ ${#FAILURES[@]} -gt 0 ]]; then',
+            '  echo "[summary] run_all: failures=${#FAILURES[@]}" >&2',
+            '  for item in "${FAILURES[@]}"; do',
+            '    echo "  - ${item}" >&2',
+            "  done",
+            "  exit 1",
+            "fi",
+            "exit 0",
+        ]
+    )
+    return "\n".join(lines) + "\n"
 
 
 def _write_workflow_stage_driver_scripts(
@@ -3448,9 +3766,13 @@ def _write_workflow_stage_driver_scripts(
     postprocess_task_scripts: list[tuple[str, Path]],
     plot_task_scripts: list[tuple[str, Path]],
 ) -> dict[str, object]:
+    run_all_path = run_dir / WORKFLOW_ALLINONE_BATCH_SCRIPT_FILENAME
     simulation_path = run_dir / WORKFLOW_SIMULATION_BATCH_SCRIPT_FILENAME
     postprocess_path = run_dir / WORKFLOW_POSTPROCESS_BATCH_SCRIPT_FILENAME
     plot_path = run_dir / WORKFLOW_PLOT_BATCH_SCRIPT_FILENAME
+    simulation_job_map_path = run_dir / WORKFLOW_SIMULATION_JOB_MAP_FILENAME
+    postprocess_job_map_path = run_dir / WORKFLOW_POSTPROCESS_JOB_MAP_FILENAME
+    plot_job_map_path = run_dir / WORKFLOW_PLOT_JOB_MAP_FILENAME
 
     simulation_rel = [
         (task_id, str(path.relative_to(run_dir)))
@@ -3464,7 +3786,35 @@ def _write_workflow_stage_driver_scripts(
         (task_id, str(path.relative_to(run_dir)))
         for task_id, path in plot_task_scripts
     ]
+    if not (
+        len(simulation_task_scripts)
+        == len(postprocess_task_scripts)
+        == len(plot_task_scripts)
+    ):
+        cli = _cli()
+        raise cli.PackageError(
+            "Workflow stage script lists are inconsistent; cannot generate run-all script."
+        )
+    run_all_rel = [
+        (
+            task_id,
+            str(sim_path.relative_to(run_dir)),
+            str(post_path.relative_to(run_dir)),
+            str(plot_path.relative_to(run_dir)),
+        )
+        for (task_id, sim_path), (_, post_path), (_, plot_path) in zip(
+            simulation_task_scripts, postprocess_task_scripts, plot_task_scripts
+        )
+    ]
 
+    _write_text_file(
+        run_all_path,
+        _render_workflow_all_in_one_driver_script(
+            workflow_name=workflow_name,
+            run_id=run_id,
+            task_stage_script_relpaths=run_all_rel,
+        ),
+    )
     _write_text_file(
         simulation_path,
         _render_workflow_stage_driver_script(
@@ -3472,6 +3822,7 @@ def _write_workflow_stage_driver_scripts(
             run_id=run_id,
             stage_label="simulation",
             task_script_relpaths=simulation_rel,
+            emitted_job_map_filename=WORKFLOW_SIMULATION_JOB_MAP_FILENAME,
         ),
     )
     _write_text_file(
@@ -3481,6 +3832,8 @@ def _write_workflow_stage_driver_scripts(
             run_id=run_id,
             stage_label="postprocess",
             task_script_relpaths=postprocess_rel,
+            upstream_job_map_filename=WORKFLOW_SIMULATION_JOB_MAP_FILENAME,
+            emitted_job_map_filename=WORKFLOW_POSTPROCESS_JOB_MAP_FILENAME,
         ),
     )
     _write_text_file(
@@ -3490,16 +3843,156 @@ def _write_workflow_stage_driver_scripts(
             run_id=run_id,
             stage_label="plot",
             task_script_relpaths=plot_rel,
+            upstream_job_map_filename=WORKFLOW_POSTPROCESS_JOB_MAP_FILENAME,
+            emitted_job_map_filename=WORKFLOW_PLOT_JOB_MAP_FILENAME,
         ),
     )
+    _set_file_executable(run_all_path)
     _set_file_executable(simulation_path)
     _set_file_executable(postprocess_path)
     _set_file_executable(plot_path)
     return {
+        "run_all_script_path": str(run_all_path),
         "simulation_script_path": str(simulation_path),
         "postprocess_script_path": str(postprocess_path),
         "plot_script_path": str(plot_path),
+        "simulation_job_map_path": str(simulation_job_map_path),
+        "postprocess_job_map_path": str(postprocess_job_map_path),
+        "plot_job_map_path": str(plot_job_map_path),
     }
+
+
+def _non_comment_shell_lines(script_text: str) -> list[str]:
+    lines: list[str] = []
+    for raw_line in script_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        lines.append(stripped)
+    return lines
+
+
+def _validate_hpc_stage_task_scripts(
+    *,
+    repo_dir: Path,
+    stage_label: str,
+    task_scripts: list[tuple[str, Path]],
+    require_upstream_dependency: bool,
+    require_dependency_for_multi_sbatch: bool,
+) -> list[str]:
+    errors: list[str] = []
+    for task_id, script_path in task_scripts:
+        try:
+            script_text = script_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            errors.append(
+                (
+                    f"{stage_label}:{task_id} failed to read script "
+                    f"{_repo_relative_path(repo_dir, script_path)}: {exc}"
+                )
+            )
+            continue
+
+        command_lines = _non_comment_shell_lines(script_text)
+        sbatch_count = sum(
+            1 for line in command_lines if SBATCH_TOKEN_RE.search(line) is not None
+        )
+        if sbatch_count <= 0:
+            continue
+
+        script_rel = _repo_relative_path(repo_dir, script_path)
+        has_parsable = any(
+            SBATCH_PARSABLE_RE.search(line) is not None for line in command_lines
+        )
+        has_afterok = any(
+            SBATCH_AFTEROK_RE.search(line) is not None for line in command_lines
+        )
+        has_final_job_marker = any(
+            WORKFLOW_FINAL_JOB_ID_MARKER in line for line in command_lines
+        )
+        has_upstream_env_ref = any(
+            WORKFLOW_UPSTREAM_JOB_ID_ENV in line for line in command_lines
+        )
+
+        if not has_parsable:
+            errors.append(
+                (
+                    f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` without "
+                    "`--parsable`."
+                )
+            )
+        if not has_final_job_marker:
+            errors.append(
+                (
+                    f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` without "
+                    f"emitting `{WORKFLOW_FINAL_JOB_ID_MARKER}<job_id>`."
+                )
+            )
+        if require_dependency_for_multi_sbatch and sbatch_count >= 2 and not has_afterok:
+            errors.append(
+                (
+                    f"{stage_label}:{task_id} ({script_rel}) has multiple `sbatch` "
+                    "commands without `--dependency=afterok:<job_id>` chaining."
+                )
+            )
+        if require_upstream_dependency:
+            if not has_upstream_env_ref:
+                errors.append(
+                    (
+                        f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` "
+                        f"without referencing `{WORKFLOW_UPSTREAM_JOB_ID_ENV}`."
+                    )
+                )
+            if not has_afterok:
+                errors.append(
+                    (
+                        f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` "
+                        "without an `--dependency=afterok:` path for upstream gating."
+                    )
+                )
+    return errors
+
+
+def _validate_hpc_workflow_task_scripts(
+    *,
+    repo_dir: Path,
+    simulation_task_scripts: list[tuple[str, Path]],
+    postprocess_task_scripts: list[tuple[str, Path]],
+    plot_task_scripts: list[tuple[str, Path]],
+) -> str | None:
+    errors: list[str] = []
+    errors.extend(
+        _validate_hpc_stage_task_scripts(
+            repo_dir=repo_dir,
+            stage_label="simulation",
+            task_scripts=simulation_task_scripts,
+            require_upstream_dependency=False,
+            require_dependency_for_multi_sbatch=True,
+        )
+    )
+    errors.extend(
+        _validate_hpc_stage_task_scripts(
+            repo_dir=repo_dir,
+            stage_label="postprocess",
+            task_scripts=postprocess_task_scripts,
+            require_upstream_dependency=True,
+            require_dependency_for_multi_sbatch=False,
+        )
+    )
+    errors.extend(
+        _validate_hpc_stage_task_scripts(
+            repo_dir=repo_dir,
+            stage_label="plot",
+            task_scripts=plot_task_scripts,
+            require_upstream_dependency=True,
+            require_dependency_for_multi_sbatch=False,
+        )
+    )
+    if not errors:
+        return None
+    return (
+        "HPC SLURM task-script contract validation failed: " + "; ".join(errors)
+    )
 
 
 def _validate_report_stage_artifacts(
@@ -3651,6 +4144,14 @@ def _finalize_workflow_report(
     )
     hpc_prompt_lines = _build_hpc_prompt_lines(hpc_context)
     execution_target_block = "\n".join(hpc_prompt_lines)
+    hpc_mode = _is_hpc_context_enabled(hpc_context)
+    hpc_task_script_requirements = ""
+    if hpc_mode:
+        hpc_task_script_requirements = (
+            "7) In HPC SLURM mode, when any stage script uses `sbatch`, capture job ids via `sbatch --parsable` and emit the final submitted job id as `FERMILINK_FINAL_JOB_ID=<job_id>`.\n"
+            "8) In `run_simulation.sh`, when multiple `sbatch` submissions have intrinsic ordering (for example equilibration then production), chain them with `--dependency=afterok:<job_id>`.\n"
+            "9) In `run_postprocess.sh` and `run_plot.sh`, honor optional environment variable `FERMILINK_UPSTREAM_JOB_ID`; when set and using `sbatch`, apply `--dependency=afterok:${FERMILINK_UPSTREAM_JOB_ID}` to the first submission.\n"
+        )
 
     generator_prompt = (
         f"{WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX}\n"
@@ -3679,6 +4180,7 @@ def _finalize_workflow_report(
         "4) `run_postprocess.sh` should contain post-processing commands for that task.\n"
         "5) `run_plot.sh` should contain plotting commands for that task.\n"
         "6) Prefer concrete commands from task artifacts; if uncertain, include explicit TODO comments while keeping script syntax valid.\n"
+        f"{hpc_task_script_requirements}"
         "\n"
         "Report requirements:\n"
         "1) Brief objective and methodology sections.\n"
@@ -3716,10 +4218,26 @@ def _finalize_workflow_report(
                 required_files=required_stage_files,
                 before_required_signatures=before_required_signatures,
             )
-            if generation_validation_error is None:
+            hpc_script_validation_error = (
+                _validate_hpc_workflow_task_scripts(
+                    repo_dir=repo_dir,
+                    simulation_task_scripts=simulation_task_scripts,
+                    postprocess_task_scripts=postprocess_task_scripts,
+                    plot_task_scripts=plot_task_scripts,
+                )
+                if hpc_mode
+                else None
+            )
+            stage_errors = [
+                error
+                for error in [generation_validation_error, hpc_script_validation_error]
+                if isinstance(error, str) and error.strip()
+            ]
+            if not stage_errors:
                 break
-            generation_failure_reason = generation_validation_error
-            cli._print_tagged(workflow_name, generation_validation_error, stderr=True)
+            generation_failure_reason = "; ".join(stage_errors)
+            for error in stage_errors:
+                cli._print_tagged(workflow_name, error, stderr=True)
         else:
             generation_failure_reason = (
                 f"{workflow_name.title()} report generation failed with exit code {return_code}."
@@ -3778,10 +4296,26 @@ def _finalize_workflow_report(
                 required_files=required_stage_files,
                 before_required_signatures=before_required_signatures,
             )
-            if audit_validation_error is None:
+            hpc_script_validation_error = (
+                _validate_hpc_workflow_task_scripts(
+                    repo_dir=repo_dir,
+                    simulation_task_scripts=simulation_task_scripts,
+                    postprocess_task_scripts=postprocess_task_scripts,
+                    plot_task_scripts=plot_task_scripts,
+                )
+                if hpc_mode
+                else None
+            )
+            stage_errors = [
+                error
+                for error in [audit_validation_error, hpc_script_validation_error]
+                if isinstance(error, str) and error.strip()
+            ]
+            if not stage_errors:
                 break
-            audit_failure_reason = audit_validation_error
-            cli._print_tagged(workflow_name, audit_validation_error, stderr=True)
+            audit_failure_reason = "; ".join(stage_errors)
+            for error in stage_errors:
+                cli._print_tagged(workflow_name, error, stderr=True)
         else:
             audit_failure_reason = (
                 f"{workflow_name.title()} report audit failed with exit code {return_code}."
@@ -4122,9 +4656,13 @@ def cmd_plan_workflow(
             return
         artifact_labels = [
             ("report_path", "report"),
+            ("run_all_script_path", "run-all script"),
             ("simulation_script_path", "simulation script"),
             ("postprocess_script_path", "postprocess script"),
             ("plot_script_path", "plot script"),
+            ("simulation_job_map_path", "simulation job map"),
+            ("postprocess_job_map_path", "postprocess job map"),
+            ("plot_job_map_path", "plot job map"),
         ]
         for key, label in artifact_labels:
             raw_path = str(report_payload.get(key) or "").strip()
