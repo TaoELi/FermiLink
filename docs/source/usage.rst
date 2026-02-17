@@ -130,6 +130,10 @@ When task scripts use ``sbatch``, they should emit
 ``FERMILINK_FINAL_JOB_ID=<job_id>`` and, for post-processing/plot stages,
 consume optional ``FERMILINK_UPSTREAM_JOB_ID`` to submit dependent jobs with
 ``--dependency=afterok:<job_id>``.
+In HPC mode, workflow report finalization retries script/report generation with
+explicit validator feedback when SLURM contract checks fail (up to a bounded
+attempt limit). Validation diagnostics are written to
+``hpc_contract_errors.json`` under the run directory.
 When ``--data-dir`` is provided, additional run-scoped artifacts are written to
 ``projects/reproduce/<run-id>/data/``:
 

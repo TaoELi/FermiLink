@@ -106,6 +106,10 @@ WORKFLOW_PLOT_BATCH_SCRIPT_FILENAME = "03_run_plots.sh"
 WORKFLOW_SIMULATION_JOB_MAP_FILENAME = "simulation_job_ids.tsv"
 WORKFLOW_POSTPROCESS_JOB_MAP_FILENAME = "postprocess_job_ids.tsv"
 WORKFLOW_PLOT_JOB_MAP_FILENAME = "plot_job_ids.tsv"
+WORKFLOW_HPC_CONTRACT_ERRORS_FILENAME = "hpc_contract_errors.json"
+WORKFLOW_HPC_VALIDATION_MAX_ATTEMPTS = 6
+WORKFLOW_HPC_VALIDATION_STALL_LIMIT = 2
+WORKFLOW_HPC_FEEDBACK_MAX_ISSUES = 80
 WORKFLOW_TASK_SIMULATION_SCRIPT_FILENAME = "run_simulation.sh"
 WORKFLOW_TASK_POSTPROCESS_SCRIPT_FILENAME = "run_postprocess.sh"
 WORKFLOW_TASK_PLOT_SCRIPT_FILENAME = "run_plot.sh"
@@ -3872,23 +3876,52 @@ def _non_comment_shell_lines(script_text: str) -> list[str]:
     return lines
 
 
-def _validate_hpc_stage_task_scripts(
+def _build_hpc_contract_issue(
+    *,
+    stage_label: str,
+    task_id: str,
+    script_rel: str,
+    code: str,
+    message: str,
+) -> dict[str, str]:
+    return {
+        "stage": stage_label,
+        "task_id": task_id,
+        "script_path": script_rel,
+        "code": code,
+        "message": message,
+    }
+
+
+def _format_hpc_contract_issue(issue: dict[str, str]) -> str:
+    stage_label = str(issue.get("stage") or "stage").strip() or "stage"
+    task_id = str(issue.get("task_id") or "task").strip() or "task"
+    script_rel = str(issue.get("script_path") or "unknown").strip() or "unknown"
+    message = str(issue.get("message") or "validation issue").strip() or "validation issue"
+    return f"{stage_label}:{task_id} ({script_rel}) {message}"
+
+
+def _collect_hpc_stage_task_script_issues(
     *,
     repo_dir: Path,
     stage_label: str,
     task_scripts: list[tuple[str, Path]],
     require_upstream_dependency: bool,
     require_dependency_for_multi_sbatch: bool,
-) -> list[str]:
-    errors: list[str] = []
+) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
     for task_id, script_path in task_scripts:
+        script_rel = _repo_relative_path(repo_dir, script_path)
         try:
             script_text = script_path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            errors.append(
-                (
-                    f"{stage_label}:{task_id} failed to read script "
-                    f"{_repo_relative_path(repo_dir, script_path)}: {exc}"
+            issues.append(
+                _build_hpc_contract_issue(
+                    stage_label=stage_label,
+                    task_id=task_id,
+                    script_rel=script_rel,
+                    code="read_failed",
+                    message=f"failed to read script: {exc}",
                 )
             )
             continue
@@ -3900,7 +3933,6 @@ def _validate_hpc_stage_task_scripts(
         if sbatch_count <= 0:
             continue
 
-        script_rel = _repo_relative_path(repo_dir, script_path)
         has_parsable = any(
             SBATCH_PARSABLE_RE.search(line) is not None for line in command_lines
         )
@@ -3915,42 +3947,216 @@ def _validate_hpc_stage_task_scripts(
         )
 
         if not has_parsable:
-            errors.append(
-                (
-                    f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` without "
-                    "`--parsable`."
+            issues.append(
+                _build_hpc_contract_issue(
+                    stage_label=stage_label,
+                    task_id=task_id,
+                    script_rel=script_rel,
+                    code="missing_parsable",
+                    message="uses `sbatch` without `--parsable`.",
                 )
             )
         if not has_final_job_marker:
-            errors.append(
-                (
-                    f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` without "
-                    f"emitting `{WORKFLOW_FINAL_JOB_ID_MARKER}<job_id>`."
+            issues.append(
+                _build_hpc_contract_issue(
+                    stage_label=stage_label,
+                    task_id=task_id,
+                    script_rel=script_rel,
+                    code="missing_final_job_marker",
+                    message=(
+                        "uses `sbatch` without emitting "
+                        f"`{WORKFLOW_FINAL_JOB_ID_MARKER}<job_id>`."
+                    ),
                 )
             )
         if require_dependency_for_multi_sbatch and sbatch_count >= 2 and not has_afterok:
-            errors.append(
-                (
-                    f"{stage_label}:{task_id} ({script_rel}) has multiple `sbatch` "
-                    "commands without `--dependency=afterok:<job_id>` chaining."
+            issues.append(
+                _build_hpc_contract_issue(
+                    stage_label=stage_label,
+                    task_id=task_id,
+                    script_rel=script_rel,
+                    code="missing_afterok_chain",
+                    message=(
+                        "has multiple `sbatch` commands without "
+                        "`--dependency=afterok:<job_id>` chaining."
+                    ),
                 )
             )
         if require_upstream_dependency:
             if not has_upstream_env_ref:
-                errors.append(
-                    (
-                        f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` "
-                        f"without referencing `{WORKFLOW_UPSTREAM_JOB_ID_ENV}`."
+                issues.append(
+                    _build_hpc_contract_issue(
+                        stage_label=stage_label,
+                        task_id=task_id,
+                        script_rel=script_rel,
+                        code="missing_upstream_env_ref",
+                        message=(
+                            "uses `sbatch` without referencing "
+                            f"`{WORKFLOW_UPSTREAM_JOB_ID_ENV}`."
+                        ),
                     )
                 )
             if not has_afterok:
-                errors.append(
-                    (
-                        f"{stage_label}:{task_id} ({script_rel}) uses `sbatch` "
-                        "without an `--dependency=afterok:` path for upstream gating."
+                issues.append(
+                    _build_hpc_contract_issue(
+                        stage_label=stage_label,
+                        task_id=task_id,
+                        script_rel=script_rel,
+                        code="missing_upstream_afterok",
+                        message=(
+                            "uses `sbatch` without an `--dependency=afterok:` "
+                            "path for upstream gating."
+                        ),
                     )
                 )
-    return errors
+    return issues
+
+
+def _collect_hpc_workflow_task_script_issues(
+    *,
+    repo_dir: Path,
+    simulation_task_scripts: list[tuple[str, Path]],
+    postprocess_task_scripts: list[tuple[str, Path]],
+    plot_task_scripts: list[tuple[str, Path]],
+) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+    issues.extend(
+        _collect_hpc_stage_task_script_issues(
+            repo_dir=repo_dir,
+            stage_label="simulation",
+            task_scripts=simulation_task_scripts,
+            require_upstream_dependency=False,
+            require_dependency_for_multi_sbatch=True,
+        )
+    )
+    issues.extend(
+        _collect_hpc_stage_task_script_issues(
+            repo_dir=repo_dir,
+            stage_label="postprocess",
+            task_scripts=postprocess_task_scripts,
+            require_upstream_dependency=True,
+            require_dependency_for_multi_sbatch=False,
+        )
+    )
+    issues.extend(
+        _collect_hpc_stage_task_script_issues(
+            repo_dir=repo_dir,
+            stage_label="plot",
+            task_scripts=plot_task_scripts,
+            require_upstream_dependency=True,
+            require_dependency_for_multi_sbatch=False,
+        )
+    )
+    return issues
+
+
+def _summarize_hpc_contract_issues(issues: list[dict[str, str]]) -> str | None:
+    if not issues:
+        return None
+    rendered = [_format_hpc_contract_issue(issue) for issue in issues]
+    return "HPC SLURM task-script contract validation failed: " + "; ".join(rendered)
+
+
+def _hpc_contract_issues_fingerprint(issues: list[dict[str, str]]) -> str:
+    normalized = [
+        {
+            "stage": str(item.get("stage") or ""),
+            "task_id": str(item.get("task_id") or ""),
+            "script_path": str(item.get("script_path") or ""),
+            "code": str(item.get("code") or ""),
+            "message": str(item.get("message") or ""),
+        }
+        for item in issues
+        if isinstance(item, dict)
+    ]
+    normalized.sort(
+        key=lambda item: (
+            item["stage"],
+            item["task_id"],
+            item["script_path"],
+            item["code"],
+            item["message"],
+        )
+    )
+    payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _render_hpc_contract_feedback_block(
+    *,
+    stage_label: str,
+    attempt: int,
+    max_attempts: int,
+    issues: list[dict[str, str]],
+) -> str:
+    limited = issues[:WORKFLOW_HPC_FEEDBACK_MAX_ISSUES]
+    issue_lines = [
+        f"- {_format_hpc_contract_issue(issue)}"
+        for issue in limited
+    ]
+    if len(issues) > len(limited):
+        issue_lines.append(
+            f"- ... plus {len(issues) - len(limited)} additional issues."
+        )
+    issue_json = json.dumps({"issues": limited}, indent=2)
+    return (
+        "\n"
+        "Validation feedback from previous attempt (must fix all before continuing):\n"
+        f"- Stage: {stage_label}\n"
+        f"- Attempt: {attempt}/{max_attempts}\n"
+        "- Focus edits on failing task scripts only; keep unrelated files unchanged.\n"
+        "- Keep scripts valid bash with shebang + `set -euo pipefail`.\n"
+        + "\n".join(issue_lines)
+        + "\n"
+        "Structured issue payload:\n"
+        f"{issue_json}\n"
+    )
+
+
+def _write_hpc_contract_errors_artifact(
+    *,
+    path: Path,
+    workflow_name: str,
+    run_id: str,
+    stage_label: str,
+    attempt: int,
+    max_attempts: int,
+    issues: list[dict[str, str]],
+    stage_errors: list[str],
+    resolved: bool,
+) -> None:
+    payload: dict[str, object] = {
+        "version": 1,
+        "updated_at_utc": _utc_now_z(),
+        "workflow": workflow_name,
+        "run_id": run_id,
+        "stage": stage_label,
+        "attempt": attempt,
+        "max_attempts": max_attempts,
+        "resolved": resolved,
+        "issue_count": len(issues),
+        "issues": issues,
+        "stage_errors": stage_errors,
+    }
+    _write_text_file(path, json.dumps(payload, indent=2) + "\n")
+
+
+def _validate_hpc_stage_task_scripts(
+    *,
+    repo_dir: Path,
+    stage_label: str,
+    task_scripts: list[tuple[str, Path]],
+    require_upstream_dependency: bool,
+    require_dependency_for_multi_sbatch: bool,
+) -> list[str]:
+    issues = _collect_hpc_stage_task_script_issues(
+        repo_dir=repo_dir,
+        stage_label=stage_label,
+        task_scripts=task_scripts,
+        require_upstream_dependency=require_upstream_dependency,
+        require_dependency_for_multi_sbatch=require_dependency_for_multi_sbatch,
+    )
+    return [_format_hpc_contract_issue(issue) for issue in issues]
 
 
 def _validate_hpc_workflow_task_scripts(
@@ -3960,39 +4166,13 @@ def _validate_hpc_workflow_task_scripts(
     postprocess_task_scripts: list[tuple[str, Path]],
     plot_task_scripts: list[tuple[str, Path]],
 ) -> str | None:
-    errors: list[str] = []
-    errors.extend(
-        _validate_hpc_stage_task_scripts(
-            repo_dir=repo_dir,
-            stage_label="simulation",
-            task_scripts=simulation_task_scripts,
-            require_upstream_dependency=False,
-            require_dependency_for_multi_sbatch=True,
-        )
+    issues = _collect_hpc_workflow_task_script_issues(
+        repo_dir=repo_dir,
+        simulation_task_scripts=simulation_task_scripts,
+        postprocess_task_scripts=postprocess_task_scripts,
+        plot_task_scripts=plot_task_scripts,
     )
-    errors.extend(
-        _validate_hpc_stage_task_scripts(
-            repo_dir=repo_dir,
-            stage_label="postprocess",
-            task_scripts=postprocess_task_scripts,
-            require_upstream_dependency=True,
-            require_dependency_for_multi_sbatch=False,
-        )
-    )
-    errors.extend(
-        _validate_hpc_stage_task_scripts(
-            repo_dir=repo_dir,
-            stage_label="plot",
-            task_scripts=plot_task_scripts,
-            require_upstream_dependency=True,
-            require_dependency_for_multi_sbatch=False,
-        )
-    )
-    if not errors:
-        return None
-    return (
-        "HPC SLURM task-script contract validation failed: " + "; ".join(errors)
-    )
+    return _summarize_hpc_contract_issues(issues)
 
 
 def _validate_report_stage_artifacts(
@@ -4095,6 +4275,7 @@ def _finalize_workflow_report(
         f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
     )
     audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
+    hpc_contract_errors_path = run_dir / WORKFLOW_HPC_CONTRACT_ERRORS_FILENAME
 
     def _display_path(path: Path) -> str:
         try:
@@ -4192,15 +4373,29 @@ def _finalize_workflow_report(
         f"{generation_marker}\n"
     )
 
+    generation_max_attempts = WORKFLOW_HPC_VALIDATION_MAX_ATTEMPTS if hpc_mode else 2
+    generation_feedback_block = ""
     generation_failure_reason = ""
-    for attempt in range(1, 3):
-        cli._print_tagged(workflow_name, f"report generation attempt {attempt}/2")
+    generation_hpc_last_fingerprint = ""
+    generation_hpc_stall_count = 0
+    generation_success = False
+    generation_last_hpc_issues: list[dict[str, str]] = []
+    for attempt in range(1, generation_max_attempts + 1):
+        cli._print_tagged(
+            workflow_name,
+            f"report generation attempt {attempt}/{generation_max_attempts}",
+        )
         before_report_signature = _capture_file_signature(report_path)
         before_summary_signatures = _capture_signatures(summary_paths)
         before_required_signatures = _capture_signatures(required_stage_files)
+        generation_prompt_with_feedback = (
+            generator_prompt + generation_feedback_block
+            if generation_feedback_block
+            else generator_prompt
+        )
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
-            prompt=generator_prompt,
+            prompt=generation_prompt_with_feedback,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
             codex_bin=codex_bin,
@@ -4218,15 +4413,18 @@ def _finalize_workflow_report(
                 required_files=required_stage_files,
                 before_required_signatures=before_required_signatures,
             )
-            hpc_script_validation_error = (
-                _validate_hpc_workflow_task_scripts(
+            generation_last_hpc_issues = (
+                _collect_hpc_workflow_task_script_issues(
                     repo_dir=repo_dir,
                     simulation_task_scripts=simulation_task_scripts,
                     postprocess_task_scripts=postprocess_task_scripts,
                     plot_task_scripts=plot_task_scripts,
                 )
                 if hpc_mode
-                else None
+                else []
+            )
+            hpc_script_validation_error = _summarize_hpc_contract_issues(
+                generation_last_hpc_issues
             )
             stage_errors = [
                 error
@@ -4234,22 +4432,55 @@ def _finalize_workflow_report(
                 if isinstance(error, str) and error.strip()
             ]
             if not stage_errors:
+                generation_success = True
                 break
+
             generation_failure_reason = "; ".join(stage_errors)
             for error in stage_errors:
                 cli._print_tagged(workflow_name, error, stderr=True)
+
+            if hpc_mode and generation_last_hpc_issues:
+                _write_hpc_contract_errors_artifact(
+                    path=hpc_contract_errors_path,
+                    workflow_name=workflow_name,
+                    run_id=run_id,
+                    stage_label="generation",
+                    attempt=attempt,
+                    max_attempts=generation_max_attempts,
+                    issues=generation_last_hpc_issues,
+                    stage_errors=stage_errors,
+                    resolved=False,
+                )
+                generation_feedback_block = _render_hpc_contract_feedback_block(
+                    stage_label="generation",
+                    attempt=attempt,
+                    max_attempts=generation_max_attempts,
+                    issues=generation_last_hpc_issues,
+                )
+                fingerprint = _hpc_contract_issues_fingerprint(generation_last_hpc_issues)
+                if generation_hpc_last_fingerprint and fingerprint == generation_hpc_last_fingerprint:
+                    generation_hpc_stall_count += 1
+                else:
+                    generation_hpc_stall_count = 0
+                generation_hpc_last_fingerprint = fingerprint
+                if generation_hpc_stall_count >= WORKFLOW_HPC_VALIDATION_STALL_LIMIT:
+                    generation_failure_reason = (
+                        generation_failure_reason
+                        + " Repeated identical HPC contract issues detected with no progress."
+                    )
+                    break
+            else:
+                generation_feedback_block = ""
         else:
             generation_failure_reason = (
                 f"{workflow_name.title()} report generation failed with exit code {return_code}."
             )
-        if attempt == 2:
-            raise cli.PackageError(
-                generation_failure_reason
-                or (
-                    f"{workflow_name.title()} report generation failed "
-                    f"(exit code {return_code})."
-                )
-            )
+            generation_feedback_block = ""
+    if not generation_success:
+        raise cli.PackageError(
+            generation_failure_reason
+            or f"{workflow_name.title()} report generation failed."
+        )
 
     auditor_prompt = (
         f"{WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX}\n"
@@ -4270,15 +4501,27 @@ def _finalize_workflow_report(
         "5) Ensure the report contains this exact marker line:\n"
         f"{audit_marker}\n"
     )
+    audit_max_attempts = WORKFLOW_HPC_VALIDATION_MAX_ATTEMPTS if hpc_mode else 2
+    audit_feedback_block = ""
     audit_failure_reason = ""
-    for attempt in range(1, 3):
-        cli._print_tagged(workflow_name, f"report audit attempt {attempt}/2")
+    audit_hpc_last_fingerprint = ""
+    audit_hpc_stall_count = 0
+    audit_success = False
+    audit_last_hpc_issues: list[dict[str, str]] = []
+    for attempt in range(1, audit_max_attempts + 1):
+        cli._print_tagged(
+            workflow_name,
+            f"report audit attempt {attempt}/{audit_max_attempts}",
+        )
         before_report_signature = _capture_file_signature(report_path)
         before_summary_signatures = _capture_signatures(summary_paths)
         before_required_signatures = _capture_signatures(required_stage_files)
+        audit_prompt_with_feedback = (
+            auditor_prompt + audit_feedback_block if audit_feedback_block else auditor_prompt
+        )
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
-            prompt=auditor_prompt,
+            prompt=audit_prompt_with_feedback,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
             codex_bin=codex_bin,
@@ -4296,15 +4539,18 @@ def _finalize_workflow_report(
                 required_files=required_stage_files,
                 before_required_signatures=before_required_signatures,
             )
-            hpc_script_validation_error = (
-                _validate_hpc_workflow_task_scripts(
+            audit_last_hpc_issues = (
+                _collect_hpc_workflow_task_script_issues(
                     repo_dir=repo_dir,
                     simulation_task_scripts=simulation_task_scripts,
                     postprocess_task_scripts=postprocess_task_scripts,
                     plot_task_scripts=plot_task_scripts,
                 )
                 if hpc_mode
-                else None
+                else []
+            )
+            hpc_script_validation_error = _summarize_hpc_contract_issues(
+                audit_last_hpc_issues
             )
             stage_errors = [
                 error
@@ -4312,19 +4558,68 @@ def _finalize_workflow_report(
                 if isinstance(error, str) and error.strip()
             ]
             if not stage_errors:
+                audit_success = True
                 break
+
             audit_failure_reason = "; ".join(stage_errors)
             for error in stage_errors:
                 cli._print_tagged(workflow_name, error, stderr=True)
+
+            if hpc_mode and audit_last_hpc_issues:
+                _write_hpc_contract_errors_artifact(
+                    path=hpc_contract_errors_path,
+                    workflow_name=workflow_name,
+                    run_id=run_id,
+                    stage_label="audit",
+                    attempt=attempt,
+                    max_attempts=audit_max_attempts,
+                    issues=audit_last_hpc_issues,
+                    stage_errors=stage_errors,
+                    resolved=False,
+                )
+                audit_feedback_block = _render_hpc_contract_feedback_block(
+                    stage_label="audit",
+                    attempt=attempt,
+                    max_attempts=audit_max_attempts,
+                    issues=audit_last_hpc_issues,
+                )
+                fingerprint = _hpc_contract_issues_fingerprint(audit_last_hpc_issues)
+                if audit_hpc_last_fingerprint and fingerprint == audit_hpc_last_fingerprint:
+                    audit_hpc_stall_count += 1
+                else:
+                    audit_hpc_stall_count = 0
+                audit_hpc_last_fingerprint = fingerprint
+                if audit_hpc_stall_count >= WORKFLOW_HPC_VALIDATION_STALL_LIMIT:
+                    audit_failure_reason = (
+                        audit_failure_reason
+                        + " Repeated identical HPC contract issues detected with no progress."
+                    )
+                    break
+            else:
+                audit_feedback_block = ""
         else:
             audit_failure_reason = (
                 f"{workflow_name.title()} report audit failed with exit code {return_code}."
             )
-        if attempt == 2:
-            raise cli.PackageError(
-                audit_failure_reason
-                or f"{workflow_name.title()} report audit failed (exit code {return_code})."
-            )
+            audit_feedback_block = ""
+    if not audit_success:
+        raise cli.PackageError(
+            audit_failure_reason
+            or f"{workflow_name.title()} report audit failed."
+        )
+
+    if hpc_mode:
+        _write_hpc_contract_errors_artifact(
+            path=hpc_contract_errors_path,
+            workflow_name=workflow_name,
+            run_id=run_id,
+            stage_label="final",
+            attempt=0,
+            max_attempts=0,
+            issues=[],
+            stage_errors=[],
+            resolved=True,
+        )
 
     stage_driver_paths = _write_workflow_stage_driver_scripts(
         run_dir=run_dir,
@@ -4335,12 +4630,15 @@ def _finalize_workflow_report(
         plot_task_scripts=plot_task_scripts,
     )
 
-    return {
+    result = {
         "report_path": str(report_path),
         "summaries_root": str(summaries_root),
         "summary_count": len(summary_paths),
         **stage_driver_paths,
     }
+    if hpc_mode:
+        result["hpc_contract_errors_path"] = str(hpc_contract_errors_path)
+    return result
 
 
 def cmd_plan_workflow(
@@ -4663,6 +4961,7 @@ def cmd_plan_workflow(
             ("simulation_job_map_path", "simulation job map"),
             ("postprocess_job_map_path", "postprocess job map"),
             ("plot_job_map_path", "plot job map"),
+            ("hpc_contract_errors_path", "hpc contract validation"),
         ]
         for key, label in artifact_labels:
             raw_path = str(report_payload.get(key) or "").strip()

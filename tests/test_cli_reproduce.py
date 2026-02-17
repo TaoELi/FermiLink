@@ -1152,6 +1152,7 @@ def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
     audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
     generation_calls = {"count": 0}
+    generation_prompts: list[str] = []
 
     def fake_exec_turn(**kwargs) -> dict[str, object]:
         prompt = str(kwargs.get("prompt") or "")
@@ -1162,6 +1163,7 @@ def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
         plot_script = summary_path.parent / "run_plot.sh"
         report_path = run_dir / "report.md"
         if "workflow report generation mode" in prompt:
+            generation_prompts.append(prompt)
             generation_calls["count"] += 1
             summary_path.write_text("# Task 1 summary\n", encoding="utf-8")
             if generation_calls["count"] == 1:
@@ -1262,10 +1264,99 @@ def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
         },
     )
     assert generation_calls["count"] == 2
+    assert "Validation feedback from previous attempt" in generation_prompts[1]
     assert Path(str(info["run_all_script_path"])) == run_dir / "00_run_all.sh"
     assert Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
     assert Path(str(info["postprocess_job_map_path"])) == run_dir / "postprocess_job_ids.tsv"
     assert Path(str(info["plot_job_map_path"])) == run_dir / "plot_job_ids.tsv"
+    assert Path(str(info["hpc_contract_errors_path"])) == run_dir / "hpc_contract_errors.json"
+    hpc_payload = json.loads(
+        (run_dir / "hpc_contract_errors.json").read_text(encoding="utf-8")
+    )
+    assert hpc_payload["resolved"] is True
+    assert hpc_payload["issue_count"] == 0
+
+
+def test_finalize_workflow_report_hpc_contract_stall_fails_with_artifact(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    run_dir = repo_dir / "projects" / "reproduce" / "run-013"
+    runs_root = run_dir.parent
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+
+    run_id = run_dir.name
+    generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
+    call_counter = {"count": 0}
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt") or "")
+        summary_path = run_dir / "summaries" / "task_001" / "summary.md"
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        simulation_script = summary_path.parent / "run_simulation.sh"
+        postprocess_script = summary_path.parent / "run_postprocess.sh"
+        plot_script = summary_path.parent / "run_plot.sh"
+        report_path = run_dir / "report.md"
+        if "workflow report generation mode" in prompt:
+            call_counter["count"] += 1
+            summary_path.write_text("# Task 1 summary\n", encoding="utf-8")
+            simulation_script.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "jid1=$(sbatch eq.slurm)",
+                        "jid2=$(sbatch prod.slurm)",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            postprocess_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\njid=$(sbatch post.slurm)\n",
+                encoding="utf-8",
+            )
+            plot_script.write_text(
+                "#!/usr/bin/env bash\nset -euo pipefail\njid=$(sbatch plot.slurm)\n",
+                encoding="utf-8",
+            )
+            report_path.write_text(f"# Report\n{generation_marker}\n", encoding="utf-8")
+        return {"return_code": 0, "assistant_text": "", "stderr": ""}
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+
+    with pytest.raises(
+        cli.PackageError, match="Repeated identical HPC contract issues detected"
+    ):
+        cli._finalize_workflow_report(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            runs_root=runs_root,
+            workflow_name="reproduce",
+            source_description="paper.md",
+            tasks_state=[{"id": "task_001", "title": "Task one"}],
+            requested_package_id=None,
+            sandbox_override=None,
+            codex_bin="codex",
+            hpc_context={
+                "enabled": True,
+                "mode": "hpc_slurm",
+                "scheduler": "slurm",
+                "profile": {
+                    "cluster_name": "Test Cluster",
+                    "partitions": {"shared": {"cpus_per_node": 128, "max_nodes": 1}},
+                },
+            },
+        )
+
+    assert call_counter["count"] == 3
+    artifact_path = run_dir / "hpc_contract_errors.json"
+    assert artifact_path.is_file()
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert payload["resolved"] is False
+    assert payload["stage"] == "generation"
+    assert int(payload["issue_count"]) > 0
 
 
 def test_generate_reproduce_plan_dry_run_appends_prompt_requirements(
