@@ -134,6 +134,10 @@ actual simulations.
 By default, workflow execution target is local-machine mode (no SLURM).
 Use ``--hpc-profile <json>`` to switch planning/prompts to HPC SLURM-ready
 artifacts. ``--hpc-profile`` has highest precedence over package/skill defaults.
+When the HPC profile includes ``defaults`` (for example ``nodes``, ``ntasks``,
+``ntasks_per_node``) and ``comments``, workflow prompts include a concise
+resource-policy hint so task execution prefers the specified resource shape
+when scientifically appropriate.
 An example profile is available at ``scripts/hpc_profile_anvil.json``.
 
 Research workflows

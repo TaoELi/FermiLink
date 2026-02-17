@@ -507,6 +507,62 @@ def _summarize_hpc_partitions(profile: object) -> str:
     return ", ".join(parts)
 
 
+def _coerce_positive_int_or_none(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = int(text)
+        except ValueError:
+            return None
+        return parsed if parsed > 0 else None
+    return None
+
+
+def _build_hpc_resource_policy_lines(profile: dict[str, object]) -> list[str]:
+    defaults = profile.get("defaults")
+    if not isinstance(defaults, dict):
+        defaults = {}
+
+    nodes = _coerce_positive_int_or_none(defaults.get("nodes"))
+    ntasks = _coerce_positive_int_or_none(defaults.get("ntasks"))
+    ntasks_per_node = _coerce_positive_int_or_none(defaults.get("ntasks_per_node"))
+
+    lines: list[str] = []
+    flag_bits: list[str] = []
+    if nodes is not None:
+        flag_bits.append(f"--nodes={nodes}")
+    if ntasks is not None:
+        flag_bits.append(f"--ntasks={ntasks}")
+    if ntasks_per_node is not None:
+        flag_bits.append(f"--ntasks-per-node={ntasks_per_node}")
+
+    if flag_bits:
+        lines.append("- slurm_defaults: `" + " ".join(flag_bits) + "`.")
+
+    if nodes == 1 and ntasks == 1 and ntasks_per_node == 1:
+        lines.append(
+            "- slurm_resource_policy: prefer serial run, use `--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1` unless method requires MPI."
+        )
+
+    raw_comment = profile.get("comments")
+    if raw_comment is None:
+        raw_comment = profile.get("comment")
+    if isinstance(raw_comment, str):
+        comment_text = " ".join(raw_comment.strip().split())
+        if comment_text:
+            if comment_text.endswith((".", "!", "?")):
+                lines.append(f"- slurm_profile_comment: {comment_text}")
+            else:
+                lines.append(f"- slurm_profile_comment: {comment_text}.")
+    return lines
+
+
 def _build_hpc_prompt_lines(hpc_context: dict[str, object] | None) -> list[str]:
     context = hpc_context if isinstance(hpc_context, dict) else _default_local_hpc_context()
     lines = [
@@ -538,6 +594,7 @@ def _build_hpc_prompt_lines(hpc_context: dict[str, object] | None) -> list[str]:
     )
     if partition_summary:
         lines.append(f"- slurm_partition_options: {partition_summary}.")
+    lines.extend(_build_hpc_resource_policy_lines(profile))
     lines.append(
         "- Generate SLURM-ready scripts and machine-tuned run instructions using this profile."
     )

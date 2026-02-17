@@ -1097,6 +1097,8 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
                     "shared": {"cpus_per_node": 128, "max_nodes": 1},
                     "wholenode": {"cpus_per_node": 128, "max_nodes": 36},
                 },
+                "defaults": {"nodes": 1, "ntasks": 1, "ntasks_per_node": 1},
+                "comments": "single-cpu preferred",
             },
         },
     )
@@ -1105,6 +1107,36 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
     assert "Execution target constraints:" in prompts[0]
     assert "--hpc-profile` overrides package/skill/default machine settings" in prompts[0]
     assert "execution_target: HPC SLURM (`Purdue Anvil`)." in prompts[0]
+    assert "slurm_defaults: `--nodes=1 --ntasks=1 --ntasks-per-node=1`." in prompts[0]
+    assert (
+        "prefer serial run, use `--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1`"
+        in prompts[0]
+    )
+    assert "slurm_profile_comment: single-cpu preferred." in prompts[0]
+
+
+def test_build_hpc_prompt_lines_includes_defaults_and_comment_for_non_serial_profile() -> None:
+    lines = workflow_commands._build_hpc_prompt_lines(
+        {
+            "enabled": True,
+            "mode": "hpc_slurm",
+            "scheduler": "slurm",
+            "source": "cli_hpc_profile",
+            "profile": {
+                "cluster_name": "Purdue Anvil",
+                "default_partition": "shared",
+                "partitions": {
+                    "shared": {"cpus_per_node": 128, "max_nodes": 1},
+                },
+                "defaults": {"nodes": 1, "ntasks": 16, "ntasks_per_node": 16},
+                "comments": "use moderate resources",
+            },
+        }
+    )
+    joined = "\n".join(lines)
+    assert "slurm_defaults: `--nodes=1 --ntasks=16 --ntasks-per-node=16`." in joined
+    assert "slurm_profile_comment: use moderate resources." in joined
+    assert "--cpus-per-task=1" not in joined
 
 
 def test_generate_reproduce_plan_with_data_auditor_writes_task_data_artifacts(
