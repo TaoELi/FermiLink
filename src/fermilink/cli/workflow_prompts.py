@@ -108,7 +108,7 @@ REPRODUCE_PLANNER_PROMPT_PREFIX = (
     "- Return valid JSON only inside the tag (no markdown fences).\n"
     "- Keep task count practical (3-12 tasks unless source is tiny).\n"
     "- Include concrete parameters/plot details when available; otherwise add assumptions.\n"
-    "- Ensure each task prompt is self-contained, providing all necessary context/background and actionable steps (future agent will only see this prompt).\n"
+    "- Ensure each task prompt is self-contained, providing all necessary context/background and actionable steps, including what package(s) are used in the manuscript for calculations  (future agent will only see this prompt).\n"
 )
 
 REPRODUCE_AUDITOR_PROMPT_PREFIX = (
@@ -124,7 +124,7 @@ REPRODUCE_AUDITOR_PROMPT_PREFIX = (
     "Rules:\n"
     "- Keep JSON schema identical to reproduce planning and keep task ids stable when possible.\n"
     "- Return valid JSON only inside the tag (no markdown fences).\n"
-    "- Ensure `prompt_markdown` is self-contained, providing all necessary context/background and actionable steps, including what package(s) are used for calculations (future agent will only see this prompt).\n"
+    "- Ensure `prompt_markdown` is self-contained, providing all necessary context/background and actionable steps, including what package(s) are used in the manuscript for calculations (future agent will only see this prompt).\n"
 )
 
 RESEARCH_PLANNER_PROMPT_PREFIX = (
@@ -177,7 +177,7 @@ RESEARCH_AUDITOR_PROMPT_PREFIX = (
     "Rules:\n"
     "- Keep JSON schema identical to reproduce planning and keep task ids stable when possible.\n"
     "- Return valid JSON only inside the tag (no markdown fences).\n"
-    "- Ensure `prompt_markdown` is self-contained, providing all necessary context/background and actionable steps, including what package(s) are used for calculations (future agent will only see this prompt).\n"
+    "- Ensure `prompt_markdown` is self-contained, providing all necessary context/background and actionable steps (future agent will only see this prompt).\n"
 )
 
 WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX = (
