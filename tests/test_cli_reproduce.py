@@ -222,23 +222,16 @@ def test_reproduce_executes_tasks_with_retries(
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
     run_dir = runs_root / latest_run
     assert f"projects/reproduce/{latest_run}/plan.json" in loop_preambles[0]
-    assert (
-        f"projects/reproduce/{latest_run}/archive/memory_task_001_run_02.md"
-        in loop_preambles[2]
-    )
+    assert "latest archived memory" not in loop_preambles[2]
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
     assert state["status"] == "completed"
     assert state["current_task_index"] == 2
-    assert (run_dir / "archive" / "memory_task_001_run_02.md").is_file()
-    assert (run_dir / "archive" / "memory_task_002_run_01.md").is_file()
+    assert list((run_dir / "archive").glob("memory_*.md")) == []
 
     memory = (repo_dir / "projects" / "memory.md").read_text(encoding="utf-8")
     assert "## Workflow context" in memory
     assert f"projects/reproduce/{latest_run}/plan.json" in memory
     assert f"projects/reproduce/{latest_run}/state.json" in memory
-    assert (
-        f"projects/reproduce/{latest_run}/archive/memory_task_001_run_02.md" in memory
-    )
 
 
 def test_reproduce_dry_run_adds_loop_constraints(

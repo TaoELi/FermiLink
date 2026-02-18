@@ -3280,6 +3280,85 @@ def _ensure_loop_memory(
     return memory_path
 
 
+def _reset_loop_short_term_memory(
+    *,
+    repo_dir: Path,
+    user_prompt: str,
+    prompt_file: str | None,
+    workflow_context_lines: list[str] | None = None,
+) -> Path:
+    """Reset only short-term memory while preserving long-term sections."""
+
+    cli = _cli()
+    memory_path = _ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt=user_prompt,
+        prompt_file=prompt_file,
+        overwrite=False,
+        workflow_context_lines=workflow_context_lines,
+    )
+    try:
+        content = memory_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read loop memory file for short-term reset: {memory_path}: {exc}"
+        ) from exc
+
+    short_match = re.search(
+        rf"(?m)^\s*{re.escape(UNIFIED_MEMORY_SHORT_TERM_HEADING)}\s*$", content
+    )
+    long_match = re.search(
+        rf"(?m)^\s*{re.escape(UNIFIED_MEMORY_LONG_TERM_HEADING)}\s*$", content
+    )
+    if (
+        short_match is None
+        or long_match is None
+        or long_match.start() <= short_match.start()
+    ):
+        _upgrade_loop_memory_schema(memory_path)
+        try:
+            content = memory_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise cli.PackageError(
+                "Failed to reload loop memory file after schema upgrade: "
+                f"{memory_path}: {exc}"
+            ) from exc
+        short_match = re.search(
+            rf"(?m)^\s*{re.escape(UNIFIED_MEMORY_SHORT_TERM_HEADING)}\s*$", content
+        )
+        long_match = re.search(
+            rf"(?m)^\s*{re.escape(UNIFIED_MEMORY_LONG_TERM_HEADING)}\s*$", content
+        )
+        if (
+            short_match is None
+            or long_match is None
+            or long_match.start() <= short_match.start()
+        ):
+            raise cli.PackageError(
+                "Loop memory file is missing required short-term/long-term headings "
+                f"after schema upgrade: {memory_path}"
+            )
+
+    prefix = content[: short_match.start()].rstrip()
+    suffix = content[long_match.start() :].lstrip()
+    parts: list[str] = []
+    if prefix:
+        parts.append(prefix)
+    parts.append(UNIFIED_MEMORY_SHORT_TERM_BLOCK.rstrip())
+    if suffix:
+        parts.append(suffix)
+    updated = "\n\n".join(parts).rstrip() + "\n"
+    if updated == content:
+        return memory_path
+    try:
+        memory_path.write_text(updated, encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to rewrite loop short-term memory at {memory_path}: {exc}"
+        ) from exc
+    return memory_path
+
+
 def _truncate_handoff_line(text: str, *, max_chars: int = 180) -> str:
     cleaned = str(text).strip()
     if len(cleaned) <= max_chars:
@@ -4974,10 +5053,8 @@ def cmd_plan_workflow(
 
     prompts_dir = run_dir / cli.REPRODUCE_PROMPTS_DIRNAME
     logs_dir = run_dir / cli.REPRODUCE_LOGS_DIRNAME
-    archive_dir = run_dir / cli.REPRODUCE_ARCHIVE_DIRNAME
     prompts_dir.mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(parents=True, exist_ok=True)
-    archive_dir.mkdir(parents=True, exist_ok=True)
     if _is_data_context_enabled(state_data_context):
         (run_dir / WORKFLOW_DATA_DIRNAME).mkdir(parents=True, exist_ok=True)
         state_data_context = _prepare_workflow_data_artifacts(
@@ -5277,11 +5354,6 @@ def cmd_plan_workflow(
                 )
         plan_path = run_dir / REPRODUCE_PLAN_FILENAME
         state_path = run_dir / REPRODUCE_STATE_FILENAME
-        archived_memory_paths = sorted(archive_dir.glob("memory_*.md"))
-        latest_archived_memory_path = (
-            archived_memory_paths[-1] if archived_memory_paths else None
-        )
-
         def _memory_relpath(path: Path) -> str:
             try:
                 return str(path.relative_to(repo_dir))
@@ -5307,17 +5379,6 @@ def cmd_plan_workflow(
                         "with rationale/confidence before continuing."
                     ),
                 ]
-            )
-        if latest_archived_memory_path is not None:
-            workflow_prompt_preamble_lines.append(
-                (
-                    "- Before acting, read latest archived memory "
-                    f"`{_memory_relpath(latest_archived_memory_path)}`."
-                )
-            )
-        else:
-            workflow_prompt_preamble_lines.append(
-                "- No archived memory exists yet for this run."
             )
         workflow_prompt_preamble_lines.extend(
             ["", "Execution target constraints:", *_build_hpc_prompt_lines(state_hpc_context)]
@@ -5374,38 +5435,10 @@ def cmd_plan_workflow(
                     workflow_context_lines.append(
                         f"- data_mapping_mode: {mapping_mode}"
                     )
-            if archived_memory_paths:
-                workflow_context_lines.append(
-                    "- previous_memory_archives: snapshots from completed prior task runs"
-                )
-                for archived_path in archived_memory_paths[-20:]:
-                    workflow_context_lines.append(
-                        f"  - {_memory_relpath(archived_path)} (prior run memory snapshot)"
-                    )
-            else:
-                workflow_context_lines.append("- previous_memory_archives: none yet")
-            if latest_archived_memory_path is not None:
-                workflow_context_lines.append(
-                    (
-                        "- latest_memory_archive: "
-                        f"{_memory_relpath(latest_archived_memory_path)} "
-                        "(most recent completed task run memory)"
-                    )
-                )
-                handoff_summary = _summarize_archived_memory(
-                    latest_archived_memory_path
-                )
-                if handoff_summary:
-                    workflow_context_lines.append(
-                        "- handoff_summary_from_latest_archive: quick continuity notes"
-                    )
-                    for item in handoff_summary:
-                        workflow_context_lines.append(f"  - {item}")
-            cli._ensure_loop_memory(
+            cli._reset_loop_short_term_memory(
                 repo_dir=repo_dir,
                 user_prompt=task_prompt_text,
                 prompt_file=str(prompt_path),
-                overwrite=True,
                 workflow_context_lines=workflow_context_lines,
             )
 
@@ -5529,12 +5562,6 @@ def cmd_plan_workflow(
             pass
 
         if loop_status == "done":
-            cli._archive_loop_memory(
-                repo_dir=repo_dir,
-                archive_dir=archive_dir,
-                task_id=task_id,
-                run_count=run_number,
-            )
             state["current_task_index"] = current_index + 1
             state["last_error"] = ""
             cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)

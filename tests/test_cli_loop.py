@@ -6,6 +6,7 @@ import pytest
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli.commands import workflows as workflow_commands
 
 
 def test_loop_reads_prompt_file_and_initializes_memory(
@@ -357,3 +358,42 @@ def test_ensure_loop_memory_upgrades_legacy_schema(
     assert "### Progress log" in upgraded
     assert "## Long-Term Memory (Persistent)" in upgraded
     assert "### Suggested skills updates" in upgraded
+
+
+def test_reset_loop_short_term_memory_preserves_long_term(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    memory_path = cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt="initial request",
+        prompt_file=None,
+        overwrite=False,
+    )
+    baseline = memory_path.read_text(encoding="utf-8")
+    customized = baseline.replace(
+        "- [ ] (fill in a small checklist plan)", "- [x] previous checklist item"
+    ).replace("- initialized", "- previous progress entry")
+    customized = customized.replace(
+        "- (result_id | metric | value | conditions | evidence_path)\n",
+        "- (result_id | metric | value | conditions | evidence_path)\n"
+        "- result-001 | test_metric | 1.0 | baseline | artifacts/result.txt\n",
+    )
+    memory_path.write_text(customized, encoding="utf-8")
+
+    workflow_commands._reset_loop_short_term_memory(
+        repo_dir=repo_dir,
+        user_prompt="next task",
+        prompt_file=None,
+        workflow_context_lines=["- workflow: reproduce"],
+    )
+
+    updated = memory_path.read_text(encoding="utf-8")
+    assert "- [ ] (fill in a small checklist plan)" in updated
+    assert "- initialized" in updated
+    assert "- [x] previous checklist item" not in updated
+    assert "- previous progress entry" not in updated
+    assert "- result-001 | test_metric | 1.0 | baseline | artifacts/result.txt" in updated
