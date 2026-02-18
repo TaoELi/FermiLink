@@ -29,7 +29,7 @@ build/
 *.sock
 
 # Development helpers
-/AGENTS.md
+#/AGENTS.md
 /project_history.md
 
 # Documentation build artifacts
