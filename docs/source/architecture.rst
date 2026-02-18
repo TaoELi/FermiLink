@@ -33,7 +33,9 @@ Request flow
 5. Package entries and dependencies are overlaid into repo.
 6. Effective runtime policy is resolved (provider + sandbox).
 7. Provider command runs and emits structured stream events.
-8. Web/CLI renders output and persists session metadata.
+8. Web/CLI/loop modes read/update unified shared memory at
+   ``projects/memory.md`` (short-term + long-term sections).
+9. Web/CLI renders output and persists session metadata.
 
 Workflow planning (`reproduce`/`research`)
 ------------------------------------------

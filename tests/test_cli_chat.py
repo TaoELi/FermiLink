@@ -106,12 +106,13 @@ def test_chat_runs_multiround_with_history_and_package_switch(
 
     assert overlay_calls == ["pkg-a", "pkg-b"]
     assert len(run_calls) == 2
-    assert run_calls[0]["prompt"] == "user:first prompt"
-    assert (
-        run_calls[1]["prompt"]
-        == "user:first prompt | assistant:assistant one | user:second prompt"
-    )
+    assert "projects/memory.md" in str(run_calls[0]["prompt"])
+    assert "user:first prompt" in str(run_calls[0]["prompt"])
+    assert "assistant:assistant one | user:second prompt" in str(run_calls[1]["prompt"])
     assert cleanup_calls == [(repo_dir, repo_dir), (repo_dir, repo_dir)]
+    memory_path = repo_dir / "projects" / "memory.md"
+    assert memory_path.is_file()
+    assert "first prompt" in memory_path.read_text(encoding="utf-8")
 
     output = capsys.readouterr().out
     assert "[chat] Interactive mode." in output
@@ -189,6 +190,7 @@ def test_chat_enforces_sandbox_override_for_session(
     assert code == 0
     assert captured["sandbox_policy"] == "enforce"
     assert captured["sandbox"] == "read-only"
+    assert "projects/memory.md" in str(captured.get("prompt"))
 
 
 def test_chat_parser_supports_package_pin_and_git_flags() -> None:

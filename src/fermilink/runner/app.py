@@ -13,6 +13,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fermilink.agent_runtime import resolve_agent_runtime_policy
+from fermilink.cli.commands import workflows as workflow_commands
+from fermilink.cli.workflow_prompts import UNIFIED_MEMORY_PROMPT_PREFIX
 from fermilink.config import resolve_workspaces_root as resolve_default_workspaces_root
 from fermilink.providers import (
     build_exec_command,
@@ -479,6 +481,29 @@ def _ensure_template_agents_file(source_dir: Path, repo_dir: Path) -> None:
     shutil.copy2(template_agents, repo_agents)
 
 
+def _ensure_repo_memory_file(repo_dir: Path, user_prompt: str) -> None:
+    """Ensure shared memory file exists and matches current schema."""
+
+    normalized_prompt = str(user_prompt or "")
+    if normalized_prompt.startswith(UNIFIED_MEMORY_PROMPT_PREFIX):
+        normalized_prompt = normalized_prompt[len(UNIFIED_MEMORY_PROMPT_PREFIX) :].lstrip()
+    if not normalized_prompt.strip():
+        normalized_prompt = "(request unavailable)"
+
+    try:
+        workflow_commands._ensure_loop_memory(
+            repo_dir=repo_dir,
+            user_prompt=normalized_prompt,
+            prompt_file=None,
+            overwrite=False,
+        )
+    except Exception as exc:  # defensive: convert any memory init failure to HTTP 500
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initialize workspace memory file: {exc}",
+        ) from exc
+
+
 def _is_valid_git_repo(path: Path) -> bool:
     """Check whether a directory contains a usable Git repository.
 
@@ -806,6 +831,7 @@ async def run(req: RunRequest):
 
         # Enforce template AGENTS.md even if a stale overlay path attempts to replace it.
         _ensure_template_agents_file(source_dir, repo_dir)
+        _ensure_repo_memory_file(repo_dir, req.user_prompt)
 
         (repo_dir / "outputs").mkdir(parents=True, exist_ok=True)
 

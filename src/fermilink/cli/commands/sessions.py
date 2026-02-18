@@ -62,6 +62,13 @@ def cmd_chat(args: argparse.Namespace) -> int:
         if lowered in {"exit", "quit", "/exit", "/quit"}:
             return 0
 
+        cli._ensure_loop_memory(
+            repo_dir=repo_dir,
+            user_prompt=prompt_text,
+            prompt_file=None,
+            overwrite=False,
+        )
+
         selection = cli._resolve_exec_package_selection(
             user_prompt=prompt_text,
             scipkg_root=scipkg_root,
@@ -104,7 +111,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
             ),
         )
 
-        prompt = web_app._build_prompt(history, prompt_text)
+        prompt_body = web_app._build_prompt(history, prompt_text)
+        prompt = f"{cli.UNIFIED_MEMORY_PROMPT_PREFIX}{prompt_body.strip()}\n"
         try:
             run_result = cli._run_exec_chat_turn(
                 repo_dir=repo_dir,
@@ -345,10 +353,17 @@ def cmd_exec(args: argparse.Namespace) -> int:
     """
 
     cli = _cli()
-    prompt, _ = cli._resolve_exec_like_user_prompt(args)
+    user_prompt, prompt_file = cli._resolve_exec_like_user_prompt(args)
 
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
+    cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt=user_prompt,
+        prompt_file=prompt_file,
+        overwrite=False,
+    )
+    prompt = f"{cli.UNIFIED_MEMORY_PROMPT_PREFIX}{user_prompt.strip()}\n"
 
     scipkg_root = cli.resolve_scipkg_root()
     runtime_policy = cli.resolve_agent_runtime_policy()
@@ -361,7 +376,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
 
     provider_bin = args.codex_bin if provider == "codex" else None
     selection = cli._resolve_exec_package_selection(
-        user_prompt=prompt,
+        user_prompt=user_prompt,
         scipkg_root=scipkg_root,
         repo_dir=repo_dir,
         requested_package_id=args.package_id,

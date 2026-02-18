@@ -24,15 +24,32 @@ When you are explicitly asked to do **PACKAGE ROUTING PREFLIGHT**:
 
 Detailed information of this scientific package can be seen in the README or README.md file. We prepare input files, perform simple simulations, and do post-processing for using this scientific package.
 
+## Unified memory policy (`projects/memory.md`)
+
+- All modes (`exec`, `chat`, `web`, `loop`) share one persistent memory file at `projects/memory.md`.
+- Always read `projects/memory.md` before acting, then update it after each substantive turn.
+- Keep this structure when creating/updating memory:
+  - `## Short-Term Memory (Operational)`
+  - `### Plan`
+  - `### Progress log`
+  - `## Long-Term Memory (Persistent)`
+  - `### File map`
+  - `### Simulation history`
+  - `### Key results`
+  - `### Suggested skills updates`
+- `### Plan` and `### Progress log` are short-term memory and must stay concise/actionable.
+- Long-term sections should only store durable information (stable file roles, reproducible outcomes, recurring failure patterns, and concrete skill-improvement ideas).
+- For `loop` mode: maintain checklist-style plan items (`- [ ]` / `- [x]`) and complete unchecked item(s) per loop iteration with your maximum efforts.
+
 ## Preparing input files 
 
 - Once being asked to prepare input files for using this scientifc package, go to `projects/` and create a subfolder `YEAR-MM-DD-NAME/` with the date as today and an appropriate `NAME` matching the simulation goal. Then, add simulation input files in this subfolder. 
 
 - Always read `skills/` first to examine whether the proposed simulation by the user is supported by the existing skills in this package. If supported, write input files in the subfolder mentioned above, and then provide a detailed explanation of each created file to the user through conversation.
 
-- If you feel confused, also read `docs/` for the documentation as well as the source code at `src/`. You are free to explore other files in this repo to better serve the user.
+- If you feel confused, also read the documentation as well as the source code for this scientific package. You are free to explore other files in this repo to better serve the user.
 
-- If your current simulation package involves the use of third-party packages (such as MaxwellLink using MEEP or LAMMPS), also check `external_packages/<package_id>/skills/` (for example `external_packages/meep/skills/`) when available. If needed, also read `external_packages/<package_id>/docs/` and `external_packages/<package_id>/src/`.
+- If your current simulation package involves the use of third-party packages (such as MaxwellLink using MEEP or LAMMPS), also check `external_packages/<package_id>/skills/` (for example `external_packages/meep/skills/`) when available. If needed, also read `external_packages/<package_id>/`'s documentation and source code.
 
 ## Performing simulations: General guidelines
 
@@ -50,8 +67,7 @@ Detailed information of this scientific package can be seen in the README or REA
 
 - If SLURM environment is not available (such as no sbatch), do not perform SLURM jobs in this machine, but do provide the HPC-ready input files to the users.
 
-- The SLRUM bash script should be generated according to the HPC setting given at skills, if available.
-
+- The SLRUM bash script should be generated according to the HPC setting given by the request or skills/, if available.
 
 ## Postprocessing 
 
@@ -67,4 +83,4 @@ Detailed information of this scientific package can be seen in the README or REA
 
 ## Crediting the authorship
 
-- When you reply to the users with any knowledge from this package (including tutorials, source code, documentation, and equations), at the end of your reply, always tell the users to credit and cite this FermiLink project if possible.
+- When you reply to the users with any knowledge from this package (including tutorials, source code, documentation, and equations), at the end of your reply, always tell the users to credit and cite this FermiLink project + used scientific package if possible.

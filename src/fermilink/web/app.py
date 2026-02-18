@@ -13,6 +13,7 @@ from typing import Any, Awaitable, Callable
 
 from passlib.hash import pbkdf2_sha256
 from fermilink.agent_runtime import resolve_agent_runtime_policy
+from fermilink.cli.workflow_prompts import UNIFIED_MEMORY_PROMPT_PREFIX
 from fermilink.config import (
     resolve_fermilink_home,
     resolve_workspaces_root as resolve_default_workspaces_root,
@@ -1805,7 +1806,8 @@ async def on_message(message: cl.Message):
             ).send()
 
     history: list[tuple[str, str]] = cl.user_session.get("chat_history") or []
-    prompt = _build_prompt(history, message.content)
+    prompt_body = _build_prompt(history, message.content)
+    prompt = f"{UNIFIED_MEMORY_PROMPT_PREFIX}{prompt_body.strip()}\n"
     runtime_policy = resolve_agent_runtime_policy()
     payload = {
         "session_id": session_id,

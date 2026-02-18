@@ -73,6 +73,14 @@ def test_loop_reads_prompt_file_and_initializes_memory(
     assert memory_path.exists()
     memory = memory_path.read_text(encoding="utf-8")
     assert "do the thing" in memory
+    assert "## Short-Term Memory (Operational)" in memory
+    assert "### Plan" in memory
+    assert "### Progress log" in memory
+    assert "## Long-Term Memory (Persistent)" in memory
+    assert "### File map" in memory
+    assert "### Simulation history" in memory
+    assert "### Key results" in memory
+    assert "### Suggested skills updates" in memory
 
     assert "projects/memory.md" in str(captured.get("prompt"))
     assert "do the thing" in str(captured.get("prompt"))
@@ -313,3 +321,39 @@ def test_extract_loop_wait_seconds_returns_none_for_invalid_values() -> None:
     assert cli._extract_loop_wait_seconds("<wait_seconds>-1</wait_seconds>") is None
     assert cli._extract_loop_wait_seconds("<wait_seconds>abc</wait_seconds>") is None
     assert cli._extract_loop_wait_seconds("<wait_seconds>15</wait_seconds>") == 15.0
+
+
+def test_ensure_loop_memory_upgrades_legacy_schema(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    memory_path = projects_dir / "memory.md"
+    memory_path.write_text(
+        (
+            "# FermiLink Loop Memory\n\n"
+            "- started_at_utc: 2026-01-01T00:00:00Z\n\n"
+            "## Original request\nlegacy task\n\n"
+            "## Plan\n- [ ] first step\n\n"
+            "## Progress log\n- initialized\n"
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(repo_dir)
+    result = cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt="legacy task",
+        prompt_file=None,
+        overwrite=False,
+    )
+
+    assert result == memory_path
+    upgraded = memory_path.read_text(encoding="utf-8")
+    assert "## Short-Term Memory (Operational)" in upgraded
+    assert "### Plan" in upgraded
+    assert "- [ ] first step" in upgraded
+    assert "### Progress log" in upgraded
+    assert "## Long-Term Memory (Persistent)" in upgraded
+    assert "### Suggested skills updates" in upgraded

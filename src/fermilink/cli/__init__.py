@@ -77,6 +77,7 @@ from fermilink.cli.workflow_prompts import (
     WORKFLOW_REPORT_FILENAME,
     WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX,
     WORKFLOW_SUMMARIES_DIRNAME,
+    UNIFIED_MEMORY_PROMPT_PREFIX,
 )
 from fermilink.agent_runtime import (
     SUPPORTED_PROVIDERS,

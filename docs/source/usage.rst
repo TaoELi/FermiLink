@@ -30,6 +30,7 @@ What ``exec`` does:
 - routes prompts to the best installed package (keyword router + second guess);
 - overlays selected package files into current repository;
 - syncs baseline ``AGENTS.md`` workspace instructions;
+- initializes/upgrades shared memory at ``projects/memory.md``;
 - avoids seeding web-only ``public/`` assets into your repo;
 - runs provider execution and streams output.
 
@@ -55,6 +56,7 @@ Per turn, ``chat``:
 - rebuilds transcript-style prompt context;
 - re-runs package routing and can switch package when needed;
 - overlays package content into current repository;
+- initializes/upgrades shared memory at ``projects/memory.md``;
 - streams provider stdout/stderr live;
 - appends assistant reply to session history.
 
@@ -80,7 +82,10 @@ Use ``loop`` for iterative autonomous work with persistent memory.
 Loop behavior:
 
 - defaults to iterative execution until done token or iteration cap;
-- persists long-term memory to ``projects/memory.md``;
+- persists unified memory to ``projects/memory.md`` with:
+  ``Short-Term Memory`` (``Plan``, ``Progress log``) and
+  ``Long-Term Memory`` (``File map``, ``Simulation history``,
+  ``Key results``, ``Suggested skills updates``);
 - stops early when output includes ``<promise>DONE</promise>``;
 - supports dynamic wait control via ``<wait_seconds>...</wait_seconds>`` tags.
 

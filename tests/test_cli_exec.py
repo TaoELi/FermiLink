@@ -57,8 +57,12 @@ def test_exec_runs_with_routing_overlay_and_codex(
     code = cli.main(["exec", "simulate", "a", "cavity", "--sandbox", "workspace-write"])
     assert code == 0
     assert calls["repo_dir"] == repo_dir
-    assert calls["prompt"] == "simulate a cavity"
+    assert "projects/memory.md" in str(calls["prompt"])
+    assert "simulate a cavity" in str(calls["prompt"])
     assert calls["sandbox"] == "workspace-write"
+    memory_path = repo_dir / "projects" / "memory.md"
+    assert memory_path.is_file()
+    assert "simulate a cavity" in memory_path.read_text(encoding="utf-8")
 
     output = capsys.readouterr().out
     assert "[package] Using maxwelllink (selection: second_guess)" in output
@@ -275,7 +279,8 @@ def test_exec_accepts_prompt_file(
 
     code = cli.main(["exec", "prompt.md"])
     assert code == 0
-    assert captured["prompt"] == "simulate one cavity"
+    assert "projects/memory.md" in str(captured["prompt"])
+    assert "simulate one cavity" in str(captured["prompt"])
 
 
 def test_exec_rejects_pdf_prompt_file(

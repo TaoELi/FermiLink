@@ -75,6 +75,8 @@ class _FakeProcess:
 def test_web_stream_runner_parses_runner_sse_end_to_end(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    workspace_repo = tmp_path / "workspaces" / "session-stream-test" / "repo"
+
     async def scenario() -> list[tuple[str, str]]:
         _patch_minimal_runner_env(monkeypatch, tmp_path)
         monkeypatch.setattr(runner_app, "CODEX_BIN", "python")
@@ -138,6 +140,9 @@ def test_web_stream_runner_parses_runner_sse_end_to_end(
         next(data for event_type, data in events if event_type == "log")
     )
     assert log_payload["text"] == "runner-stderr-line"
+    memory_path = workspace_repo / "projects" / "memory.md"
+    assert memory_path.is_file()
+    assert "hello from web" in memory_path.read_text(encoding="utf-8")
 
     exit_payload = json.loads(events[-1][1])
     assert exit_payload["reason"] == "completed"

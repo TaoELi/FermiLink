@@ -3085,6 +3085,137 @@ def _archive_loop_memory(
         ) from exc
 
 
+UNIFIED_MEMORY_SHORT_TERM_HEADING = "## Short-Term Memory (Operational)"
+UNIFIED_MEMORY_LONG_TERM_HEADING = "## Long-Term Memory (Persistent)"
+UNIFIED_MEMORY_PLAN_HEADING = "### Plan"
+UNIFIED_MEMORY_PROGRESS_HEADING = "### Progress log"
+UNIFIED_MEMORY_FILE_MAP_HEADING = "### File map"
+UNIFIED_MEMORY_SIM_HISTORY_HEADING = "### Simulation history"
+UNIFIED_MEMORY_KEY_RESULTS_HEADING = "### Key results"
+UNIFIED_MEMORY_SKILLS_UPDATES_HEADING = "### Suggested skills updates"
+
+UNIFIED_MEMORY_SHORT_TERM_BLOCK = (
+    f"{UNIFIED_MEMORY_SHORT_TERM_HEADING}\n"
+    "\n"
+    f"{UNIFIED_MEMORY_PLAN_HEADING}\n"
+    "- [ ] (fill in a small checklist plan)\n"
+    "\n"
+    f"{UNIFIED_MEMORY_PROGRESS_HEADING}\n"
+    "- initialized\n"
+)
+
+UNIFIED_MEMORY_LONG_TERM_BLOCK = (
+    f"{UNIFIED_MEMORY_LONG_TERM_HEADING}\n"
+    "\n"
+    f"{UNIFIED_MEMORY_FILE_MAP_HEADING}\n"
+    "- (path | purpose | notes)\n"
+    "\n"
+    f"{UNIFIED_MEMORY_SIM_HISTORY_HEADING}\n"
+    "- (run_id | objective | status | artifacts | notes)\n"
+    "\n"
+    f"{UNIFIED_MEMORY_KEY_RESULTS_HEADING}\n"
+    "- (result_id | metric | value | conditions | evidence_path)\n"
+    "\n"
+    f"{UNIFIED_MEMORY_SKILLS_UPDATES_HEADING}\n"
+    "- (issue_pattern | proposed_skill_update | evidence | status)\n"
+)
+
+
+def _memory_heading_exists(content: str, heading: str) -> bool:
+    return bool(re.search(rf"(?m)^\\s*{re.escape(heading)}\\s*$", content))
+
+
+def _append_memory_block(content: str, block: str) -> str:
+    normalized = content.rstrip()
+    if normalized:
+        normalized += "\n\n"
+    return normalized + block.rstrip() + "\n"
+
+
+def _upgrade_loop_memory_schema(memory_path: Path) -> None:
+    cli = _cli()
+    try:
+        content = memory_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read loop memory file for schema upgrade: {memory_path}: {exc}"
+        ) from exc
+
+    upgraded = content
+    if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING):
+        # Backward compatibility: migrate legacy top-level sections when present.
+        upgraded = re.sub(
+            r"(?m)^##\\s+Plan\\s*$",
+            f"{UNIFIED_MEMORY_SHORT_TERM_HEADING}\n\n{UNIFIED_MEMORY_PLAN_HEADING}",
+            upgraded,
+            count=1,
+        )
+        upgraded = re.sub(
+            r"(?m)^##\\s+Progress\\s+log\\s*$",
+            UNIFIED_MEMORY_PROGRESS_HEADING,
+            upgraded,
+            count=1,
+        )
+        if (
+            _memory_heading_exists(upgraded, UNIFIED_MEMORY_PLAN_HEADING)
+            and not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING)
+        ):
+            upgraded = re.sub(
+                rf"(?m)^\\s*{re.escape(UNIFIED_MEMORY_PLAN_HEADING)}\\s*$",
+                f"{UNIFIED_MEMORY_SHORT_TERM_HEADING}\n\n{UNIFIED_MEMORY_PLAN_HEADING}",
+                upgraded,
+                count=1,
+            )
+
+    if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING):
+        upgraded = _append_memory_block(upgraded, UNIFIED_MEMORY_SHORT_TERM_BLOCK)
+    else:
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_PLAN_HEADING):
+            upgraded = _append_memory_block(
+                upgraded,
+                f"{UNIFIED_MEMORY_PLAN_HEADING}\n- [ ] (fill in a small checklist plan)\n",
+            )
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_PROGRESS_HEADING):
+            upgraded = _append_memory_block(
+                upgraded, f"{UNIFIED_MEMORY_PROGRESS_HEADING}\n- initialized\n"
+            )
+
+    if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_LONG_TERM_HEADING):
+        upgraded = _append_memory_block(upgraded, UNIFIED_MEMORY_LONG_TERM_BLOCK)
+    else:
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_FILE_MAP_HEADING):
+            upgraded = _append_memory_block(
+                upgraded, f"{UNIFIED_MEMORY_FILE_MAP_HEADING}\n- (path | purpose | notes)\n"
+            )
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SIM_HISTORY_HEADING):
+            upgraded = _append_memory_block(
+                upgraded,
+                f"{UNIFIED_MEMORY_SIM_HISTORY_HEADING}\n"
+                "- (run_id | objective | status | artifacts | notes)\n",
+            )
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_KEY_RESULTS_HEADING):
+            upgraded = _append_memory_block(
+                upgraded,
+                f"{UNIFIED_MEMORY_KEY_RESULTS_HEADING}\n"
+                "- (result_id | metric | value | conditions | evidence_path)\n",
+            )
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SKILLS_UPDATES_HEADING):
+            upgraded = _append_memory_block(
+                upgraded,
+                f"{UNIFIED_MEMORY_SKILLS_UPDATES_HEADING}\n"
+                "- (issue_pattern | proposed_skill_update | evidence | status)\n",
+            )
+
+    if upgraded == content:
+        return
+    try:
+        memory_path.write_text(upgraded, encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to update loop memory schema at {memory_path}: {exc}"
+        ) from exc
+
+
 def _ensure_loop_memory(
     *,
     repo_dir: Path,
@@ -3109,6 +3240,7 @@ def _ensure_loop_memory(
         if memory_path.is_dir():
             raise cli.PackageError(f"{memory_path} exists but is a directory.")
         if not overwrite:
+            _upgrade_loop_memory_schema(memory_path)
             return memory_path
 
     started_at = _utc_now_z()
@@ -3125,20 +3257,19 @@ def _ensure_loop_memory(
                 "\n" "## Workflow context\n" + "\n".join(normalized_context) + "\n"
             )
     initial = (
-        "# FermiLink Loop Memory\n"
+        "# FermiLink Unified Memory\n"
         "\n"
+        "- schema_version: 1\n"
         f"- started_at_utc: {started_at}\n"
+        f"- last_updated_utc: {started_at}\n"
         f"{source_line}"
         "\n"
         "## Original request\n"
         f"{user_prompt.strip()}\n"
         f"{context_block}"
         "\n"
-        "## Plan\n"
-        "- [ ] (fill in a small checklist plan)\n"
-        "\n"
-        "## Progress log\n"
-        "- initialized\n"
+        f"{UNIFIED_MEMORY_SHORT_TERM_BLOCK}\n"
+        f"{UNIFIED_MEMORY_LONG_TERM_BLOCK}"
     )
     try:
         memory_path.write_text(initial, encoding="utf-8")
@@ -3175,7 +3306,14 @@ def _summarize_archived_memory(path: Path, *, max_items: int = 3) -> list[str]:
         else:
             item = line
         lowered = item.lower()
-        if lowered in {"initialized", "(fill in a small checklist plan)"}:
+        if lowered in {
+            "initialized",
+            "(fill in a small checklist plan)",
+            "(path | purpose | notes)",
+            "(run_id | objective | status | artifacts | notes)",
+            "(result_id | metric | value | conditions | evidence_path)",
+            "(issue_pattern | proposed_skill_update | evidence | status)",
+        }:
             continue
         if lowered.startswith("started_at_utc:") or lowered.startswith(
             "prompt_source:"
