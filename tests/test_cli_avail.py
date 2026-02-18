@@ -6,12 +6,13 @@ from fermilink import cli
 
 
 def test_cli_avail_exact_match(capsys) -> None:
-    code = cli.main(["avail", "ase"])
+    code = cli.main(["avail", "maxwelllink"])
     assert code == 0
     out = capsys.readouterr().out
     assert "Found" in out
-    assert "ase: ASE" in out
-    assert "skilled-scipkg/ase" in out
+    assert "channel 'skilled-scipkg'" in out
+    assert "for 'maxwelllink'" in out
+    assert "maxwelllink: MaxwellLink" in out
 
 
 def test_cli_avail_missing_match(capsys) -> None:
@@ -22,16 +23,16 @@ def test_cli_avail_missing_match(capsys) -> None:
 
 
 def test_cli_avail_json_output(capsys) -> None:
-    code = cli.main(["avail", "ase", "--json"])
+    code = cli.main(["avail", "maxwelllink", "--json"])
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["channel"] == "skilled-scipkg"
-    assert payload["query"] == "ase"
+    assert payload["query"] == "maxwelllink"
     assert payload["found"] is True
     results = payload["results"]
     assert isinstance(results, list)
-    ase = next(item for item in results if str(item.get("package_id")) == "ase")
-    assert str(ase.get("default_version")) == "branch-head"
-    assert isinstance(ase.get("versions"), list)
-    assert bool(ase.get("description"))
-    assert bool(ase.get("upstream_repo_url"))
+    maxwelllink = next(item for item in results if str(item.get("package_id")) == "maxwelllink")
+    assert str(maxwelllink.get("default_version")) == "branch-head"
+    assert isinstance(maxwelllink.get("versions"), list)
+    assert bool(maxwelllink.get("description"))
+    assert bool(maxwelllink.get("upstream_repo_url"))

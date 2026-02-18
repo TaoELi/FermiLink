@@ -33,7 +33,7 @@ def test_router_family_hints_loaded_from_json() -> None:
     hints = load_family_hints()
     assert "maxwelllink" in hints
     inferred = infer_rule("maxwelllink")
-    assert "quantum optics" in inferred["strong_keywords"]
+    assert "meep fdtd integration" in inferred["strong_keywords"]
 
 
 def test_router_family_hints_supports_package_id_overrides(

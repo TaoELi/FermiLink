@@ -19,8 +19,8 @@ def test_curated_alias_resolution() -> None:
 
 
 def test_resolve_curated_package() -> None:
-    pkg = resolve_curated_package("ase", channel="skilled-scipkg")
-    assert "skilled-scipkg/ase" in pkg.zip_url
+    pkg = resolve_curated_package("lammps", channel="skilled-scipkg")
+    assert "skilled-scipkg/lammps" in pkg.zip_url
     assert pkg.default_version == "branch-head"
     assert pkg.description
     assert pkg.upstream_repo_url
@@ -36,12 +36,11 @@ def test_resolve_curated_package_missing() -> None:
 
 def test_list_curated_packages_contains_skilled_entries() -> None:
     packages = list_curated_packages(channel="skilled-scipkg")
-    assert "ase" in packages
     assert "maxwelllink" in packages
 
 
 def test_select_curated_package_version_missing_raises() -> None:
-    pkg = resolve_curated_package("ase", channel="skilled-scipkg")
+    pkg = resolve_curated_package("maxwelllink", channel="skilled-scipkg")
     with pytest.raises(ValueError):
         select_package_version(pkg, version_id="v0.0.1")
 
