@@ -3117,7 +3117,7 @@ UNIFIED_MEMORY_LONG_TERM_BLOCK = (
     "- (result_id | metric | value | conditions | evidence_path)\n"
     "\n"
     f"{UNIFIED_MEMORY_SKILLS_UPDATES_HEADING}\n"
-    "- (issue_pattern | proposed_skill_update | evidence | status)\n"
+    "- (<package_id> | issue_pattern | proposed_skill_update | evidence | status)\n"
 )
 
 
@@ -3203,7 +3203,7 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
             upgraded = _append_memory_block(
                 upgraded,
                 f"{UNIFIED_MEMORY_SKILLS_UPDATES_HEADING}\n"
-                "- (issue_pattern | proposed_skill_update | evidence | status)\n",
+                "- (<package_id> | issue_pattern | proposed_skill_update | evidence | status)\n",
             )
 
     if upgraded == content:
