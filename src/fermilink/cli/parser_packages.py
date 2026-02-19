@@ -197,6 +197,15 @@ def register_package_install_compile_parsers(
         help="Project root path to recompile (default: current directory).",
     )
     recompile_parser.add_argument(
+        "--memory",
+        default=None,
+        help=(
+            "Optional memory.md file or directory used to extract "
+            "`### Suggested skills updates` and generate append-only "
+            "skills update plans."
+        ),
+    )
+    recompile_parser.add_argument(
         "--doc",
         default=None,
         help=(

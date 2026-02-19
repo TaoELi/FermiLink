@@ -11,6 +11,8 @@ COMPILE_SKILL_PLAN_TAG = "skill_plan"
 COMPILE_SKILL_PLAN_REL_PATH = "skills/.evidence/skill_plan.json"
 RECOMPILE_COVERAGE_REL_PATH = "skills/.evidence/recompile_coverage.md"
 COMPILE_REPORT_REL_PATH = "skills/.compile_report.json"
+RECOMPILE_MEMORY_PLAN_TAG = "memory_update_plan"
+RECOMPILE_MEMORY_PLAN_REL_PATH = "skills/.evidence/memory_update_plan.json"
 RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH = "skills/.evidence/paper_context"
 RECOMPILE_PAPER_CONTEXT_REL_PATH = (
     "skills/.evidence/paper_context/paper_context.json"
@@ -31,6 +33,10 @@ RECOMPILE_PAPER_STAGED_ASSETS_MANIFEST_REL_PATH = (
 )
 RECOMPILE_PAPER_PLAN_TOKEN_RE = re.compile(
     rf"<{RECOMPILE_PAPER_PLAN_TAG}>(.*?)</{RECOMPILE_PAPER_PLAN_TAG}>",
+    re.IGNORECASE | re.DOTALL,
+)
+RECOMPILE_MEMORY_PLAN_TOKEN_RE = re.compile(
+    rf"<{RECOMPILE_MEMORY_PLAN_TAG}>(.*?)</{RECOMPILE_MEMORY_PLAN_TAG}>",
     re.IGNORECASE | re.DOTALL,
 )
 COMPILE_SKILL_PLAN_TOKEN_RE = re.compile(
@@ -153,6 +159,46 @@ RECOMPILE_PROMPT_3 = (
     f"under `agent_audit_notes`, and add durable run outcomes to `{COMPILE_MEMORY_REL_PATH}`."
     "Ensure the markdown files in each skill are self-contained: no `skills/.evidence/*` path dependencies; no external "
     "absolute path dependencies."
+)
+
+RECOMPILE_MEMORY_PROMPT_1_PLAN = (
+    "You are running FermiLink recompile pass 1/1 (memory-to-skills update planning). "
+    "Build an append-only skills/ folder update from "
+    "`### Suggested skills updates` entries extracted from `projects/memory.md` files. "
+    "Use only suggestions for the target package id.\n\n"
+    "Planning rules:\n"
+    "- Convert machine-specific issues (env/import/lib/hpc/path/local machine setup) into "
+    "`skills/user-specific-settings/SKILL.md`.\n"
+    "- Convert package-specific issues into the most suitable existing package skill "
+    "`SKILL.md` files under `skills/`.\n"
+    "- Use append-only edits. Do not rewrite or delete existing skill content.\n"
+    "- Prefer existing skill files; create a new `skills/user-specific-settings/SKILL.md` (and update the skills index with this new file) "
+    "only if needed.\n\n"
+    "After editing the skills/ folder according to the above rules, write a JSON plan to "
+    "return ONE tagged JSON block:\n"
+    f"<{RECOMPILE_MEMORY_PLAN_TAG}>{{...}}</{RECOMPILE_MEMORY_PLAN_TAG}>\n\n"
+    "JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "mode": "recompile_memory_plan",\n'
+    '  "package_id": "target package id",\n'
+    '  "summary": "short summary",\n'
+    '  "operations": [\n'
+    "    {\n"
+    '      "change_type": "append",\n'
+    '      "classification": "machine_specific | package_specific",\n'
+    '      "target_skill_id": "skill folder name",\n'
+    '      "target_path": "skills/<skill-id>/SKILL.md",\n'
+    '      "issue_pattern": "copied/normalized issue pattern",\n'
+    '      "proposed_append_markdown": "exact markdown snippet to append",\n'
+    '      "evidence": "evidence text/path summary",\n'
+    '      "status": "proposed | accepted | deferred",\n'
+    '      "rationale": "why this target is suitable"\n'
+    "    }\n"
+    "  ],\n"
+    '  "deferred_items": ["optional deferred suggestion notes"],\n'
+    '  "warnings": ["optional warnings"]\n'
+    "}\n"
 )
 
 RECOMPILE_PAPER_PROMPT_1_PLAN = (

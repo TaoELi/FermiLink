@@ -193,6 +193,25 @@ The same four orchestration scripts (``00_run_all.sh`` plus
 are also generated under
 ``projects/research/<run-id>/``.
 
+Memory-driven recompile planning
+--------------------------------
+
+Use ``recompile --memory`` to convert unified-memory suggestions into an
+plan-and-apply append-only skill refresh flow.
+
+.. code-block:: bash
+
+   fermilink recompile <package_id> <path> --memory ./projects/memory.md
+   fermilink recompile <package_id> <path> --memory ./projects
+
+When ``--memory`` points to a directory, FermiLink recursively scans all
+``memory.md`` files, extracts ``### Suggested skills updates`` entries for the
+requested package id, classifies machine-specific issues into
+``skills/user-specific-settings/SKILL.md`` targets, writes plan JSON to
+``skills/.evidence/memory_update_plan.json``, and appends accepted updates into
+target ``skills/*/SKILL.md`` files. This mode cannot be combined with ``--doc``,
+``--data-dir``, or ``--comment``.
+
 Automated package onboarding
 ----------------------------
 

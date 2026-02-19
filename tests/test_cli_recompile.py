@@ -713,6 +713,209 @@ def test_recompile_data_dir_requires_doc(tmp_path: Path, capsys) -> None:
     assert "--data-dir requires --doc" in capsys.readouterr().err
 
 
+def test_recompile_memory_rejects_doc_combo(tmp_path: Path, capsys) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    memory_path = project_root / "memory.md"
+    memory_path.write_text("# memory\n", encoding="utf-8")
+    doc_path = project_root / "paper.md"
+    doc_path.write_text("# paper\n", encoding="utf-8")
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--memory",
+            str(memory_path),
+            "--doc",
+            str(doc_path),
+        ]
+    )
+    assert code == 2
+    assert "--memory cannot be combined" in capsys.readouterr().err
+
+
+def test_recompile_memory_mode_builds_plan_from_recursive_memory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    (project_root / "skills" / "newpkg-core").mkdir(parents=True, exist_ok=True)
+    (project_root / "skills" / "newpkg-core" / "SKILL.md").write_text(
+        "# core\n", encoding="utf-8"
+    )
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+
+    memory_root = tmp_path / "memories"
+    (memory_root / "projects").mkdir(parents=True, exist_ok=True)
+    (memory_root / "projects" / "memory.md").write_text(
+        "\n".join(
+            [
+                "# Memory A",
+                "",
+                "### Suggested skills updates",
+                "- (newpkg | environment import failures under conda env | add explicit conda run troubleshooting note | failed import in mxl env | proposed)",
+                "- (otherpkg | unrelated | ignore | evidence | proposed)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (memory_root / "nested" / "deep").mkdir(parents=True, exist_ok=True)
+    (memory_root / "nested" / "deep" / "memory.md").write_text(
+        "\n".join(
+            [
+                "# Memory B",
+                "",
+                "### Suggested skills updates",
+                "- (newpkg | parameter defaults miss stable convergence window | add playbook note for extra tuning parameter | figure-2 failed unless damping adjusted | proposed)",
+                "- (newpkg | old resolved issue | obsolete update | old evidence | done)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(
+        cli,
+        "resolve_scipkg_root",
+        lambda: (_ for _ in ()).throw(AssertionError("should not resolve scipkg root")),
+    )
+
+    pass_calls: list[dict[str, object]] = []
+
+    def fake_pass(*_a, **kwargs):
+        pass_calls.append(kwargs)
+        return {
+            "pass": int(kwargs.get("pass_index") or 1),
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": (
+                "<memory_update_plan>"
+                "{\"version\":1,\"summary\":\"memory refresh\",\"operations\":["
+                "{\"change_type\":\"append\",\"classification\":\"machine_specific\","
+                "\"target_skill_id\":\"newpkg-core\","
+                "\"target_path\":\"skills/newpkg-core/SKILL.md\","
+                "\"issue_pattern\":\"environment import failures under conda env\","
+                "\"proposed_skill_update\":\"add explicit conda run troubleshooting note\","
+                "\"proposed_append_markdown\":\"### note\\n- conda run hint\","
+                "\"evidence\":\"failed import in mxl env\",\"status\":\"proposed\"},"
+                "{\"change_type\":\"append\",\"classification\":\"package_specific\","
+                "\"target_skill_id\":\"newpkg-core\","
+                "\"target_path\":\"skills/newpkg-core/SKILL.md\","
+                "\"issue_pattern\":\"parameter defaults miss stable convergence window\","
+                "\"proposed_skill_update\":\"add playbook note for extra tuning parameter\","
+                "\"proposed_append_markdown\":\"### tuning\\n- add damping\","
+                "\"evidence\":\"figure-2 failed unless damping adjusted\",\"status\":\"proposed\"}"
+                "]}"
+                "</memory_update_plan>"
+            ),
+        }
+
+    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--memory",
+            str(memory_root),
+            "--json",
+        ]
+    )
+    assert code == 0
+    assert len(pass_calls) == 1
+    assert int(pass_calls[0].get("total_passes") or 0) == 1
+    prompt = str(pass_calls[0].get("prompt") or "")
+    assert prompt.startswith(cli.RECOMPILE_MEMORY_PROMPT_1_PLAN)
+    assert "Filtered suggested updates payload (2 entries" in prompt
+
+    assert payloads
+    payload = payloads[0]
+    assert payload.get("memory_mode") is True
+    assert payload.get("install_off") is True
+    assert payload.get("installed") is None
+    assert payload.get("active_package") is None
+    assert payload.get("router_sync") is None
+    assert payload.get("scipkg_root") is None
+    memory_apply = payload.get("memory_apply")
+    assert isinstance(memory_apply, dict)
+    assert int(memory_apply.get("applied_count") or 0) == 2
+    modified_files = memory_apply.get("modified_files")
+    assert isinstance(modified_files, list)
+    assert "skills/newpkg-core/SKILL.md" in modified_files
+    assert "skills/user-specific-settings/SKILL.md" in modified_files
+
+    suggestions_payload = payload.get("memory_suggestions")
+    assert isinstance(suggestions_payload, dict)
+    suggestions = suggestions_payload.get("suggestions")
+    assert isinstance(suggestions, list)
+    assert len(suggestions) == 2
+    assert int(suggestions_payload.get("skipped_closed_entries") or 0) == 1
+    assert len(suggestions_payload.get("memory_sources") or []) == 2
+
+    memory_plan_path = str(payload.get("memory_plan_path") or "")
+    assert memory_plan_path == cli.RECOMPILE_MEMORY_PLAN_REL_PATH
+    plan_file = project_root / memory_plan_path
+    assert plan_file.is_file()
+    plan_payload = json.loads(plan_file.read_text(encoding="utf-8"))
+    operations = plan_payload.get("operations")
+    assert isinstance(operations, list)
+    assert len(operations) == 2
+    machine_targets = [
+        item.get("target_path")
+        for item in operations
+        if item.get("classification") == "machine_specific"
+    ]
+    assert machine_targets == ["skills/user-specific-settings/SKILL.md"]
+    assert all(item.get("status") == "accepted" for item in operations)
+    user_settings_skill = (
+        project_root / "skills" / "user-specific-settings" / "SKILL.md"
+    )
+    assert user_settings_skill.is_file()
+    user_settings_text = user_settings_skill.read_text(encoding="utf-8")
+    assert "### note" in user_settings_text
+    core_skill_text = (
+        project_root / "skills" / "newpkg-core" / "SKILL.md"
+    ).read_text(encoding="utf-8")
+    assert "### tuning" in core_skill_text
+    assert not (project_root / "sci-skills-generator").exists()
+
+
+def test_recompile_memory_directory_requires_memory_files(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    memory_root = tmp_path / "memories"
+    memory_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--memory",
+            str(memory_root),
+        ]
+    )
+    assert code == 2
+    assert "No memory.md files found" in capsys.readouterr().err
+
+
 def test_recompile_accepts_doc_data_dir_and_comment(
     monkeypatch, tmp_path: Path
 ) -> None:

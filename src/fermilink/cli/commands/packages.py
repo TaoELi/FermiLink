@@ -1752,20 +1752,34 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         Process exit code (`0` on success, non-zero on failure).
     """
     cli = _cli()
-    install_off = bool(getattr(args, "install_off", False))
-    scipkg_root: Path | None = None
-    if not install_off:
-        scipkg_root = cli.resolve_scipkg_root()
     package_id = cli.normalize_package_id(args.package_id)
     project_root = cli._resolve_project_path(args.project_path)
     if not project_root.exists() or not project_root.is_dir():
         raise cli.PackageError(f"Recompile path is not a directory: {project_root}")
 
+    raw_memory_path = str(getattr(args, "memory", "") or "").strip()
     raw_doc_path = str(getattr(args, "doc", "") or "").strip()
     raw_data_dir = str(getattr(args, "data_dir", "") or "").strip()
     comment_text = " ".join(str(getattr(args, "comment", "") or "").split()).strip()
+    memory_mode_enabled = bool(raw_memory_path)
+    install_off = bool(getattr(args, "install_off", False)) or memory_mode_enabled
+    scipkg_root: Path | None = None
+    if not install_off:
+        scipkg_root = cli.resolve_scipkg_root()
+
+    resolved_memory_path: Path | None = None
     resolved_doc_path: Path | None = None
     resolved_data_dir: Path | None = None
+    if memory_mode_enabled and (raw_doc_path or raw_data_dir or comment_text):
+        raise cli.PackageError("--memory cannot be combined with --doc/--data-dir/--comment.")
+    if raw_memory_path:
+        resolved_memory_path = cli._resolve_project_path(raw_memory_path)
+        if not resolved_memory_path.exists():
+            raise cli.PackageError(f"--memory does not exist: {resolved_memory_path}")
+        if not resolved_memory_path.is_file() and not resolved_memory_path.is_dir():
+            raise cli.PackageError(
+                f"--memory must be a file or directory: {resolved_memory_path}"
+            )
     if comment_text and not raw_doc_path:
         raise cli.PackageError("--comment requires --doc.")
     if raw_data_dir and not raw_doc_path:
@@ -1794,7 +1808,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             raise cli.PackageError(
                 f"--data-dir is not readable: {resolved_data_dir}: {exc}"
             ) from exc
-    paper_mode_enabled = bool(
+    paper_mode_enabled = not memory_mode_enabled and bool(
         isinstance(resolved_doc_path, Path)
         or isinstance(resolved_data_dir, Path)
         or bool(comment_text)
@@ -1854,12 +1868,22 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             "Remove it first or choose a different path."
         )
 
-    run_mode = "recompile_paper" if paper_mode_enabled else "recompile"
+    run_mode = (
+        "recompile_memory_plan"
+        if memory_mode_enabled
+        else ("recompile_paper" if paper_mode_enabled else "recompile")
+    )
     run_id = _build_compile_run_id("recompile")
     run_goal = (
-        "Recompile paper tutorial and refresh package skills."
-        if paper_mode_enabled
-        else "Refresh existing skills with targeted coverage updates and audit."
+        (
+            "Generate append-only skills update plan from unified memory suggestions."
+            if memory_mode_enabled
+            else (
+                "Recompile paper tutorial and refresh package skills."
+                if paper_mode_enabled
+                else "Refresh existing skills with targeted coverage updates and audit."
+            )
+        )
     )
     compile_memory_path = cli._reset_compile_memory_short_term(
         project_root,
@@ -1875,6 +1899,10 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     profile_payload: dict[str, object] = {}
     skill_plan_payload: dict[str, object] = {}
     skill_plan_path = ""
+    memory_suggestions_payload: dict[str, object] | None = None
+    memory_plan_payload: dict[str, object] | None = None
+    memory_apply_payload: dict[str, object] | None = None
+    memory_plan_path = ""
     paper_context_payload: dict[str, object] | None = None
     paper_plan_payload: dict[str, object] | None = None
     paper_plan_rel = ""
@@ -1887,6 +1915,207 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     compile_report_path = ""
     manuscript_text = ""
     manuscript_source = ""
+    if memory_mode_enabled:
+        if not isinstance(resolved_memory_path, Path):
+            raise cli.PackageError(
+                "Internal recompile memory-mode error: --memory path missing after validation."
+            )
+        try:
+            memory_suggestions_payload = cli._collect_recompile_memory_suggestions(
+                project_root,
+                package_id=package_id,
+                memory_path=resolved_memory_path,
+            )
+            available_skill_ids = cli._list_skill_ids(project_root)
+            suggestions = (
+                memory_suggestions_payload.get("suggestions")
+                if isinstance(memory_suggestions_payload, dict)
+                else []
+            )
+            suggestion_items = suggestions if isinstance(suggestions, list) else []
+            suggestion_payload_json = json.dumps(
+                suggestion_items[:80],
+                indent=2,
+            )
+            pass_1_prompt = (
+                f"{cli.RECOMPILE_MEMORY_PROMPT_1_PLAN}\n\n"
+                f"Package id: {package_id}\n"
+                f"Compile memory file: {compile_memory_path}\n"
+                f"Memory-plan output file: {cli.RECOMPILE_MEMORY_PLAN_REL_PATH}\n"
+                f"Memory input path: {resolved_memory_path}\n"
+                f"Memory source files: {json.dumps(memory_suggestions_payload.get('memory_sources', []), indent=2)}\n"
+                f"Existing skill ids: {json.dumps(available_skill_ids, indent=2)}\n"
+                f"Filtered suggested updates payload ({len(suggestion_items)} entries; truncated to 80 below):\n"
+                f"{suggestion_payload_json}\n"
+            )
+            pass_1_before_snapshot = cli._snapshot_skills_tree(project_root)
+            pass_1 = cli._run_codex_compile_pass(
+                project_root,
+                prompt=pass_1_prompt,
+                pass_index=1,
+                total_passes=1,
+                provider=provider,
+                provider_bin=provider_bin,
+            )
+            pass_1_assistant_text = str(pass_1.pop("assistant_text", "") or "")
+            compile_runs.append(pass_1)
+            raw_memory_plan = cli._extract_recompile_memory_plan_from_assistant_text(
+                pass_1_assistant_text
+            )
+            if raw_memory_plan is None:
+                raise cli.PackageError(
+                    "Memory-mode recompile pass response must include "
+                    f"<{cli.RECOMPILE_MEMORY_PLAN_TAG}>...</{cli.RECOMPILE_MEMORY_PLAN_TAG}>."
+                )
+            memory_plan_payload = cli._normalize_recompile_memory_plan(
+                raw_memory_plan,
+                package_id=package_id,
+                suggestions=suggestion_items,
+                available_skill_ids=available_skill_ids,
+            )
+            pass_1_after_snapshot = cli._snapshot_skills_tree(project_root)
+            pass_1_diff = cli._diff_skills_tree_snapshot(
+                pass_1_before_snapshot,
+                pass_1_after_snapshot,
+            )
+            pass_scope_diffs["pass_1"] = pass_1_diff
+            cli._assert_skills_change_scope(
+                change_diff=pass_1_diff,
+                allowed_prefixes=[],
+                stage_label="recompile memory pass 1",
+            )
+            memory_plan_path = cli._write_recompile_memory_plan(
+                project_root,
+                memory_plan=memory_plan_payload,
+            )
+            plan_apply_before_snapshot = cli._snapshot_skills_tree(project_root)
+            memory_apply_payload = cli._apply_recompile_memory_plan(
+                project_root,
+                package_id=package_id,
+                memory_plan=memory_plan_payload,
+            )
+            plan_apply_after_snapshot = cli._snapshot_skills_tree(project_root)
+            plan_apply_diff = cli._diff_skills_tree_snapshot(
+                plan_apply_before_snapshot,
+                plan_apply_after_snapshot,
+            )
+            pass_scope_diffs["plan_apply"] = plan_apply_diff
+            cli._assert_skills_change_scope(
+                change_diff=plan_apply_diff,
+                allowed_prefixes=["skills"],
+                stage_label="recompile memory apply",
+            )
+            memory_plan_path = cli._write_recompile_memory_plan(
+                project_root,
+                memory_plan=memory_plan_payload,
+            )
+            validation_payload = {
+                "ok": True,
+                "errors": [],
+                "warnings": (
+                    list(memory_apply_payload.get("warnings") or [])
+                    if isinstance(memory_apply_payload, dict)
+                    else []
+                ),
+                "source_links_total": 0,
+                "mode": "memory_plan_only",
+            }
+            compile_report_path = cli._write_compile_report(
+                project_root,
+                payload={
+                    "mode": run_mode,
+                    "run_id": run_id,
+                    "recompiled_package_id": package_id,
+                    "project_root": str(project_root),
+                    "compile_memory_path": compile_memory_path,
+                    "memory_input": str(resolved_memory_path),
+                    "memory_suggestions": memory_suggestions_payload,
+                    "memory_plan": memory_plan_payload,
+                    "memory_plan_path": memory_plan_path,
+                    "memory_apply": memory_apply_payload,
+                    "passes": compile_runs,
+                    "pass_scope_diffs": pass_scope_diffs,
+                    "validation": validation_payload,
+                },
+            )
+            memory_update_payload = cli._record_compile_memory_run(
+                project_root,
+                package_id=package_id,
+                mode=run_mode,
+                run_id=run_id,
+                run_goal=run_goal,
+                skill_plan=None,
+                pass_scope_diffs=pass_scope_diffs,
+                evidence=memory_suggestions_payload,
+                validation=validation_payload,
+                compile_report_path=compile_report_path,
+            )
+        finally:
+            if not keep_compile_artifacts:
+                shutil.rmtree(tool_dest, ignore_errors=True)
+
+        if not keep_compile_artifacts and tool_dest.exists():
+            raise cli.PackageError(
+                f"Failed to clean up temporary tool directory: {tool_dest}"
+            )
+
+        suggestions_total = (
+            len(memory_suggestions_payload.get("suggestions", []))
+            if isinstance(memory_suggestions_payload, dict)
+            and isinstance(memory_suggestions_payload.get("suggestions"), list)
+            else 0
+        )
+        operations_total = (
+            len(memory_plan_payload.get("operations", []))
+            if isinstance(memory_plan_payload, dict)
+            and isinstance(memory_plan_payload.get("operations"), list)
+            else 0
+        )
+        applied_total = (
+            int(memory_apply_payload.get("applied_count") or 0)
+            if isinstance(memory_apply_payload, dict)
+            else 0
+        )
+        modified_files_total = (
+            len(memory_apply_payload.get("modified_files", []))
+            if isinstance(memory_apply_payload, dict)
+            and isinstance(memory_apply_payload.get("modified_files"), list)
+            else 0
+        )
+        payload = {
+            "recompiled_package_id": package_id,
+            "project_root": str(project_root),
+            "run_id": run_id,
+            "run_mode": run_mode,
+            "memory_mode": True,
+            "memory_input_path": str(resolved_memory_path),
+            "compile_memory": compile_memory_path,
+            "compile_memory_update": memory_update_payload,
+            "memory_suggestions": memory_suggestions_payload,
+            "memory_plan": memory_plan_payload,
+            "memory_plan_path": memory_plan_path or None,
+            "memory_apply": memory_apply_payload,
+            "pass_scope_diffs": pass_scope_diffs,
+            "compile_runs": compile_runs,
+            "compile_report": compile_report_path,
+            "validation": validation_payload,
+            "validation_enforced": strict_compile_validation,
+            "install_off": True,
+            "installed": None,
+            "active_package": None,
+            "router_sync": None,
+            "scipkg_root": None,
+        }
+        lines = [
+            f"Generated recompile memory update plan for '{package_id}' from {project_root}.",
+            f"Collected {suggestions_total} matching suggested skills updates from memory files.",
+            f"Planned {operations_total} append-only skill updates in {memory_plan_path or cli.RECOMPILE_MEMORY_PLAN_REL_PATH}.",
+            f"Applied {applied_total} append-only updates across {modified_files_total} skill file(s).",
+            "Install step skipped for memory-plan mode; package registry/install were not modified.",
+        ]
+        cli._emit_output(args, payload, lines)
+        return 0
+
     if paper_mode_enabled and isinstance(resolved_doc_path, Path):
         try:
             manuscript_text = resolved_doc_path.read_text(

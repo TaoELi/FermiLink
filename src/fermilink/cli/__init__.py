@@ -40,6 +40,10 @@ from fermilink.cli.compile_prompts import (
     COMPILE_PROMPT_2,
     COMPILE_PROMPT_3,
     RECOMPILE_COVERAGE_REL_PATH,
+    RECOMPILE_MEMORY_PLAN_REL_PATH,
+    RECOMPILE_MEMORY_PLAN_TAG,
+    RECOMPILE_MEMORY_PLAN_TOKEN_RE,
+    RECOMPILE_MEMORY_PROMPT_1_PLAN,
     RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH,
     RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH,
     RECOMPILE_PAPER_CONTEXT_REL_PATH,
@@ -258,12 +262,21 @@ _list_skill_ids = compile_helpers._list_skill_ids
 _ensure_compile_memory = compile_helpers._ensure_compile_memory
 _reset_compile_memory_short_term = compile_helpers._reset_compile_memory_short_term
 _record_compile_memory_run = compile_helpers._record_compile_memory_run
+_collect_recompile_memory_suggestions = (
+    compile_helpers._collect_recompile_memory_suggestions
+)
 _run_compile_generator = compile_helpers._run_compile_generator
 _build_compile_evidence_bundle = compile_helpers._build_compile_evidence_bundle
 _build_recompile_evidence_bundle = compile_helpers._build_recompile_evidence_bundle
 _snapshot_skills_tree = compile_helpers._snapshot_skills_tree
 _diff_skills_tree_snapshot = compile_helpers._diff_skills_tree_snapshot
 _assert_skills_change_scope = compile_helpers._assert_skills_change_scope
+_extract_recompile_memory_plan_from_assistant_text = (
+    compile_helpers._extract_recompile_memory_plan_from_assistant_text
+)
+_normalize_recompile_memory_plan = compile_helpers._normalize_recompile_memory_plan
+_write_recompile_memory_plan = compile_helpers._write_recompile_memory_plan
+_apply_recompile_memory_plan = compile_helpers._apply_recompile_memory_plan
 _extract_recompile_paper_plan_from_assistant_text = (
     compile_helpers._extract_recompile_paper_plan_from_assistant_text
 )

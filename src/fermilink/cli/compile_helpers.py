@@ -142,6 +142,41 @@ COMPILE_MEMORY_OPEN_GAPS_HEADING = "### Open gaps"
 COMPILE_MEMORY_DECISIONS_HEADING = "### Decisions and conventions"
 SKILLS_GITIGNORE_FILENAME = ".gitignore"
 SKILLS_GITIGNORE_EVIDENCE_ENTRY = ".evidence/"
+UNIFIED_MEMORY_SKILLS_UPDATES_HEADING = "### Suggested skills updates"
+RECOMPILE_MEMORY_CLOSED_STATUSES = {
+    "closed",
+    "complete",
+    "completed",
+    "done",
+    "fixed",
+    "implemented",
+    "resolved",
+}
+RECOMPILE_MEMORY_MACHINE_HINTS = {
+    "apt",
+    "brew",
+    "cluster",
+    "conda",
+    "cuda",
+    "dlopen",
+    "dyld",
+    "environment",
+    "hpc",
+    "importerror",
+    "ld_library_path",
+    "libint",
+    "dylib",
+    "shared library",
+    ".so",
+    "missing",
+    "module load",
+    "mpi",
+    "path",
+    "site-packages",
+    "slurm",
+    "soname",
+    "venv",
+}
 
 COMPILE_MEMORY_LONG_TERM_BLOCK = (
     f"{COMPILE_MEMORY_LONG_TERM_HEADING}\n"
@@ -1358,6 +1393,677 @@ def _normalize_string_list(raw: object) -> list[str]:
         text = raw.strip()
         return [text] if text else []
     return []
+
+
+def _normalize_memory_status_token(raw_status: object) -> str:
+    token = str(raw_status or "").strip().lower().strip("`").strip()
+    token = re.sub(r"[^\w\s-]+", " ", token)
+    token = re.sub(r"\s+", " ", token).strip()
+    if not token:
+        return "proposed"
+    return token.split(" ", 1)[0]
+
+
+def _extract_markdown_heading_block(content: str, heading: str) -> str:
+    heading_re = re.compile(rf"(?m)^\s*{re.escape(heading)}\s*$")
+    start_match = heading_re.search(content)
+    if start_match is None:
+        return ""
+    section_start = start_match.end()
+    next_heading_re = re.compile(r"(?m)^\s*##+\s+.+$")
+    next_match = next_heading_re.search(content, section_start)
+    section_end = next_match.start() if next_match is not None else len(content)
+    return content[section_start:section_end]
+
+
+def _parse_memory_suggested_update_line(
+    line: str,
+    *,
+    source_memory: str,
+) -> dict[str, object] | None:
+    cli = _cli()
+    text = str(line).strip()
+    if not text:
+        return None
+    if text.startswith("- "):
+        text = text[2:].strip()
+    elif text.startswith("* "):
+        text = text[2:].strip()
+    if not text:
+        return None
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1].strip()
+    if "issue_pattern" in text and "proposed_skill_update" in text:
+        return None
+    if "|" not in text:
+        return None
+
+    fields = [part.strip() for part in text.split("|", 4)]
+    if len(fields) != 5:
+        return None
+
+    package_id_raw, issue_pattern, proposed_skill_update, evidence, status = fields
+    package_token = (
+        str(package_id_raw)
+        .strip()
+        .strip("`")
+        .strip("'")
+        .strip('"')
+        .strip()
+    )
+    if not package_token:
+        return None
+
+    package_id = cli.normalize_package_id(package_token)
+    issue_text = " ".join(str(issue_pattern).split()).strip()
+    update_text = " ".join(str(proposed_skill_update).split()).strip()
+    evidence_text = " ".join(str(evidence).split()).strip()
+    status_text = _normalize_memory_status_token(status)
+    if not issue_text or not update_text:
+        return None
+    return {
+        "package_id": package_id,
+        "issue_pattern": issue_text,
+        "proposed_skill_update": update_text,
+        "evidence": evidence_text,
+        "status": status_text,
+        "source_memory": source_memory,
+    }
+
+
+def _classify_memory_suggested_update(
+    *,
+    issue_pattern: str,
+    proposed_skill_update: str,
+    evidence: str,
+) -> str:
+    merged = " ".join([issue_pattern, proposed_skill_update, evidence]).lower()
+    for hint in RECOMPILE_MEMORY_MACHINE_HINTS:
+        if hint in merged:
+            return "machine_specific"
+    return "package_specific"
+
+
+def _collect_memory_source_files(memory_path: Path) -> list[Path]:
+    cli = _cli()
+    resolved = memory_path.expanduser().resolve()
+    if not resolved.exists():
+        raise cli.PackageError(f"--memory does not exist: {resolved}")
+    if resolved.is_file():
+        return [resolved]
+    if not resolved.is_dir():
+        raise cli.PackageError(f"--memory must be a file or directory: {resolved}")
+    files = sorted(path for path in resolved.rglob("memory.md") if path.is_file())
+    if not files:
+        raise cli.PackageError(
+            f"No memory.md files found under --memory directory: {resolved}"
+        )
+    return files
+
+
+def _collect_recompile_memory_suggestions(
+    project_root: Path,
+    *,
+    package_id: str,
+    memory_path: Path,
+) -> dict[str, object]:
+    cli = _cli()
+    target_package_id = cli.normalize_package_id(package_id)
+    memory_sources = _collect_memory_source_files(memory_path)
+    collected: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    scanned_entries = 0
+    matched_entries = 0
+    skipped_closed_entries = 0
+
+    for source_path in memory_sources:
+        source_rel = _safe_relative_path(source_path, project_root)
+        try:
+            content = source_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to read --memory file: {source_path}: {exc}"
+            ) from exc
+        section = _extract_markdown_heading_block(
+            content, UNIFIED_MEMORY_SKILLS_UPDATES_HEADING
+        )
+        if not section.strip():
+            continue
+        for raw_line in section.splitlines():
+            entry = _parse_memory_suggested_update_line(
+                raw_line,
+                source_memory=source_rel,
+            )
+            if not isinstance(entry, dict):
+                continue
+            scanned_entries += 1
+            if str(entry.get("package_id") or "") != target_package_id:
+                continue
+            matched_entries += 1
+            status = _normalize_memory_status_token(entry.get("status"))
+            if status in RECOMPILE_MEMORY_CLOSED_STATUSES:
+                skipped_closed_entries += 1
+                continue
+            issue_pattern = str(entry.get("issue_pattern") or "").strip()
+            proposed_skill_update = str(entry.get("proposed_skill_update") or "").strip()
+            evidence = str(entry.get("evidence") or "").strip()
+            classification = _classify_memory_suggested_update(
+                issue_pattern=issue_pattern,
+                proposed_skill_update=proposed_skill_update,
+                evidence=evidence,
+            )
+            dedupe_key = (
+                issue_pattern.lower(),
+                proposed_skill_update.lower(),
+                evidence.lower(),
+                classification,
+            )
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            collected.append(
+                {
+                    "package_id": target_package_id,
+                    "issue_pattern": issue_pattern,
+                    "proposed_skill_update": proposed_skill_update,
+                    "evidence": evidence,
+                    "status": "proposed",
+                    "classification": classification,
+                    "source_memory": source_rel,
+                }
+            )
+
+    return {
+        "package_id": target_package_id,
+        "memory_input": _safe_relative_path(memory_path, project_root),
+        "memory_sources": [_safe_relative_path(path, project_root) for path in memory_sources],
+        "scanned_entries": scanned_entries,
+        "matched_entries": matched_entries,
+        "skipped_closed_entries": skipped_closed_entries,
+        "suggestions": collected,
+    }
+
+
+def _select_memory_target_skill_id(
+    *,
+    package_id: str,
+    issue_pattern: str,
+    proposed_skill_update: str,
+    available_skill_ids: list[str],
+) -> str:
+    preferred = [skill_id for skill_id in available_skill_ids if not skill_id.endswith("-index")]
+    if not preferred:
+        return f"{package_id}-advanced-topics"
+
+    for candidate in (
+        f"{package_id}-troubleshoot",
+        f"{package_id}-advanced-topics",
+        f"{package_id}-core",
+    ):
+        if candidate in preferred:
+            return candidate
+
+    clue = _normalize_skill_id_token(f"{issue_pattern} {proposed_skill_update}")
+    clue_tokens = [token for token in clue.split("-") if token]
+    ranked: list[tuple[int, str]] = []
+    for skill_id in preferred:
+        skill_norm = _normalize_skill_id_token(skill_id)
+        score = sum(1 for token in clue_tokens if token in skill_norm)
+        ranked.append((score, skill_id))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    if ranked and ranked[0][0] > 0:
+        return ranked[0][1]
+    return preferred[0]
+
+
+def _build_memory_append_markdown(
+    *,
+    issue_pattern: str,
+    proposed_skill_update: str,
+    evidence: str,
+    source_memory: str,
+) -> str:
+    lines = [
+        "### Suggested Update (Unified Memory)",
+        f"- Issue pattern: {issue_pattern}",
+        f"- Proposed update: {proposed_skill_update}",
+        (
+            f"- Evidence: {evidence}"
+            if evidence
+            else "- Evidence: not provided"
+        ),
+        f"- Source memory: {source_memory}",
+    ]
+    return "\n".join(lines).strip()
+
+
+def _default_recompile_memory_plan(
+    *,
+    package_id: str,
+    suggestions: list[dict[str, object]],
+    available_skill_ids: list[str],
+) -> dict[str, object]:
+    operations: list[dict[str, object]] = []
+    for suggestion in suggestions:
+        classification = str(suggestion.get("classification") or "package_specific")
+        issue_pattern = str(suggestion.get("issue_pattern") or "").strip()
+        proposed_skill_update = str(suggestion.get("proposed_skill_update") or "").strip()
+        evidence = str(suggestion.get("evidence") or "").strip()
+        source_memory = str(suggestion.get("source_memory") or "").strip()
+
+        if classification == "machine_specific":
+            target_skill_id = "user-specific-settings"
+        else:
+            target_skill_id = _select_memory_target_skill_id(
+                package_id=package_id,
+                issue_pattern=issue_pattern,
+                proposed_skill_update=proposed_skill_update,
+                available_skill_ids=available_skill_ids,
+            )
+        operations.append(
+            {
+                "change_type": "append",
+                "classification": classification,
+                "target_skill_id": target_skill_id,
+                "target_path": f"skills/{target_skill_id}/SKILL.md",
+                "issue_pattern": issue_pattern,
+                "proposed_skill_update": proposed_skill_update,
+                "proposed_append_markdown": _build_memory_append_markdown(
+                    issue_pattern=issue_pattern,
+                    proposed_skill_update=proposed_skill_update,
+                    evidence=evidence,
+                    source_memory=source_memory,
+                ),
+                "evidence": evidence,
+                "status": "proposed",
+                "rationale": (
+                    "Machine-specific troubleshooting guidance belongs in user-specific settings."
+                    if classification == "machine_specific"
+                    else "Package-specific update mapped to best matching existing skill."
+                ),
+                "source_memory": source_memory,
+            }
+        )
+
+    return {
+        "version": 1,
+        "mode": "recompile_memory_plan",
+        "package_id": package_id,
+        "summary": (
+            f"Planned append-only updates for {len(operations)} suggested memory entries."
+        ),
+        "operations": operations,
+        "deferred_items": [],
+        "warnings": [],
+    }
+
+
+def _normalize_recompile_memory_target_path(
+    *,
+    package_id: str,
+    available_skill_ids: list[str],
+    classification: str,
+    target_path: str,
+    target_skill_id: str,
+    issue_pattern: str,
+    proposed_skill_update: str,
+) -> tuple[str, str]:
+    if classification == "machine_specific":
+        return ("user-specific-settings", "skills/user-specific-settings/SKILL.md")
+
+    normalized_skill_id = str(target_skill_id or "").strip()
+    if not normalized_skill_id and target_path.strip():
+        path_parts = target_path.replace("\\", "/").strip().split("/")
+        if len(path_parts) >= 2 and path_parts[0] == "skills":
+            normalized_skill_id = path_parts[1].strip()
+    if normalized_skill_id:
+        normalized_skill_id = _resolve_skill_id_for_plan(
+            normalized_skill_id,
+            available_skill_ids=available_skill_ids,
+            package_id=package_id,
+        )
+        if available_skill_ids and normalized_skill_id not in available_skill_ids:
+            normalized_skill_id = _select_memory_target_skill_id(
+                package_id=package_id,
+                issue_pattern=issue_pattern,
+                proposed_skill_update=proposed_skill_update,
+                available_skill_ids=available_skill_ids,
+            )
+    else:
+        normalized_skill_id = _select_memory_target_skill_id(
+            package_id=package_id,
+            issue_pattern=issue_pattern,
+            proposed_skill_update=proposed_skill_update,
+            available_skill_ids=available_skill_ids,
+        )
+
+    normalized_path = target_path.replace("\\", "/").strip().lstrip("./")
+    if normalized_path.startswith("skills/") and ".." not in normalized_path.split("/"):
+        if normalized_path.endswith("/"):
+            normalized_path = f"{normalized_path}SKILL.md"
+        if not normalized_path.endswith(".md"):
+            normalized_path = f"{normalized_path}/SKILL.md"
+    else:
+        normalized_path = f"skills/{normalized_skill_id}/SKILL.md"
+
+    if not normalized_path.startswith("skills/") or ".." in normalized_path.split("/"):
+        normalized_path = f"skills/{normalized_skill_id}/SKILL.md"
+    if not normalized_path.endswith("/SKILL.md"):
+        normalized_path = f"skills/{normalized_skill_id}/SKILL.md"
+    return normalized_skill_id, normalized_path
+
+
+def _extract_recompile_memory_plan_from_assistant_text(
+    assistant_text: str,
+) -> dict[str, object] | None:
+    cli = _cli()
+    parsed = cli._extract_tagged_json_payload(
+        assistant_text, token_re=cli.RECOMPILE_MEMORY_PLAN_TOKEN_RE
+    )
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _normalize_recompile_memory_plan(
+    raw_plan: object,
+    *,
+    package_id: str,
+    suggestions: list[dict[str, object]],
+    available_skill_ids: list[str],
+) -> dict[str, object]:
+    cli = _cli()
+    if not isinstance(raw_plan, dict):
+        raise cli.PackageError("Memory update plan must be a JSON object.")
+
+    normalized = _default_recompile_memory_plan(
+        package_id=package_id,
+        suggestions=suggestions,
+        available_skill_ids=available_skill_ids,
+    )
+    warnings: list[str] = []
+    version_raw = raw_plan.get("version")
+    try:
+        version = int(version_raw) if version_raw is not None else 1
+    except (TypeError, ValueError):
+        version = 1
+    normalized["version"] = max(version, 1)
+    normalized["package_id"] = package_id
+    normalized["mode"] = "recompile_memory_plan"
+    summary = " ".join(str(raw_plan.get("summary") or "").split()).strip()
+    if summary:
+        normalized["summary"] = summary
+
+    deferred_items = _normalize_string_list(raw_plan.get("deferred_items"))
+    normalized["deferred_items"] = deferred_items
+    warnings.extend(_normalize_string_list(raw_plan.get("warnings")))
+
+    operations_raw = raw_plan.get("operations")
+    operations: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+    if isinstance(operations_raw, list):
+        for item in operations_raw:
+            if not isinstance(item, dict):
+                continue
+            change_type = str(item.get("change_type") or "").strip().lower()
+            if change_type != "append":
+                if change_type:
+                    warnings.append(
+                        f"Unsupported change_type '{change_type}' replaced with append."
+                    )
+                change_type = "append"
+            classification = str(item.get("classification") or "").strip().lower()
+            if classification not in {"machine_specific", "package_specific"}:
+                classification = _classify_memory_suggested_update(
+                    issue_pattern=str(item.get("issue_pattern") or ""),
+                    proposed_skill_update=str(item.get("proposed_skill_update") or ""),
+                    evidence=str(item.get("evidence") or ""),
+                )
+
+            issue_pattern = " ".join(str(item.get("issue_pattern") or "").split()).strip()
+            proposed_skill_update = " ".join(
+                str(item.get("proposed_skill_update") or "").split()
+            ).strip()
+            evidence = " ".join(str(item.get("evidence") or "").split()).strip()
+            source_memory = " ".join(str(item.get("source_memory") or "").split()).strip()
+            if not issue_pattern and isinstance(suggestions, list):
+                for suggestion in suggestions:
+                    if not isinstance(suggestion, dict):
+                        continue
+                    issue_pattern = str(suggestion.get("issue_pattern") or "").strip()
+                    if issue_pattern:
+                        break
+            if not issue_pattern:
+                continue
+            if not proposed_skill_update:
+                proposed_skill_update = "append troubleshooting guidance derived from unified memory"
+            target_skill_id, target_path = _normalize_recompile_memory_target_path(
+                package_id=package_id,
+                available_skill_ids=available_skill_ids,
+                classification=classification,
+                target_path=str(item.get("target_path") or ""),
+                target_skill_id=str(item.get("target_skill_id") or ""),
+                issue_pattern=issue_pattern,
+                proposed_skill_update=proposed_skill_update,
+            )
+            append_markdown = str(item.get("proposed_append_markdown") or "").strip()
+            if not append_markdown:
+                append_markdown = _build_memory_append_markdown(
+                    issue_pattern=issue_pattern,
+                    proposed_skill_update=proposed_skill_update,
+                    evidence=evidence,
+                    source_memory=source_memory or "unknown",
+                )
+            status = _normalize_memory_status_token(item.get("status"))
+            if status not in {"proposed", "accepted", "deferred"}:
+                status = "proposed"
+            dedupe_key = (target_path, issue_pattern.lower(), append_markdown.lower())
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            operations.append(
+                {
+                    "change_type": change_type,
+                    "classification": classification,
+                    "target_skill_id": target_skill_id,
+                    "target_path": target_path,
+                    "issue_pattern": issue_pattern,
+                    "proposed_skill_update": proposed_skill_update,
+                    "proposed_append_markdown": append_markdown,
+                    "evidence": evidence,
+                    "status": status,
+                    "rationale": " ".join(str(item.get("rationale") or "").split()).strip(),
+                    "source_memory": source_memory,
+                }
+            )
+
+    if not operations:
+        operations = list(normalized.get("operations") or [])
+        warnings.append(
+            "Missing/empty <memory_update_plan> operations; used auto-filled append-only plan."
+        )
+    normalized["operations"] = operations
+    normalized["warnings"] = list(dict.fromkeys([item for item in warnings if item]))
+    return normalized
+
+
+def _write_recompile_memory_plan(
+    project_root: Path,
+    *,
+    memory_plan: dict[str, object],
+) -> str:
+    cli = _cli()
+    plan_path = project_root / cli.RECOMPILE_MEMORY_PLAN_REL_PATH
+    _write_text(plan_path, json.dumps(memory_plan, indent=2, sort_keys=True))
+    return _safe_relative_path(plan_path, project_root)
+
+
+def _default_user_specific_settings_skill_stub() -> str:
+    return "\n".join(
+        [
+            "# user-specific-settings",
+            "",
+            "## Purpose",
+            "- Machine-specific troubleshooting and environment/runtime overrides.",
+            "- Append-only notes gathered from project memory for reproducible local execution.",
+        ]
+    )
+
+
+def _ensure_memory_plan_target_within_skills(
+    *,
+    project_root: Path,
+    target_path: str,
+) -> None:
+    cli = _cli()
+    skills_root = (project_root / "skills").resolve()
+    candidate = (project_root / target_path).resolve()
+    try:
+        candidate.relative_to(skills_root)
+    except ValueError as exc:
+        raise cli.PackageError(
+            f"Memory-plan target path escapes skills/ scope: {target_path}"
+        ) from exc
+
+
+def _apply_recompile_memory_plan(
+    project_root: Path,
+    *,
+    package_id: str,
+    memory_plan: dict[str, object],
+) -> dict[str, object]:
+    cli = _cli()
+    operations_raw = memory_plan.get("operations")
+    operations = operations_raw if isinstance(operations_raw, list) else []
+    available_skill_ids = _list_skill_ids(project_root)
+    applied_count = 0
+    skipped_count = 0
+    modified_files: list[str] = []
+    created_files: list[str] = []
+    warnings: list[str] = []
+
+    for index, operation in enumerate(operations, start=1):
+        if not isinstance(operation, dict):
+            skipped_count += 1
+            warnings.append(f"Skipped memory operation #{index}: expected object.")
+            continue
+        change_type = str(operation.get("change_type") or "").strip().lower()
+        if change_type != "append":
+            skipped_count += 1
+            warnings.append(
+                f"Skipped memory operation #{index}: unsupported change_type `{change_type or 'unknown'}`."
+            )
+            continue
+
+        classification = str(operation.get("classification") or "").strip().lower()
+        if classification not in {"machine_specific", "package_specific"}:
+            classification = _classify_memory_suggested_update(
+                issue_pattern=str(operation.get("issue_pattern") or ""),
+                proposed_skill_update=str(operation.get("proposed_skill_update") or ""),
+                evidence=str(operation.get("evidence") or ""),
+            )
+
+        issue_pattern = " ".join(str(operation.get("issue_pattern") or "").split()).strip()
+        proposed_skill_update = " ".join(
+            str(operation.get("proposed_skill_update") or "").split()
+        ).strip()
+        evidence = " ".join(str(operation.get("evidence") or "").split()).strip()
+        source_memory = " ".join(str(operation.get("source_memory") or "").split()).strip()
+        append_markdown = str(operation.get("proposed_append_markdown") or "").strip()
+        if not append_markdown:
+            append_markdown = _build_memory_append_markdown(
+                issue_pattern=issue_pattern,
+                proposed_skill_update=proposed_skill_update
+                or "append troubleshooting guidance derived from unified memory",
+                evidence=evidence,
+                source_memory=source_memory or "unknown",
+            )
+
+        target_skill_id, target_path = _normalize_recompile_memory_target_path(
+            package_id=package_id,
+            available_skill_ids=available_skill_ids,
+            classification=classification,
+            target_path=str(operation.get("target_path") or ""),
+            target_skill_id=str(operation.get("target_skill_id") or ""),
+            issue_pattern=issue_pattern,
+            proposed_skill_update=proposed_skill_update,
+        )
+
+        target_file = project_root / target_path
+        if classification == "package_specific" and not target_file.is_file():
+            fallback_skill_id = _select_memory_target_skill_id(
+                package_id=package_id,
+                issue_pattern=issue_pattern,
+                proposed_skill_update=proposed_skill_update,
+                available_skill_ids=available_skill_ids,
+            )
+            target_skill_id = fallback_skill_id
+            target_path = f"skills/{fallback_skill_id}/SKILL.md"
+            target_file = project_root / target_path
+            warnings.append(
+                f"Memory operation #{index} target missing; routed to `{target_path}`."
+            )
+
+        _ensure_memory_plan_target_within_skills(
+            project_root=project_root,
+            target_path=target_path,
+        )
+
+        if target_file.exists() and not target_file.is_file():
+            raise cli.PackageError(
+                f"Memory-plan target exists but is not a file: {target_file}"
+            )
+        if not target_file.exists():
+            if classification != "machine_specific":
+                skipped_count += 1
+                warnings.append(
+                    f"Skipped memory operation #{index}: missing package skill target `{target_path}`."
+                )
+                continue
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(
+                _default_user_specific_settings_skill_stub() + "\n",
+                encoding="utf-8",
+            )
+            created_files.append(_safe_relative_path(target_file, project_root))
+
+        try:
+            current = target_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to read memory-plan target file: {target_file}: {exc}"
+            ) from exc
+
+        if append_markdown in current:
+            skipped_count += 1
+            warnings.append(
+                f"Skipped memory operation #{index}: snippet already present in `{target_path}`."
+            )
+            continue
+
+        updated = current.rstrip() + "\n\n" + append_markdown.rstrip() + "\n"
+        try:
+            target_file.write_text(updated, encoding="utf-8")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to write memory-plan target file: {target_file}: {exc}"
+            ) from exc
+
+        operation["target_skill_id"] = target_skill_id
+        operation["target_path"] = target_path
+        operation["status"] = "accepted"
+        applied_count += 1
+        rel_path = _safe_relative_path(target_file, project_root)
+        if rel_path not in modified_files:
+            modified_files.append(rel_path)
+
+    return {
+        "applied_count": applied_count,
+        "skipped_count": skipped_count,
+        "modified_files": modified_files,
+        "created_files": created_files,
+        "warnings": warnings,
+    }
 
 
 def _extract_recompile_paper_plan_from_assistant_text(

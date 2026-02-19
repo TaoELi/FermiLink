@@ -117,6 +117,16 @@ Paper-focused recompile (manuscript + supplementary data):
      --data-dir ./paper/supplementary \
      --comment "focus on the cavity spectra and validation workflow"
 
+Memory-focused recompile planning (extract from one memory file or a directory tree):
+
+.. code-block:: bash
+
+   fermilink recompile <package_id> <path> \
+     --memory ./projects/memory.md
+
+   fermilink recompile <package_id> <path> \
+     --memory ./projects
+
 Typical recompile path (standard mode):
 
 1. Validate ``skills/`` exists in the target project.
@@ -174,6 +184,9 @@ Useful recompile options:
 - ``--doc``: manuscript path for paper-focused skill synthesis and reproducibility audits.
 - ``--data-dir``: supplementary data directory used to build compact/full manifests and stage reproducible assets (requires ``--doc``).
 - ``--comment``: optional targeted paper objective; when omitted, recompile defaults to broad manuscript-result reproducibility.
+- ``--memory``: memory-driven plan-and-apply mode. Accepts a single file path or a directory; when a directory is provided, recursively scans all ``memory.md`` files and extracts ``### Suggested skills updates`` entries for the selected package id. This mode emits append-only plan JSON at ``skills/.evidence/memory_update_plan.json``, appends accepted updates into target ``skills/*/SKILL.md`` files, and does not install package files.
+
+``--memory`` cannot be combined with ``--doc``, ``--data-dir``, or ``--comment``.
 
 Recompile always updates/replaces the installed package for the same ``package_id``.
 In paper mode, run-scoped evidence lives under ``skills/.evidence/paper_context/``
