@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import re
@@ -3788,6 +3789,17 @@ def _run_codex_compile_pass(
                 f"{provider} CLI not found: {provider_bin}. "
                 f"Install {provider} or set {env_key}."
             ) from exc
+        except OSError as exc:
+            error_text = str(exc).lower()
+            if exc.errno == errno.E2BIG or "argument list too long" in error_text:
+                raise cli.PackageError(
+                    "Compile prompt is too large for OS command argument limits. "
+                    "This commonly happens in `fermilink recompile --doc` when the "
+                    "manuscript is large and gets inlined into the prompt. "
+                    "Use a smaller `--doc` input (for example, trim appendix/"
+                    "references) and retry."
+                ) from exc
+            raise
 
         if completed.returncode != 0:
             raise cli.PackageError(

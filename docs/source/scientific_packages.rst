@@ -150,6 +150,9 @@ Paper-mode pass flow (``--doc ...``):
    ``skills/.compile_profile.json`` and
    ``skills/.evidence/paper_context/paper_plan.json`` (figure-by-figure
    simulation configs, required packages, parameters, and acceptance checks).
+   If ``--doc`` is very large, the run may fail before Codex starts with
+   ``Argument list too long`` because prompt text is passed via command
+   arguments; trim manuscript size (for example, appendices/references) and retry.
 2. Prepare deterministic paper artifacts under
    ``skills/.evidence/paper_context/``:
    ``paper_context.json``, optional data manifests/summaries (from ``--data-dir``),

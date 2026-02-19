@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 from pathlib import Path
 
 import pytest
@@ -34,6 +35,35 @@ def _default_profile() -> dict[str, object]:
 @pytest.fixture(autouse=True)
 def _stub_compile_repo_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _path: False)
+
+
+def test_run_codex_compile_pass_reports_large_doc_prompt(monkeypatch, tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        cli,
+        "build_exec_command",
+        lambda **_kwargs: ["codex", "exec", "prompt"],
+    )
+
+    def _raise_e2big(*_args, **_kwargs):
+        raise OSError(errno.E2BIG, "Argument list too long", "codex")
+
+    monkeypatch.setattr(cli.subprocess, "run", _raise_e2big)
+
+    with pytest.raises(cli.PackageError) as exc_info:
+        cli._run_codex_compile_pass(
+            project_root,
+            prompt="prompt",
+            pass_index=1,
+            total_passes=3,
+            provider="codex",
+            provider_bin="codex",
+        )
+    text = str(exc_info.value)
+    assert "too large for OS command argument limits" in text
+    assert "recompile --doc" in text
 
 
 def test_compile_rejects_existing_package_id(
