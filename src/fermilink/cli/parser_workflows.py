@@ -96,11 +96,11 @@ def register_workflow_parsers(
     reproduce_parser.add_argument(
         "--wait-seconds",
         type=float,
-        default=0.0,
+        default=1.0,
         help=(
             "Forwarded to inner loop polling interval for <pid_number> waits; "
             "also used as fallback sleep when no pid tags are returned "
-            "(default: 0)."
+            "(default: 1)."
         ),
     )
     reproduce_parser.add_argument(

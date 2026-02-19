@@ -126,11 +126,11 @@ def register_exec_loop_parsers(
     loop_parser.add_argument(
         "--wait-seconds",
         type=float,
-        default=0.0,
+        default=1.0,
         help=(
             "Polling interval seconds for <pid_number> waits; also used as "
             "fallback sleep between iterations when no pid tags are returned "
-            "(default: 0)."
+            "(default: 1)."
         ),
     )
     loop_parser.add_argument(
