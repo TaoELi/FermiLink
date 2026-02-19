@@ -128,17 +128,18 @@ def register_exec_loop_parsers(
         type=float,
         default=0.0,
         help=(
-            "Fallback sleep seconds between iterations when no valid "
-            "<wait_seconds> tag is returned (default: 0)."
+            "Polling interval seconds for <pid_number> waits; also used as "
+            "fallback sleep between iterations when no pid tags are returned "
+            "(default: 0)."
         ),
     )
     loop_parser.add_argument(
         "--max-wait-seconds",
         type=float,
-        default=600.0,
+        default=6000.0,
         help=(
-            "Hard cap on per-iteration sleep seconds after applying agent "
-            "wait hints (default: 600)."
+            "Hard cap on per-iteration waiting for pid polling and wait "
+            "hints (default: 6000)."
         ),
     )
     loop_parser.add_argument(

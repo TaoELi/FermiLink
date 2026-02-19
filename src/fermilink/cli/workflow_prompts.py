@@ -11,6 +11,10 @@ LOOP_WAIT_TOKEN_RE = re.compile(
     r"^\s*<wait_seconds>\s*([0-9]+(?:\.[0-9]+)?)\s*</wait_seconds>\s*$",
     re.MULTILINE,
 )
+LOOP_PID_TOKEN_RE = re.compile(
+    r"^\s*<pid_number>\s*([0-9]+)\s*</pid_number>\s*$",
+    re.MULTILINE,
+)
 
 REPRODUCE_PLAN_TAG = "reproduce_plan"
 RESEARCH_PLAN_TAG = "research_plan"
@@ -71,10 +75,11 @@ LOOP_PROMPT_PREFIX = (
     "     - `### Key results` for validated, reproducible outcomes (include artifact paths).\n"
     "     - `### Suggested skills updates` for recurring failure patterns and concrete fixes.\n"
     "\n"
-    "If the task is not complete, provide one machine-readable wait hint on its own line:\n"
-    "<wait_seconds>NUMBER</wait_seconds>\n"
-    "where NUMBER is a non-negative number of seconds (no units, no extra text).\n"
-    "Do not include this wait tag once you are done.\n"
+    "If the task is not complete and you started local background jobs, emit one machine-readable\n"
+    "PID line per submitted job:\n"
+    "<pid_number>NUMBER</pid_number>\n"
+    "where NUMBER is the exact local process pid (integer only, no extra text).\n"
+    "Do not include pid tags once those jobs are finished or when no waiting is needed.\n"
     "\n"
     f"When (and only when) ALL steps are complete and the request is satisfied, output exactly:\n"
     f"{LOOP_DONE_TOKEN}\n"

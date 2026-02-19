@@ -87,7 +87,11 @@ Loop behavior:
   ``Long-Term Memory`` (``File map``, ``Simulation history``,
   ``Key results``, ``Suggested skills updates``);
 - stops early when output includes ``<promise>DONE</promise>``;
-- supports dynamic wait control via ``<wait_seconds>...</wait_seconds>`` tags.
+- supports local PID-based waiting via ``<pid_number>...</pid_number>`` tags;
+  when present, loop polls those local processes until completion or until
+  ``--max-wait-seconds`` is reached;
+- keeps backward-compatible ``<wait_seconds>...</wait_seconds>`` wait hints when
+  no PID tags are provided.
 
 Reproduce workflows
 -------------------

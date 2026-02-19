@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from pathlib import Path
 
@@ -9,6 +10,26 @@ def _cli():
     from fermilink import cli
 
     return cli
+
+
+def _pid_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    # Reap local child zombies when this process is their parent.
+    try:
+        waited_pid, _ = os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        waited_pid = 0
+    if waited_pid == pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    else:
+        return True
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -304,6 +325,47 @@ def cmd_loop(args: argparse.Namespace) -> int:
                 return return_code
 
             if iteration < max_iterations:
+                pid_numbers = cli._extract_loop_pid_numbers(assistant_text)
+                if pid_numbers:
+                    poll_interval = wait_seconds if wait_seconds > 0 else 1.0
+                    alive = [pid for pid in pid_numbers if _pid_is_alive(pid)]
+                    if alive:
+                        pid_text = ", ".join(str(pid) for pid in alive)
+                        cli._print_tagged(
+                            "loop",
+                            (
+                                "polling local pid(s) until completion "
+                                f"(pids: {pid_text}, poll: {poll_interval:.1f}s, "
+                                f"max wait: {max_wait_seconds:.1f}s)"
+                            ),
+                        )
+                        started = time.monotonic()
+                        while alive:
+                            elapsed = time.monotonic() - started
+                            remaining = max_wait_seconds - elapsed
+                            if remaining <= 0:
+                                pid_text = ", ".join(str(pid) for pid in alive)
+                                cli._print_tagged(
+                                    "loop",
+                                    (
+                                        "pid polling reached max wait "
+                                        f"({max_wait_seconds:.1f}s); continuing "
+                                        f"with still-running pid(s): {pid_text}"
+                                    ),
+                                    stderr=True,
+                                )
+                                break
+                            sleep_seconds = min(poll_interval, remaining)
+                            if sleep_seconds > 0:
+                                time.sleep(sleep_seconds)
+                            alive = [pid for pid in pid_numbers if _pid_is_alive(pid)]
+                        if not alive:
+                            waited = time.monotonic() - started
+                            cli._print_tagged(
+                                "loop",
+                                f"pid polling complete after {waited:.1f}s.",
+                            )
+                    continue
                 suggested_wait = cli._extract_loop_wait_seconds(assistant_text)
                 wait_source = "agent" if suggested_wait is not None else "default"
                 requested_wait = (

@@ -98,17 +98,19 @@ def register_workflow_parsers(
         type=float,
         default=0.0,
         help=(
-            "Forwarded to inner loop fallback wait when no valid <wait_seconds> tag "
-            "is returned (default: 0)."
+            "Forwarded to inner loop polling interval for <pid_number> waits; "
+            "also used as fallback sleep when no pid tags are returned "
+            "(default: 0)."
         ),
     )
     reproduce_parser.add_argument(
         "--max-wait-seconds",
         type=float,
-        default=600.0,
+        default=6000.0,
         help=(
-            "Forwarded to inner loop hard cap for per-iteration waits "
-            "(default: 600)."
+            "Forwarded to inner loop hard cap for per-iteration pid polling "
+            "and waits "
+            "(default: 6000)."
         ),
     )
     reproduce_parser.add_argument(
@@ -298,8 +300,9 @@ def register_workflow_parsers(
         type=float,
         default=0.0,
         help=(
-            "Forwarded to inner loop fallback wait when no valid <wait_seconds> tag "
-            "is returned (default: 0)."
+            "Forwarded to inner loop polling interval for <pid_number> waits; "
+            "also used as fallback sleep when no pid tags are returned "
+            "(default: 0)."
         ),
     )
     research_parser.add_argument(
@@ -307,7 +310,8 @@ def register_workflow_parsers(
         type=float,
         default=600.0,
         help=(
-            "Forwarded to inner loop hard cap for per-iteration waits "
+            "Forwarded to inner loop hard cap for per-iteration pid polling "
+            "and waits "
             "(default: 600)."
         ),
     )

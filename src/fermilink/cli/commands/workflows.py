@@ -15,6 +15,7 @@ from pathlib import Path
 from fermilink.cli.workflow_prompts import (
     LOOP_MEMORY_DIRNAME,
     LOOP_MEMORY_FILENAME,
+    LOOP_PID_TOKEN_RE,
     LOOP_WAIT_TOKEN_RE,
     REPRODUCE_ARCHIVE_DIRNAME,
     REPRODUCE_AUDITOR_PROMPT_PREFIX,
@@ -3458,6 +3459,26 @@ def _extract_loop_wait_seconds(assistant_text: str) -> float | None:
     if value < 0 or not math.isfinite(value):
         return None
     return value
+
+
+def _extract_loop_pid_numbers(assistant_text: str) -> list[int]:
+    if not isinstance(assistant_text, str) or not assistant_text.strip():
+        return []
+    matches = LOOP_PID_TOKEN_RE.findall(assistant_text)
+    if not matches:
+        return []
+    seen: set[int] = set()
+    pids: list[int] = []
+    for raw in matches:
+        try:
+            pid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if pid <= 0 or pid in seen:
+            continue
+        seen.add(pid)
+        pids.append(pid)
+    return pids
 
 
 def _materialize_mode_plan(
