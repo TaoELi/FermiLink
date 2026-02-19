@@ -188,9 +188,15 @@ def test_prepare_data_artifacts_generates_full_and_compact_with_filtering_and_fa
     (source_data_dir / "results").mkdir(parents=True, exist_ok=True)
     (source_data_dir / "__pycache__").mkdir(parents=True, exist_ok=True)
 
-    (source_data_dir / "results" / "run_001.csv").write_text("x,y\n1,2\n", encoding="utf-8")
-    (source_data_dir / "results" / "run_002.csv").write_text("x,y\n2,3\n", encoding="utf-8")
-    (source_data_dir / "results" / "run_003.csv").write_text("x,y\n3,4\n", encoding="utf-8")
+    (source_data_dir / "results" / "run_001.csv").write_text(
+        "x,y\n1,2\n", encoding="utf-8"
+    )
+    (source_data_dir / "results" / "run_002.csv").write_text(
+        "x,y\n2,3\n", encoding="utf-8"
+    )
+    (source_data_dir / "results" / "run_003.csv").write_text(
+        "x,y\n3,4\n", encoding="utf-8"
+    )
     (source_data_dir / "inputs.json").write_text('{"a": 1}\n', encoding="utf-8")
     (source_data_dir / "slurm-12345.out").write_text("log\n", encoding="utf-8")
     (source_data_dir / "slurm-12345.err").write_text("err\n", encoding="utf-8")
@@ -213,7 +219,9 @@ def test_prepare_data_artifacts_generates_full_and_compact_with_filtering_and_fa
     assert compact_manifest["manifest_kind"] == "compact"
     assert full_manifest["manifest_kind"] == "full"
 
-    compact_paths = {str(item.get("path")) for item in compact_manifest.get("files", [])}
+    compact_paths = {
+        str(item.get("path")) for item in compact_manifest.get("files", [])
+    }
     assert "slurm-12345.out" not in compact_paths
     assert "slurm-12345.err" not in compact_paths
     assert "nohup.out" not in compact_paths
@@ -425,7 +433,9 @@ def test_large_mode_calls_data_auditor_per_task(
     assert len(data_prompts) == 2
     assert all("Mapping mode: per_task_large" in prompt for prompt in data_prompts)
 
-    task_map = json.loads((data_root / "task_data_map.json").read_text(encoding="utf-8"))
+    task_map = json.loads(
+        (data_root / "task_data_map.json").read_text(encoding="utf-8")
+    )
     assert task_map["mapping_mode"] == "per_task_large"
     tasks = task_map.get("tasks")
     assert isinstance(tasks, list)
@@ -507,9 +517,13 @@ def test_large_mode_falls_back_per_task_without_failing_whole_mapping(
     data_prompts = [p for p in prompts if "workflow data auditor mode" in p]
     assert len(data_prompts) == 2
 
-    task_map = json.loads((data_root / "task_data_map.json").read_text(encoding="utf-8"))
+    task_map = json.loads(
+        (data_root / "task_data_map.json").read_text(encoding="utf-8")
+    )
     task_entries = {
-        str(item.get("id")): item for item in task_map.get("tasks", []) if isinstance(item, dict)
+        str(item.get("id")): item
+        for item in task_map.get("tasks", [])
+        if isinstance(item, dict)
     }
     assert "task_001" in task_entries
     assert "task_002" in task_entries

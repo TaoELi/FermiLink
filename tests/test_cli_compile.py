@@ -157,7 +157,9 @@ def test_compile_auto_initializes_git_repo_when_missing(
             "assistant_text": "",
         },
     )
-    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli, "_load_compile_profile", lambda *_a, **_k: _default_profile()
+    )
     monkeypatch.setattr(
         cli,
         "_run_compile_generator",
@@ -199,7 +201,9 @@ def test_compile_auto_initializes_git_repo_when_missing(
     assert payloads and payloads[0].get("git_repo_initialized") is True
 
 
-def test_compile_runs_staged_pipeline_then_installs(monkeypatch, tmp_path: Path) -> None:
+def test_compile_runs_staged_pipeline_then_installs(
+    monkeypatch, tmp_path: Path
+) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir(parents=True, exist_ok=True)
     tool_source = tmp_path / "tool-source"
@@ -236,7 +240,7 @@ def test_compile_runs_staged_pipeline_then_installs(monkeypatch, tmp_path: Path)
             }
         )
         assistant_text = (
-            "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+            '<compile_profile>{"package_name":"newpkg"}</compile_profile>'
             if pass_index == 1
             else ""
         )
@@ -432,7 +436,12 @@ def test_compile_keep_compile_artifacts_retains_tool_dir(
     monkeypatch.setattr(
         cli,
         "_validate_compiled_skills",
-        lambda *_a, **_k: {"ok": True, "errors": [], "warnings": [], "source_links_total": 0},
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 0,
+        },
     )
     monkeypatch.setattr(
         cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
@@ -490,7 +499,9 @@ def test_compile_validation_findings_are_non_blocking_by_default(
         "_validate_compiled_skills",
         lambda *_a, **_k: {
             "ok": False,
-            "errors": ["skills/newpkg-api/references/source_map.md missing source links"],
+            "errors": [
+                "skills/newpkg-api/references/source_map.md missing source links"
+            ],
             "warnings": [],
             "source_links_total": 0,
         },
@@ -553,7 +564,9 @@ def test_compile_strict_validation_blocks_install(
         "_validate_compiled_skills",
         lambda *_a, **_k: {
             "ok": False,
-            "errors": ["skills/newpkg-api/references/source_map.md missing source links"],
+            "errors": [
+                "skills/newpkg-api/references/source_map.md missing source links"
+            ],
             "warnings": [],
             "source_links_total": 0,
         },
@@ -661,7 +674,12 @@ def test_compile_inherits_provider_from_runtime_policy(
     monkeypatch.setattr(
         cli,
         "_validate_compiled_skills",
-        lambda *_a, **_k: {"ok": True, "errors": [], "warnings": [], "source_links_total": 5},
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 5,
+        },
     )
     monkeypatch.setattr(
         cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
@@ -838,8 +856,7 @@ def test_validate_compiled_skills_allows_relative_doc_map_reference_in_source_ma
         encoding="utf-8",
     )
     (skill_topic / "references" / "source_map.md").write_text(
-        "- Related docs: `doc_map.md`\n"
-        "- Entry: `src/solver.py`\n",
+        "- Related docs: `doc_map.md`\n" "- Entry: `src/solver.py`\n",
         encoding="utf-8",
     )
 
@@ -860,9 +877,9 @@ def test_load_compile_skill_plan_from_tagged_payload(tmp_path: Path) -> None:
     project_root.mkdir(parents=True, exist_ok=True)
     assistant_text = (
         "<skill_plan>"
-        "{\"version\":1,\"mode\":\"compile\",\"goal\":\"prioritize api\","
-        "\"priority_skills\":[{\"skill_id\":\"mypkg api\",\"action\":\"refresh\","
-        "\"reason\":\"api first\",\"must_cover\":[\"workflow\"],\"source_hints\":[\"src/api.py\"]}]}"
+        '{"version":1,"mode":"compile","goal":"prioritize api",'
+        '"priority_skills":[{"skill_id":"mypkg api","action":"refresh",'
+        '"reason":"api first","must_cover":["workflow"],"source_hints":["src/api.py"]}]}'
         "</skill_plan>"
     )
 
@@ -975,10 +992,10 @@ def test_build_compile_evidence_bundle_preserves_sidecar_files(
     memory_path = evidence_root / "memory.md"
     memory_path.write_text("# memory\n", encoding="utf-8")
     skill_plan_path = evidence_root / "skill_plan.json"
-    skill_plan_path.write_text("{\"version\":1}\n", encoding="utf-8")
+    skill_plan_path.write_text('{"version":1}\n', encoding="utf-8")
     paper_context_path = evidence_root / "paper_context" / "paper_context.json"
     paper_context_path.parent.mkdir(parents=True, exist_ok=True)
-    paper_context_path.write_text("{\"mode\":\"paper\"}\n", encoding="utf-8")
+    paper_context_path.write_text('{"mode":"paper"}\n', encoding="utf-8")
     stale_file = evidence_root / "old_topic.md"
     stale_file.write_text("stale\n", encoding="utf-8")
 

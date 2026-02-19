@@ -150,7 +150,10 @@ def test_research_dry_run_adds_loop_constraints(
     assert "Do not execute full simulations" in loop_preambles[0]
     assert "1-4 focused steps" in loop_preambles[0]
     assert "overrides the default loop guidance of 5-15 steps" in loop_preambles[0]
-    assert "execution_target: local machine (default when `--hpc-profile` is omitted)." in loop_preambles[0]
+    assert (
+        "execution_target: local machine (default when `--hpc-profile` is omitted)."
+        in loop_preambles[0]
+    )
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
@@ -389,7 +392,10 @@ def test_research_resume_rejects_mismatched_data_dir_mode(
         ),
     )
 
-    assert cli.main(["research", "idea.md", "--plan-only", "--data-dir", "input_data"]) == 0
+    assert (
+        cli.main(["research", "idea.md", "--plan-only", "--data-dir", "input_data"])
+        == 0
+    )
     code = cli.main(["research", "idea.md"])
     assert code == 2
     assert "matching data-dir mode" in capsys.readouterr().err

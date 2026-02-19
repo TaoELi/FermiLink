@@ -289,9 +289,7 @@ def _normalize_hpc_profile(
         if cpus_per_node is not None:
             entry["cpus_per_node"] = _normalize_positive_int(
                 cpus_per_node,
-                flag_name=(
-                    f"--hpc-profile partitions.{partition_name}.cpus_per_node"
-                ),
+                flag_name=(f"--hpc-profile partitions.{partition_name}.cpus_per_node"),
                 minimum=1,
             )
         max_nodes = entry.get("max_nodes")
@@ -359,13 +357,9 @@ def _resolve_invocation_hpc_context(
 
     resolved_profile_path = cli._resolve_project_path(raw_hpc_profile)
     if not resolved_profile_path.exists():
-        raise cli.PackageError(
-            f"--hpc-profile does not exist: {resolved_profile_path}"
-        )
+        raise cli.PackageError(f"--hpc-profile does not exist: {resolved_profile_path}")
     if not resolved_profile_path.is_file():
-        raise cli.PackageError(
-            f"--hpc-profile must be a file: {resolved_profile_path}"
-        )
+        raise cli.PackageError(f"--hpc-profile must be a file: {resolved_profile_path}")
     try:
         payload = json.loads(resolved_profile_path.read_text(encoding="utf-8"))
     except OSError as exc:
@@ -385,9 +379,9 @@ def _resolve_invocation_hpc_context(
         raw_profile=payload, profile_path=resolved_profile_path
     )
     fingerprint = hashlib.sha256(
-        json.dumps(
-            normalized_profile, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
+        json.dumps(normalized_profile, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
     ).hexdigest()
     return {
         "enabled": True,
@@ -455,7 +449,9 @@ def _assert_hpc_context_compatible(
     invocation_enabled = bool(invocation_hpc_context.get("enabled"))
     if state_enabled != invocation_enabled:
         expected = "--hpc-profile <json>" if state_enabled else "without --hpc-profile"
-        current = "--hpc-profile <json>" if invocation_enabled else "without --hpc-profile"
+        current = (
+            "--hpc-profile <json>" if invocation_enabled else "without --hpc-profile"
+        )
         raise cli.PackageError(
             f"Run {run_id} was created {expected}; current invocation is {current}. "
             "Use --restart or rerun with matching --hpc-profile mode."
@@ -464,7 +460,9 @@ def _assert_hpc_context_compatible(
         return
 
     state_scheduler = str(state_hpc_context.get("scheduler") or "").strip().lower()
-    invocation_scheduler = str(invocation_hpc_context.get("scheduler") or "").strip().lower()
+    invocation_scheduler = (
+        str(invocation_hpc_context.get("scheduler") or "").strip().lower()
+    )
     if state_scheduler != invocation_scheduler:
         raise cli.PackageError(
             f"Run {run_id} was created with scheduler={state_scheduler!r}; "
@@ -476,7 +474,11 @@ def _assert_hpc_context_compatible(
     invocation_profile_path = str(
         invocation_hpc_context.get("profile_path") or ""
     ).strip()
-    if state_profile_path and invocation_profile_path and state_profile_path != invocation_profile_path:
+    if (
+        state_profile_path
+        and invocation_profile_path
+        and state_profile_path != invocation_profile_path
+    ):
         raise cli.PackageError(
             f"Run {run_id} was created with --hpc-profile={state_profile_path!r}; "
             f"current {workflow_name} invocation uses {invocation_profile_path!r}. "
@@ -484,7 +486,9 @@ def _assert_hpc_context_compatible(
         )
 
     state_fingerprint = str(state_hpc_context.get("fingerprint") or "").strip()
-    invocation_fingerprint = str(invocation_hpc_context.get("fingerprint") or "").strip()
+    invocation_fingerprint = str(
+        invocation_hpc_context.get("fingerprint") or ""
+    ).strip()
     if (
         state_fingerprint
         and invocation_fingerprint
@@ -577,7 +581,9 @@ def _build_hpc_resource_policy_lines(profile: dict[str, object]) -> list[str]:
 
 
 def _build_hpc_prompt_lines(hpc_context: dict[str, object] | None) -> list[str]:
-    context = hpc_context if isinstance(hpc_context, dict) else _default_local_hpc_context()
+    context = (
+        hpc_context if isinstance(hpc_context, dict) else _default_local_hpc_context()
+    )
     lines = [
         "- CLI precedence: `--hpc-profile` overrides package/skill/default machine settings.",
     ]
@@ -639,13 +645,9 @@ def _resolve_invocation_data_context(
 
     resolved_data_dir = cli._resolve_project_path(raw_data_dir)
     if not resolved_data_dir.exists():
-        raise cli.PackageError(
-            f"--data-dir does not exist: {resolved_data_dir}"
-        )
+        raise cli.PackageError(f"--data-dir does not exist: {resolved_data_dir}")
     if not resolved_data_dir.is_dir():
-        raise cli.PackageError(
-            f"--data-dir must be a directory: {resolved_data_dir}"
-        )
+        raise cli.PackageError(f"--data-dir must be a directory: {resolved_data_dir}")
     try:
         # Force an explicit readability check instead of silently degrading.
         next(resolved_data_dir.iterdir(), None)
@@ -710,12 +712,16 @@ def _coerce_saved_data_context(state: dict[str, object]) -> dict[str, object]:
         "enabled": enabled,
         "read_only": bool(raw.get("read_only", True)),
         "limits": raw.get("limits") if isinstance(raw.get("limits"), dict) else {},
-        "filter_settings": raw.get("filter_settings")
-        if isinstance(raw.get("filter_settings"), dict)
-        else _default_data_filter_settings(),
-        "mapping_thresholds": raw.get("mapping_thresholds")
-        if isinstance(raw.get("mapping_thresholds"), dict)
-        else _default_data_mapping_thresholds(),
+        "filter_settings": (
+            raw.get("filter_settings")
+            if isinstance(raw.get("filter_settings"), dict)
+            else _default_data_filter_settings()
+        ),
+        "mapping_thresholds": (
+            raw.get("mapping_thresholds")
+            if isinstance(raw.get("mapping_thresholds"), dict)
+            else _default_data_mapping_thresholds()
+        ),
         "artifacts": normalized_artifacts,
     }
     source_path = str(raw.get("source_path") or "").strip()
@@ -730,7 +736,9 @@ def _coerce_saved_data_context(state: dict[str, object]) -> dict[str, object]:
     manifest_full_fingerprint = str(raw.get("manifest_full_fingerprint") or "").strip()
     if manifest_full_fingerprint:
         normalized["manifest_full_fingerprint"] = manifest_full_fingerprint
-    manifest_compact_fingerprint = str(raw.get("manifest_compact_fingerprint") or "").strip()
+    manifest_compact_fingerprint = str(
+        raw.get("manifest_compact_fingerprint") or ""
+    ).strip()
     if manifest_compact_fingerprint:
         normalized["manifest_compact_fingerprint"] = manifest_compact_fingerprint
     mapping_mode = str(raw.get("mapping_mode") or "").strip()
@@ -773,7 +781,11 @@ def _assert_data_context_compatible(
     if bool(state_data_context.get("read_only", True)) != bool(
         invocation_data_context.get("read_only", True)
     ):
-        expected = "read-only" if bool(state_data_context.get("read_only", True)) else "writable"
+        expected = (
+            "read-only"
+            if bool(state_data_context.get("read_only", True))
+            else "writable"
+        )
         current = (
             "read-only"
             if bool(invocation_data_context.get("read_only", True))
@@ -949,7 +961,9 @@ def _scan_data_dir_inventory(
             try:
                 file_stat = file_path.stat()
             except OSError as exc:
-                rel_unreadable = _repo_relative_path(data_dir, file_path).replace("\\", "/")
+                rel_unreadable = _repo_relative_path(data_dir, file_path).replace(
+                    "\\", "/"
+                )
                 skipped_item = {
                     "path": rel_unreadable,
                     "reason": "unreadable",
@@ -1044,9 +1058,7 @@ def _noise_exclusion_rule_for_path(
     if drop_slurm_outputs and SLURM_BASENAME_RE.match(basename_lower):
         return "slurm_output_noise"
 
-    drop_ephemeral_suffixes = bool(
-        filter_settings.get("drop_ephemeral_suffixes", True)
-    )
+    drop_ephemeral_suffixes = bool(filter_settings.get("drop_ephemeral_suffixes", True))
     suffix = Path(basename).suffix.lower()
     if drop_ephemeral_suffixes and suffix in NOISE_SUFFIXES:
         return "ephemeral_suffix_noise"
@@ -1172,15 +1184,19 @@ def _build_compact_data_manifest(
         "filter_rules_version": DATA_FILTER_RULES_VERSION,
         "generated_at_utc": _utc_now_z(),
         "data_dir": str(full_manifest.get("data_dir") or ""),
-        "scan_limits": full_manifest.get("scan_limits")
-        if isinstance(full_manifest.get("scan_limits"), dict)
-        else {},
+        "scan_limits": (
+            full_manifest.get("scan_limits")
+            if isinstance(full_manifest.get("scan_limits"), dict)
+            else {}
+        ),
         "filter_settings": filter_settings,
         "full_manifest_fingerprint": str(full_manifest.get("fingerprint") or ""),
         "files": compact_files,
-        "skipped": full_manifest.get("skipped")
-        if isinstance(full_manifest.get("skipped"), list)
-        else [],
+        "skipped": (
+            full_manifest.get("skipped")
+            if isinstance(full_manifest.get("skipped"), list)
+            else []
+        ),
         "stats": compact_stats,
     }
     compact_payload["fingerprint"] = _stable_payload_fingerprint(
@@ -1274,9 +1290,7 @@ def _render_data_summary_markdown(manifest: dict[str, object]) -> str:
     )
     likely_useful = sorted_files[:12]
     unknown_files = [
-        item
-        for item in sorted_files
-        if str(item.get("type") or "") == "unknown"
+        item for item in sorted_files if str(item.get("type") or "") == "unknown"
     ][:12]
 
     manifest_kind = str(manifest.get("manifest_kind") or "legacy")
@@ -1357,7 +1371,9 @@ def _render_data_summary_markdown(manifest: dict[str, object]) -> str:
 
     if excluded_count_by_rule:
         lines.extend(["", "## Excluded By Rule"])
-        for rule, count in sorted(excluded_count_by_rule.items(), key=lambda item: item[0]):
+        for rule, count in sorted(
+            excluded_count_by_rule.items(), key=lambda item: item[0]
+        ):
             lines.append(f"- {rule}: {int(count)}")
 
     return "\n".join(lines).strip() + "\n"
@@ -1388,9 +1404,7 @@ def _prepare_workflow_data_artifacts(
         mapping_thresholds = _default_data_mapping_thresholds()
 
     max_files = int(limits.get("max_files") or DEFAULT_DATA_MAX_FILES)
-    max_total_bytes = int(
-        limits.get("max_total_bytes") or DEFAULT_DATA_MAX_TOTAL_BYTES
-    )
+    max_total_bytes = int(limits.get("max_total_bytes") or DEFAULT_DATA_MAX_TOTAL_BYTES)
     max_file_bytes = int(limits.get("max_file_bytes") or DEFAULT_DATA_MAX_FILE_BYTES)
     hash_max_bytes = int(limits.get("hash_max_bytes") or DEFAULT_DATA_HASH_MAX_BYTES)
 
@@ -1415,7 +1429,9 @@ def _prepare_workflow_data_artifacts(
     use_cached_manifest = False
     full_manifest_payload: dict[str, object] = {}
     compact_manifest_payload: dict[str, object] = {}
-    if isinstance(existing_full_manifest, dict) and isinstance(existing_compact_manifest, dict):
+    if isinstance(existing_full_manifest, dict) and isinstance(
+        existing_compact_manifest, dict
+    ):
         full_ok = _is_manifest_payload_compatible(
             existing_full_manifest,
             manifest_kind="full",
@@ -1455,10 +1471,16 @@ def _prepare_workflow_data_artifacts(
             "scan_limits": limits,
             "filter_settings": filter_settings,
             "fingerprint": str(full_scan.get("fingerprint") or ""),
-            "files": full_scan.get("files") if isinstance(full_scan.get("files"), list) else [],
-            "skipped": full_scan.get("skipped")
-            if isinstance(full_scan.get("skipped"), list)
-            else [],
+            "files": (
+                full_scan.get("files")
+                if isinstance(full_scan.get("files"), list)
+                else []
+            ),
+            "skipped": (
+                full_scan.get("skipped")
+                if isinstance(full_scan.get("skipped"), list)
+                else []
+            ),
             "stats": {
                 "indexed_files": len(full_scan.get("files") or []),
                 "indexed_bytes": int(full_scan.get("indexed_bytes") or 0),
@@ -1503,6 +1525,7 @@ def _prepare_workflow_data_artifacts(
     if isinstance(stats, dict):
         data_context["manifest_stats"] = stats
     return data_context
+
 
 def _normalize_string_list(raw: object) -> list[str]:
     if isinstance(raw, list):
@@ -1614,9 +1637,11 @@ def _render_reproduce_task_prompt(
             "## Execution notes",
             "- Keep scripts, data, and plots reproducible.",
             "- Save run details and blockers in projects/memory.md.",
-            "- Do not execute full simulations in dry-run mode."
-            if dry_run
-            else "- Execute simulation work only when required by the task plan.",
+            (
+                "- Do not execute full simulations in dry-run mode."
+                if dry_run
+                else "- Execute simulation work only when required by the task plan."
+            ),
         ]
     )
     return "\n".join(lines).strip() + "\n"
@@ -1684,7 +1709,9 @@ def _manifest_paths_set(manifest_payload: dict[str, object]) -> set[str]:
     return paths
 
 
-def _manifest_file_items(manifest_payload: dict[str, object]) -> list[dict[str, object]]:
+def _manifest_file_items(
+    manifest_payload: dict[str, object],
+) -> list[dict[str, object]]:
     files = manifest_payload.get("files")
     if not isinstance(files, list):
         return []
@@ -1771,10 +1798,12 @@ def _select_task_manifest_slice(
         key=lambda pair: (-pair[0], str(pair[1].get("path") or "")),
     )
     max_files = int(
-        mapping_thresholds.get("task_slice_max_files") or DEFAULT_DATA_TASK_SLICE_MAX_FILES
+        mapping_thresholds.get("task_slice_max_files")
+        or DEFAULT_DATA_TASK_SLICE_MAX_FILES
     )
     max_chars = int(
-        mapping_thresholds.get("task_slice_max_chars") or DEFAULT_DATA_TASK_SLICE_MAX_CHARS
+        mapping_thresholds.get("task_slice_max_chars")
+        or DEFAULT_DATA_TASK_SLICE_MAX_CHARS
     )
     selected: list[dict[str, object]] = []
     selected_paths: set[str] = set()
@@ -1871,7 +1900,11 @@ def _normalize_task_data_map(
     if not isinstance(raw_payload, dict):
         raise cli.PackageError("Task data map must be a JSON object.")
 
-    manifest_paths = allowed_paths if isinstance(allowed_paths, set) else _manifest_paths_set(manifest_payload)
+    manifest_paths = (
+        allowed_paths
+        if isinstance(allowed_paths, set)
+        else _manifest_paths_set(manifest_payload)
+    )
     raw_tasks = raw_payload.get("tasks")
     if not isinstance(raw_tasks, list):
         raise cli.PackageError("Task data map must include `tasks` list.")
@@ -1914,8 +1947,7 @@ def _normalize_task_data_map(
                 normalized_files.append(
                     {
                         "path": path,
-                        "rationale": rationale
-                        or "Mapped by workflow data auditor.",
+                        "rationale": rationale or "Mapped by workflow data auditor.",
                         "confidence": confidence,
                     }
                 )
@@ -2210,10 +2242,12 @@ def _generate_task_data_map(
     task_entries: list[dict[str, object]] = []
     global_unknowns: list[str] = []
     max_slice_files = int(
-        mapping_thresholds.get("task_slice_max_files") or DEFAULT_DATA_TASK_SLICE_MAX_FILES
+        mapping_thresholds.get("task_slice_max_files")
+        or DEFAULT_DATA_TASK_SLICE_MAX_FILES
     )
     max_slice_chars = int(
-        mapping_thresholds.get("task_slice_max_chars") or DEFAULT_DATA_TASK_SLICE_MAX_CHARS
+        mapping_thresholds.get("task_slice_max_chars")
+        or DEFAULT_DATA_TASK_SLICE_MAX_CHARS
     )
     for index, task in enumerate(plan_tasks, start=1):
         task_id = str(task.get("id") or f"task_{index:03d}").strip()
@@ -2248,9 +2282,7 @@ def _generate_task_data_map(
             attempt_label=f"data auditor task {task_id}",
         )
         if normalized_payload is None:
-            fallback_reason = (
-                f"data auditor output invalid for {task_id}; used deterministic fallback mapping"
-            )
+            fallback_reason = f"data auditor output invalid for {task_id}; used deterministic fallback mapping"
             normalized_payload = _build_fallback_task_data_map(
                 plan_tasks=[task],
                 manifest_payload=compact_manifest_payload,
@@ -2263,7 +2295,11 @@ def _generate_task_data_map(
                 stderr=True,
             )
         mapped_tasks = normalized_payload.get("tasks")
-        if isinstance(mapped_tasks, list) and mapped_tasks and isinstance(mapped_tasks[0], dict):
+        if (
+            isinstance(mapped_tasks, list)
+            and mapped_tasks
+            and isinstance(mapped_tasks[0], dict)
+        ):
             task_entries.append(mapped_tasks[0])
         else:
             task_entries.append(
@@ -2343,7 +2379,9 @@ def _render_task_data_context_markdown(
                 + (f" - {rationale}" if rationale else "")
             )
     else:
-        lines.append("- No mapped files yet. Review data_summary.md and task_data_map.json.")
+        lines.append(
+            "- No mapped files yet. Review data_summary.md and task_data_map.json."
+        )
 
     lines.extend(["", "## Unknowns"])
     if unknowns:
@@ -2740,8 +2778,7 @@ def _run_reproduce_exec_turn(
                 "Read-only data guard violation: --data-dir was modified during "
                 "planning/auditing/reporting turn.\n"
                 f"data_dir: {data_guard_source}\n"
-                "indexed diff preview:\n"
-                + "\n".join(diff_lines)
+                "indexed diff preview:\n" + "\n".join(diff_lines)
             )
 
     return run_result
@@ -3156,10 +3193,9 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
             upgraded,
             count=1,
         )
-        if (
-            _memory_heading_exists(upgraded, UNIFIED_MEMORY_PLAN_HEADING)
-            and not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING)
-        ):
+        if _memory_heading_exists(
+            upgraded, UNIFIED_MEMORY_PLAN_HEADING
+        ) and not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING):
             upgraded = re.sub(
                 rf"(?m)^\\s*{re.escape(UNIFIED_MEMORY_PLAN_HEADING)}\\s*$",
                 f"{UNIFIED_MEMORY_SHORT_TERM_HEADING}\n\n{UNIFIED_MEMORY_PLAN_HEADING}",
@@ -3185,7 +3221,8 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
     else:
         if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_FILE_MAP_HEADING):
             upgraded = _append_memory_block(
-                upgraded, f"{UNIFIED_MEMORY_FILE_MAP_HEADING}\n- (path | purpose | notes)\n"
+                upgraded,
+                f"{UNIFIED_MEMORY_FILE_MAP_HEADING}\n- (path | purpose | notes)\n",
             )
         if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SIM_HISTORY_HEADING):
             upgraded = _append_memory_block(
@@ -3526,7 +3563,9 @@ def _maybe_sync_mode_plan_from_disk(
         hpc_context=hpc_context,
     )
     if _is_data_context_enabled(data_context):
-        artifacts = data_context.get("artifacts") if isinstance(data_context, dict) else {}
+        artifacts = (
+            data_context.get("artifacts") if isinstance(data_context, dict) else {}
+        )
         if not isinstance(artifacts, dict):
             raise cli.PackageError("Data context artifacts missing during plan sync.")
         manifest_rel = str(
@@ -3534,7 +3573,9 @@ def _maybe_sync_mode_plan_from_disk(
         ).strip()
         task_map_rel = str(artifacts.get("task_map") or "").strip()
         if not manifest_rel:
-            raise cli.PackageError("Data context manifest path missing during plan sync.")
+            raise cli.PackageError(
+                "Data context manifest path missing during plan sync."
+            )
         manifest_payload = _load_json_if_exists(repo_dir / manifest_rel)
         if not isinstance(manifest_payload, dict):
             raise cli.PackageError(
@@ -3593,7 +3634,9 @@ def _set_file_executable(path: Path) -> None:
         mode = path.stat().st_mode
         path.chmod(mode | 0o111)
     except OSError as exc:
-        raise cli.PackageError(f"Failed to mark script executable: {path}: {exc}") from exc
+        raise cli.PackageError(
+            f"Failed to mark script executable: {path}: {exc}"
+        ) from exc
 
 
 def _render_workflow_stage_driver_script(
@@ -3667,11 +3710,11 @@ def _render_workflow_stage_driver_script(
         '  if [[ ! -f "$log_path" ]]; then',
         "    return 0",
         "  fi",
-        f"  marker_line=\"$(grep -E '^{WORKFLOW_FINAL_JOB_ID_MARKER}' \"$log_path\" | tail -n 1 || true)\"",
+        f'  marker_line="$(grep -E \'^{WORKFLOW_FINAL_JOB_ID_MARKER}\' "$log_path" | tail -n 1 || true)"',
         '  if [[ -z "$marker_line" ]]; then',
         "    return 0",
         "  fi",
-        f"  marker_line=\"${{marker_line#{WORKFLOW_FINAL_JOB_ID_MARKER}}}\"",
+        f'  marker_line="${{marker_line#{WORKFLOW_FINAL_JOB_ID_MARKER}}}"',
         "  marker_line=\"${marker_line//$'\\r'/}\"",
         '  marker_line="$(printf "%s" "$marker_line" | tr -d "[:space:]")"',
         '  printf "%s" "$marker_line"',
@@ -3739,7 +3782,7 @@ def _render_workflow_stage_driver_script(
             'if [[ -n "$EMITTED_JOB_MAP_REL" ]]; then',
             '  echo "[summary] ${STAGE_SLUG}: job_map=${EMITTED_JOB_MAP_REL}"',
             "fi",
-            'if [[ ${#FAILURES[@]} -gt 0 ]]; then',
+            "if [[ ${#FAILURES[@]} -gt 0 ]]; then",
             '  echo "[summary] ${STAGE_SLUG}: failures=${#FAILURES[@]}" >&2',
             '  for item in "${FAILURES[@]}"; do',
             '    echo "  - ${item}" >&2',
@@ -3794,11 +3837,11 @@ def _render_workflow_all_in_one_driver_script(
         '  if [[ ! -f "$log_path" ]]; then',
         "    return 0",
         "  fi",
-        f"  marker_line=\"$(grep -E '^{WORKFLOW_FINAL_JOB_ID_MARKER}' \"$log_path\" | tail -n 1 || true)\"",
+        f'  marker_line="$(grep -E \'^{WORKFLOW_FINAL_JOB_ID_MARKER}\' "$log_path" | tail -n 1 || true)"',
         '  if [[ -z "$marker_line" ]]; then',
         "    return 0",
         "  fi",
-        f"  marker_line=\"${{marker_line#{WORKFLOW_FINAL_JOB_ID_MARKER}}}\"",
+        f'  marker_line="${{marker_line#{WORKFLOW_FINAL_JOB_ID_MARKER}}}"',
         "  marker_line=\"${marker_line//$'\\r'/}\"",
         '  marker_line="$(printf "%s" "$marker_line" | tr -d "[:space:]")"',
         '  printf "%s" "$marker_line"',
@@ -3823,8 +3866,8 @@ def _render_workflow_all_in_one_driver_script(
         "_wait_for_slurm_job() {",
         '  local job_id="$1"',
         '  local stage_ref="$2"',
-        '  local poll_count=0',
-        '  if ! command -v sacct >/dev/null 2>&1 && ! command -v squeue >/dev/null 2>&1; then',
+        "  local poll_count=0",
+        "  if ! command -v sacct >/dev/null 2>&1 && ! command -v squeue >/dev/null 2>&1; then",
         '    echo "[error] ${stage_ref}: cannot wait for job ${job_id}; both `sacct` and `squeue` are unavailable" >&2',
         "    return 1",
         "  fi",
@@ -3965,7 +4008,7 @@ def _render_workflow_all_in_one_driver_script(
             "done",
             "",
             'echo "[summary] run_all: success=${SUCCESS_COUNT}/${TOTAL_COUNT}"',
-            'if [[ ${#FAILURES[@]} -gt 0 ]]; then',
+            "if [[ ${#FAILURES[@]} -gt 0 ]]; then",
             '  echo "[summary] run_all: failures=${#FAILURES[@]}" >&2',
             '  for item in "${FAILURES[@]}"; do',
             '    echo "  - ${item}" >&2',
@@ -4004,8 +4047,7 @@ def _write_workflow_stage_driver_scripts(
         for task_id, path in postprocess_task_scripts
     ]
     plot_rel = [
-        (task_id, str(path.relative_to(run_dir)))
-        for task_id, path in plot_task_scripts
+        (task_id, str(path.relative_to(run_dir))) for task_id, path in plot_task_scripts
     ]
     if not (
         len(simulation_task_scripts)
@@ -4114,7 +4156,9 @@ def _format_hpc_contract_issue(issue: dict[str, str]) -> str:
     stage_label = str(issue.get("stage") or "stage").strip() or "stage"
     task_id = str(issue.get("task_id") or "task").strip() or "task"
     script_rel = str(issue.get("script_path") or "unknown").strip() or "unknown"
-    message = str(issue.get("message") or "validation issue").strip() or "validation issue"
+    message = (
+        str(issue.get("message") or "validation issue").strip() or "validation issue"
+    )
     return f"{stage_label}:{task_id} ({script_rel}) {message}"
 
 
@@ -4186,7 +4230,11 @@ def _collect_hpc_stage_task_script_issues(
                     ),
                 )
             )
-        if require_dependency_for_multi_sbatch and sbatch_count >= 2 and not has_afterok:
+        if (
+            require_dependency_for_multi_sbatch
+            and sbatch_count >= 2
+            and not has_afterok
+        ):
             issues.append(
                 _build_hpc_contract_issue(
                     stage_label=stage_label,
@@ -4307,10 +4355,7 @@ def _render_hpc_contract_feedback_block(
     issues: list[dict[str, str]],
 ) -> str:
     limited = issues[:WORKFLOW_HPC_FEEDBACK_MAX_ISSUES]
-    issue_lines = [
-        f"- {_format_hpc_contract_issue(issue)}"
-        for issue in limited
-    ]
+    issue_lines = [f"- {_format_hpc_contract_issue(issue)}" for issue in limited]
     if len(issues) > len(limited):
         issue_lines.append(
             f"- ... plus {len(issues) - len(limited)} additional issues."
@@ -4488,9 +4533,7 @@ def _finalize_workflow_report(
     summaries_root.mkdir(parents=True, exist_ok=True)
     report_path = run_dir / WORKFLOW_REPORT_FILENAME
     run_id = run_dir.name
-    generation_marker = (
-        f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
-    )
+    generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
     audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
     hpc_contract_errors_path = run_dir / WORKFLOW_HPC_CONTRACT_ERRORS_FILENAME
 
@@ -4674,8 +4717,13 @@ def _finalize_workflow_report(
                     max_attempts=generation_max_attempts,
                     issues=generation_last_hpc_issues,
                 )
-                fingerprint = _hpc_contract_issues_fingerprint(generation_last_hpc_issues)
-                if generation_hpc_last_fingerprint and fingerprint == generation_hpc_last_fingerprint:
+                fingerprint = _hpc_contract_issues_fingerprint(
+                    generation_last_hpc_issues
+                )
+                if (
+                    generation_hpc_last_fingerprint
+                    and fingerprint == generation_hpc_last_fingerprint
+                ):
                     generation_hpc_stall_count += 1
                 else:
                     generation_hpc_stall_count = 0
@@ -4689,9 +4737,7 @@ def _finalize_workflow_report(
             else:
                 generation_feedback_block = ""
         else:
-            generation_failure_reason = (
-                f"{workflow_name.title()} report generation failed with exit code {return_code}."
-            )
+            generation_failure_reason = f"{workflow_name.title()} report generation failed with exit code {return_code}."
             generation_feedback_block = ""
     if not generation_success:
         raise cli.PackageError(
@@ -4734,7 +4780,9 @@ def _finalize_workflow_report(
         before_summary_signatures = _capture_signatures(summary_paths)
         before_required_signatures = _capture_signatures(required_stage_files)
         audit_prompt_with_feedback = (
-            auditor_prompt + audit_feedback_block if audit_feedback_block else auditor_prompt
+            auditor_prompt + audit_feedback_block
+            if audit_feedback_block
+            else auditor_prompt
         )
         run_result = _run_reproduce_exec_turn(
             repo_dir=repo_dir,
@@ -4801,7 +4849,10 @@ def _finalize_workflow_report(
                     issues=audit_last_hpc_issues,
                 )
                 fingerprint = _hpc_contract_issues_fingerprint(audit_last_hpc_issues)
-                if audit_hpc_last_fingerprint and fingerprint == audit_hpc_last_fingerprint:
+                if (
+                    audit_hpc_last_fingerprint
+                    and fingerprint == audit_hpc_last_fingerprint
+                ):
                     audit_hpc_stall_count += 1
                 else:
                     audit_hpc_stall_count = 0
@@ -4815,14 +4866,11 @@ def _finalize_workflow_report(
             else:
                 audit_feedback_block = ""
         else:
-            audit_failure_reason = (
-                f"{workflow_name.title()} report audit failed with exit code {return_code}."
-            )
+            audit_failure_reason = f"{workflow_name.title()} report audit failed with exit code {return_code}."
             audit_feedback_block = ""
     if not audit_success:
         raise cli.PackageError(
-            audit_failure_reason
-            or f"{workflow_name.title()} report audit failed."
+            audit_failure_reason or f"{workflow_name.title()} report audit failed."
         )
 
     if hpc_mode:
@@ -5227,7 +5275,9 @@ def cmd_plan_workflow(
     )
     data_manifest_rel = (
         str(
-            data_artifacts.get("manifest_compact") or data_artifacts.get("manifest") or ""
+            data_artifacts.get("manifest_compact")
+            or data_artifacts.get("manifest")
+            or ""
         ).strip()
         if isinstance(data_artifacts, dict)
         else ""
@@ -5354,6 +5404,7 @@ def cmd_plan_workflow(
                 )
         plan_path = run_dir / REPRODUCE_PLAN_FILENAME
         state_path = run_dir / REPRODUCE_STATE_FILENAME
+
         def _memory_relpath(path: Path) -> str:
             try:
                 return str(path.relative_to(repo_dir))
@@ -5381,7 +5432,11 @@ def cmd_plan_workflow(
                 ]
             )
         workflow_prompt_preamble_lines.extend(
-            ["", "Execution target constraints:", *_build_hpc_prompt_lines(state_hpc_context)]
+            [
+                "",
+                "Execution target constraints:",
+                *_build_hpc_prompt_lines(state_hpc_context),
+            ]
         )
         if dry_run:
             workflow_prompt_preamble_lines.extend(["", WORKFLOW_DRY_RUN_LOOP_PREAMBLE])
@@ -5400,14 +5455,19 @@ def cmd_plan_workflow(
 
             workflow_context_lines = [
                 f"- workflow: {workflow_name}",
-                "- dry_run: true (prepare artifacts only; do not execute simulations)"
-                if dry_run
-                else "- dry_run: false (normal execution)",
+                (
+                    "- dry_run: true (prepare artifacts only; do not execute simulations)"
+                    if dry_run
+                    else "- dry_run: false (normal execution)"
+                ),
                 f"- plan_json: {_memory_relpath(plan_path)} (overall workflow task plan)",
                 f"- state_json: {_memory_relpath(state_path)} (workflow progress and task status)",
             ]
             workflow_context_lines.extend(
-                ["- execution_target_context:", *_build_hpc_prompt_lines(state_hpc_context)]
+                [
+                    "- execution_target_context:",
+                    *_build_hpc_prompt_lines(state_hpc_context),
+                ]
             )
             if _is_data_context_enabled(state_data_context):
                 if data_manifest_rel:

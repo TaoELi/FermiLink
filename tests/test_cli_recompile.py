@@ -267,7 +267,9 @@ def test_recompile_auto_initializes_git_repo_when_missing(
             "assistant_text": "",
         },
     )
-    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli, "_load_compile_profile", lambda *_a, **_k: _default_profile()
+    )
     monkeypatch.setattr(
         cli,
         "_build_recompile_evidence_bundle",
@@ -304,9 +306,7 @@ def test_recompile_auto_initializes_git_repo_when_missing(
     assert payloads and payloads[0].get("git_repo_initialized") is True
 
 
-def test_recompile_runs_three_passes_then_installs(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_recompile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir(parents=True, exist_ok=True)
     _make_existing_skills(project_root)
@@ -344,7 +344,7 @@ def test_recompile_runs_three_passes_then_installs(
             }
         )
         assistant_text = (
-            "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+            '<compile_profile>{"package_name":"newpkg"}</compile_profile>'
             if pass_index == 1
             else ""
         )
@@ -494,7 +494,9 @@ def test_recompile_validation_non_blocking_by_default(
         "_validate_compiled_skills",
         lambda *_a, **_k: {
             "ok": False,
-            "errors": ["skills/newpkg-api/references/source_map.md missing source links"],
+            "errors": [
+                "skills/newpkg-api/references/source_map.md missing source links"
+            ],
             "warnings": [],
             "source_links_total": 0,
         },
@@ -553,7 +555,9 @@ def test_recompile_strict_validation_blocks_install(
         "_validate_compiled_skills",
         lambda *_a, **_k: {
             "ok": False,
-            "errors": ["skills/newpkg-api/references/source_map.md missing source links"],
+            "errors": [
+                "skills/newpkg-api/references/source_map.md missing source links"
+            ],
             "warnings": [],
             "source_links_total": 0,
         },
@@ -627,7 +631,12 @@ def test_recompile_existing_package_id_updates_by_default(
     monkeypatch.setattr(
         cli,
         "_validate_compiled_skills",
-        lambda *_a, **_k: {"ok": True, "errors": [], "warnings": [], "source_links_total": 10},
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 10,
+        },
     )
     monkeypatch.setattr(
         cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
@@ -866,21 +875,21 @@ def test_recompile_memory_mode_builds_plan_from_recursive_memory(
             "return_code": 0,
             "assistant_text": (
                 "<memory_update_plan>"
-                "{\"version\":1,\"summary\":\"memory refresh\",\"operations\":["
-                "{\"change_type\":\"append\",\"classification\":\"machine_specific\","
-                "\"target_skill_id\":\"newpkg-core\","
-                "\"target_path\":\"skills/newpkg-core/SKILL.md\","
-                "\"issue_pattern\":\"environment import failures under conda env\","
-                "\"proposed_skill_update\":\"add explicit conda run troubleshooting note\","
-                "\"proposed_append_markdown\":\"### note\\n- conda run hint\","
-                "\"evidence\":\"failed import in mxl env\",\"status\":\"proposed\"},"
-                "{\"change_type\":\"append\",\"classification\":\"package_specific\","
-                "\"target_skill_id\":\"newpkg-core\","
-                "\"target_path\":\"skills/newpkg-core/SKILL.md\","
-                "\"issue_pattern\":\"parameter defaults miss stable convergence window\","
-                "\"proposed_skill_update\":\"add playbook note for extra tuning parameter\","
-                "\"proposed_append_markdown\":\"### tuning\\n- add damping\","
-                "\"evidence\":\"figure-2 failed unless damping adjusted\",\"status\":\"proposed\"}"
+                '{"version":1,"summary":"memory refresh","operations":['
+                '{"change_type":"append","classification":"machine_specific",'
+                '"target_skill_id":"newpkg-core",'
+                '"target_path":"skills/newpkg-core/SKILL.md",'
+                '"issue_pattern":"environment import failures under conda env",'
+                '"proposed_skill_update":"add explicit conda run troubleshooting note",'
+                '"proposed_append_markdown":"### note\\n- conda run hint",'
+                '"evidence":"failed import in mxl env","status":"proposed"},'
+                '{"change_type":"append","classification":"package_specific",'
+                '"target_skill_id":"newpkg-core",'
+                '"target_path":"skills/newpkg-core/SKILL.md",'
+                '"issue_pattern":"parameter defaults miss stable convergence window",'
+                '"proposed_skill_update":"add playbook note for extra tuning parameter",'
+                '"proposed_append_markdown":"### tuning\\n- add damping",'
+                '"evidence":"figure-2 failed unless damping adjusted","status":"proposed"}'
                 "]}"
                 "</memory_update_plan>"
             ),
@@ -953,9 +962,9 @@ def test_recompile_memory_mode_builds_plan_from_recursive_memory(
     assert user_settings_skill.is_file()
     user_settings_text = user_settings_skill.read_text(encoding="utf-8")
     assert "### note" in user_settings_text
-    core_skill_text = (
-        project_root / "skills" / "newpkg-core" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    core_skill_text = (project_root / "skills" / "newpkg-core" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
     assert "### tuning" in core_skill_text
     assert not (project_root / "sci-skills-generator").exists()
 
@@ -998,7 +1007,7 @@ def test_recompile_accepts_doc_data_dir_and_comment(
     doc_path.write_text("# paper\n", encoding="utf-8")
     data_dir = project_root / "supplementary"
     data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "input.json").write_text("{\"x\": 1}\n", encoding="utf-8")
+    (data_dir / "input.json").write_text('{"x": 1}\n', encoding="utf-8")
 
     monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
     seen_prompts: list[str] = []
@@ -1009,13 +1018,13 @@ def test_recompile_accepts_doc_data_dir_and_comment(
         assistant_text = ""
         if pass_index == 1:
             assistant_text = (
-                "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+                '<compile_profile>{"package_name":"newpkg"}</compile_profile>'
                 "<paper_plan>"
-                "{\"version\":1,\"paper_source\":\"paper.md\",\"used_packages\":[\"newpkg\"],"
-                "\"figures\":[{\"id\":\"fig_001\",\"title\":\"Figure 1\",\"targets\":[\"Figure 1\"],"
-                "\"objective\":\"obj\",\"simulation_config\":[\"cfg\"],"
-                "\"parameter_requirements\":[\"p\"],\"required_packages\":[\"newpkg\"],"
-                "\"expected_artifacts\":[\"plot\"],\"acceptance_checks\":[\"check\"]}]}"
+                '{"version":1,"paper_source":"paper.md","used_packages":["newpkg"],'
+                '"figures":[{"id":"fig_001","title":"Figure 1","targets":["Figure 1"],'
+                '"objective":"obj","simulation_config":["cfg"],'
+                '"parameter_requirements":["p"],"required_packages":["newpkg"],'
+                '"expected_artifacts":["plot"],"acceptance_checks":["check"]}]}'
                 "</paper_plan>"
             )
         return {
@@ -1030,7 +1039,9 @@ def test_recompile_accepts_doc_data_dir_and_comment(
         "_run_codex_compile_pass",
         fake_pass,
     )
-    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli, "_load_compile_profile", lambda *_a, **_k: _default_profile()
+    )
     monkeypatch.setattr(
         cli,
         "_build_recompile_evidence_bundle",
@@ -1136,13 +1147,13 @@ def test_recompile_doc_only_still_writes_disabled_staged_assets_manifest(
         assistant_text = ""
         if pass_index == 1:
             assistant_text = (
-                "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+                '<compile_profile>{"package_name":"newpkg"}</compile_profile>'
                 "<paper_plan>"
-                "{\"version\":1,\"paper_source\":\"paper.md\",\"used_packages\":[\"newpkg\"],"
-                "\"figures\":[{\"id\":\"fig_001\",\"title\":\"Figure 1\",\"targets\":[\"Figure 1\"],"
-                "\"objective\":\"obj\",\"simulation_config\":[\"cfg\"],"
-                "\"parameter_requirements\":[\"p\"],\"required_packages\":[\"newpkg\"],"
-                "\"expected_artifacts\":[\"plot\"],\"acceptance_checks\":[\"check\"]}]}"
+                '{"version":1,"paper_source":"paper.md","used_packages":["newpkg"],'
+                '"figures":[{"id":"fig_001","title":"Figure 1","targets":["Figure 1"],'
+                '"objective":"obj","simulation_config":["cfg"],'
+                '"parameter_requirements":["p"],"required_packages":["newpkg"],'
+                '"expected_artifacts":["plot"],"acceptance_checks":["check"]}]}'
                 "</paper_plan>"
             )
         return {
@@ -1153,7 +1164,9 @@ def test_recompile_doc_only_still_writes_disabled_staged_assets_manifest(
         }
 
     monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
-    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli, "_load_compile_profile", lambda *_a, **_k: _default_profile()
+    )
     monkeypatch.setattr(
         cli,
         "_build_recompile_evidence_bundle",
@@ -1425,7 +1438,9 @@ def test_validate_recompile_paper_outputs_requires_root_sections(
     assert result["ok"] is False
     errors = result.get("errors")
     assert isinstance(errors, list)
-    assert any("## beyond manuscript exploration" in str(item).lower() for item in errors)
+    assert any(
+        "## beyond manuscript exploration" in str(item).lower() for item in errors
+    )
 
 
 def test_validate_recompile_paper_outputs_rejects_oversized_assets(
@@ -1466,7 +1481,7 @@ def test_recompile_strict_validation_blocks_on_paper_validation(
     doc_path.write_text("# manuscript\n", encoding="utf-8")
     data_dir = project_root / "supplementary"
     data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "input.json").write_text("{\"x\": 1}\n", encoding="utf-8")
+    (data_dir / "input.json").write_text('{"x": 1}\n', encoding="utf-8")
 
     monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
     monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
@@ -1479,20 +1494,22 @@ def test_recompile_strict_validation_blocks_on_paper_validation(
             "status": "ok",
             "return_code": 0,
             "assistant_text": (
-                "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+                '<compile_profile>{"package_name":"newpkg"}</compile_profile>'
                 "<paper_plan>"
-                "{\"version\":1,\"paper_source\":\"paper.md\",\"used_packages\":[\"newpkg\"],"
-                "\"figures\":[{\"id\":\"fig_001\",\"title\":\"Figure 1\",\"targets\":[\"Figure 1\"],"
-                "\"objective\":\"obj\",\"simulation_config\":[\"cfg\"],"
-                "\"parameter_requirements\":[\"p\"],\"required_packages\":[\"newpkg\"],"
-                "\"expected_artifacts\":[\"plot\"],\"acceptance_checks\":[\"check\"]}]}"
+                '{"version":1,"paper_source":"paper.md","used_packages":["newpkg"],'
+                '"figures":[{"id":"fig_001","title":"Figure 1","targets":["Figure 1"],'
+                '"objective":"obj","simulation_config":["cfg"],'
+                '"parameter_requirements":["p"],"required_packages":["newpkg"],'
+                '"expected_artifacts":["plot"],"acceptance_checks":["check"]}]}'
                 "</paper_plan>"
                 if int(_k.get("pass_index") or 1) == 1
                 else ""
             ),
         },
     )
-    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli, "_load_compile_profile", lambda *_a, **_k: _default_profile()
+    )
     monkeypatch.setattr(
         cli,
         "_build_recompile_evidence_bundle",

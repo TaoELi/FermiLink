@@ -294,7 +294,9 @@ def test_cli_auto_compile_forwards_organization_target(
             "upstream_repo_url": kwargs["upstream_repo_url"],
         }
 
-    monkeypatch.setattr(package_commands, "_process_auto_compile_package", _fake_process)
+    monkeypatch.setattr(
+        package_commands, "_process_auto_compile_package", _fake_process
+    )
     payloads: list[dict[str, object]] = []
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
 
@@ -443,7 +445,9 @@ def test_ensure_public_fork_omits_org_flag_for_personal_owner(monkeypatch) -> No
     assert result["fork_name"] == "tester/qutip"
 
 
-def test_generate_metadata_with_codex_uses_repo_dir(monkeypatch, tmp_path: Path) -> None:
+def test_generate_metadata_with_codex_uses_repo_dir(
+    monkeypatch, tmp_path: Path
+) -> None:
     repo_root = tmp_path / "fork-repo"
     repo_root.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(package_commands, "_cli", lambda: cli)

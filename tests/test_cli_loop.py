@@ -396,4 +396,6 @@ def test_reset_loop_short_term_memory_preserves_long_term(
     assert "- initialized" in updated
     assert "- [x] previous checklist item" not in updated
     assert "- previous progress entry" not in updated
-    assert "- result-001 | test_metric | 1.0 | baseline | artifacts/result.txt" in updated
+    assert (
+        "- result-001 | test_metric | 1.0 | baseline | artifacts/result.txt" in updated
+    )

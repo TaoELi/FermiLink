@@ -14,9 +14,7 @@ COMPILE_REPORT_REL_PATH = "skills/.compile_report.json"
 RECOMPILE_MEMORY_PLAN_TAG = "memory_update_plan"
 RECOMPILE_MEMORY_PLAN_REL_PATH = "skills/.evidence/memory_update_plan.json"
 RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH = "skills/.evidence/paper_context"
-RECOMPILE_PAPER_CONTEXT_REL_PATH = (
-    "skills/.evidence/paper_context/paper_context.json"
-)
+RECOMPILE_PAPER_CONTEXT_REL_PATH = "skills/.evidence/paper_context/paper_context.json"
 RECOMPILE_PAPER_PLAN_TAG = "paper_plan"
 RECOMPILE_PAPER_PLAN_REL_PATH = "skills/.evidence/paper_context/paper_plan.json"
 RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH = (

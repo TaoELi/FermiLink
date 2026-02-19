@@ -486,7 +486,9 @@ def _ensure_repo_memory_file(repo_dir: Path, user_prompt: str) -> None:
 
     normalized_prompt = str(user_prompt or "")
     if normalized_prompt.startswith(UNIFIED_MEMORY_PROMPT_PREFIX):
-        normalized_prompt = normalized_prompt[len(UNIFIED_MEMORY_PROMPT_PREFIX) :].lstrip()
+        normalized_prompt = normalized_prompt[
+            len(UNIFIED_MEMORY_PROMPT_PREFIX) :
+        ].lstrip()
     if not normalized_prompt.strip():
         normalized_prompt = "(request unavailable)"
 

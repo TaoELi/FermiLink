@@ -355,7 +355,9 @@ def _normalize_profile_dir_list(
     return normalized
 
 
-def _extract_profile_from_assistant_text(assistant_text: str) -> dict[str, object] | None:
+def _extract_profile_from_assistant_text(
+    assistant_text: str,
+) -> dict[str, object] | None:
     cli = _cli()
     parsed = cli._extract_tagged_json_payload(
         assistant_text, token_re=cli.COMPILE_PROFILE_TOKEN_RE
@@ -465,7 +467,9 @@ def _default_compile_skill_plan(
     mode: str,
     package_id: str,
 ) -> dict[str, object]:
-    normalized_mode = "recompile" if str(mode).strip().lower() == "recompile" else "compile"
+    normalized_mode = (
+        "recompile" if str(mode).strip().lower() == "recompile" else "compile"
+    )
     goal = (
         f"Refresh high-impact {package_id} skills for current development delta."
         if normalized_mode == "recompile"
@@ -521,7 +525,8 @@ def _resolve_skill_id_for_plan(
 
     normalized_target = _normalize_skill_id_token(token)
     by_normalized = {
-        _normalize_skill_id_token(skill_id): skill_id for skill_id in available_skill_ids
+        _normalize_skill_id_token(skill_id): skill_id
+        for skill_id in available_skill_ids
     }
     if normalized_target in by_normalized:
         return by_normalized[normalized_target]
@@ -577,7 +582,9 @@ def _normalize_compile_skill_plan(
         version = 1
     normalized["version"] = max(version, 1)
     normalized["mode"] = (
-        "recompile" if str(raw_plan.get("mode") or mode).strip().lower() == "recompile" else "compile"
+        "recompile"
+        if str(raw_plan.get("mode") or mode).strip().lower() == "recompile"
+        else "compile"
     )
     goal = " ".join(str(raw_plan.get("goal") or "").split()).strip()
     if goal:
@@ -605,7 +612,9 @@ def _normalize_compile_skill_plan(
             continue
         seen.add(resolved_skill_id)
         action_raw = str(item.get("action") or "").strip().lower()
-        action = action_raw if action_raw in {"create", "refresh", "audit"} else "refresh"
+        action = (
+            action_raw if action_raw in {"create", "refresh", "audit"} else "refresh"
+        )
         reason = " ".join(str(item.get("reason") or "").split()).strip()
         must_cover = _normalize_string_list(item.get("must_cover"))
         source_hints = _normalize_string_list(item.get("source_hints"))
@@ -613,8 +622,7 @@ def _normalize_compile_skill_plan(
             {
                 "skill_id": resolved_skill_id,
                 "action": action,
-                "reason": reason
-                or "High-impact route for simulation-start readiness.",
+                "reason": reason or "High-impact route for simulation-start readiness.",
                 "must_cover": must_cover,
                 "source_hints": source_hints,
             }
@@ -775,8 +783,7 @@ def _upgrade_compile_memory_schema(
         if not _markdown_heading_exists(upgraded, COMPILE_MEMORY_PASS_LOG_HEADING):
             upgraded = _append_markdown_block(
                 upgraded,
-                f"{COMPILE_MEMORY_PASS_LOG_HEADING}\n"
-                "- initialized\n",
+                f"{COMPILE_MEMORY_PASS_LOG_HEADING}\n" "- initialized\n",
             )
 
     if not _markdown_heading_exists(upgraded, COMPILE_MEMORY_LONG_TERM_HEADING):
@@ -978,14 +985,30 @@ def _record_compile_memory_run(
         raw_core = evidence.get("core_skills")
         if isinstance(raw_core, list):
             core_skills = [
-                str(item).strip() for item in raw_core if isinstance(item, str) and str(item).strip()
+                str(item).strip()
+                for item in raw_core
+                if isinstance(item, str) and str(item).strip()
             ]
     core_preview = ", ".join(core_skills[:6]) if core_skills else "none"
 
-    source_inventory = evidence.get("source_inventory") if isinstance(evidence, dict) else None
-    total_source_files = int(source_inventory.get("total_source_files") or 0) if isinstance(source_inventory, dict) else 0
-    referenced_source_files = int(source_inventory.get("referenced_source_files") or 0) if isinstance(source_inventory, dict) else 0
-    uncovered_source_files = int(source_inventory.get("uncovered_source_files") or 0) if isinstance(source_inventory, dict) else 0
+    source_inventory = (
+        evidence.get("source_inventory") if isinstance(evidence, dict) else None
+    )
+    total_source_files = (
+        int(source_inventory.get("total_source_files") or 0)
+        if isinstance(source_inventory, dict)
+        else 0
+    )
+    referenced_source_files = (
+        int(source_inventory.get("referenced_source_files") or 0)
+        if isinstance(source_inventory, dict)
+        else 0
+    )
+    uncovered_source_files = (
+        int(source_inventory.get("uncovered_source_files") or 0)
+        if isinstance(source_inventory, dict)
+        else 0
+    )
 
     validation_payload = validation if isinstance(validation, dict) else {}
     ok = bool(validation_payload.get("ok", False))
@@ -1018,8 +1041,7 @@ def _record_compile_memory_run(
         f"- run_id: {run_id}\n"
         f"- mode: {mode}\n"
         f"- goal: {run_goal}\n"
-        "\n"
-        + "\n".join(pass_log_lines)
+        "\n" + "\n".join(pass_log_lines)
     )
     updated = _replace_markdown_section(
         updated,
@@ -1443,14 +1465,7 @@ def _parse_memory_suggested_update_line(
         return None
 
     package_id_raw, issue_pattern, proposed_skill_update, evidence, status = fields
-    package_token = (
-        str(package_id_raw)
-        .strip()
-        .strip("`")
-        .strip("'")
-        .strip('"')
-        .strip()
-    )
+    package_token = str(package_id_raw).strip().strip("`").strip("'").strip('"').strip()
     if not package_token:
         return None
 
@@ -1545,7 +1560,9 @@ def _collect_recompile_memory_suggestions(
                 skipped_closed_entries += 1
                 continue
             issue_pattern = str(entry.get("issue_pattern") or "").strip()
-            proposed_skill_update = str(entry.get("proposed_skill_update") or "").strip()
+            proposed_skill_update = str(
+                entry.get("proposed_skill_update") or ""
+            ).strip()
             evidence = str(entry.get("evidence") or "").strip()
             classification = _classify_memory_suggested_update(
                 issue_pattern=issue_pattern,
@@ -1576,7 +1593,9 @@ def _collect_recompile_memory_suggestions(
     return {
         "package_id": target_package_id,
         "memory_input": _safe_relative_path(memory_path, project_root),
-        "memory_sources": [_safe_relative_path(path, project_root) for path in memory_sources],
+        "memory_sources": [
+            _safe_relative_path(path, project_root) for path in memory_sources
+        ],
         "scanned_entries": scanned_entries,
         "matched_entries": matched_entries,
         "skipped_closed_entries": skipped_closed_entries,
@@ -1591,7 +1610,9 @@ def _select_memory_target_skill_id(
     proposed_skill_update: str,
     available_skill_ids: list[str],
 ) -> str:
-    preferred = [skill_id for skill_id in available_skill_ids if not skill_id.endswith("-index")]
+    preferred = [
+        skill_id for skill_id in available_skill_ids if not skill_id.endswith("-index")
+    ]
     if not preferred:
         return f"{package_id}-advanced-topics"
 
@@ -1627,11 +1648,7 @@ def _build_memory_append_markdown(
         "### Suggested Update (Unified Memory)",
         f"- Issue pattern: {issue_pattern}",
         f"- Proposed update: {proposed_skill_update}",
-        (
-            f"- Evidence: {evidence}"
-            if evidence
-            else "- Evidence: not provided"
-        ),
+        (f"- Evidence: {evidence}" if evidence else "- Evidence: not provided"),
         f"- Source memory: {source_memory}",
     ]
     return "\n".join(lines).strip()
@@ -1647,7 +1664,9 @@ def _default_recompile_memory_plan(
     for suggestion in suggestions:
         classification = str(suggestion.get("classification") or "package_specific")
         issue_pattern = str(suggestion.get("issue_pattern") or "").strip()
-        proposed_skill_update = str(suggestion.get("proposed_skill_update") or "").strip()
+        proposed_skill_update = str(
+            suggestion.get("proposed_skill_update") or ""
+        ).strip()
         evidence = str(suggestion.get("evidence") or "").strip()
         source_memory = str(suggestion.get("source_memory") or "").strip()
 
@@ -1820,12 +1839,16 @@ def _normalize_recompile_memory_plan(
                     evidence=str(item.get("evidence") or ""),
                 )
 
-            issue_pattern = " ".join(str(item.get("issue_pattern") or "").split()).strip()
+            issue_pattern = " ".join(
+                str(item.get("issue_pattern") or "").split()
+            ).strip()
             proposed_skill_update = " ".join(
                 str(item.get("proposed_skill_update") or "").split()
             ).strip()
             evidence = " ".join(str(item.get("evidence") or "").split()).strip()
-            source_memory = " ".join(str(item.get("source_memory") or "").split()).strip()
+            source_memory = " ".join(
+                str(item.get("source_memory") or "").split()
+            ).strip()
             if not issue_pattern and isinstance(suggestions, list):
                 for suggestion in suggestions:
                     if not isinstance(suggestion, dict):
@@ -1836,7 +1859,9 @@ def _normalize_recompile_memory_plan(
             if not issue_pattern:
                 continue
             if not proposed_skill_update:
-                proposed_skill_update = "append troubleshooting guidance derived from unified memory"
+                proposed_skill_update = (
+                    "append troubleshooting guidance derived from unified memory"
+                )
             target_skill_id, target_path = _normalize_recompile_memory_target_path(
                 package_id=package_id,
                 available_skill_ids=available_skill_ids,
@@ -1872,7 +1897,9 @@ def _normalize_recompile_memory_plan(
                     "proposed_append_markdown": append_markdown,
                     "evidence": evidence,
                     "status": status,
-                    "rationale": " ".join(str(item.get("rationale") or "").split()).strip(),
+                    "rationale": " ".join(
+                        str(item.get("rationale") or "").split()
+                    ).strip(),
                     "source_memory": source_memory,
                 }
             )
@@ -1963,12 +1990,16 @@ def _apply_recompile_memory_plan(
                 evidence=str(operation.get("evidence") or ""),
             )
 
-        issue_pattern = " ".join(str(operation.get("issue_pattern") or "").split()).strip()
+        issue_pattern = " ".join(
+            str(operation.get("issue_pattern") or "").split()
+        ).strip()
         proposed_skill_update = " ".join(
             str(operation.get("proposed_skill_update") or "").split()
         ).strip()
         evidence = " ".join(str(operation.get("evidence") or "").split()).strip()
-        source_memory = " ".join(str(operation.get("source_memory") or "").split()).strip()
+        source_memory = " ".join(
+            str(operation.get("source_memory") or "").split()
+        ).strip()
         append_markdown = str(operation.get("proposed_append_markdown") or "").strip()
         if not append_markdown:
             append_markdown = _build_memory_append_markdown(
@@ -2104,9 +2135,7 @@ def _normalize_recompile_paper_plan(
     used_ids: set[str] = set()
     for index, raw_figure in enumerate(raw_figures, start=1):
         if not isinstance(raw_figure, dict):
-            raise cli.PackageError(
-                f"Paper plan figure {index} must be a JSON object."
-            )
+            raise cli.PackageError(f"Paper plan figure {index} must be a JSON object.")
         fig_id = _sanitize_plan_figure_id(
             raw_figure.get("id"), index=index, used=used_ids
         )
@@ -2125,10 +2154,14 @@ def _normalize_recompile_paper_plan(
         required_packages = _normalize_string_list(raw_figure.get("required_packages"))
         if not required_packages:
             required_packages = [package_id]
-        expected_artifacts = _normalize_string_list(raw_figure.get("expected_artifacts"))
+        expected_artifacts = _normalize_string_list(
+            raw_figure.get("expected_artifacts")
+        )
         acceptance_checks = _normalize_string_list(raw_figure.get("acceptance_checks"))
         if not acceptance_checks:
-            acceptance_checks = ["Generated results are consistent with manuscript claims."]
+            acceptance_checks = [
+                "Generated results are consistent with manuscript claims."
+            ]
 
         figures.append(
             {
@@ -2151,7 +2184,9 @@ def _normalize_recompile_paper_plan(
         "scope_mode": scope_mode,
         "scope_comment": scope_comment_text or None,
         "used_packages": used_packages,
-        "global_assumptions": _normalize_string_list(raw_plan.get("global_assumptions")),
+        "global_assumptions": _normalize_string_list(
+            raw_plan.get("global_assumptions")
+        ),
         "figures": figures,
     }
 
@@ -2313,9 +2348,9 @@ def _ensure_recompile_paper_skill_scaffold(
                 if isinstance(item, dict):
                     for token in _normalize_string_list(item.get("targets")):
                         targets.append(token)
-        target_lines = [f"- {item}" for item in targets] if targets else [
-            "- (populate in pass 2)"
-        ]
+        target_lines = (
+            [f"- {item}" for item in targets] if targets else ["- (populate in pass 2)"]
+        )
         _write_text(
             doc_map,
             "\n".join(
@@ -2437,7 +2472,9 @@ def _diff_skills_tree_snapshot(
     added = sorted(after_paths - before_paths)
     deleted = sorted(before_paths - after_paths)
     modified = sorted(
-        path for path in before_paths.intersection(after_paths) if before[path] != after[path]
+        path
+        for path in before_paths.intersection(after_paths)
+        if before[path] != after[path]
     )
     return {
         "added": added,
@@ -2455,7 +2492,9 @@ def _assert_skills_change_scope(
     scope_label: str = "skills",
 ) -> None:
     cli = _cli()
-    allowed = [prefix.replace("\\", "/").rstrip("/") + "/" for prefix in allowed_prefixes]
+    allowed = [
+        prefix.replace("\\", "/").rstrip("/") + "/" for prefix in allowed_prefixes
+    ]
     violations: list[str] = []
     for path in change_diff.get("changed", []):
         normalized = str(path or "").replace("\\", "/")
@@ -2538,9 +2577,11 @@ def _build_recompile_paper_context(
             "source_path": str(data_context.get("source_path") or ""),
             "source_path_input": str(data_context.get("source_path_input") or ""),
             "read_only": bool(data_context.get("read_only", True)),
-            "artifacts": data_context.get("artifacts")
-            if isinstance(data_context.get("artifacts"), dict)
-            else {},
+            "artifacts": (
+                data_context.get("artifacts")
+                if isinstance(data_context.get("artifacts"), dict)
+                else {}
+            ),
             "manifest_fingerprint": str(data_context.get("manifest_fingerprint") or ""),
             "manifest_full_fingerprint": str(
                 data_context.get("manifest_full_fingerprint") or ""
@@ -2615,13 +2656,19 @@ def _stage_recompile_paper_assets(
         or not source_data_dir.is_dir()
         or not isinstance(artifacts, dict)
     ):
-        payload["skipped"] = ["data_context is enabled but source/artifacts are invalid."]
+        payload["skipped"] = [
+            "data_context is enabled but source/artifacts are invalid."
+        ]
         _write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True))
         return payload
 
-    manifest_rel = str(artifacts.get("manifest_compact") or artifacts.get("manifest") or "").strip()
+    manifest_rel = str(
+        artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+    ).strip()
     if not manifest_rel:
-        payload["skipped"] = ["compact manifest path is missing from data_context artifacts."]
+        payload["skipped"] = [
+            "compact manifest path is missing from data_context artifacts."
+        ]
         _write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True))
         return payload
 
@@ -2635,7 +2682,11 @@ def _stage_recompile_paper_assets(
         _write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True))
         return payload
 
-    files_payload = compact_manifest_raw.get("files") if isinstance(compact_manifest_raw, dict) else None
+    files_payload = (
+        compact_manifest_raw.get("files")
+        if isinstance(compact_manifest_raw, dict)
+        else None
+    )
     files = files_payload if isinstance(files_payload, list) else []
 
     shutil.rmtree(stage_root, ignore_errors=True)
@@ -2695,7 +2746,9 @@ def _stage_recompile_paper_assets(
 
     payload["enabled"] = True
     payload["source_data_dir"] = str(source_data_dir)
-    payload["source_manifest"] = _safe_relative_path(compact_manifest_path, project_root)
+    payload["source_manifest"] = _safe_relative_path(
+        compact_manifest_path, project_root
+    )
     payload["staged_files"] = staged_files
     payload["skipped"] = skipped
     payload["staged_count"] = len(staged_files)
@@ -2925,7 +2978,9 @@ def _build_recompile_evidence_bundle(
             "Use docs-only recompile behavior or update `skills/.compile_profile.json`.",
         ]
         _write_text(coverage_report_path, "\n".join(lines))
-        manifest["coverage_report"] = str(coverage_report_path.relative_to(project_root))
+        manifest["coverage_report"] = str(
+            coverage_report_path.relative_to(project_root)
+        )
         manifest["source_inventory"] = {
             "source_roots": [],
             "total_source_files": 0,
@@ -2941,9 +2996,7 @@ def _build_recompile_evidence_bundle(
         source_roots=source_roots,
     )
     uncovered = [
-        path
-        for path in source_candidates
-        if path.resolve() not in referenced_sources
+        path for path in source_candidates if path.resolve() not in referenced_sources
     ]
 
     uncovered_lines: list[str] = []
@@ -2956,7 +3009,9 @@ def _build_recompile_evidence_bundle(
         else:
             uncovered_lines.append(f"- `{path.relative_to(project_root)}`")
 
-    source_root_lines = [f"- `{root.relative_to(project_root)}`" for root in source_roots]
+    source_root_lines = [
+        f"- `{root.relative_to(project_root)}`" for root in source_roots
+    ]
     coverage_lines = [
         "# Recompile source coverage report",
         "",
@@ -3000,7 +3055,9 @@ def _build_recompile_evidence_bundle(
     return manifest
 
 
-def _inferred_source_roots(project_root: Path, profile: dict[str, object]) -> list[Path]:
+def _inferred_source_roots(
+    project_root: Path, profile: dict[str, object]
+) -> list[Path]:
     roots: list[Path] = []
     raw_source_dirs = profile.get("source_dirs")
     if isinstance(raw_source_dirs, list):
@@ -3089,7 +3146,9 @@ def _figure_route_has_scope_description(route_line: str, fig_id: str) -> bool:
     cleaned = cleaned.replace(fig_id.lower(), " ")
     cleaned = re.sub(r"playbooks?/[^)\s`]+", " ", cleaned)
     cleaned = re.sub(r"figure\s*\d+[a-z]?(?:[-–]\d+[a-z]?)?", " ", cleaned)
-    cleaned = re.sub(r"\b(?:si|sec|section|appendix|fig|figure|playbook|playbooks)\b", " ", cleaned)
+    cleaned = re.sub(
+        r"\b(?:si|sec|section|appendix|fig|figure|playbook|playbooks)\b", " ", cleaned
+    )
     cleaned = re.sub(r"[^a-z0-9]+", " ", cleaned)
     tokens = [
         token
@@ -3171,7 +3230,9 @@ def _validate_recompile_paper_outputs(
             if isinstance(loaded, dict):
                 plan_payload = loaded
     if not isinstance(plan_payload, dict):
-        errors.append(f"Missing paper plan payload: {cli.RECOMPILE_PAPER_PLAN_REL_PATH}.")
+        errors.append(
+            f"Missing paper plan payload: {cli.RECOMPILE_PAPER_PLAN_REL_PATH}."
+        )
         plan_payload = {"figures": []}
 
     figures = plan_payload.get("figures")
@@ -3255,9 +3316,7 @@ def _validate_recompile_paper_outputs(
                 ]
                 for fig_id in plan_figure_ids:
                     fig_lines = [
-                        line
-                        for line in routing_lines
-                        if fig_id.lower() in line.lower()
+                        line for line in routing_lines if fig_id.lower() in line.lower()
                     ]
                     if not fig_lines:
                         errors.append(
@@ -3306,7 +3365,9 @@ def _validate_recompile_paper_outputs(
                 errors.append(f"Figure data map missing plan figure id: {fig_id}")
 
     index_skill_dirs = [
-        path for path in _collect_skill_dirs(skills_root) if path.name.endswith("-index")
+        path
+        for path in _collect_skill_dirs(skills_root)
+        if path.name.endswith("-index")
     ]
     if not index_skill_dirs:
         errors.append("No index skill found for paper tutorial routing update.")
@@ -3393,7 +3454,11 @@ def _validate_recompile_paper_outputs(
     evidence_refs: list[str] = []
     path_escape_refs: list[str] = []
     workspace_refs: list[str] = []
-    doc_abs = str(doc_path.resolve()) if isinstance(doc_path, Path) and doc_path.exists() else ""
+    doc_abs = (
+        str(doc_path.resolve())
+        if isinstance(doc_path, Path) and doc_path.exists()
+        else ""
+    )
     data_abs = (
         str(data_dir.resolve())
         if isinstance(data_dir, Path) and data_dir.exists() and data_dir.is_dir()
@@ -3500,7 +3565,9 @@ def _validate_compiled_skills(
     if not skill_dirs:
         return {
             "ok": False,
-            "errors": ["No skill directories with SKILL.md were generated under skills/."],
+            "errors": [
+                "No skill directories with SKILL.md were generated under skills/."
+            ],
             "warnings": [],
             "skills_total": 0,
             "source_links_total": 0,
@@ -3596,9 +3663,7 @@ def _validate_compiled_skills(
 
     current_inventory = source_inventory if isinstance(source_inventory, dict) else {}
     previous_inventory = (
-        previous_source_inventory
-        if isinstance(previous_source_inventory, dict)
-        else {}
+        previous_source_inventory if isinstance(previous_source_inventory, dict) else {}
     )
     current_uncovered = int(current_inventory.get("uncovered_source_files") or 0)
     previous_uncovered = int(previous_inventory.get("uncovered_source_files") or 0)

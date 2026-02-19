@@ -1149,7 +1149,6 @@ def _process_auto_compile_package(
     dry_run: bool,
     cleanup_clone: bool,
 ) -> dict[str, object]:
-    cli = _cli()
     upstream_owner, upstream_repo, canonical_upstream = _normalize_github_repo_url(
         upstream_repo_url
     )
@@ -1532,9 +1531,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
         available_skill_ids = cli._list_skill_ids(project_root)
         core_skill_ids_raw = evidence_payload.get("core_skills")
         core_skill_ids = (
-            list(core_skill_ids_raw)
-            if isinstance(core_skill_ids_raw, list)
-            else []
+            list(core_skill_ids_raw) if isinstance(core_skill_ids_raw, list) else []
         )
         skill_plan_payload = cli._normalize_compile_skill_plan(
             skill_plan_payload,
@@ -1618,9 +1615,11 @@ def cmd_compile(args: argparse.Namespace) -> int:
             profile=profile_payload,
             core_skill_count=core_skill_count,
             skill_plan=skill_plan_payload,
-            source_inventory=evidence_payload.get("source_inventory")
-            if isinstance(evidence_payload, dict)
-            else None,
+            source_inventory=(
+                evidence_payload.get("source_inventory")
+                if isinstance(evidence_payload, dict)
+                else None
+            ),
             previous_source_inventory=previous_source_inventory,
         )
         compile_report_path = cli._write_compile_report(
@@ -1736,9 +1735,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
         ),
     ]
     if git_repo_initialized:
-        lines.insert(
-            1, f"Initialized git repository at {project_root} (missing .git)."
-        )
+        lines.insert(1, f"Initialized git repository at {project_root} (missing .git).")
     cli._emit_output(args, payload, lines)
     return 0
 
@@ -1778,7 +1775,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     resolved_doc_path: Path | None = None
     resolved_data_dir: Path | None = None
     if memory_mode_enabled and (raw_doc_path or raw_data_dir or comment_text):
-        raise cli.PackageError("--memory cannot be combined with --doc/--data-dir/--comment.")
+        raise cli.PackageError(
+            "--memory cannot be combined with --doc/--data-dir/--comment."
+        )
     if raw_memory_path:
         resolved_memory_path = cli._resolve_project_path(raw_memory_path)
         if not resolved_memory_path.exists():
@@ -1808,7 +1807,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         if not resolved_data_dir.exists():
             raise cli.PackageError(f"--data-dir does not exist: {resolved_data_dir}")
         if not resolved_data_dir.is_dir():
-            raise cli.PackageError(f"--data-dir must be a directory: {resolved_data_dir}")
+            raise cli.PackageError(
+                f"--data-dir must be a directory: {resolved_data_dir}"
+            )
         try:
             next(resolved_data_dir.iterdir(), None)
         except OSError as exc:
@@ -1823,7 +1824,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     paper_data_context: dict[str, object] | None = None
     paper_staged_assets: dict[str, object] | None = None
     if paper_mode_enabled:
-        paper_run_dir = project_root / cli.COMPILE_EVIDENCE_DIR_REL_PATH / "paper_context"
+        paper_run_dir = (
+            project_root / cli.COMPILE_EVIDENCE_DIR_REL_PATH / "paper_context"
+        )
         paper_data_context = cli._resolve_invocation_data_context(
             repo_dir=project_root,
             run_dir=paper_run_dir,
@@ -1882,14 +1885,12 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     )
     run_id = _build_compile_run_id("recompile")
     run_goal = (
-        (
-            "Generate append-only skills update plan from unified memory suggestions."
-            if memory_mode_enabled
-            else (
-                "Recompile paper tutorial and refresh package skills."
-                if paper_mode_enabled
-                else "Refresh existing skills with targeted coverage updates and audit."
-            )
+        "Generate append-only skills update plan from unified memory suggestions."
+        if memory_mode_enabled
+        else (
+            "Recompile paper tutorial and refresh package skills."
+            if paper_mode_enabled
+            else "Refresh existing skills with targeted coverage updates and audit."
         )
     )
     compile_memory_path = cli._reset_compile_memory_short_term(
@@ -2181,7 +2182,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 if summary_rel:
                     pass_1_prompt += f"\nData summary file available: {summary_rel}\n"
                 if manifest_rel:
-                    pass_1_prompt += f"Compact data manifest file available: {manifest_rel}\n"
+                    pass_1_prompt += (
+                        f"Compact data manifest file available: {manifest_rel}\n"
+                    )
 
         pass_1 = cli._run_codex_compile_pass(
             project_root,
@@ -2279,9 +2282,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             available_skill_ids = cli._list_skill_ids(project_root)
             core_skill_ids_raw = evidence_payload.get("core_skills")
             core_skill_ids = (
-                list(core_skill_ids_raw)
-                if isinstance(core_skill_ids_raw, list)
-                else []
+                list(core_skill_ids_raw) if isinstance(core_skill_ids_raw, list) else []
             )
             skill_plan_payload = cli._normalize_compile_skill_plan(
                 skill_plan_payload,
@@ -2409,7 +2410,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         if paper_mode_enabled:
             pass_3_before_snapshot = cli._snapshot_recompile_paper_skills(project_root)
             figure_data_map_text = ""
-            figure_data_map_path = project_root / cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH
+            figure_data_map_path = (
+                project_root / cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH
+            )
             if figure_data_map_path.is_file():
                 figure_data_map_text = figure_data_map_path.read_text(
                     encoding="utf-8", errors="replace"
@@ -2426,7 +2429,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 f"Compile memory file: {compile_memory_path}\n"
             )
             if isinstance(resolved_data_dir, Path):
-                pass_3_prompt += f"Optional supplementary data dir: {resolved_data_dir}\n"
+                pass_3_prompt += (
+                    f"Optional supplementary data dir: {resolved_data_dir}\n"
+                )
             pass_3_prompt += (
                 "\nAllowed edit scope in pass 3:\n"
                 f"- skills/{paper_skill_id}/...\n"
@@ -2495,10 +2500,14 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             project_root,
             profile=profile_payload,
             core_skill_count=core_skill_count,
-            skill_plan=skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
-            source_inventory=evidence_payload.get("source_inventory")
-            if isinstance(evidence_payload, dict)
-            else None,
+            skill_plan=(
+                skill_plan_payload if isinstance(skill_plan_payload, dict) else None
+            ),
+            source_inventory=(
+                evidence_payload.get("source_inventory")
+                if isinstance(evidence_payload, dict)
+                else None
+            ),
             previous_source_inventory=previous_source_inventory,
         )
         if paper_mode_enabled:
@@ -2535,9 +2544,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                     if str(item).strip()
                 )
                 validation_payload["warnings"] = merged_warnings
-            validation_payload["ok"] = bool(validation_payload.get("ok", False)) and bool(
-                paper_validation_payload.get("ok", False)
-            )
+            validation_payload["ok"] = bool(
+                validation_payload.get("ok", False)
+            ) and bool(paper_validation_payload.get("ok", False))
         compile_report_path = cli._write_compile_report(
             project_root,
             payload={
@@ -2547,7 +2556,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 "project_root": str(project_root),
                 "compile_memory_path": compile_memory_path,
                 "profile": profile_payload,
-                "skill_plan": skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+                "skill_plan": (
+                    skill_plan_payload if isinstance(skill_plan_payload, dict) else None
+                ),
                 "skill_plan_path": skill_plan_path or None,
                 "paper_context": paper_context_payload,
                 "paper_plan": paper_plan_payload,
@@ -2569,7 +2580,9 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             mode=run_mode,
             run_id=run_id,
             run_goal=run_goal,
-            skill_plan=skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+            skill_plan=(
+                skill_plan_payload if isinstance(skill_plan_payload, dict) else None
+            ),
             pass_scope_diffs=pass_scope_diffs,
             evidence=evidence_payload,
             validation=validation_payload,
@@ -2614,23 +2627,41 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         "git_repo_initialized": git_repo_initialized,
         "run_id": run_id,
         "run_mode": run_mode,
-        "doc_path": str(resolved_doc_path) if isinstance(resolved_doc_path, Path) else None,
-        "data_dir": str(resolved_data_dir) if isinstance(resolved_data_dir, Path) else None,
+        "doc_path": (
+            str(resolved_doc_path) if isinstance(resolved_doc_path, Path) else None
+        ),
+        "data_dir": (
+            str(resolved_data_dir) if isinstance(resolved_data_dir, Path) else None
+        ),
         "comment": comment_text or None,
         "compile_memory": compile_memory_path,
         "compile_memory_update": memory_update_payload,
-        "skill_plan": skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+        "skill_plan": (
+            skill_plan_payload if isinstance(skill_plan_payload, dict) else None
+        ),
         "skill_plan_path": skill_plan_path or None,
         "paper_mode": paper_mode_enabled,
-        "paper_data_context": paper_data_context if isinstance(paper_data_context, dict) else None,
-        "paper_context": paper_context_payload if isinstance(paper_context_payload, dict) else None,
-        "paper_plan": paper_plan_payload if isinstance(paper_plan_payload, dict) else None,
+        "paper_data_context": (
+            paper_data_context if isinstance(paper_data_context, dict) else None
+        ),
+        "paper_context": (
+            paper_context_payload if isinstance(paper_context_payload, dict) else None
+        ),
+        "paper_plan": (
+            paper_plan_payload if isinstance(paper_plan_payload, dict) else None
+        ),
         "paper_plan_path": paper_plan_rel or None,
         "paper_skill_id": paper_skill_id or None,
         "pass_scope_diffs": pass_scope_diffs,
         "paper_pass_scope_diffs": pass_scope_diffs,
-        "paper_staged_assets": paper_staged_assets if isinstance(paper_staged_assets, dict) else None,
-        "paper_validation": paper_validation_payload if isinstance(paper_validation_payload, dict) else None,
+        "paper_staged_assets": (
+            paper_staged_assets if isinstance(paper_staged_assets, dict) else None
+        ),
+        "paper_validation": (
+            paper_validation_payload
+            if isinstance(paper_validation_payload, dict)
+            else None
+        ),
         "compile_runs": compile_runs,
         "compile_profile": profile_payload,
         "evidence": evidence_payload,
@@ -2671,9 +2702,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         ),
     ]
     if git_repo_initialized:
-        lines.insert(
-            1, f"Initialized git repository at {project_root} (missing .git)."
-        )
+        lines.insert(1, f"Initialized git repository at {project_root} (missing .git).")
     cli._emit_output(args, payload, lines)
     return 0
 

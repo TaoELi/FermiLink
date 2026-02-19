@@ -405,7 +405,10 @@ def test_reproduce_resume_rejects_mismatched_data_dir_mode(
         ),
     )
 
-    assert cli.main(["reproduce", "paper.md", "--plan-only", "--data-dir", "input_data"]) == 0
+    assert (
+        cli.main(["reproduce", "paper.md", "--plan-only", "--data-dir", "input_data"])
+        == 0
+    )
     code = cli.main(["reproduce", "paper.md"])
     assert code == 2
     assert "matching data-dir mode" in capsys.readouterr().err
@@ -611,7 +614,10 @@ def test_reproduce_data_dir_read_only_detects_mutation(
         ),
     )
 
-    assert cli.main(["reproduce", "paper.md", "--plan-only", "--data-dir", "input_data"]) == 0
+    assert (
+        cli.main(["reproduce", "paper.md", "--plan-only", "--data-dir", "input_data"])
+        == 0
+    )
 
     loop_calls = {"count": 0}
 
@@ -629,7 +635,9 @@ def test_reproduce_data_dir_read_only_detects_mutation(
 
     runs_root = repo_dir / "projects" / "reproduce"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
-    state = json.loads((runs_root / latest_run / "state.json").read_text(encoding="utf-8"))
+    state = json.loads(
+        (runs_root / latest_run / "state.json").read_text(encoding="utf-8")
+    )
     assert state["status"] == "failed"
     assert "Read-only data guard violation" in str(state["last_error"])
 
@@ -824,7 +832,9 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     run_dir = repo_dir / "projects" / "reproduce" / "run-001"
     runs_root = run_dir.parent
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+    (run_dir / "plan.json").write_text(
+        '{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8"
+    )
 
     run_id = run_dir.name
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
@@ -879,16 +889,23 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     assert Path(str(info["report_path"])) == run_dir / "report.md"
     assert not (runs_root / "report.md").exists()
     assert Path(str(info["run_all_script_path"])) == run_dir / "00_run_all.sh"
-    assert Path(str(info["simulation_script_path"])) == run_dir / "01_run_simulations.sh"
-    assert Path(str(info["postprocess_script_path"])) == run_dir / "02_run_postprocess.sh"
+    assert (
+        Path(str(info["simulation_script_path"])) == run_dir / "01_run_simulations.sh"
+    )
+    assert (
+        Path(str(info["postprocess_script_path"])) == run_dir / "02_run_postprocess.sh"
+    )
     assert Path(str(info["plot_script_path"])) == run_dir / "03_run_plots.sh"
-    assert Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
-    assert Path(str(info["postprocess_job_map_path"])) == run_dir / "postprocess_job_ids.tsv"
+    assert (
+        Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
+    )
+    assert (
+        Path(str(info["postprocess_job_map_path"]))
+        == run_dir / "postprocess_job_ids.tsv"
+    )
     assert Path(str(info["plot_job_map_path"])) == run_dir / "plot_job_ids.tsv"
     simulation_driver = (run_dir / "01_run_simulations.sh").read_text(encoding="utf-8")
-    postprocess_driver = (run_dir / "02_run_postprocess.sh").read_text(
-        encoding="utf-8"
-    )
+    postprocess_driver = (run_dir / "02_run_postprocess.sh").read_text(encoding="utf-8")
     run_all_driver = (run_dir / "00_run_all.sh").read_text(encoding="utf-8")
     assert "FAILURES=()" in simulation_driver
     assert "run_simulation.sh" in simulation_driver
@@ -912,7 +929,9 @@ def test_finalize_workflow_report_rejects_stale_generation_outputs(
     run_dir = repo_dir / "projects" / "reproduce" / "run-002"
     runs_root = run_dir.parent
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+    (run_dir / "plan.json").write_text(
+        '{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8"
+    )
     summary_path = run_dir / "summaries" / "task_001" / "summary.md"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text("# Existing summary\n", encoding="utf-8")
@@ -951,7 +970,9 @@ def test_finalize_workflow_report_rejects_stale_audit_outputs(
     run_dir = repo_dir / "projects" / "reproduce" / "run-003"
     runs_root = run_dir.parent
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+    (run_dir / "plan.json").write_text(
+        '{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8"
+    )
 
     run_id = run_dir.name
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
@@ -1139,7 +1160,9 @@ def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
     run_dir = repo_dir / "projects" / "reproduce" / "run-012"
     runs_root = run_dir.parent
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+    (run_dir / "plan.json").write_text(
+        '{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8"
+    )
 
     run_id = run_dir.name
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
@@ -1259,10 +1282,18 @@ def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
     assert generation_calls["count"] == 2
     assert "Validation feedback from previous attempt" in generation_prompts[1]
     assert Path(str(info["run_all_script_path"])) == run_dir / "00_run_all.sh"
-    assert Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
-    assert Path(str(info["postprocess_job_map_path"])) == run_dir / "postprocess_job_ids.tsv"
+    assert (
+        Path(str(info["simulation_job_map_path"])) == run_dir / "simulation_job_ids.tsv"
+    )
+    assert (
+        Path(str(info["postprocess_job_map_path"]))
+        == run_dir / "postprocess_job_ids.tsv"
+    )
     assert Path(str(info["plot_job_map_path"])) == run_dir / "plot_job_ids.tsv"
-    assert Path(str(info["hpc_contract_errors_path"])) == run_dir / "hpc_contract_errors.json"
+    assert (
+        Path(str(info["hpc_contract_errors_path"]))
+        == run_dir / "hpc_contract_errors.json"
+    )
     hpc_payload = json.loads(
         (run_dir / "hpc_contract_errors.json").read_text(encoding="utf-8")
     )
@@ -1277,7 +1308,9 @@ def test_finalize_workflow_report_hpc_contract_stall_fails_with_artifact(
     run_dir = repo_dir / "projects" / "reproduce" / "run-013"
     runs_root = run_dir.parent
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "plan.json").write_text('{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8")
+    (run_dir / "plan.json").write_text(
+        '{"tasks":[{"id":"task_001"}]}\n', encoding="utf-8"
+    )
 
     run_id = run_dir.name
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
@@ -1377,9 +1410,7 @@ def test_generate_reproduce_plan_dry_run_appends_prompt_requirements(
         prompt = str(kwargs.get("prompt") or "")
         prompts.append(prompt)
         assistant_text = (
-            "<reproduce_plan>"
-            + json.dumps(plan_payload)
-            + "</reproduce_plan>"
+            "<reproduce_plan>" + json.dumps(plan_payload) + "</reproduce_plan>"
         )
         return {"return_code": 0, "assistant_text": assistant_text, "stderr": ""}
 
@@ -1427,9 +1458,7 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
         prompt = str(kwargs.get("prompt") or "")
         prompts.append(prompt)
         assistant_text = (
-            "<reproduce_plan>"
-            + json.dumps(plan_payload)
-            + "</reproduce_plan>"
+            "<reproduce_plan>" + json.dumps(plan_payload) + "</reproduce_plan>"
         )
         return {"return_code": 0, "assistant_text": assistant_text, "stderr": ""}
 
@@ -1465,7 +1494,9 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
     assert plan["version"] == 1
     assert len(prompts) == 2
     assert "Execution target constraints:" in prompts[0]
-    assert "--hpc-profile` overrides package/skill/default machine settings" in prompts[0]
+    assert (
+        "--hpc-profile` overrides package/skill/default machine settings" in prompts[0]
+    )
     assert "execution_target: HPC SLURM (`Purdue Anvil`)." in prompts[0]
     assert "slurm_defaults: `--nodes=1 --ntasks=1 --ntasks-per-node=1`." in prompts[0]
     assert (
@@ -1475,7 +1506,9 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
     assert "slurm_profile_comment: single-cpu preferred." in prompts[0]
 
 
-def test_build_hpc_prompt_lines_includes_defaults_and_comment_for_non_serial_profile() -> None:
+def test_build_hpc_prompt_lines_includes_defaults_and_comment_for_non_serial_profile() -> (
+    None
+):
     lines = workflow_commands._build_hpc_prompt_lines(
         {
             "enabled": True,

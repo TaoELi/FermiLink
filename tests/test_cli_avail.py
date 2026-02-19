@@ -31,7 +31,9 @@ def test_cli_avail_json_output(capsys) -> None:
     assert payload["found"] is True
     results = payload["results"]
     assert isinstance(results, list)
-    maxwelllink = next(item for item in results if str(item.get("package_id")) == "maxwelllink")
+    maxwelllink = next(
+        item for item in results if str(item.get("package_id")) == "maxwelllink"
+    )
     assert str(maxwelllink.get("default_version")) == "branch-head"
     assert isinstance(maxwelllink.get("versions"), list)
     assert bool(maxwelllink.get("description"))
