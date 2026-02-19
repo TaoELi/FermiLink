@@ -36,6 +36,21 @@ from fermilink.cli.compile_prompts import (
     COMPILE_PROMPT_2,
     COMPILE_PROMPT_3,
     RECOMPILE_COVERAGE_REL_PATH,
+    RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH,
+    RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH,
+    RECOMPILE_PAPER_CONTEXT_REL_PATH,
+    RECOMPILE_PAPER_PLAN_REL_PATH,
+    RECOMPILE_PAPER_PLAN_TAG,
+    RECOMPILE_PAPER_PLAN_TOKEN_RE,
+    RECOMPILE_PAPER_PROMPT_1,
+    RECOMPILE_PAPER_PROMPT_1_PLAN,
+    RECOMPILE_PAPER_PROMPT_2,
+    RECOMPILE_PAPER_PROMPT_2_TUTORIAL,
+    RECOMPILE_PAPER_PROMPT_3,
+    RECOMPILE_PAPER_PROMPT_3_AUDIT,
+    RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH,
+    RECOMPILE_PAPER_STAGED_ASSETS_DIR_REL_PATH,
+    RECOMPILE_PAPER_STAGED_ASSETS_MANIFEST_REL_PATH,
     RECOMPILE_PROMPT_1,
     RECOMPILE_PROMPT_2,
     RECOMPILE_PROMPT_3,
@@ -232,6 +247,28 @@ _load_compile_profile = compile_helpers._load_compile_profile
 _run_compile_generator = compile_helpers._run_compile_generator
 _build_compile_evidence_bundle = compile_helpers._build_compile_evidence_bundle
 _build_recompile_evidence_bundle = compile_helpers._build_recompile_evidence_bundle
+_extract_recompile_paper_plan_from_assistant_text = (
+    compile_helpers._extract_recompile_paper_plan_from_assistant_text
+)
+_normalize_recompile_paper_plan = compile_helpers._normalize_recompile_paper_plan
+_write_recompile_paper_plan = compile_helpers._write_recompile_paper_plan
+_derive_recompile_paper_skill_id = compile_helpers._derive_recompile_paper_skill_id
+_ensure_recompile_paper_skill_scaffold = (
+    compile_helpers._ensure_recompile_paper_skill_scaffold
+)
+_initialize_recompile_paper_sidecar_files = (
+    compile_helpers._initialize_recompile_paper_sidecar_files
+)
+_snapshot_recompile_paper_skills = compile_helpers._snapshot_recompile_paper_skills
+_diff_recompile_paper_skills_snapshot = (
+    compile_helpers._diff_recompile_paper_skills_snapshot
+)
+_assert_recompile_paper_change_scope = (
+    compile_helpers._assert_recompile_paper_change_scope
+)
+_build_recompile_paper_context = compile_helpers._build_recompile_paper_context
+_stage_recompile_paper_assets = compile_helpers._stage_recompile_paper_assets
+_validate_recompile_paper_outputs = compile_helpers._validate_recompile_paper_outputs
 _validate_compiled_skills = compile_helpers._validate_compiled_skills
 _write_compile_report = compile_helpers._write_compile_report
 _run_codex_compile_pass = compile_helpers._run_codex_compile_pass
@@ -252,6 +289,8 @@ _run_reproduce_exec_turn = workflow_commands._run_reproduce_exec_turn
 _generate_mode_plan = workflow_commands._generate_mode_plan
 _generate_reproduce_plan = workflow_commands._generate_reproduce_plan
 _generate_research_plan = workflow_commands._generate_research_plan
+_resolve_invocation_data_context = workflow_commands._resolve_invocation_data_context
+_prepare_workflow_data_artifacts = workflow_commands._prepare_workflow_data_artifacts
 _archive_loop_memory = workflow_commands._archive_loop_memory
 _ensure_loop_memory = workflow_commands._ensure_loop_memory
 _reset_loop_short_term_memory = workflow_commands._reset_loop_short_term_memory

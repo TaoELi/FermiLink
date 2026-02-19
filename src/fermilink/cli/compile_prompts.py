@@ -8,6 +8,28 @@ COMPILE_PROFILE_REL_PATH = "skills/.compile_profile.json"
 COMPILE_EVIDENCE_DIR_REL_PATH = "skills/.evidence"
 RECOMPILE_COVERAGE_REL_PATH = "skills/.evidence/recompile_coverage.md"
 COMPILE_REPORT_REL_PATH = "skills/.compile_report.json"
+RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH = "skills/.evidence/paper_context"
+RECOMPILE_PAPER_CONTEXT_REL_PATH = (
+    "skills/.evidence/paper_context/paper_context.json"
+)
+RECOMPILE_PAPER_PLAN_TAG = "paper_plan"
+RECOMPILE_PAPER_PLAN_REL_PATH = "skills/.evidence/paper_context/paper_plan.json"
+RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH = (
+    "skills/.evidence/paper_context/figure_data_map.json"
+)
+RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH = (
+    "skills/.evidence/paper_context/paper_skill_manifest.json"
+)
+RECOMPILE_PAPER_STAGED_ASSETS_DIR_REL_PATH = (
+    "skills/.evidence/paper_context/staged_assets"
+)
+RECOMPILE_PAPER_STAGED_ASSETS_MANIFEST_REL_PATH = (
+    "skills/.evidence/paper_context/staged_assets_manifest.json"
+)
+RECOMPILE_PAPER_PLAN_TOKEN_RE = re.compile(
+    rf"<{RECOMPILE_PAPER_PLAN_TAG}>(.*?)</{RECOMPILE_PAPER_PLAN_TAG}>",
+    re.IGNORECASE | re.DOTALL,
+)
 COMPILE_PROFILE_TOKEN_RE = re.compile(
     rf"<{COMPILE_PROFILE_TAG}>(.*?)</{COMPILE_PROFILE_TAG}>",
     re.IGNORECASE | re.DOTALL,
@@ -93,3 +115,69 @@ RECOMPILE_PROMPT_3 = (
     f"under `skills/`, then append key refresh notes to `{COMPILE_REPORT_REL_PATH}` "
     "under `agent_audit_notes`."
 )
+
+RECOMPILE_PAPER_PROMPT_1_PLAN = (
+    "You are running FermiLink recompile pass 1/3 (paper plan generation). "
+    "First, rediscover package layout and refresh compile profile at "
+    f"`{COMPILE_PROFILE_REL_PATH}`. Then generate a detailed per-figure reproduction "
+    "plan from the provided manuscript text. The plan must explicitly include figure "
+    "targets, simulation configurations, used packages, parameter requirements, and "
+    "acceptance checks for each figure. If a scope comment is provided, only include "
+    "figures/results covered by that scope; otherwise include all key paper results.\n\n"
+    "Return TWO tagged JSON blocks:\n"
+    f"1) <{COMPILE_PROFILE_TAG}>{{...}}</{COMPILE_PROFILE_TAG}>\n"
+    f"2) <{RECOMPILE_PAPER_PLAN_TAG}>{{...}}</{RECOMPILE_PAPER_PLAN_TAG}>\n\n"
+    "Paper-plan JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "paper_source": "short file/source label",\n'
+    '  "scope_mode": "all_results | comment_filtered",\n'
+    '  "scope_comment": "optional comment text",\n'
+    '  "used_packages": ["package names"],\n'
+    '  "global_assumptions": ["assumptions"],\n'
+    '  "figures": [\n'
+    "    {\n"
+    '      "id": "fig_001",\n'
+    '      "title": "short figure title",\n'
+    '      "targets": ["Figure 1a"],\n'
+    '      "objective": "what to reproduce",\n'
+    '      "simulation_config": ["config items"],\n'
+    '      "parameter_requirements": ["parameter constraints"],\n'
+    '      "required_packages": ["packages for this figure"],\n'
+    '      "expected_artifacts": ["outputs to produce"],\n'
+    '      "acceptance_checks": ["validation criteria"]\n'
+    "    }\n"
+    "  ]\n"
+    "}\n"
+)
+
+RECOMPILE_PAPER_PROMPT_2_TUTORIAL = (
+    "You are running FermiLink recompile pass 2/3 (paper tutorial skill synthesis). "
+    "Use `paper_plan.json` and data manifests to map relevant supplementary files for "
+    "each figure and create a NEW paper tutorial skill `paper_tutorial_<brief_aim_of_manuscript>`. Do not "
+    "modify any existing topic skills in this pass.\n\n"
+    "Requirements:\n"
+    "- Do NOT rely on manuscript text in this pass.\n"
+    "- Use only files in provided manifests or staged assets.\n"
+    f"- Write/update `{RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH}`.\n"
+    f"- Write/update `{RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}`.\n"
+    "- Build concrete, figure-by-figure reproducibility instructions in the new "
+    "paper tutorial skill with assets/references/playbooks under `skills/`.\n"
+)
+
+RECOMPILE_PAPER_PROMPT_3_AUDIT = (
+    "You are running FermiLink recompile pass 3/3 (paper tutorial audit + finalize). "
+    "Audit generated paper tutorial skill against `paper_plan.json` and repair gaps "
+    "so users can reproduce the planned paper results directly from the package "
+    "`skills/` and local assets. You may optionally cross-check manuscript/data files.\n\n"
+    "Requirements:\n"
+    "- Ensure each planned figure has coherent workflow + acceptance checks.\n"
+    "- Ensure figure-to-data mapping is consistent with `figure_data_map.json`.\n"
+    "- Ensure tutorial is concrete, executable, and publication-grade.\n"
+    "- Append paper tutorial routing in the index skill as an advanced topic.\n"
+)
+
+# Backward-compatible aliases used by existing command wiring/tests.
+RECOMPILE_PAPER_PROMPT_1 = RECOMPILE_PAPER_PROMPT_1_PLAN
+RECOMPILE_PAPER_PROMPT_2 = RECOMPILE_PAPER_PROMPT_2_TUTORIAL
+RECOMPILE_PAPER_PROMPT_3 = RECOMPILE_PAPER_PROMPT_3_AUDIT

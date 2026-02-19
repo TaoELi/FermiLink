@@ -1630,6 +1630,65 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     if not project_root.exists() or not project_root.is_dir():
         raise cli.PackageError(f"Recompile path is not a directory: {project_root}")
 
+    raw_doc_path = str(getattr(args, "doc", "") or "").strip()
+    raw_data_dir = str(getattr(args, "data_dir", "") or "").strip()
+    comment_text = " ".join(str(getattr(args, "comment", "") or "").split()).strip()
+    resolved_doc_path: Path | None = None
+    resolved_data_dir: Path | None = None
+    if comment_text and not raw_doc_path:
+        raise cli.PackageError("--comment requires --doc.")
+    if raw_data_dir and not raw_doc_path:
+        raise cli.PackageError("--data-dir requires --doc.")
+    if raw_doc_path:
+        resolved_doc_path = cli._resolve_project_path(raw_doc_path)
+        if not resolved_doc_path.exists():
+            raise cli.PackageError(f"--doc does not exist: {resolved_doc_path}")
+        if not resolved_doc_path.is_file():
+            raise cli.PackageError(f"--doc must be a file: {resolved_doc_path}")
+        try:
+            resolved_doc_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"--doc is not readable: {resolved_doc_path}: {exc}"
+            ) from exc
+    if raw_data_dir:
+        resolved_data_dir = cli._resolve_project_path(raw_data_dir)
+        if not resolved_data_dir.exists():
+            raise cli.PackageError(f"--data-dir does not exist: {resolved_data_dir}")
+        if not resolved_data_dir.is_dir():
+            raise cli.PackageError(f"--data-dir must be a directory: {resolved_data_dir}")
+        try:
+            next(resolved_data_dir.iterdir(), None)
+        except OSError as exc:
+            raise cli.PackageError(
+                f"--data-dir is not readable: {resolved_data_dir}: {exc}"
+            ) from exc
+    paper_mode_enabled = bool(
+        isinstance(resolved_doc_path, Path)
+        or isinstance(resolved_data_dir, Path)
+        or bool(comment_text)
+    )
+    paper_data_context: dict[str, object] | None = None
+    paper_staged_assets: dict[str, object] | None = None
+    if paper_mode_enabled:
+        paper_run_dir = project_root / cli.COMPILE_EVIDENCE_DIR_REL_PATH / "paper_context"
+        paper_data_context = cli._resolve_invocation_data_context(
+            repo_dir=project_root,
+            run_dir=paper_run_dir,
+            workflow_name="recompile",
+            args=args,
+        )
+        if bool(paper_data_context.get("enabled")):
+            paper_data_context = cli._prepare_workflow_data_artifacts(
+                repo_dir=project_root,
+                run_dir=paper_run_dir,
+                data_context=paper_data_context,
+            )
+        paper_staged_assets = cli._stage_recompile_paper_assets(
+            project_root,
+            data_context=paper_data_context,
+        )
+
     core_skill_count = int(getattr(args, "core_skill_count", 6))
     if core_skill_count < 1:
         raise cli.PackageError("--core-skill-count must be >= 1.")
@@ -1667,13 +1726,71 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     shutil.copytree(tool_source, tool_dest)
     compile_runs: list[dict[str, object]] = []
     profile_payload: dict[str, object] = {}
+    paper_context_payload: dict[str, object] | None = None
+    paper_plan_payload: dict[str, object] | None = None
+    paper_plan_rel = ""
+    paper_skill_id = ""
+    pass_scope_diffs: dict[str, dict[str, list[str]]] = {}
     evidence_payload: dict[str, object] = {}
     validation_payload: dict[str, object] = {}
+    paper_validation_payload: dict[str, object] | None = None
     compile_report_path = ""
+    manuscript_text = ""
+    manuscript_source = ""
+    if paper_mode_enabled and isinstance(resolved_doc_path, Path):
+        try:
+            manuscript_text = resolved_doc_path.read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to read --doc file: {resolved_doc_path}: {exc}"
+            ) from exc
+        if not manuscript_text.strip():
+            raise cli.PackageError(f"--doc is empty: {resolved_doc_path}")
+        try:
+            manuscript_source = str(resolved_doc_path.relative_to(project_root))
+        except ValueError:
+            manuscript_source = str(resolved_doc_path)
     try:
+        pass_1_prompt = cli.RECOMPILE_PROMPT_1
+        if paper_mode_enabled:
+            scope_text = (
+                comment_text
+                if comment_text
+                else "No --comment provided; include all key paper results."
+            )
+            pass_1_prompt = (
+                f"{cli.RECOMPILE_PAPER_PROMPT_1_PLAN}\n\n"
+                f"Package id: {package_id}\n"
+                f"Paper source file: {manuscript_source}\n"
+                f"Scope directive: {scope_text}\n"
+                f"Write paper plan JSON to: {cli.RECOMPILE_PAPER_PLAN_REL_PATH}\n"
+                f"Write compile profile JSON to: {cli.COMPILE_PROFILE_REL_PATH}\n"
+                f"Paper context directory: {cli.RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH}\n\n"
+                "Original manuscript content:\n"
+                f"{manuscript_text.strip()}\n"
+            )
+            if isinstance(paper_data_context, dict) and bool(
+                paper_data_context.get("enabled")
+            ):
+                artifacts = (
+                    paper_data_context.get("artifacts")
+                    if isinstance(paper_data_context.get("artifacts"), dict)
+                    else {}
+                )
+                summary_rel = str(artifacts.get("summary") or "").strip()
+                manifest_rel = str(
+                    artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+                ).strip()
+                if summary_rel:
+                    pass_1_prompt += f"\nData summary file available: {summary_rel}\n"
+                if manifest_rel:
+                    pass_1_prompt += f"Compact data manifest file available: {manifest_rel}\n"
+
         pass_1 = cli._run_codex_compile_pass(
             project_root,
-            prompt=cli.RECOMPILE_PROMPT_1,
+            prompt=pass_1_prompt,
             pass_index=1,
             total_passes=3,
             provider=provider,
@@ -1681,6 +1798,46 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         )
         pass_1_assistant_text = str(pass_1.pop("assistant_text", "") or "")
         compile_runs.append(pass_1)
+
+        if paper_mode_enabled:
+            raw_plan_payload = cli._extract_recompile_paper_plan_from_assistant_text(
+                pass_1_assistant_text
+            )
+            if raw_plan_payload is None:
+                raise cli.PackageError(
+                    f"Paper-mode recompile pass 1 response must include "
+                    f"<{cli.RECOMPILE_PAPER_PLAN_TAG}>...</{cli.RECOMPILE_PAPER_PLAN_TAG}>."
+                )
+            paper_plan_payload = cli._normalize_recompile_paper_plan(
+                raw_plan_payload,
+                paper_source=manuscript_source or str(resolved_doc_path),
+                package_id=package_id,
+                scope_comment=comment_text or None,
+            )
+            paper_plan_rel = cli._write_recompile_paper_plan(
+                project_root,
+                paper_plan=paper_plan_payload,
+            )
+            if not isinstance(resolved_doc_path, Path):
+                raise cli.PackageError(
+                    "Internal paper-mode error: --doc path missing after validation."
+                )
+            paper_skill_id = cli._derive_recompile_paper_skill_id(
+                project_root,
+                package_id=package_id,
+                doc_path=resolved_doc_path,
+                comment=comment_text or None,
+            )
+            cli._ensure_recompile_paper_skill_scaffold(
+                project_root,
+                skill_id=paper_skill_id,
+                paper_plan=paper_plan_payload,
+            )
+            cli._initialize_recompile_paper_sidecar_files(
+                project_root,
+                paper_plan=paper_plan_payload,
+                paper_skill_id=paper_skill_id,
+            )
 
         profile_payload = cli._load_compile_profile(
             project_root,
@@ -1690,15 +1847,75 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         if docs_only_override:
             profile_payload["docs_only"] = True
 
+        if isinstance(resolved_doc_path, Path):
+            paper_context_payload = cli._build_recompile_paper_context(
+                project_root,
+                doc_path=resolved_doc_path,
+                comment=comment_text or None,
+                data_context=paper_data_context,
+                staged_assets=paper_staged_assets,
+                paper_plan=paper_plan_payload,
+                paper_skill_id=paper_skill_id,
+            )
+
         evidence_payload = cli._build_recompile_evidence_bundle(
             project_root,
             profile=profile_payload,
             core_skill_count=core_skill_count,
         )
+        if isinstance(paper_context_payload, dict):
+            evidence_payload["paper_context"] = paper_context_payload
+        if isinstance(paper_staged_assets, dict):
+            evidence_payload["paper_staged_assets"] = paper_staged_assets
+
+        pass_2_prompt = cli.RECOMPILE_PROMPT_2
+        pass_2_before_snapshot: dict[str, str] | None = None
+        if paper_mode_enabled:
+            if not isinstance(paper_plan_payload, dict):
+                raise cli.PackageError(
+                    "Internal paper-mode error: paper plan payload missing after pass 1."
+                )
+            pass_2_before_snapshot = cli._snapshot_recompile_paper_skills(project_root)
+            pass_2_prompt = (
+                f"{cli.RECOMPILE_PAPER_PROMPT_2_TUTORIAL}\n\n"
+                f"Package id: {package_id}\n"
+                f"Paper plan JSON file: {paper_plan_rel}\n"
+                f"Target tutorial skill id: {paper_skill_id}\n"
+                f"Target tutorial skill root: skills/{paper_skill_id}/\n"
+                f"Figure-data map file: {cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH}\n"
+                f"Paper skill manifest file: {cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}\n"
+                f"Staged assets manifest: {cli.RECOMPILE_PAPER_STAGED_ASSETS_MANIFEST_REL_PATH}\n"
+                f"Staged assets root: {cli.RECOMPILE_PAPER_STAGED_ASSETS_DIR_REL_PATH}\n\n"
+                "Allowed edit scope in pass 2:\n"
+                f"- skills/{paper_skill_id}/...\n"
+                f"- {cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH}\n"
+                f"- {cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}\n\n"
+                "Paper plan JSON payload:\n"
+                f"{json.dumps(paper_plan_payload, indent=2)}\n"
+            )
+            if isinstance(paper_data_context, dict) and bool(
+                paper_data_context.get("enabled")
+            ):
+                artifacts = (
+                    paper_data_context.get("artifacts")
+                    if isinstance(paper_data_context.get("artifacts"), dict)
+                    else {}
+                )
+                summary_rel = str(artifacts.get("summary") or "").strip()
+                manifest_rel = str(
+                    artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+                ).strip()
+                manifest_full_rel = str(artifacts.get("manifest_full") or "").strip()
+                if summary_rel:
+                    pass_2_prompt += f"\nData summary file: {summary_rel}\n"
+                if manifest_rel:
+                    pass_2_prompt += f"Compact manifest file: {manifest_rel}\n"
+                if manifest_full_rel:
+                    pass_2_prompt += f"Full manifest file: {manifest_full_rel}\n"
 
         pass_2 = cli._run_codex_compile_pass(
             project_root,
-            prompt=cli.RECOMPILE_PROMPT_2,
+            prompt=pass_2_prompt,
             pass_index=2,
             total_passes=3,
             provider=provider,
@@ -1707,9 +1924,63 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         pass_2.pop("assistant_text", None)
         compile_runs.append(pass_2)
 
+        if paper_mode_enabled and isinstance(pass_2_before_snapshot, dict):
+            pass_2_after_snapshot = cli._snapshot_recompile_paper_skills(project_root)
+            pass_2_diff = cli._diff_recompile_paper_skills_snapshot(
+                pass_2_before_snapshot,
+                pass_2_after_snapshot,
+            )
+            pass_scope_diffs["pass_2"] = pass_2_diff
+            cli._assert_recompile_paper_change_scope(
+                change_diff=pass_2_diff,
+                allowed_prefixes=[
+                    f"skills/{paper_skill_id}",
+                    cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH,
+                    cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH,
+                ],
+                stage_label="paper-mode pass 2",
+            )
+
+        pass_3_prompt = cli.RECOMPILE_PROMPT_3
+        pass_3_before_snapshot: dict[str, str] | None = None
+        if paper_mode_enabled:
+            pass_3_before_snapshot = cli._snapshot_recompile_paper_skills(project_root)
+            figure_data_map_text = ""
+            figure_data_map_path = project_root / cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH
+            if figure_data_map_path.is_file():
+                figure_data_map_text = figure_data_map_path.read_text(
+                    encoding="utf-8", errors="replace"
+                )
+            pass_3_prompt = (
+                f"{cli.RECOMPILE_PAPER_PROMPT_3_AUDIT}\n\n"
+                f"Package id: {package_id}\n"
+                f"Paper plan JSON file: {paper_plan_rel}\n"
+                f"Paper context file: {cli.RECOMPILE_PAPER_CONTEXT_REL_PATH}\n"
+                f"Figure-data map file: {cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH}\n"
+                f"Paper skill manifest file: {cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}\n"
+                f"Target tutorial skill id: {paper_skill_id}\n"
+                f"Optional manuscript file for double check: {manuscript_source}\n"
+            )
+            if isinstance(resolved_data_dir, Path):
+                pass_3_prompt += f"Optional supplementary data dir: {resolved_data_dir}\n"
+            pass_3_prompt += (
+                "\nAllowed edit scope in pass 3:\n"
+                f"- skills/{paper_skill_id}/...\n"
+                "- skills/*-index/SKILL.md and related index references for routing update\n"
+                f"- {cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH}\n"
+                f"- {cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}\n\n"
+                "Paper plan JSON payload:\n"
+                f"{json.dumps(paper_plan_payload, indent=2)}\n"
+            )
+            if figure_data_map_text.strip():
+                pass_3_prompt += (
+                    "\nCurrent figure-data map JSON payload:\n"
+                    f"{figure_data_map_text.strip()}\n"
+                )
+
         pass_3 = cli._run_codex_compile_pass(
             project_root,
-            prompt=cli.RECOMPILE_PROMPT_3,
+            prompt=pass_3_prompt,
             pass_index=3,
             total_passes=3,
             provider=provider,
@@ -1718,11 +1989,73 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         pass_3.pop("assistant_text", None)
         compile_runs.append(pass_3)
 
+        if paper_mode_enabled and isinstance(pass_3_before_snapshot, dict):
+            pass_3_after_snapshot = cli._snapshot_recompile_paper_skills(project_root)
+            pass_3_diff = cli._diff_recompile_paper_skills_snapshot(
+                pass_3_before_snapshot,
+                pass_3_after_snapshot,
+            )
+            pass_scope_diffs["pass_3"] = pass_3_diff
+            index_prefixes = []
+            for entry in skills_root.iterdir():
+                if not entry.is_dir() or not entry.name.endswith("-index"):
+                    continue
+                if not (entry / "SKILL.md").is_file():
+                    continue
+                index_prefixes.append(f"skills/{entry.name}")
+            cli._assert_recompile_paper_change_scope(
+                change_diff=pass_3_diff,
+                allowed_prefixes=[
+                    f"skills/{paper_skill_id}",
+                    *index_prefixes,
+                    cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH,
+                    cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH,
+                ],
+                stage_label="paper-mode pass 3",
+            )
+
         validation_payload = cli._validate_compiled_skills(
             project_root,
             profile=profile_payload,
             core_skill_count=core_skill_count,
         )
+        if paper_mode_enabled:
+            paper_validation_payload = cli._validate_recompile_paper_outputs(
+                project_root,
+                paper_plan=paper_plan_payload,
+                paper_skill_id=paper_skill_id,
+                doc_path=resolved_doc_path,
+                data_dir=resolved_data_dir,
+                staged_assets=paper_staged_assets,
+            )
+            validation_payload["paper"] = paper_validation_payload
+            paper_errors = paper_validation_payload.get("errors")
+            if isinstance(paper_errors, list) and paper_errors:
+                existing_errors = validation_payload.get("errors")
+                merged_errors = (
+                    list(existing_errors) if isinstance(existing_errors, list) else []
+                )
+                merged_errors.extend(
+                    f"[paper] {str(item)}" for item in paper_errors if str(item).strip()
+                )
+                validation_payload["errors"] = merged_errors
+            paper_warnings = paper_validation_payload.get("warnings")
+            if isinstance(paper_warnings, list) and paper_warnings:
+                existing_warnings = validation_payload.get("warnings")
+                merged_warnings = (
+                    list(existing_warnings)
+                    if isinstance(existing_warnings, list)
+                    else []
+                )
+                merged_warnings.extend(
+                    f"[paper] {str(item)}"
+                    for item in paper_warnings
+                    if str(item).strip()
+                )
+                validation_payload["warnings"] = merged_warnings
+            validation_payload["ok"] = bool(validation_payload.get("ok", False)) and bool(
+                paper_validation_payload.get("ok", False)
+            )
         compile_report_path = cli._write_compile_report(
             project_root,
             payload={
@@ -1730,6 +2063,13 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 "recompiled_package_id": package_id,
                 "project_root": str(project_root),
                 "profile": profile_payload,
+                "paper_context": paper_context_payload,
+                "paper_plan": paper_plan_payload,
+                "paper_plan_path": paper_plan_rel,
+                "paper_skill_id": paper_skill_id,
+                "paper_pass_scope_diffs": pass_scope_diffs,
+                "paper_staged_assets": paper_staged_assets,
+                "paper_validation": paper_validation_payload,
                 "evidence": evidence_payload,
                 "passes": compile_runs,
                 "validation": validation_payload,
@@ -1771,6 +2111,18 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     payload = {
         "recompiled_package_id": package_id,
         "project_root": str(project_root),
+        "doc_path": str(resolved_doc_path) if isinstance(resolved_doc_path, Path) else None,
+        "data_dir": str(resolved_data_dir) if isinstance(resolved_data_dir, Path) else None,
+        "comment": comment_text or None,
+        "paper_mode": paper_mode_enabled,
+        "paper_data_context": paper_data_context if isinstance(paper_data_context, dict) else None,
+        "paper_context": paper_context_payload if isinstance(paper_context_payload, dict) else None,
+        "paper_plan": paper_plan_payload if isinstance(paper_plan_payload, dict) else None,
+        "paper_plan_path": paper_plan_rel or None,
+        "paper_skill_id": paper_skill_id or None,
+        "paper_pass_scope_diffs": pass_scope_diffs,
+        "paper_staged_assets": paper_staged_assets if isinstance(paper_staged_assets, dict) else None,
+        "paper_validation": paper_validation_payload if isinstance(paper_validation_payload, dict) else None,
         "compile_runs": compile_runs,
         "compile_profile": profile_payload,
         "evidence": evidence_payload,

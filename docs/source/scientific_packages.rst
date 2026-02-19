@@ -103,7 +103,16 @@ link consistency and source coverage after code changes (for example after PRs).
    fermilink recompile <package_id> <path> \
      --core-skill-count 6
 
-Typical recompile path:
+Paper-focused recompile (manuscript + supplementary data):
+
+.. code-block:: bash
+
+   fermilink recompile <package_id> <path> \
+     --doc ./paper/manuscript.tex \
+     --data-dir ./paper/supplementary \
+     --comment "focus on the cavity spectra and validation workflow"
+
+Typical recompile path (standard mode):
 
 1. Validate ``skills/`` exists in the target project.
 2. Run pass 1 to rediscover layout and refresh ``skills/.compile_profile.json``.
@@ -114,14 +123,44 @@ Typical recompile path:
 6. Validate skills and write ``skills/.compile_report.json``.
 7. Install updated package into scientific package storage (skipped with ``--install-off``).
 
+Paper-mode pass flow (``--doc ...``):
+
+1. Pass 1 (plan): load manuscript text directly into the prompt and generate both
+   ``skills/.compile_profile.json`` and
+   ``skills/.evidence/paper_context/paper_plan.json`` (figure-by-figure
+   simulation configs, required packages, parameters, and acceptance checks).
+2. Prepare deterministic paper artifacts under
+   ``skills/.evidence/paper_context/``:
+   ``paper_context.json``, optional data manifests/summaries (from ``--data-dir``),
+   and ``staged_assets_manifest.json`` + ``staged_assets/``.
+3. Pass 2 (tutorial synthesis): use ``paper_plan.json`` plus data manifests to
+   build a new skill ``skills/paper_tutorial_<slug>/`` and fill sidecar files
+   ``figure_data_map.json`` and ``paper_skill_manifest.json``.
+   The original manuscript text is not injected in this pass.
+4. Pass 3 (audit/finalize): audit the new tutorial skill against
+   ``paper_plan.json``, optionally cross-check ``--doc`` and ``--data-dir``
+   content, and append an advanced-topic route in ``skills/*-index/SKILL.md``.
+5. Validate the paper tutorial contract (plan coverage, map coverage, staged
+   assets, index routing, and no external absolute path leaks), then write
+   ``skills/.compile_report.json`` and continue to install unless strict
+   validation is enabled and findings exist.
+
 Useful recompile options:
 
 - ``--strict-compile-validation``: fail recompile when validation findings exist.
 - ``--keep-compile-artifacts``: keep temporary ``sci-skills-generator/`` folder after recompile.
 - ``--docs-only``: force docs-only coverage behavior (skip source-link requirements).
 - ``--install-off``: skip package install/registry/router updates; only refresh local ``skills/`` outputs.
+- ``--doc``: manuscript path for paper-focused skill synthesis and reproducibility audits.
+- ``--data-dir``: supplementary data directory used to build compact/full manifests and stage reproducible assets (requires ``--doc``).
+- ``--comment``: optional targeted paper objective; when omitted, recompile defaults to broad manuscript-result reproducibility.
 
 Recompile always updates/replaces the installed package for the same ``package_id``.
+In paper mode, run-scoped evidence lives under ``skills/.evidence/paper_context/``
+including ``paper_context.json``, ``paper_plan.json``,
+``figure_data_map.json``, ``paper_skill_manifest.json``,
+optional ``data/data_manifest_full.json``, ``data/data_manifest.json``,
+``data/data_summary.md``, and ``staged_assets_manifest.json`` + ``staged_assets/``.
 
 Auto-compile + curated metadata onboarding
 ------------------------------------------

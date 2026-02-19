@@ -197,6 +197,30 @@ def register_package_install_compile_parsers(
         help="Project root path to recompile (default: current directory).",
     )
     recompile_parser.add_argument(
+        "--doc",
+        default=None,
+        help=(
+            "Optional manuscript/paper path used to drive paper-focused skill "
+            "updates during recompile."
+        ),
+    )
+    recompile_parser.add_argument(
+        "--data-dir",
+        default=None,
+        help=(
+            "Optional supplementary data directory (inputs/scripts/results) used "
+            "for paper-focused recompile context."
+        ),
+    )
+    recompile_parser.add_argument(
+        "--comment",
+        default=None,
+        help=(
+            "Optional note describing which paper skills to learn; requires --doc. "
+            "When omitted, recompile targets broad paper-result reproducibility."
+        ),
+    )
+    recompile_parser.add_argument(
         "--title",
         help="Optional display title for installed package metadata.",
     )

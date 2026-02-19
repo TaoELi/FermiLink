@@ -250,6 +250,9 @@ def test_recompile_runs_three_passes_then_installs(
     assert code == 0
     assert len(pass_calls) == 3
     assert all("recompile" in str(item["prompt"]).lower() for item in pass_calls)
+    assert pass_calls[0]["prompt"] == cli.RECOMPILE_PROMPT_1
+    assert pass_calls[1]["prompt"] == cli.RECOMPILE_PROMPT_2
+    assert pass_calls[2]["prompt"] == cli.RECOMPILE_PROMPT_3
 
     assert len(install_calls) == 1
     assert install_calls[0]["root"] == scipkg_root
@@ -518,3 +521,386 @@ def test_recompile_force_flag_is_accepted_as_compat_noop(
     code = cli.main(["recompile", "newpkg", str(project_root), "--force"])
     assert code == 0
     assert install_forces == [True]
+
+
+def test_recompile_comment_requires_doc(tmp_path: Path, capsys) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+
+    code = cli.main(
+        ["recompile", "newpkg", str(project_root), "--comment", "focus figure 2"]
+    )
+    assert code == 2
+    assert "--comment requires --doc" in capsys.readouterr().err
+
+
+def test_recompile_rejects_missing_doc_path(tmp_path: Path, capsys) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+
+    missing_doc = project_root / "missing.tex"
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--doc",
+            str(missing_doc),
+        ]
+    )
+    assert code == 2
+    assert "--doc does not exist" in capsys.readouterr().err
+
+
+def test_recompile_rejects_non_directory_data_dir(tmp_path: Path, capsys) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    doc_path = project_root / "paper.md"
+    doc_path.write_text("# paper\n", encoding="utf-8")
+    not_a_dir = project_root / "data.txt"
+    not_a_dir.write_text("x", encoding="utf-8")
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--doc",
+            str(doc_path),
+            "--data-dir",
+            str(not_a_dir),
+        ]
+    )
+    assert code == 2
+    assert "--data-dir must be a directory" in capsys.readouterr().err
+
+
+def test_recompile_data_dir_requires_doc(tmp_path: Path, capsys) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    data_dir = project_root / "supplementary"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--data-dir",
+            str(data_dir),
+        ]
+    )
+    assert code == 2
+    assert "--data-dir requires --doc" in capsys.readouterr().err
+
+
+def test_recompile_accepts_doc_data_dir_and_comment(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    doc_path = project_root / "paper.md"
+    doc_path.write_text("# paper\n", encoding="utf-8")
+    data_dir = project_root / "supplementary"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "input.json").write_text("{\"x\": 1}\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    seen_prompts: list[str] = []
+
+    def fake_pass(*_a, **_k):
+        pass_index = int(_k.get("pass_index") or 1)
+        seen_prompts.append(str(_k.get("prompt") or ""))
+        assistant_text = ""
+        if pass_index == 1:
+            assistant_text = (
+                "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+                "<paper_plan>"
+                "{\"version\":1,\"paper_source\":\"paper.md\",\"used_packages\":[\"newpkg\"],"
+                "\"figures\":[{\"id\":\"fig_001\",\"title\":\"Figure 1\",\"targets\":[\"Figure 1\"],"
+                "\"objective\":\"obj\",\"simulation_config\":[\"cfg\"],"
+                "\"parameter_requirements\":[\"p\"],\"required_packages\":[\"newpkg\"],"
+                "\"expected_artifacts\":[\"plot\"],\"acceptance_checks\":[\"check\"]}]}"
+                "</paper_plan>"
+            )
+        return {
+            "pass": pass_index,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": assistant_text,
+        }
+
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        fake_pass,
+    )
+    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli,
+        "_build_recompile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence"},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 7,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--install-off",
+            "--json",
+            "--doc",
+            str(doc_path),
+            "--data-dir",
+            str(data_dir),
+            "--comment",
+            "focus on figure 2",
+        ]
+    )
+    assert code == 0
+    assert payloads
+    payload = payloads[0]
+    assert payload.get("doc_path") == str(doc_path.resolve())
+    assert payload.get("data_dir") == str(data_dir.resolve())
+    assert payload.get("comment") == "focus on figure 2"
+    assert payload.get("paper_mode") is True
+    paper_data_context = payload.get("paper_data_context")
+    assert isinstance(paper_data_context, dict)
+    assert paper_data_context.get("enabled") is True
+    artifacts = paper_data_context.get("artifacts")
+    assert isinstance(artifacts, dict)
+    manifest_rel = str(artifacts.get("manifest") or "")
+    manifest_full_rel = str(artifacts.get("manifest_full") or "")
+    summary_rel = str(artifacts.get("summary") or "")
+    assert manifest_rel
+    assert manifest_full_rel
+    assert summary_rel
+    assert (project_root / manifest_rel).is_file()
+    assert (project_root / manifest_full_rel).is_file()
+    assert (project_root / summary_rel).is_file()
+    assert seen_prompts
+    assert seen_prompts[0].startswith(cli.RECOMPILE_PAPER_PROMPT_1_PLAN)
+    assert "Original manuscript content" in seen_prompts[0]
+    assert seen_prompts[1].startswith(cli.RECOMPILE_PAPER_PROMPT_2_TUTORIAL)
+    assert "# paper" not in seen_prompts[1]
+    assert seen_prompts[2].startswith(cli.RECOMPILE_PAPER_PROMPT_3_AUDIT)
+    paper_context = payload.get("paper_context")
+    assert isinstance(paper_context, dict)
+    context_rel = str(paper_context.get("context_path") or "")
+    assert context_rel
+    assert (project_root / context_rel).is_file()
+    paper_plan = payload.get("paper_plan")
+    assert isinstance(paper_plan, dict)
+    assert paper_plan.get("figures")
+    assert payload.get("paper_plan_path") == cli.RECOMPILE_PAPER_PLAN_REL_PATH
+    assert isinstance(payload.get("paper_skill_id"), str)
+    paper_staged_assets = payload.get("paper_staged_assets")
+    assert isinstance(paper_staged_assets, dict)
+    assert int(paper_staged_assets.get("staged_count") or 0) >= 1
+    staged_manifest_rel = str(paper_staged_assets.get("manifest_path") or "")
+    assert staged_manifest_rel
+    assert (project_root / staged_manifest_rel).is_file()
+    staged_files = paper_staged_assets.get("staged_files")
+    assert isinstance(staged_files, list)
+    assert staged_files
+    staged_path = str(staged_files[0].get("staged_path") or "")
+    assert staged_path
+    assert (project_root / staged_path).is_file()
+
+
+def test_recompile_doc_only_still_writes_disabled_staged_assets_manifest(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    doc_path = project_root / "paper.md"
+    doc_path.write_text("# paper\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+
+    def fake_pass(*_a, **_k):
+        pass_index = int(_k.get("pass_index") or 1)
+        assistant_text = ""
+        if pass_index == 1:
+            assistant_text = (
+                "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+                "<paper_plan>"
+                "{\"version\":1,\"paper_source\":\"paper.md\",\"used_packages\":[\"newpkg\"],"
+                "\"figures\":[{\"id\":\"fig_001\",\"title\":\"Figure 1\",\"targets\":[\"Figure 1\"],"
+                "\"objective\":\"obj\",\"simulation_config\":[\"cfg\"],"
+                "\"parameter_requirements\":[\"p\"],\"required_packages\":[\"newpkg\"],"
+                "\"expected_artifacts\":[\"plot\"],\"acceptance_checks\":[\"check\"]}]}"
+                "</paper_plan>"
+            )
+        return {
+            "pass": pass_index,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": assistant_text,
+        }
+
+    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli,
+        "_build_recompile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence"},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 7,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--install-off",
+            "--json",
+            "--doc",
+            str(doc_path),
+        ]
+    )
+    assert code == 0
+    assert payloads
+    payload = payloads[0]
+    paper_staged_assets = payload.get("paper_staged_assets")
+    assert isinstance(paper_staged_assets, dict)
+    assert paper_staged_assets.get("enabled") is False
+    manifest_rel = str(paper_staged_assets.get("manifest_path") or "")
+    assert manifest_rel
+    assert (project_root / manifest_rel).is_file()
+
+
+def test_validate_recompile_paper_outputs_flags_missing_paper_skill(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    doc_path = project_root / "paper.md"
+    doc_path.write_text("# manuscript\n", encoding="utf-8")
+
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        doc_path=doc_path,
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("Missing paper plan payload" in str(item) for item in errors)
+
+
+def test_recompile_strict_validation_blocks_on_paper_validation(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    scipkg_root = tmp_path / "scientific_packages"
+    doc_path = project_root / "paper.md"
+    doc_path.write_text("# manuscript\n", encoding="utf-8")
+    data_dir = project_root / "supplementary"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "input.json").write_text("{\"x\": 1}\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": int(_k.get("pass_index") or 1),
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": (
+                "<compile_profile>{\"package_name\":\"newpkg\"}</compile_profile>"
+                "<paper_plan>"
+                "{\"version\":1,\"paper_source\":\"paper.md\",\"used_packages\":[\"newpkg\"],"
+                "\"figures\":[{\"id\":\"fig_001\",\"title\":\"Figure 1\",\"targets\":[\"Figure 1\"],"
+                "\"objective\":\"obj\",\"simulation_config\":[\"cfg\"],"
+                "\"parameter_requirements\":[\"p\"],\"required_packages\":[\"newpkg\"],"
+                "\"expected_artifacts\":[\"plot\"],\"acceptance_checks\":[\"check\"]}]}"
+                "</paper_plan>"
+                if int(_k.get("pass_index") or 1) == 1
+                else ""
+            ),
+        },
+    )
+    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli,
+        "_build_recompile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence"},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 5,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+    monkeypatch.setattr(
+        cli,
+        "install_from_local_path",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("install should not run")
+        ),
+    )
+
+    code = cli.main(
+        [
+            "recompile",
+            "newpkg",
+            str(project_root),
+            "--strict-compile-validation",
+            "--doc",
+            str(doc_path),
+            "--data-dir",
+            str(data_dir),
+        ]
+    )
+    assert code == 2
+    assert "Recompile validation failed" in capsys.readouterr().err
