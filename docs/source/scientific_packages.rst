@@ -136,7 +136,18 @@ Paper-mode pass flow (``--doc ...``):
 3. Pass 2 (tutorial synthesis): use ``paper_plan.json`` plus data manifests to
    build a new skill ``skills/paper_tutorial_<slug>/`` and fill sidecar files
    ``figure_data_map.json`` and ``paper_skill_manifest.json``.
+   The ``<slug>`` is derived from manuscript scope content (comment/plan
+   summaries) so it stays descriptive and avoids generic names such as
+   ``manuscript_revised``.
    The original manuscript text is not injected in this pass.
+   Runtime execution should be instructed under
+   ``projects/YYYY-MM-DD-<scope>/`` (copy from tutorial ``assets/``), not
+   under ``skills/.../workspace/``.
+   Under ``## Figure Routing``, each figure entry should include a brief
+   scope summary (scientific aim/condition) plus its playbook path.
+   The generated tutorial must be self-contained (copy lightweight inputs,
+   postprocess/plot scripts, and references into local ``assets/``) and must
+   not depend on ``skills/.evidence/`` paths or external ``--data-dir`` paths.
 4. Pass 3 (audit/finalize): audit the new tutorial skill against
    ``paper_plan.json``, optionally cross-check ``--doc`` and ``--data-dir``
    content, and append an advanced-topic route in ``skills/*-index/SKILL.md``.

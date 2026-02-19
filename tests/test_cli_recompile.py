@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fermilink import cli
@@ -33,6 +34,116 @@ def _make_existing_skills(project_root: Path) -> None:
     (project_root / "skills" / "newpkg-index" / "SKILL.md").write_text(
         "index", encoding="utf-8"
     )
+
+
+def _make_minimal_paper_tutorial(
+    project_root: Path,
+    *,
+    skill_id: str,
+    figure_id: str = "fig_001",
+    root_skill_text: str | None = None,
+) -> None:
+    skill_root = project_root / "skills" / skill_id
+    (skill_root / "references").mkdir(parents=True, exist_ok=True)
+    (skill_root / "assets").mkdir(parents=True, exist_ok=True)
+    (skill_root / "playbooks").mkdir(parents=True, exist_ok=True)
+    default_root = "\n".join(
+        [
+            f"# {skill_id}",
+            "",
+            "## Core Simulation Strategy",
+            "- baseline protocol",
+            "",
+            "## Minimal Execution Recipes",
+            "- stage runs under `projects/YYYY-MM-DD-demo/` and copy inputs from `assets/`",
+            "- `cd projects/YYYY-MM-DD-demo && python playbooks/fig_001.py`",
+            "",
+            "## Figure Routing",
+            (
+                f"- `{figure_id}`: cavity-water response baseline scope with fixed "
+                f"thermostat/integrator settings; playbook `playbooks/{figure_id}.md`"
+            ),
+            "",
+            "## Beyond Manuscript Exploration",
+            "- explore nearby parameter regimes with validation checks",
+        ]
+    )
+    (skill_root / "SKILL.md").write_text(
+        root_skill_text if root_skill_text is not None else default_root,
+        encoding="utf-8",
+    )
+    (skill_root / "references" / "doc_map.md").write_text("doc map", encoding="utf-8")
+    (skill_root / "references" / "source_map.md").write_text(
+        "source map", encoding="utf-8"
+    )
+    (skill_root / "playbooks" / f"{figure_id}.md").write_text(
+        "playbook", encoding="utf-8"
+    )
+    (project_root / "skills" / "newpkg-index" / "SKILL.md").write_text(
+        f"advanced route to {skill_id}",
+        encoding="utf-8",
+    )
+    figure_map_path = project_root / cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH
+    figure_map_path.parent.mkdir(parents=True, exist_ok=True)
+    figure_map_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "figures": [{"id": figure_id, "files": [], "unknowns": []}],
+                "global_unknowns": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_derive_recompile_paper_skill_id_prefers_scope_summary(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    (project_root / "skills").mkdir(parents=True, exist_ok=True)
+    doc_path = project_root / "manuscript_revised.md"
+    doc_path.write_text("# manuscript\n", encoding="utf-8")
+
+    skill_id = cli._derive_recompile_paper_skill_id(
+        project_root,
+        package_id="newpkg",
+        doc_path=doc_path,
+        paper_plan={
+            "global_assumptions": [
+                "cavity water single mode infrared response study",
+            ],
+            "figures": [
+                {
+                    "id": "fig_001",
+                    "title": "cavity water detuning sweep",
+                    "objective": "track lower and upper polariton branch shifts",
+                }
+            ],
+        },
+    )
+    assert skill_id.startswith("paper_tutorial_")
+    assert "manuscript" not in skill_id
+    assert "revised" not in skill_id
+    assert "cavity" in skill_id
+    assert "water" in skill_id
+
+
+def test_derive_recompile_paper_skill_id_avoids_generic_doc_stem(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    (project_root / "skills").mkdir(parents=True, exist_ok=True)
+    doc_path = project_root / "manuscript_revised.md"
+    doc_path.write_text("# manuscript\n", encoding="utf-8")
+
+    skill_id = cli._derive_recompile_paper_skill_id(
+        project_root,
+        package_id="newpkg",
+        doc_path=doc_path,
+    )
+    assert skill_id == "paper_tutorial_newpkg"
 
 
 def test_recompile_requires_existing_skills_folder(
@@ -822,6 +933,243 @@ def test_validate_recompile_paper_outputs_flags_missing_paper_skill(
     errors = result.get("errors")
     assert isinstance(errors, list)
     assert any("Missing paper plan payload" in str(item) for item in errors)
+
+
+def test_validate_recompile_paper_outputs_rejects_evidence_path_and_escape(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(project_root, skill_id=skill_id)
+    (project_root / "skills" / skill_id / "SKILL.md").write_text(
+        "\n".join(
+            [
+                f"# {skill_id}",
+                "",
+                "## Core Simulation Strategy",
+                "- use staged inputs from `skills/.evidence/paper_context/staged_assets`",
+                "- run helper at `../cavmd_examples_h2o/water_VUSC/collect.py`",
+                "",
+                "## Minimal Execution Recipes",
+                "- `python ../cavmd_examples_h2o/water_VUSC/collect.py`",
+                "",
+                "## Figure Routing",
+                "- `fig_001` -> `playbooks/fig_001.md`",
+                "",
+                "## Beyond Manuscript Exploration",
+                "- sweep coupling strengths around baseline",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("skills/.evidence" in str(item) for item in errors)
+    assert any("path escapes tutorial skill root" in str(item) for item in errors)
+
+
+def test_validate_recompile_paper_outputs_rejects_workspace_runtime_path(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(
+        project_root,
+        skill_id=skill_id,
+        root_skill_text="\n".join(
+            [
+                f"# {skill_id}",
+                "",
+                "## Core Simulation Strategy",
+                "- protocol",
+                "",
+                "## Minimal Execution Recipes",
+                "- create `workspace/single_mode_g0/` and run there",
+                "",
+                "## Figure Routing",
+                "- `fig_001` -> `playbooks/fig_001.md`",
+                "",
+                "## Beyond Manuscript Exploration",
+                "- explore",
+            ]
+        ),
+    )
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("workspace/" in str(item) for item in errors)
+    assert any("projects/yyyy-mm-dd-<scope>" in str(item).lower() for item in errors)
+
+
+def test_validate_recompile_paper_outputs_requires_projects_runtime_instruction(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(
+        project_root,
+        skill_id=skill_id,
+        root_skill_text="\n".join(
+            [
+                f"# {skill_id}",
+                "",
+                "## Core Simulation Strategy",
+                "- protocol",
+                "",
+                "## Minimal Execution Recipes",
+                "- run commands for figure reproduction",
+                "",
+                "## Figure Routing",
+                "- `fig_001` -> `playbooks/fig_001.md`",
+                "",
+                "## Beyond Manuscript Exploration",
+                "- explore",
+            ]
+        ),
+    )
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("projects/yyyy-mm-dd-<scope>" in str(item).lower() for item in errors)
+
+
+def test_validate_recompile_paper_outputs_requires_figure_scope_summary(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(
+        project_root,
+        skill_id=skill_id,
+        root_skill_text="\n".join(
+            [
+                f"# {skill_id}",
+                "",
+                "## Core Simulation Strategy",
+                "- protocol",
+                "",
+                "## Minimal Execution Recipes",
+                "- stage runs under `projects/YYYY-MM-DD-demo/` and copy inputs from `assets/`",
+                "",
+                "## Figure Routing",
+                "- `fig_001` (Figure 1a-1e): `playbooks/fig_001.md`",
+                "",
+                "## Beyond Manuscript Exploration",
+                "- explore",
+            ]
+        ),
+    )
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("brief scope description" in str(item).lower() for item in errors)
+
+
+def test_validate_recompile_paper_outputs_accepts_scope_summarized_routing(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(project_root, skill_id=skill_id)
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+        staged_assets={"staged_count": 0},
+    )
+    assert result["ok"] is True
+
+
+def test_validate_recompile_paper_outputs_requires_root_sections(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(
+        project_root,
+        skill_id=skill_id,
+        root_skill_text="\n".join(
+            [
+                f"# {skill_id}",
+                "",
+                "## Core Simulation Strategy",
+                "- protocol",
+                "",
+                "## Minimal Execution Recipes",
+                "- `python playbooks/fig_001.py`",
+                "",
+                "## Figure Routing",
+                "- `fig_001` -> `playbooks/fig_001.md`",
+            ]
+        ),
+    )
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("## beyond manuscript exploration" in str(item).lower() for item in errors)
+
+
+def test_validate_recompile_paper_outputs_rejects_oversized_assets(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    skill_id = "paper_tutorial_demo"
+    _make_minimal_paper_tutorial(project_root, skill_id=skill_id)
+    oversized = project_root / "skills" / skill_id / "assets" / "trajectory.xyz"
+    oversized.parent.mkdir(parents=True, exist_ok=True)
+    with oversized.open("wb") as handle:
+        handle.truncate((25 * 1024 * 1024) + 1)
+
+    result = cli._validate_recompile_paper_outputs(
+        project_root,
+        paper_plan={"version": 1, "figures": [{"id": "fig_001"}]},
+        paper_skill_id=skill_id,
+        staged_assets={"staged_count": 0},
+    )
+    assert result["ok"] is False
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any("oversized files" in str(item) for item in errors)
 
 
 def test_recompile_strict_validation_blocks_on_paper_validation(

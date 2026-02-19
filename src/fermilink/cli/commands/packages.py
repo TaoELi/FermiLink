@@ -1827,6 +1827,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 package_id=package_id,
                 doc_path=resolved_doc_path,
                 comment=comment_text or None,
+                paper_plan=paper_plan_payload,
             )
             cli._ensure_recompile_paper_skill_scaffold(
                 project_root,
