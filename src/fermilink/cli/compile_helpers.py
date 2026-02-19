@@ -140,6 +140,8 @@ COMPILE_MEMORY_COVERAGE_HISTORY_HEADING = "### Coverage history"
 COMPILE_MEMORY_VALIDATION_HISTORY_HEADING = "### Validation history"
 COMPILE_MEMORY_OPEN_GAPS_HEADING = "### Open gaps"
 COMPILE_MEMORY_DECISIONS_HEADING = "### Decisions and conventions"
+SKILLS_GITIGNORE_FILENAME = ".gitignore"
+SKILLS_GITIGNORE_EVIDENCE_ENTRY = ".evidence/"
 
 COMPILE_MEMORY_LONG_TERM_BLOCK = (
     f"{COMPILE_MEMORY_LONG_TERM_HEADING}\n"
@@ -231,6 +233,48 @@ def _replace_markdown_section(
 
 def _normalize_skill_id_token(raw: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(raw or "").strip().lower()).strip("-")
+
+
+def _ensure_skills_gitignore(project_root: Path) -> str:
+    cli = _cli()
+    skills_root = project_root / "skills"
+    if skills_root.exists() and not skills_root.is_dir():
+        raise cli.PackageError(
+            f"Expected skills/ to be a directory before writing .gitignore: {skills_root}"
+        )
+    skills_root.mkdir(parents=True, exist_ok=True)
+    gitignore_path = skills_root / SKILLS_GITIGNORE_FILENAME
+
+    existing_lines: list[str] = []
+    if gitignore_path.is_file():
+        try:
+            existing_lines = gitignore_path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to read skills/.gitignore at {gitignore_path}: {exc}"
+            ) from exc
+    elif gitignore_path.exists() and gitignore_path.is_dir():
+        raise cli.PackageError(
+            f"Expected file but found directory for skills/.gitignore: {gitignore_path}"
+        )
+
+    normalized_present = {
+        str(line).strip().rstrip("/")
+        for line in existing_lines
+        if isinstance(line, str) and str(line).strip()
+    }
+    target_norm = SKILLS_GITIGNORE_EVIDENCE_ENTRY.strip().rstrip("/")
+    if target_norm not in normalized_present:
+        existing_lines.append(SKILLS_GITIGNORE_EVIDENCE_ENTRY)
+
+    rendered = "\n".join(existing_lines).rstrip() + "\n"
+    try:
+        gitignore_path.write_text(rendered, encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to write skills/.gitignore at {gitignore_path}: {exc}"
+        ) from exc
+    return _safe_relative_path(gitignore_path, project_root)
 
 
 def _normalize_profile_dir_list(
@@ -741,6 +785,7 @@ def _ensure_compile_memory(
     mode: str,
 ) -> str:
     cli = _cli()
+    _ensure_skills_gitignore(project_root)
     memory_path = project_root / cli.COMPILE_MEMORY_REL_PATH
     evidence_dir = memory_path.parent
     if evidence_dir.exists() and not evidence_dir.is_dir():

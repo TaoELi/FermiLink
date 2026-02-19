@@ -86,6 +86,7 @@ Typical compile path:
    plan-target coverage.
 10. Write ``skills/.compile_report.json``, update compile memory history, and install
     the package (validation findings are reported by default).
+11. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so compile-only evidence stays local.
 
 Useful compile options:
 
@@ -129,6 +130,7 @@ Typical recompile path (standard mode):
 7. Validate skills (including plan coverage and source-coverage trend warnings),
    write ``skills/.compile_report.json``, and update compile memory history.
 8. Install updated package into scientific package storage (skipped with ``--install-off``).
+9. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so evidence artifacts are not committed by default.
 
 Paper-mode pass flow (``--doc ...``):
 
@@ -182,6 +184,8 @@ optional ``data/data_manifest_full.json``, ``data/data_manifest.json``,
 Both compile and recompile maintain persistent compile memory at
 ``skills/.evidence/memory.md`` and a run-plan sidecar at
 ``skills/.evidence/skill_plan.json`` for future refresh iterations.
+Both commands also enforce ``skills/.gitignore`` containing ``.evidence/`` so evidence
+artifacts remain local build metadata by default.
 
 Auto-compile + curated metadata onboarding
 ------------------------------------------

@@ -821,6 +821,10 @@ def test_compile_memory_lifecycle_records_run_summary(tmp_path: Path) -> None:
     assert memory_rel == cli.COMPILE_MEMORY_REL_PATH
     memory_path = project_root / memory_rel
     assert memory_path.is_file()
+    skills_gitignore = project_root / "skills" / ".gitignore"
+    assert skills_gitignore.is_file()
+    gitignore_text = skills_gitignore.read_text(encoding="utf-8")
+    assert ".evidence/" in gitignore_text
 
     cli._reset_compile_memory_short_term(
         project_root,
@@ -862,6 +866,26 @@ def test_compile_memory_lifecycle_records_run_summary(tmp_path: Path) -> None:
     assert "## Long-Term Memory (Persistent)" in memory_text
     assert "compile_20260219T010000Z" in memory_text
     assert "mypkg-api" in memory_text
+
+
+def test_ensure_compile_memory_appends_evidence_ignore_to_existing_skills_gitignore(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    skills_root = project_root / "skills"
+    skills_root.mkdir(parents=True, exist_ok=True)
+    gitignore_path = skills_root / ".gitignore"
+    gitignore_path.write_text("*.tmp\n", encoding="utf-8")
+
+    cli._ensure_compile_memory(
+        project_root,
+        package_id="mypkg",
+        mode="recompile",
+    )
+
+    updated = gitignore_path.read_text(encoding="utf-8")
+    assert "*.tmp" in updated
+    assert ".evidence/" in updated
 
 
 def test_build_compile_evidence_bundle_preserves_sidecar_files(
