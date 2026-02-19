@@ -361,9 +361,11 @@ def test_recompile_runs_three_passes_then_installs(
     assert code == 0
     assert len(pass_calls) == 3
     assert all("recompile" in str(item["prompt"]).lower() for item in pass_calls)
-    assert pass_calls[0]["prompt"] == cli.RECOMPILE_PROMPT_1
-    assert pass_calls[1]["prompt"] == cli.RECOMPILE_PROMPT_2
-    assert pass_calls[2]["prompt"] == cli.RECOMPILE_PROMPT_3
+    assert str(pass_calls[0]["prompt"]).startswith(cli.RECOMPILE_PROMPT_1)
+    assert str(pass_calls[1]["prompt"]).startswith(cli.RECOMPILE_PROMPT_2)
+    assert str(pass_calls[2]["prompt"]).startswith(cli.RECOMPILE_PROMPT_3)
+    assert "Compile memory file:" in str(pass_calls[0]["prompt"])
+    assert "Skill plan JSON file:" in str(pass_calls[1]["prompt"])
 
     assert len(install_calls) == 1
     assert install_calls[0]["root"] == scipkg_root
@@ -375,6 +377,12 @@ def test_recompile_runs_three_passes_then_installs(
     assert payloads[0].get("recompiled_package_id") == "newpkg"
     assert payloads[0].get("validation", {}).get("source_links_total") == 31
     assert payloads[0].get("validation_enforced") is False
+    memory_rel = str(payloads[0].get("compile_memory") or "")
+    assert memory_rel == cli.COMPILE_MEMORY_REL_PATH
+    assert (project_root / memory_rel).is_file()
+    skill_plan_rel = str(payloads[0].get("skill_plan_path") or "")
+    assert skill_plan_rel == cli.COMPILE_SKILL_PLAN_REL_PATH
+    assert (project_root / skill_plan_rel).is_file()
     assert not (project_root / "sci-skills-generator").exists()
 
 

@@ -87,6 +87,12 @@ def _utc_now_z() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _build_compile_run_id(prefix: str) -> str:
+    raw = _utc_now_z().replace("-", "").replace(":", "").replace(".", "")
+    token = re.sub(r"[^A-Za-z0-9]+", "", raw).strip() or "run"
+    return f"{prefix}_{token}"
+
+
 def _read_json_object(path: Path) -> dict[str, object]:
     cli = _cli()
     try:
@@ -1453,17 +1459,41 @@ def cmd_compile(args: argparse.Namespace) -> int:
             "Remove it first or choose a different path."
         )
 
+    run_mode = "compile"
+    run_id = _build_compile_run_id("compile")
+    run_goal = (
+        "Compile skills with deterministic generation, targeted enrichment, and audit."
+    )
+    compile_memory_path = cli._reset_compile_memory_short_term(
+        project_root,
+        package_id=package_id,
+        mode=run_mode,
+        run_id=run_id,
+        run_goal=run_goal,
+    )
+    previous_source_inventory = cli._load_previous_source_inventory(project_root)
+
     shutil.copytree(tool_source, tool_dest)
     compile_runs: list[dict[str, object]] = []
     profile_payload: dict[str, object] = {}
+    skill_plan_payload: dict[str, object] = {}
+    skill_plan_path = ""
+    pass_scope_diffs: dict[str, dict[str, list[str]]] = {}
     generation_result: dict[str, object] = {}
     evidence_payload: dict[str, object] = {}
     validation_payload: dict[str, object] = {}
+    memory_update_payload: dict[str, object] = {}
     compile_report_path = ""
     try:
+        pass_1_prompt = (
+            f"{cli.COMPILE_PROMPT_1}\n\n"
+            f"Compile memory file: {compile_memory_path}\n"
+            f"Skill plan output file: {cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
+            "Read compile memory first and keep this run plan consistent with prior gaps."
+        )
         pass_1 = cli._run_codex_compile_pass(
             project_root,
-            prompt=cli.COMPILE_PROMPT_1,
+            prompt=pass_1_prompt,
             pass_index=1,
             total_passes=3,
             provider=provider,
@@ -1477,6 +1507,16 @@ def cmd_compile(args: argparse.Namespace) -> int:
             default_package_name=package_id,
             assistant_text=pass_1_assistant_text,
         )
+        skill_plan_payload = cli._load_compile_skill_plan(
+            project_root,
+            package_id=package_id,
+            mode=run_mode,
+            assistant_text=pass_1_assistant_text,
+        )
+        skill_plan_path = cli._write_compile_skill_plan(
+            project_root,
+            skill_plan=skill_plan_payload,
+        )
         generation_result = cli._run_compile_generator(
             project_root,
             tool_dir=tool_dest,
@@ -1488,10 +1528,39 @@ def cmd_compile(args: argparse.Namespace) -> int:
             project_root,
             core_skill_count=core_skill_count,
         )
+        available_skill_ids = cli._list_skill_ids(project_root)
+        core_skill_ids_raw = evidence_payload.get("core_skills")
+        core_skill_ids = (
+            list(core_skill_ids_raw)
+            if isinstance(core_skill_ids_raw, list)
+            else []
+        )
+        skill_plan_payload = cli._normalize_compile_skill_plan(
+            skill_plan_payload,
+            package_id=package_id,
+            mode=run_mode,
+            available_skill_ids=available_skill_ids,
+            core_skill_ids=core_skill_ids,
+        )
+        skill_plan_path = cli._write_compile_skill_plan(
+            project_root,
+            skill_plan=skill_plan_payload,
+        )
+
+        pass_2_prompt = (
+            f"{cli.COMPILE_PROMPT_2}\n\n"
+            f"Compile memory file: {compile_memory_path}\n"
+            f"Skill plan JSON file: {skill_plan_path or cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
+            "Allowed edit scope in pass 2:\n"
+            "- skills/...\n\n"
+            "Skill plan JSON payload:\n"
+            f"{json.dumps(skill_plan_payload, indent=2)}\n"
+        )
+        pass_2_before_snapshot = cli._snapshot_skills_tree(project_root)
 
         pass_2 = cli._run_codex_compile_pass(
             project_root,
-            prompt=cli.COMPILE_PROMPT_2,
+            prompt=pass_2_prompt,
             pass_index=2,
             total_passes=3,
             provider=provider,
@@ -1499,10 +1568,31 @@ def cmd_compile(args: argparse.Namespace) -> int:
         )
         pass_2.pop("assistant_text", None)
         compile_runs.append(pass_2)
+        pass_2_after_snapshot = cli._snapshot_skills_tree(project_root)
+        pass_2_diff = cli._diff_skills_tree_snapshot(
+            pass_2_before_snapshot,
+            pass_2_after_snapshot,
+        )
+        pass_scope_diffs["pass_2"] = pass_2_diff
+        cli._assert_skills_change_scope(
+            change_diff=pass_2_diff,
+            allowed_prefixes=["skills"],
+            stage_label="compile pass 2",
+        )
+
+        pass_3_prompt = (
+            f"{cli.COMPILE_PROMPT_3}\n\n"
+            f"Compile memory file: {compile_memory_path}\n"
+            f"Skill plan JSON file: {skill_plan_path or cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
+            "Allowed edit scope in pass 3:\n"
+            "- skills/...\n"
+            "- skills/.compile_report.json (optional notes)\n"
+        )
+        pass_3_before_snapshot = cli._snapshot_skills_tree(project_root)
 
         pass_3 = cli._run_codex_compile_pass(
             project_root,
-            prompt=cli.COMPILE_PROMPT_3,
+            prompt=pass_3_prompt,
             pass_index=3,
             total_passes=3,
             provider=provider,
@@ -1510,23 +1600,57 @@ def cmd_compile(args: argparse.Namespace) -> int:
         )
         pass_3.pop("assistant_text", None)
         compile_runs.append(pass_3)
+        pass_3_after_snapshot = cli._snapshot_skills_tree(project_root)
+        pass_3_diff = cli._diff_skills_tree_snapshot(
+            pass_3_before_snapshot,
+            pass_3_after_snapshot,
+        )
+        pass_scope_diffs["pass_3"] = pass_3_diff
+        cli._assert_skills_change_scope(
+            change_diff=pass_3_diff,
+            allowed_prefixes=["skills"],
+            stage_label="compile pass 3",
+        )
 
         validation_payload = cli._validate_compiled_skills(
             project_root,
             profile=profile_payload,
             core_skill_count=core_skill_count,
+            skill_plan=skill_plan_payload,
+            source_inventory=evidence_payload.get("source_inventory")
+            if isinstance(evidence_payload, dict)
+            else None,
+            previous_source_inventory=previous_source_inventory,
         )
         compile_report_path = cli._write_compile_report(
             project_root,
             payload={
+                "mode": run_mode,
+                "run_id": run_id,
                 "compiled_package_id": package_id,
                 "project_root": str(project_root),
+                "compile_memory_path": compile_memory_path,
                 "profile": profile_payload,
+                "skill_plan": skill_plan_payload,
+                "skill_plan_path": skill_plan_path,
                 "generation": generation_result,
                 "evidence": evidence_payload,
+                "pass_scope_diffs": pass_scope_diffs,
                 "passes": compile_runs,
                 "validation": validation_payload,
             },
+        )
+        memory_update_payload = cli._record_compile_memory_run(
+            project_root,
+            package_id=package_id,
+            mode=run_mode,
+            run_id=run_id,
+            run_goal=run_goal,
+            skill_plan=skill_plan_payload,
+            pass_scope_diffs=pass_scope_diffs,
+            evidence=evidence_payload,
+            validation=validation_payload,
+            compile_report_path=compile_report_path,
         )
         if strict_compile_validation and not bool(validation_payload.get("ok", False)):
             errors = validation_payload.get("errors")
@@ -1564,10 +1688,17 @@ def cmd_compile(args: argparse.Namespace) -> int:
     payload = {
         "compiled_package_id": package_id,
         "project_root": str(project_root),
+        "run_id": run_id,
         "compile_runs": compile_runs,
+        "compile_memory": compile_memory_path,
+        "compile_memory_update": memory_update_payload,
         "compile_profile": profile_payload,
+        "skill_plan": skill_plan_payload,
+        "skill_plan_path": skill_plan_path,
         "generation": generation_result,
         "evidence": evidence_payload,
+        "pass_scope_diffs": pass_scope_diffs,
+        "previous_source_inventory": previous_source_inventory,
         "validation": validation_payload,
         "validation_enforced": strict_compile_validation,
         "compile_report": compile_report_path,
@@ -1723,9 +1854,27 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             "Remove it first or choose a different path."
         )
 
+    run_mode = "recompile_paper" if paper_mode_enabled else "recompile"
+    run_id = _build_compile_run_id("recompile")
+    run_goal = (
+        "Recompile paper tutorial and refresh package skills."
+        if paper_mode_enabled
+        else "Refresh existing skills with targeted coverage updates and audit."
+    )
+    compile_memory_path = cli._reset_compile_memory_short_term(
+        project_root,
+        package_id=package_id,
+        mode=run_mode,
+        run_id=run_id,
+        run_goal=run_goal,
+    )
+    previous_source_inventory = cli._load_previous_source_inventory(project_root)
+
     shutil.copytree(tool_source, tool_dest)
     compile_runs: list[dict[str, object]] = []
     profile_payload: dict[str, object] = {}
+    skill_plan_payload: dict[str, object] = {}
+    skill_plan_path = ""
     paper_context_payload: dict[str, object] | None = None
     paper_plan_payload: dict[str, object] | None = None
     paper_plan_rel = ""
@@ -1734,6 +1883,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     evidence_payload: dict[str, object] = {}
     validation_payload: dict[str, object] = {}
     paper_validation_payload: dict[str, object] | None = None
+    memory_update_payload: dict[str, object] = {}
     compile_report_path = ""
     manuscript_text = ""
     manuscript_source = ""
@@ -1753,7 +1903,12 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         except ValueError:
             manuscript_source = str(resolved_doc_path)
     try:
-        pass_1_prompt = cli.RECOMPILE_PROMPT_1
+        pass_1_prompt = (
+            f"{cli.RECOMPILE_PROMPT_1}\n\n"
+            f"Compile memory file: {compile_memory_path}\n"
+            f"Skill plan output file: {cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
+            "Read compile memory first and keep this run plan consistent with prior gaps."
+        )
         if paper_mode_enabled:
             scope_text = (
                 comment_text
@@ -1770,6 +1925,10 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 f"Paper context directory: {cli.RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH}\n\n"
                 "Original manuscript content:\n"
                 f"{manuscript_text.strip()}\n"
+            )
+            pass_1_prompt += (
+                f"\nCompile memory file: {compile_memory_path}\n"
+                "Read compile memory first and align paper tutorial edits with prior gaps.\n"
             )
             if isinstance(paper_data_context, dict) and bool(
                 paper_data_context.get("enabled")
@@ -1847,6 +2006,17 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         )
         if docs_only_override:
             profile_payload["docs_only"] = True
+        if not paper_mode_enabled:
+            skill_plan_payload = cli._load_compile_skill_plan(
+                project_root,
+                package_id=package_id,
+                mode=run_mode,
+                assistant_text=pass_1_assistant_text,
+            )
+            skill_plan_path = cli._write_compile_skill_plan(
+                project_root,
+                skill_plan=skill_plan_payload,
+            )
 
         if isinstance(resolved_doc_path, Path):
             paper_context_payload = cli._build_recompile_paper_context(
@@ -1869,8 +2039,41 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         if isinstance(paper_staged_assets, dict):
             evidence_payload["paper_staged_assets"] = paper_staged_assets
 
-        pass_2_prompt = cli.RECOMPILE_PROMPT_2
-        pass_2_before_snapshot: dict[str, str] | None = None
+        if not paper_mode_enabled:
+            available_skill_ids = cli._list_skill_ids(project_root)
+            core_skill_ids_raw = evidence_payload.get("core_skills")
+            core_skill_ids = (
+                list(core_skill_ids_raw)
+                if isinstance(core_skill_ids_raw, list)
+                else []
+            )
+            skill_plan_payload = cli._normalize_compile_skill_plan(
+                skill_plan_payload,
+                package_id=package_id,
+                mode=run_mode,
+                available_skill_ids=available_skill_ids,
+                core_skill_ids=core_skill_ids,
+            )
+            skill_plan_path = cli._write_compile_skill_plan(
+                project_root,
+                skill_plan=skill_plan_payload,
+            )
+
+        pass_2_prompt = (
+            f"{cli.RECOMPILE_PROMPT_2}\n\n"
+            f"Compile memory file: {compile_memory_path}\n"
+            f"Skill plan JSON file: {skill_plan_path or cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
+            "Allowed edit scope in pass 2:\n"
+            "- skills/...\n"
+        )
+        if not paper_mode_enabled and isinstance(skill_plan_payload, dict):
+            pass_2_prompt += (
+                "\nSkill plan JSON payload:\n"
+                f"{json.dumps(skill_plan_payload, indent=2)}\n"
+            )
+        pass_2_before_snapshot: dict[str, str] | None = cli._snapshot_skills_tree(
+            project_root
+        )
         if paper_mode_enabled:
             if not isinstance(paper_plan_payload, dict):
                 raise cli.PackageError(
@@ -1887,6 +2090,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 f"Paper skill manifest file: {cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}\n"
                 f"Staged assets manifest: {cli.RECOMPILE_PAPER_STAGED_ASSETS_MANIFEST_REL_PATH}\n"
                 f"Staged assets root: {cli.RECOMPILE_PAPER_STAGED_ASSETS_DIR_REL_PATH}\n\n"
+                f"Compile memory file: {compile_memory_path}\n"
                 "Allowed edit scope in pass 2:\n"
                 f"- skills/{paper_skill_id}/...\n"
                 f"- {cli.RECOMPILE_PAPER_FIGURE_DATA_MAP_REL_PATH}\n"
@@ -1925,6 +2129,19 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         pass_2.pop("assistant_text", None)
         compile_runs.append(pass_2)
 
+        if not paper_mode_enabled and isinstance(pass_2_before_snapshot, dict):
+            pass_2_after_snapshot = cli._snapshot_skills_tree(project_root)
+            pass_2_diff = cli._diff_skills_tree_snapshot(
+                pass_2_before_snapshot,
+                pass_2_after_snapshot,
+            )
+            pass_scope_diffs["pass_2"] = pass_2_diff
+            cli._assert_skills_change_scope(
+                change_diff=pass_2_diff,
+                allowed_prefixes=["skills"],
+                stage_label="recompile pass 2",
+            )
+
         if paper_mode_enabled and isinstance(pass_2_before_snapshot, dict):
             pass_2_after_snapshot = cli._snapshot_recompile_paper_skills(project_root)
             pass_2_diff = cli._diff_recompile_paper_skills_snapshot(
@@ -1942,8 +2159,17 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 stage_label="paper-mode pass 2",
             )
 
-        pass_3_prompt = cli.RECOMPILE_PROMPT_3
-        pass_3_before_snapshot: dict[str, str] | None = None
+        pass_3_prompt = (
+            f"{cli.RECOMPILE_PROMPT_3}\n\n"
+            f"Compile memory file: {compile_memory_path}\n"
+            f"Skill plan JSON file: {skill_plan_path or cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
+            "Allowed edit scope in pass 3:\n"
+            "- skills/...\n"
+            "- skills/.compile_report.json (optional notes)\n"
+        )
+        pass_3_before_snapshot: dict[str, str] | None = cli._snapshot_skills_tree(
+            project_root
+        )
         if paper_mode_enabled:
             pass_3_before_snapshot = cli._snapshot_recompile_paper_skills(project_root)
             figure_data_map_text = ""
@@ -1961,6 +2187,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 f"Paper skill manifest file: {cli.RECOMPILE_PAPER_SKILL_MANIFEST_REL_PATH}\n"
                 f"Target tutorial skill id: {paper_skill_id}\n"
                 f"Optional manuscript file for double check: {manuscript_source}\n"
+                f"Compile memory file: {compile_memory_path}\n"
             )
             if isinstance(resolved_data_dir, Path):
                 pass_3_prompt += f"Optional supplementary data dir: {resolved_data_dir}\n"
@@ -1989,6 +2216,19 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         )
         pass_3.pop("assistant_text", None)
         compile_runs.append(pass_3)
+
+        if not paper_mode_enabled and isinstance(pass_3_before_snapshot, dict):
+            pass_3_after_snapshot = cli._snapshot_skills_tree(project_root)
+            pass_3_diff = cli._diff_skills_tree_snapshot(
+                pass_3_before_snapshot,
+                pass_3_after_snapshot,
+            )
+            pass_scope_diffs["pass_3"] = pass_3_diff
+            cli._assert_skills_change_scope(
+                change_diff=pass_3_diff,
+                allowed_prefixes=["skills"],
+                stage_label="recompile pass 3",
+            )
 
         if paper_mode_enabled and isinstance(pass_3_before_snapshot, dict):
             pass_3_after_snapshot = cli._snapshot_recompile_paper_skills(project_root)
@@ -2019,6 +2259,11 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             project_root,
             profile=profile_payload,
             core_skill_count=core_skill_count,
+            skill_plan=skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+            source_inventory=evidence_payload.get("source_inventory")
+            if isinstance(evidence_payload, dict)
+            else None,
+            previous_source_inventory=previous_source_inventory,
         )
         if paper_mode_enabled:
             paper_validation_payload = cli._validate_recompile_paper_outputs(
@@ -2060,21 +2305,39 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         compile_report_path = cli._write_compile_report(
             project_root,
             payload={
-                "mode": "recompile",
+                "mode": run_mode,
+                "run_id": run_id,
                 "recompiled_package_id": package_id,
                 "project_root": str(project_root),
+                "compile_memory_path": compile_memory_path,
                 "profile": profile_payload,
+                "skill_plan": skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+                "skill_plan_path": skill_plan_path or None,
                 "paper_context": paper_context_payload,
                 "paper_plan": paper_plan_payload,
                 "paper_plan_path": paper_plan_rel,
                 "paper_skill_id": paper_skill_id,
+                "pass_scope_diffs": pass_scope_diffs,
                 "paper_pass_scope_diffs": pass_scope_diffs,
                 "paper_staged_assets": paper_staged_assets,
                 "paper_validation": paper_validation_payload,
                 "evidence": evidence_payload,
+                "previous_source_inventory": previous_source_inventory,
                 "passes": compile_runs,
                 "validation": validation_payload,
             },
+        )
+        memory_update_payload = cli._record_compile_memory_run(
+            project_root,
+            package_id=package_id,
+            mode=run_mode,
+            run_id=run_id,
+            run_goal=run_goal,
+            skill_plan=skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+            pass_scope_diffs=pass_scope_diffs,
+            evidence=evidence_payload,
+            validation=validation_payload,
+            compile_report_path=compile_report_path,
         )
         if strict_compile_validation and not bool(validation_payload.get("ok", False)):
             errors = validation_payload.get("errors")
@@ -2112,21 +2375,29 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     payload = {
         "recompiled_package_id": package_id,
         "project_root": str(project_root),
+        "run_id": run_id,
+        "run_mode": run_mode,
         "doc_path": str(resolved_doc_path) if isinstance(resolved_doc_path, Path) else None,
         "data_dir": str(resolved_data_dir) if isinstance(resolved_data_dir, Path) else None,
         "comment": comment_text or None,
+        "compile_memory": compile_memory_path,
+        "compile_memory_update": memory_update_payload,
+        "skill_plan": skill_plan_payload if isinstance(skill_plan_payload, dict) else None,
+        "skill_plan_path": skill_plan_path or None,
         "paper_mode": paper_mode_enabled,
         "paper_data_context": paper_data_context if isinstance(paper_data_context, dict) else None,
         "paper_context": paper_context_payload if isinstance(paper_context_payload, dict) else None,
         "paper_plan": paper_plan_payload if isinstance(paper_plan_payload, dict) else None,
         "paper_plan_path": paper_plan_rel or None,
         "paper_skill_id": paper_skill_id or None,
+        "pass_scope_diffs": pass_scope_diffs,
         "paper_pass_scope_diffs": pass_scope_diffs,
         "paper_staged_assets": paper_staged_assets if isinstance(paper_staged_assets, dict) else None,
         "paper_validation": paper_validation_payload if isinstance(paper_validation_payload, dict) else None,
         "compile_runs": compile_runs,
         "compile_profile": profile_payload,
         "evidence": evidence_payload,
+        "previous_source_inventory": previous_source_inventory,
         "validation": validation_payload,
         "validation_enforced": strict_compile_validation,
         "compile_report": compile_report_path,

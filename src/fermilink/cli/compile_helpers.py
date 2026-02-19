@@ -130,6 +130,39 @@ PAPER_SKILL_SCOPE_STOPWORDS = {
     "with",
 }
 
+COMPILE_MEMORY_SHORT_TERM_HEADING = "## Short-Term Memory (Current Run)"
+COMPILE_MEMORY_LONG_TERM_HEADING = "## Long-Term Memory (Persistent)"
+COMPILE_MEMORY_PLAN_HEADING = "### Plan"
+COMPILE_MEMORY_PASS_LOG_HEADING = "### Pass log"
+COMPILE_MEMORY_SKILL_INVENTORY_HEADING = "### Skill inventory"
+COMPILE_MEMORY_SKILL_CHANGE_HISTORY_HEADING = "### Skill change history"
+COMPILE_MEMORY_COVERAGE_HISTORY_HEADING = "### Coverage history"
+COMPILE_MEMORY_VALIDATION_HISTORY_HEADING = "### Validation history"
+COMPILE_MEMORY_OPEN_GAPS_HEADING = "### Open gaps"
+COMPILE_MEMORY_DECISIONS_HEADING = "### Decisions and conventions"
+
+COMPILE_MEMORY_LONG_TERM_BLOCK = (
+    f"{COMPILE_MEMORY_LONG_TERM_HEADING}\n"
+    "\n"
+    f"{COMPILE_MEMORY_SKILL_INVENTORY_HEADING}\n"
+    "- (run_id | skills_total | core_skills)\n"
+    "\n"
+    f"{COMPILE_MEMORY_SKILL_CHANGE_HISTORY_HEADING}\n"
+    "- (run_id | pass | skill_id | action | files)\n"
+    "\n"
+    f"{COMPILE_MEMORY_COVERAGE_HISTORY_HEADING}\n"
+    "- (run_id | total_source_files | referenced_source_files | uncovered_source_files)\n"
+    "\n"
+    f"{COMPILE_MEMORY_VALIDATION_HISTORY_HEADING}\n"
+    "- (run_id | ok | errors | warnings)\n"
+    "\n"
+    f"{COMPILE_MEMORY_OPEN_GAPS_HEADING}\n"
+    "- (run_id | gap | evidence | status)\n"
+    "\n"
+    f"{COMPILE_MEMORY_DECISIONS_HEADING}\n"
+    "- (run_id | decision | rationale | source)\n"
+)
+
 
 def _cli():
     from fermilink import cli
@@ -146,6 +179,58 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except OSError:
         return ""
+
+
+def _markdown_heading_exists(content: str, heading: str) -> bool:
+    return bool(re.search(rf"(?m)^\s*{re.escape(heading)}\s*$", content))
+
+
+def _append_markdown_block(content: str, block: str) -> str:
+    normalized = content.rstrip()
+    if normalized:
+        normalized += "\n\n"
+    return normalized + block.rstrip() + "\n"
+
+
+def _prepend_lines_after_heading(content: str, heading: str, lines: list[str]) -> str:
+    if not lines:
+        return content
+    pattern = re.compile(rf"(?m)^\s*{re.escape(heading)}\s*$")
+    match = pattern.search(content)
+    block = "\n".join(line.rstrip() for line in lines if str(line).strip()).rstrip()
+    if not block:
+        return content
+    if match is None:
+        return _append_markdown_block(content, f"{heading}\n{block}\n")
+    insert_at = match.end()
+    return content[:insert_at] + "\n" + block + content[insert_at:]
+
+
+def _replace_markdown_section(
+    content: str,
+    *,
+    heading: str,
+    new_section_body: str,
+    fallback_append_heading: str | None = None,
+) -> str:
+    heading_re = re.compile(rf"(?m)^\s*{re.escape(heading)}\s*$")
+    current_match = heading_re.search(content)
+    if current_match is None:
+        target_heading = fallback_append_heading or heading
+        return _append_markdown_block(
+            content, f"{target_heading}\n{new_section_body.strip()}\n"
+        )
+
+    next_same_level_re = re.compile(r"(?m)^##\s+.+$")
+    next_match = next_same_level_re.search(content, current_match.end())
+    start = current_match.end()
+    end = next_match.start() if next_match is not None else len(content)
+    replacement = "\n" + new_section_body.strip().rstrip() + "\n"
+    return content[:start] + replacement + content[end:]
+
+
+def _normalize_skill_id_token(raw: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(raw or "").strip().lower()).strip("-")
 
 
 def _normalize_profile_dir_list(
@@ -282,6 +367,663 @@ def _load_compile_profile(
     except OSError as exc:
         warnings.append(f"Failed to write normalized compile profile: {exc}")
     return profile
+
+
+def _extract_compile_skill_plan_from_assistant_text(
+    assistant_text: str,
+) -> dict[str, object] | None:
+    cli = _cli()
+    parsed = cli._extract_tagged_json_payload(
+        assistant_text, token_re=cli.COMPILE_SKILL_PLAN_TOKEN_RE
+    )
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _default_compile_skill_plan(
+    *,
+    mode: str,
+    package_id: str,
+) -> dict[str, object]:
+    normalized_mode = "recompile" if str(mode).strip().lower() == "recompile" else "compile"
+    goal = (
+        f"Refresh high-impact {package_id} skills for current development delta."
+        if normalized_mode == "recompile"
+        else f"Create simulation-ready core skills for {package_id}."
+    )
+    return {
+        "version": 1,
+        "mode": normalized_mode,
+        "goal": goal,
+        "priority_skills": [],
+        "deferred_gaps": [],
+        "warnings": [],
+    }
+
+
+def _select_default_plan_skill_ids(
+    *,
+    available_skill_ids: list[str],
+    core_skill_ids: list[str],
+    package_id: str,
+    limit: int = 6,
+) -> list[str]:
+    selected: list[str] = []
+    seen: set[str] = set()
+    for skill_id in core_skill_ids + available_skill_ids:
+        token = str(skill_id or "").strip()
+        if not token or token.endswith("-index"):
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        selected.append(token)
+        if len(selected) >= limit:
+            break
+    if selected:
+        return selected
+
+    fallback = [f"{package_id}-simulation-workflows", f"{package_id}-api-and-scripting"]
+    return fallback[:limit]
+
+
+def _resolve_skill_id_for_plan(
+    raw_skill_id: str,
+    *,
+    available_skill_ids: list[str],
+    package_id: str,
+) -> str:
+    token = str(raw_skill_id or "").strip()
+    if not token:
+        return ""
+    if token in available_skill_ids:
+        return token
+
+    normalized_target = _normalize_skill_id_token(token)
+    by_normalized = {
+        _normalize_skill_id_token(skill_id): skill_id for skill_id in available_skill_ids
+    }
+    if normalized_target in by_normalized:
+        return by_normalized[normalized_target]
+
+    prefixed = _normalize_skill_id_token(f"{package_id}-{token}")
+    if prefixed in by_normalized:
+        return by_normalized[prefixed]
+
+    token_parts = [part for part in normalized_target.split("-") if part]
+    if token_parts:
+        ranked: list[tuple[int, str]] = []
+        for skill_id in available_skill_ids:
+            skill_norm = _normalize_skill_id_token(skill_id)
+            score = sum(1 for part in token_parts if part in skill_norm)
+            if score > 0:
+                ranked.append((score, skill_id))
+        if ranked:
+            ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+            return ranked[0][1]
+    return token
+
+
+def _normalize_compile_skill_plan(
+    raw_plan: object,
+    *,
+    package_id: str,
+    mode: str,
+    available_skill_ids: list[str] | None = None,
+    core_skill_ids: list[str] | None = None,
+) -> dict[str, object]:
+    cli = _cli()
+    if raw_plan is None:
+        raw_plan = {}
+    if not isinstance(raw_plan, dict):
+        raise cli.PackageError("Compile skill plan payload must be a JSON object.")
+
+    available = [
+        str(item).strip()
+        for item in (available_skill_ids or [])
+        if isinstance(item, str) and str(item).strip()
+    ]
+    core = [
+        str(item).strip()
+        for item in (core_skill_ids or [])
+        if isinstance(item, str) and str(item).strip()
+    ]
+
+    normalized = _default_compile_skill_plan(mode=mode, package_id=package_id)
+    version_raw = raw_plan.get("version")
+    try:
+        version = int(version_raw) if version_raw is not None else 1
+    except (TypeError, ValueError):
+        version = 1
+    normalized["version"] = max(version, 1)
+    normalized["mode"] = (
+        "recompile" if str(raw_plan.get("mode") or mode).strip().lower() == "recompile" else "compile"
+    )
+    goal = " ".join(str(raw_plan.get("goal") or "").split()).strip()
+    if goal:
+        normalized["goal"] = goal
+
+    deferred = _normalize_string_list(raw_plan.get("deferred_gaps"))
+    normalized["deferred_gaps"] = deferred
+
+    priority_raw = raw_plan.get("priority_skills")
+    priority_items = priority_raw if isinstance(priority_raw, list) else []
+    priority: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in priority_items:
+        if not isinstance(item, dict):
+            continue
+        skill_id_raw = str(item.get("skill_id") or "").strip()
+        resolved_skill_id = _resolve_skill_id_for_plan(
+            skill_id_raw,
+            available_skill_ids=available,
+            package_id=package_id,
+        )
+        if not resolved_skill_id:
+            continue
+        if resolved_skill_id in seen:
+            continue
+        seen.add(resolved_skill_id)
+        action_raw = str(item.get("action") or "").strip().lower()
+        action = action_raw if action_raw in {"create", "refresh", "audit"} else "refresh"
+        reason = " ".join(str(item.get("reason") or "").split()).strip()
+        must_cover = _normalize_string_list(item.get("must_cover"))
+        source_hints = _normalize_string_list(item.get("source_hints"))
+        priority.append(
+            {
+                "skill_id": resolved_skill_id,
+                "action": action,
+                "reason": reason
+                or "High-impact route for simulation-start readiness.",
+                "must_cover": must_cover,
+                "source_hints": source_hints,
+            }
+        )
+
+    if not priority:
+        default_skill_ids = _select_default_plan_skill_ids(
+            available_skill_ids=available,
+            core_skill_ids=core,
+            package_id=package_id,
+            limit=6,
+        )
+        for skill_id in default_skill_ids:
+            if skill_id in seen:
+                continue
+            seen.add(skill_id)
+            priority.append(
+                {
+                    "skill_id": skill_id,
+                    "action": "refresh",
+                    "reason": "Auto-filled from core-skill selection due to missing tagged plan.",
+                    "must_cover": [],
+                    "source_hints": [],
+                }
+            )
+        normalized_warnings = list(normalized.get("warnings", []))
+        normalized_warnings.append(
+            "Missing/empty <skill_plan> payload; used auto-filled priority skills."
+        )
+        normalized["warnings"] = normalized_warnings
+
+    normalized["priority_skills"] = priority
+    normalized["available_skill_ids"] = available
+    normalized["core_skill_ids"] = core
+    return normalized
+
+
+def _write_compile_skill_plan(
+    project_root: Path,
+    *,
+    skill_plan: dict[str, object],
+) -> str:
+    cli = _cli()
+    plan_path = project_root / cli.COMPILE_SKILL_PLAN_REL_PATH
+    _write_text(plan_path, json.dumps(skill_plan, indent=2, sort_keys=True))
+    return _safe_relative_path(plan_path, project_root)
+
+
+def _load_compile_skill_plan(
+    project_root: Path,
+    *,
+    package_id: str,
+    mode: str,
+    assistant_text: str = "",
+    available_skill_ids: list[str] | None = None,
+    core_skill_ids: list[str] | None = None,
+) -> dict[str, object]:
+    cli = _cli()
+    plan_path = project_root / cli.COMPILE_SKILL_PLAN_REL_PATH
+    raw_plan: object | None = None
+    if plan_path.is_file():
+        try:
+            payload = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict):
+            raw_plan = payload
+    if raw_plan is None:
+        raw_plan = _extract_compile_skill_plan_from_assistant_text(assistant_text)
+
+    normalized = _normalize_compile_skill_plan(
+        raw_plan,
+        package_id=package_id,
+        mode=mode,
+        available_skill_ids=available_skill_ids,
+        core_skill_ids=core_skill_ids,
+    )
+    _write_compile_skill_plan(project_root, skill_plan=normalized)
+    return normalized
+
+
+def _list_skill_ids(project_root: Path) -> list[str]:
+    skills_root = project_root / "skills"
+    return [path.name for path in _collect_skill_dirs(skills_root)]
+
+
+def _compile_memory_short_term_block(
+    *,
+    run_id: str,
+    mode: str,
+    run_goal: str,
+) -> str:
+    started_at = _cli()._utc_now_z()
+    return (
+        f"{COMPILE_MEMORY_SHORT_TERM_HEADING}\n"
+        "\n"
+        f"{COMPILE_MEMORY_PLAN_HEADING}\n"
+        "- [ ] pass 1 discovery + planning\n"
+        "- [ ] pass 2 targeted updates\n"
+        "- [ ] pass 3 audit + finalize\n"
+        "- [ ] validation + report + memory update\n"
+        "\n"
+        f"{COMPILE_MEMORY_PASS_LOG_HEADING}\n"
+        f"- run_id: {run_id}\n"
+        f"- mode: {mode}\n"
+        f"- goal: {run_goal}\n"
+        f"- initialized_at_utc: {started_at}\n"
+    )
+
+
+def _upsert_compile_memory_metadata_line(content: str, key: str, value: str) -> str:
+    line = f"- {key}: {value}"
+    pattern = re.compile(rf"(?m)^-\s*{re.escape(key)}:\s*.*$")
+    if pattern.search(content):
+        return pattern.sub(line, content, count=1)
+    lines = content.splitlines()
+    insert_index = 1 if lines else 0
+    while insert_index < len(lines) and lines[insert_index].startswith("- "):
+        insert_index += 1
+    lines.insert(insert_index, line)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _upgrade_compile_memory_schema(
+    memory_path: Path,
+    *,
+    package_id: str,
+    mode: str,
+) -> None:
+    cli = _cli()
+    try:
+        content = memory_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read compile memory file for schema upgrade: {memory_path}: {exc}"
+        ) from exc
+
+    upgraded = content
+    if not _markdown_heading_exists(upgraded, COMPILE_MEMORY_SHORT_TERM_HEADING):
+        upgraded = _append_markdown_block(
+            upgraded,
+            _compile_memory_short_term_block(
+                run_id="run_pending",
+                mode=mode,
+                run_goal=f"Compile-memory bootstrap for {package_id}.",
+            ),
+        )
+    else:
+        if not _markdown_heading_exists(upgraded, COMPILE_MEMORY_PLAN_HEADING):
+            upgraded = _append_markdown_block(
+                upgraded,
+                f"{COMPILE_MEMORY_PLAN_HEADING}\n"
+                "- [ ] pass 1 discovery + planning\n"
+                "- [ ] pass 2 targeted updates\n"
+                "- [ ] pass 3 audit + finalize\n"
+                "- [ ] validation + report + memory update\n",
+            )
+        if not _markdown_heading_exists(upgraded, COMPILE_MEMORY_PASS_LOG_HEADING):
+            upgraded = _append_markdown_block(
+                upgraded,
+                f"{COMPILE_MEMORY_PASS_LOG_HEADING}\n"
+                "- initialized\n",
+            )
+
+    if not _markdown_heading_exists(upgraded, COMPILE_MEMORY_LONG_TERM_HEADING):
+        upgraded = _append_markdown_block(upgraded, COMPILE_MEMORY_LONG_TERM_BLOCK)
+    else:
+        required_headings = (
+            COMPILE_MEMORY_SKILL_INVENTORY_HEADING,
+            COMPILE_MEMORY_SKILL_CHANGE_HISTORY_HEADING,
+            COMPILE_MEMORY_COVERAGE_HISTORY_HEADING,
+            COMPILE_MEMORY_VALIDATION_HISTORY_HEADING,
+            COMPILE_MEMORY_OPEN_GAPS_HEADING,
+            COMPILE_MEMORY_DECISIONS_HEADING,
+        )
+        for heading in required_headings:
+            if _markdown_heading_exists(upgraded, heading):
+                continue
+            upgraded = _append_markdown_block(upgraded, f"{heading}\n- (pending)\n")
+
+    updated_at = cli._utc_now_z()
+    upgraded = _upsert_compile_memory_metadata_line(upgraded, "schema_version", "1")
+    upgraded = _upsert_compile_memory_metadata_line(upgraded, "package_id", package_id)
+    upgraded = _upsert_compile_memory_metadata_line(upgraded, "mode", mode)
+    upgraded = _upsert_compile_memory_metadata_line(
+        upgraded, "last_updated_utc", updated_at
+    )
+
+    if upgraded == content:
+        return
+    try:
+        memory_path.write_text(upgraded, encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to update compile memory schema at {memory_path}: {exc}"
+        ) from exc
+
+
+def _ensure_compile_memory(
+    project_root: Path,
+    *,
+    package_id: str,
+    mode: str,
+) -> str:
+    cli = _cli()
+    memory_path = project_root / cli.COMPILE_MEMORY_REL_PATH
+    evidence_dir = memory_path.parent
+    if evidence_dir.exists() and not evidence_dir.is_dir():
+        raise cli.PackageError(
+            f"Compile evidence path exists but is not a directory: {evidence_dir}"
+        )
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    if not memory_path.exists():
+        started_at = cli._utc_now_z()
+        initial = (
+            "# FermiLink Skills Compile Memory\n"
+            "\n"
+            "- schema_version: 1\n"
+            f"- package_id: {package_id}\n"
+            f"- mode: {mode}\n"
+            f"- started_at_utc: {started_at}\n"
+            f"- last_updated_utc: {started_at}\n"
+            "- last_run_id: run_pending\n"
+            "\n"
+            "## Purpose\n"
+            "- Persistent compile/recompile memory for the `skills/` tree.\n"
+            "- Tracks what skills were created/modified, coverage trend, and open gaps.\n"
+            "\n"
+            f"{_compile_memory_short_term_block(run_id='run_pending', mode=mode, run_goal=f'Initialize memory for {package_id}.').rstrip()}\n"
+            "\n"
+            f"{COMPILE_MEMORY_LONG_TERM_BLOCK}\n"
+        )
+        try:
+            memory_path.write_text(initial, encoding="utf-8")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to create compile memory file: {memory_path}: {exc}"
+            ) from exc
+        return _safe_relative_path(memory_path, project_root)
+
+    _upgrade_compile_memory_schema(memory_path, package_id=package_id, mode=mode)
+    return _safe_relative_path(memory_path, project_root)
+
+
+def _reset_compile_memory_short_term(
+    project_root: Path,
+    *,
+    package_id: str,
+    mode: str,
+    run_id: str,
+    run_goal: str,
+) -> str:
+    cli = _cli()
+    memory_rel = _ensure_compile_memory(project_root, package_id=package_id, mode=mode)
+    memory_path = project_root / memory_rel
+    try:
+        content = memory_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read compile memory file: {memory_path}: {exc}"
+        ) from exc
+
+    short_block = _compile_memory_short_term_block(
+        run_id=run_id,
+        mode=mode,
+        run_goal=run_goal,
+    )
+    updated = _replace_markdown_section(
+        content,
+        heading=COMPILE_MEMORY_SHORT_TERM_HEADING,
+        new_section_body=short_block.split("\n", 1)[1],
+        fallback_append_heading=COMPILE_MEMORY_SHORT_TERM_HEADING,
+    )
+    updated = _upsert_compile_memory_metadata_line(updated, "package_id", package_id)
+    updated = _upsert_compile_memory_metadata_line(updated, "mode", mode)
+    updated = _upsert_compile_memory_metadata_line(updated, "last_run_id", run_id)
+    updated = _upsert_compile_memory_metadata_line(
+        updated, "last_updated_utc", cli._utc_now_z()
+    )
+    try:
+        memory_path.write_text(updated, encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to reset compile memory short-term section: {memory_path}: {exc}"
+        ) from exc
+    return memory_rel
+
+
+def _extract_changed_skill_ids_from_scope_diffs(
+    pass_scope_diffs: dict[str, dict[str, list[str]]] | None,
+) -> list[str]:
+    skill_ids: list[str] = []
+    seen: set[str] = set()
+    if not isinstance(pass_scope_diffs, dict):
+        return skill_ids
+    for diff_payload in pass_scope_diffs.values():
+        if not isinstance(diff_payload, dict):
+            continue
+        changed = diff_payload.get("changed")
+        if not isinstance(changed, list):
+            continue
+        for raw_path in changed:
+            path = str(raw_path or "").replace("\\", "/")
+            if not path.startswith("skills/"):
+                continue
+            parts = path.split("/")
+            if len(parts) < 2:
+                continue
+            skill_id = parts[1].strip()
+            if not skill_id or skill_id.startswith("."):
+                continue
+            if skill_id in seen:
+                continue
+            seen.add(skill_id)
+            skill_ids.append(skill_id)
+    return skill_ids
+
+
+def _record_compile_memory_run(
+    project_root: Path,
+    *,
+    package_id: str,
+    mode: str,
+    run_id: str,
+    run_goal: str,
+    skill_plan: dict[str, object] | None,
+    pass_scope_diffs: dict[str, dict[str, list[str]]] | None,
+    evidence: dict[str, object] | None,
+    validation: dict[str, object] | None,
+    compile_report_path: str,
+) -> dict[str, object]:
+    cli = _cli()
+    memory_rel = _ensure_compile_memory(project_root, package_id=package_id, mode=mode)
+    memory_path = project_root / memory_rel
+    try:
+        content = memory_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read compile memory file for update: {memory_path}: {exc}"
+        ) from exc
+
+    now_utc = cli._utc_now_z()
+    changed_skills = _extract_changed_skill_ids_from_scope_diffs(pass_scope_diffs)
+    if not changed_skills and isinstance(skill_plan, dict):
+        raw_priority = skill_plan.get("priority_skills")
+        if isinstance(raw_priority, list):
+            for item in raw_priority:
+                if not isinstance(item, dict):
+                    continue
+                skill_id = str(item.get("skill_id") or "").strip()
+                if skill_id and skill_id not in changed_skills:
+                    changed_skills.append(skill_id)
+                if len(changed_skills) >= 12:
+                    break
+
+    skills_total = len(_list_skill_ids(project_root))
+    core_skills = []
+    if isinstance(evidence, dict):
+        raw_core = evidence.get("core_skills")
+        if isinstance(raw_core, list):
+            core_skills = [
+                str(item).strip() for item in raw_core if isinstance(item, str) and str(item).strip()
+            ]
+    core_preview = ", ".join(core_skills[:6]) if core_skills else "none"
+
+    source_inventory = evidence.get("source_inventory") if isinstance(evidence, dict) else None
+    total_source_files = int(source_inventory.get("total_source_files") or 0) if isinstance(source_inventory, dict) else 0
+    referenced_source_files = int(source_inventory.get("referenced_source_files") or 0) if isinstance(source_inventory, dict) else 0
+    uncovered_source_files = int(source_inventory.get("uncovered_source_files") or 0) if isinstance(source_inventory, dict) else 0
+
+    validation_payload = validation if isinstance(validation, dict) else {}
+    ok = bool(validation_payload.get("ok", False))
+    errors = validation_payload.get("errors")
+    warnings = validation_payload.get("warnings")
+    error_count = len(errors) if isinstance(errors, list) else 0
+    warning_count = len(warnings) if isinstance(warnings, list) else 0
+
+    pass_log_lines = [
+        f"- completed_at_utc: {now_utc}",
+        f"- report: {compile_report_path}",
+        f"- changed_skills: {', '.join(changed_skills[:12]) if changed_skills else 'none detected'}",
+        f"- validation: ok={ok} errors={error_count} warnings={warning_count}",
+    ]
+
+    updated = content
+    updated = _upsert_compile_memory_metadata_line(updated, "package_id", package_id)
+    updated = _upsert_compile_memory_metadata_line(updated, "mode", mode)
+    updated = _upsert_compile_memory_metadata_line(updated, "last_run_id", run_id)
+    updated = _upsert_compile_memory_metadata_line(updated, "last_updated_utc", now_utc)
+
+    plan_completed_block = (
+        f"{COMPILE_MEMORY_PLAN_HEADING}\n"
+        "- [x] pass 1 discovery + planning\n"
+        "- [x] pass 2 targeted updates\n"
+        "- [x] pass 3 audit + finalize\n"
+        "- [x] validation + report + memory update\n"
+        "\n"
+        f"{COMPILE_MEMORY_PASS_LOG_HEADING}\n"
+        f"- run_id: {run_id}\n"
+        f"- mode: {mode}\n"
+        f"- goal: {run_goal}\n"
+        "\n"
+        + "\n".join(pass_log_lines)
+    )
+    updated = _replace_markdown_section(
+        updated,
+        heading=COMPILE_MEMORY_SHORT_TERM_HEADING,
+        new_section_body=plan_completed_block,
+        fallback_append_heading=COMPILE_MEMORY_SHORT_TERM_HEADING,
+    )
+
+    updated = _prepend_lines_after_heading(
+        updated,
+        COMPILE_MEMORY_SKILL_INVENTORY_HEADING,
+        [f"- {run_id} | skills_total={skills_total} | core_skills={core_preview}"],
+    )
+    if changed_skills:
+        skill_change_lines = [
+            f"- {run_id} | pass_2_3 | {skill_id} | refreshed | see {compile_report_path}"
+            for skill_id in changed_skills[:20]
+        ]
+    else:
+        skill_change_lines = [
+            f"- {run_id} | pass_2_3 | none | no skill file changes detected | see {compile_report_path}"
+        ]
+    updated = _prepend_lines_after_heading(
+        updated,
+        COMPILE_MEMORY_SKILL_CHANGE_HISTORY_HEADING,
+        skill_change_lines,
+    )
+    updated = _prepend_lines_after_heading(
+        updated,
+        COMPILE_MEMORY_COVERAGE_HISTORY_HEADING,
+        [
+            f"- {run_id} | total={total_source_files} | referenced={referenced_source_files} | uncovered={uncovered_source_files}"
+        ],
+    )
+    updated = _prepend_lines_after_heading(
+        updated,
+        COMPILE_MEMORY_VALIDATION_HISTORY_HEADING,
+        [f"- {run_id} | ok={ok} | errors={error_count} | warnings={warning_count}"],
+    )
+    gap_lines: list[str] = []
+    if isinstance(errors, list) and errors:
+        for item in errors[:8]:
+            clue = " ".join(str(item).split())
+            if clue:
+                gap_lines.append(
+                    f"- {run_id} | {clue} | evidence={compile_report_path} | status=open"
+                )
+    else:
+        gap_lines.append(
+            f"- {run_id} | no blocking validation gaps recorded | evidence={compile_report_path} | status=closed"
+        )
+    updated = _prepend_lines_after_heading(
+        updated,
+        COMPILE_MEMORY_OPEN_GAPS_HEADING,
+        gap_lines,
+    )
+    decision_text = ""
+    if isinstance(skill_plan, dict):
+        decision_text = " ".join(str(skill_plan.get("goal") or "").split()).strip()
+    if not decision_text:
+        decision_text = "Follow deterministic generation + targeted enrichment + audit."
+    updated = _prepend_lines_after_heading(
+        updated,
+        COMPILE_MEMORY_DECISIONS_HEADING,
+        [
+            f"- {run_id} | {decision_text} | rationale={run_goal} | source={compile_report_path}"
+        ],
+    )
+
+    try:
+        memory_path.write_text(updated.rstrip() + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to write compile memory update at {memory_path}: {exc}"
+        ) from exc
+
+    return {
+        "memory_path": memory_rel,
+        "run_id": run_id,
+        "updated_at_utc": now_utc,
+        "changed_skills": changed_skills,
+        "validation_ok": ok,
+        "error_count": error_count,
+    }
 
 
 def _run_compile_generator(
@@ -918,7 +1660,7 @@ def _initialize_recompile_paper_sidecar_files(
     }
 
 
-def _snapshot_recompile_paper_skills(project_root: Path) -> dict[str, str]:
+def _snapshot_skills_tree(project_root: Path) -> dict[str, str]:
     skills_root = project_root / "skills"
     snapshot: dict[str, str] = {}
     if not skills_root.is_dir():
@@ -935,7 +1677,7 @@ def _snapshot_recompile_paper_skills(project_root: Path) -> dict[str, str]:
     return snapshot
 
 
-def _diff_recompile_paper_skills_snapshot(
+def _diff_skills_tree_snapshot(
     before: dict[str, str],
     after: dict[str, str],
 ) -> dict[str, list[str]]:
@@ -954,11 +1696,12 @@ def _diff_recompile_paper_skills_snapshot(
     }
 
 
-def _assert_recompile_paper_change_scope(
+def _assert_skills_change_scope(
     *,
     change_diff: dict[str, list[str]],
     allowed_prefixes: list[str],
     stage_label: str,
+    scope_label: str = "skills",
 ) -> None:
     cli = _cli()
     allowed = [prefix.replace("\\", "/").rstrip("/") + "/" for prefix in allowed_prefixes]
@@ -974,8 +1717,33 @@ def _assert_recompile_paper_change_scope(
     if violations:
         preview = "; ".join(violations[:12])
         raise cli.PackageError(
-            f"{stage_label} modified files outside allowed paper-mode scope: {preview}"
+            f"{stage_label} modified files outside allowed {scope_label} scope: {preview}"
         )
+
+
+def _snapshot_recompile_paper_skills(project_root: Path) -> dict[str, str]:
+    return _snapshot_skills_tree(project_root)
+
+
+def _diff_recompile_paper_skills_snapshot(
+    before: dict[str, str],
+    after: dict[str, str],
+) -> dict[str, list[str]]:
+    return _diff_skills_tree_snapshot(before, after)
+
+
+def _assert_recompile_paper_change_scope(
+    *,
+    change_diff: dict[str, list[str]],
+    allowed_prefixes: list[str],
+    stage_label: str,
+) -> None:
+    _assert_skills_change_scope(
+        change_diff=change_diff,
+        allowed_prefixes=allowed_prefixes,
+        stage_label=stage_label,
+        scope_label="paper-mode",
+    )
 
 
 def _build_recompile_paper_context(
@@ -1196,8 +1964,23 @@ def _build_compile_evidence_bundle(
         raise cli.PackageError("Missing skills/ folder before enrichment stage.")
 
     evidence_root = project_root / cli.COMPILE_EVIDENCE_DIR_REL_PATH
-    shutil.rmtree(evidence_root, ignore_errors=True)
     evidence_root.mkdir(parents=True, exist_ok=True)
+    preserved_filenames = {
+        Path(cli.COMPILE_MEMORY_REL_PATH).name,
+        Path(cli.COMPILE_SKILL_PLAN_REL_PATH).name,
+    }
+    for child in sorted(evidence_root.iterdir()):
+        if child.is_dir():
+            # Preserve directories (for example paper_context/ payloads).
+            continue
+        if child.name in preserved_filenames:
+            continue
+        try:
+            child.unlink()
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to clean stale compile evidence file: {child}: {exc}"
+            ) from exc
 
     selected_skill_dirs = _select_core_skill_dirs(skills_root, core_skill_count)
     written_files: list[str] = []
@@ -1954,6 +2737,9 @@ def _validate_compiled_skills(
     *,
     profile: dict[str, object],
     core_skill_count: int,
+    skill_plan: dict[str, object] | None = None,
+    source_inventory: dict[str, object] | None = None,
+    previous_source_inventory: dict[str, object] | None = None,
 ) -> dict[str, object]:
     skills_root = project_root / "skills"
     errors: list[str] = []
@@ -1968,6 +2754,8 @@ def _validate_compiled_skills(
             "skills_total": 0,
             "source_links_total": 0,
             "core_skills_checked": [],
+            "planned_skill_ids": [],
+            "missing_planned_skills": [],
         }
 
     index_skills = [path.name for path in skill_dirs if path.name.endswith("-index")]
@@ -2033,6 +2821,48 @@ def _validate_compiled_skills(
     for skill_dir in core_skill_dirs:
         errors.extend(_validate_skill_playbook(skill_dir / "SKILL.md"))
 
+    available_skill_ids = {path.name for path in skill_dirs}
+    planned_skill_ids: list[str] = []
+    missing_planned_skills: list[str] = []
+    if isinstance(skill_plan, dict):
+        raw_priority = skill_plan.get("priority_skills")
+        if isinstance(raw_priority, list):
+            for item in raw_priority:
+                if not isinstance(item, dict):
+                    continue
+                skill_id = str(item.get("skill_id") or "").strip()
+                if not skill_id:
+                    continue
+                if skill_id not in planned_skill_ids:
+                    planned_skill_ids.append(skill_id)
+                if skill_id in available_skill_ids:
+                    continue
+                if skill_id not in missing_planned_skills:
+                    missing_planned_skills.append(skill_id)
+                    errors.append(
+                        f"skill plan target missing from generated skills/: {skill_id}"
+                    )
+
+    current_inventory = source_inventory if isinstance(source_inventory, dict) else {}
+    previous_inventory = (
+        previous_source_inventory
+        if isinstance(previous_source_inventory, dict)
+        else {}
+    )
+    current_uncovered = int(current_inventory.get("uncovered_source_files") or 0)
+    previous_uncovered = int(previous_inventory.get("uncovered_source_files") or 0)
+    if previous_inventory and current_inventory:
+        if current_uncovered > previous_uncovered:
+            warnings.append(
+                "Source coverage trend regressed: uncovered source files increased "
+                f"from {previous_uncovered} to {current_uncovered}."
+            )
+        elif current_uncovered < previous_uncovered:
+            warnings.append(
+                "Source coverage trend improved: uncovered source files decreased "
+                f"from {previous_uncovered} to {current_uncovered}."
+            )
+
     if not docs_only and total_source_links <= 0:
         errors.append("No source-code links were detected across topic skills.")
 
@@ -2046,7 +2876,37 @@ def _validate_compiled_skills(
         "core_skills_checked": core_skill_names,
         "source_links_total": total_source_links,
         "docs_only": docs_only,
+        "planned_skill_ids": planned_skill_ids,
+        "missing_planned_skills": missing_planned_skills,
+        "source_inventory": current_inventory,
+        "previous_source_inventory": previous_inventory,
     }
+
+
+def _load_previous_source_inventory(project_root: Path) -> dict[str, object]:
+    cli = _cli()
+    report_path = project_root / cli.COMPILE_REPORT_REL_PATH
+    if not report_path.is_file():
+        return {}
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+
+    evidence = payload.get("evidence")
+    if isinstance(evidence, dict):
+        source_inventory = evidence.get("source_inventory")
+        if isinstance(source_inventory, dict):
+            return dict(source_inventory)
+
+    validation = payload.get("validation")
+    if isinstance(validation, dict):
+        source_inventory = validation.get("source_inventory")
+        if isinstance(source_inventory, dict):
+            return dict(source_inventory)
+    return {}
 
 
 def _write_compile_report(

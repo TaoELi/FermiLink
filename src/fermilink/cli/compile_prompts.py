@@ -6,6 +6,9 @@ import re
 COMPILE_PROFILE_TAG = "compile_profile"
 COMPILE_PROFILE_REL_PATH = "skills/.compile_profile.json"
 COMPILE_EVIDENCE_DIR_REL_PATH = "skills/.evidence"
+COMPILE_MEMORY_REL_PATH = "skills/.evidence/memory.md"
+COMPILE_SKILL_PLAN_TAG = "skill_plan"
+COMPILE_SKILL_PLAN_REL_PATH = "skills/.evidence/skill_plan.json"
 RECOMPILE_COVERAGE_REL_PATH = "skills/.evidence/recompile_coverage.md"
 COMPILE_REPORT_REL_PATH = "skills/.compile_report.json"
 RECOMPILE_PAPER_CONTEXT_DIR_REL_PATH = "skills/.evidence/paper_context"
@@ -30,6 +33,10 @@ RECOMPILE_PAPER_PLAN_TOKEN_RE = re.compile(
     rf"<{RECOMPILE_PAPER_PLAN_TAG}>(.*?)</{RECOMPILE_PAPER_PLAN_TAG}>",
     re.IGNORECASE | re.DOTALL,
 )
+COMPILE_SKILL_PLAN_TOKEN_RE = re.compile(
+    rf"<{COMPILE_SKILL_PLAN_TAG}>(.*?)</{COMPILE_SKILL_PLAN_TAG}>",
+    re.IGNORECASE | re.DOTALL,
+)
 COMPILE_PROFILE_TOKEN_RE = re.compile(
     rf"<{COMPILE_PROFILE_TAG}>(.*?)</{COMPILE_PROFILE_TAG}>",
     re.IGNORECASE | re.DOTALL,
@@ -47,14 +54,35 @@ COMPILE_PROMPT_1 = (
     "only directories that actually exist. If needed, you may minimally edit "
     "`sci-skills-generator/scripts/generate_skills_folder.py` so deterministic "
     "generation can succeed for this package layout. Do not do final skills "
-    "enrichment in this pass. At the end, echo the same JSON object inside "
-    f"<{COMPILE_PROFILE_TAG}>...</{COMPILE_PROFILE_TAG}> tags."
+    "enrichment in this pass. Also draft a concise skill-priority execution plan "
+    f"for passes 2/3 and write it to `{COMPILE_SKILL_PLAN_REL_PATH}`.\n\n"
+    "Return TWO tagged JSON blocks:\n"
+    f"1) <{COMPILE_PROFILE_TAG}>{{...}}</{COMPILE_PROFILE_TAG}>\n"
+    f"2) <{COMPILE_SKILL_PLAN_TAG}>{{...}}</{COMPILE_SKILL_PLAN_TAG}>\n\n"
+    "Skill-plan JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "mode": "compile",\n'
+    '  "goal": "short run goal",\n'
+    '  "priority_skills": [\n'
+    "    {\n"
+    '      "skill_id": "skill id or provisional topic id",\n'
+    '      "action": "create | refresh | audit",\n'
+    '      "reason": "why this is high impact",\n'
+    '      "must_cover": ["key workflows/coverage targets"],\n'
+    '      "source_hints": ["relevant source/doc paths"]\n'
+    "    }\n"
+    "  ],\n"
+    '  "deferred_gaps": ["non-blocking gaps to track later"]\n'
+    "}\n"
 )
 
 COMPILE_PROMPT_2 = (
     "You are running FermiLink compile pass 2/3 (targeted enrichment). A baseline "
     "skills folder has already been generated deterministically. Use the evidence "
-    f"files under `{COMPILE_EVIDENCE_DIR_REL_PATH}`. Follow "
+    f"files under `{COMPILE_EVIDENCE_DIR_REL_PATH}` and follow the priorities in "
+    f"`{COMPILE_SKILL_PLAN_REL_PATH}`. Read and honor compile memory in "
+    f"`{COMPILE_MEMORY_REL_PATH}`. Follow "
     "`sci-skills-generator/SKILL.md` and `sci-skills-generator/references/generation-rubric.md` "
     "for enrichment strategy. Enrich only core skill "
     "folders so agents can start realistic simulations directly from skills without "
@@ -75,9 +103,12 @@ COMPILE_PROMPT_3 = (
     "Ensure each topic skill has source entry points that exist and are useful for "
     "function-level behavior checks. Keep playbooks concise and practical for starting "
     "real simulations, including commands/inputs and validation checkpoints. Edit only "
-    "under `skills/`. Further enrich the skills/ folder if you find agents cannot start from the skills/ folder to optimally "
+    "under `skills/`. Further enrich the skills/ folder with your maximal efforts if you find agents cannot start from the skills/ folder to optimally "
     "use this package for advanced scientific simulations or computing. Finally, append a short summary of key fixes to "
-    f"`{COMPILE_REPORT_REL_PATH}` under `agent_audit_notes`."
+    f"`{COMPILE_REPORT_REL_PATH}` under `agent_audit_notes` and summarize durable findings in "
+    f"`{COMPILE_MEMORY_REL_PATH}`."
+    "Ensure the markdown files in each skill are self-contained: no `skills/.evidence/*` path dependencies; no external "
+    "absolute path dependencies."
 )
 
 
@@ -90,8 +121,12 @@ RECOMPILE_PROMPT_1 = (
     f"`{COMPILE_PROFILE_REL_PATH}` with JSON fields: `package_name`, `docs_dirs`, "
     "`tutorial_dirs`, `test_dirs`, `source_dirs`, `docs_only`, and optional `notes`. "
     "Focus on what changed since prior compile and where coverage may be stale. "
-    "Do not regenerate the whole skills folder from scratch in this pass. At the "
-    f"end, echo the JSON profile inside <{COMPILE_PROFILE_TAG}>...</{COMPILE_PROFILE_TAG}> tags."
+    "Do not regenerate the whole skills folder from scratch in this pass. Also draft "
+    "a concise recompile skill-priority plan for passes 2/3 and write it to "
+    f"`{COMPILE_SKILL_PLAN_REL_PATH}`.\n\n"
+    "Return TWO tagged JSON blocks:\n"
+    f"1) <{COMPILE_PROFILE_TAG}>{{...}}</{COMPILE_PROFILE_TAG}>\n"
+    f"2) <{COMPILE_SKILL_PLAN_TAG}>{{...}}</{COMPILE_SKILL_PLAN_TAG}>"
 )
 
 RECOMPILE_PROMPT_2 = (
@@ -99,6 +134,8 @@ RECOMPILE_PROMPT_2 = (
     "skills are present. Follow `sci-skills-generator/SKILL.md` and "
     "`sci-skills-generator/references/generation-rubric.md`. Use evidence under "
     f"`{COMPILE_EVIDENCE_DIR_REL_PATH}` and especially `{RECOMPILE_COVERAGE_REL_PATH}` "
+    f"plus priorities in `{COMPILE_SKILL_PLAN_REL_PATH}`. Read compile memory in "
+    f"`{COMPILE_MEMORY_REL_PATH}` before editing. "
     "to find source files/functions not well covered by current skills. Update "
     "`skills/` accordingly: refresh outdated links, add missing source entry points, "
     "expand or add concise `## High-Signal Playbook` sections for impacted core skills, "
@@ -113,7 +150,9 @@ RECOMPILE_PROMPT_3 = (
     "`references/source_map.md` and routed by the right skills. Keep guidance compact "
     "and simulation-oriented, consistent with `sci-skills-generator/SKILL.md`. Edit only "
     f"under `skills/`, then append key refresh notes to `{COMPILE_REPORT_REL_PATH}` "
-    "under `agent_audit_notes`."
+    f"under `agent_audit_notes`, and add durable run outcomes to `{COMPILE_MEMORY_REL_PATH}`."
+    "Ensure the markdown files in each skill are self-contained: no `skills/.evidence/*` path dependencies; no external "
+    "absolute path dependencies."
 )
 
 RECOMPILE_PAPER_PROMPT_1_PLAN = (
@@ -197,7 +236,7 @@ RECOMPILE_PAPER_PROMPT_3_AUDIT = (
     "- Ensure root tutorial `SKILL.md` contains direct simulation strategy guidance, "
     "minimal execution recipes, and a beyond-manuscript exploration section.\n"
     "- Ensure tutorial is concrete, executable, and publication-grade.\n"
-    "- Modify the skill folder name and skill name as `paper_tutorial_<scope>, with <scope> being at most two words summarizing the manuscript's scientific scope.\n"`"
+    "- Modify the skill folder name and skill name as `paper_tutorial_<scope>, with <scope> being at most two words summarizing the manuscript's scientific scope.\n"
     "- Append paper tutorial routing in the index skill as an advanced topic.\n"
 )
 

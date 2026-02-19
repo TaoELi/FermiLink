@@ -305,6 +305,12 @@ def test_compile_runs_staged_pipeline_then_installs(monkeypatch, tmp_path: Path)
     assert payloads[0].get("compile_report") == "skills/.compile_report.json"
     assert payloads[0].get("validation", {}).get("source_links_total") == 17
     assert payloads[0].get("validation_enforced") is False
+    memory_rel = str(payloads[0].get("compile_memory") or "")
+    assert memory_rel == cli.COMPILE_MEMORY_REL_PATH
+    assert (project_root / memory_rel).is_file()
+    skill_plan_rel = str(payloads[0].get("skill_plan_path") or "")
+    assert skill_plan_rel == cli.COMPILE_SKILL_PLAN_REL_PATH
+    assert (project_root / skill_plan_rel).is_file()
 
 
 def test_compile_keep_compile_artifacts_retains_tool_dir(
@@ -773,3 +779,114 @@ def test_validate_compiled_skills_allows_relative_doc_map_reference_in_source_ma
     )
     assert result["ok"] is True
     assert not any("doc_map.md" in err for err in result["errors"])
+
+
+def test_load_compile_skill_plan_from_tagged_payload(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    assistant_text = (
+        "<skill_plan>"
+        "{\"version\":1,\"mode\":\"compile\",\"goal\":\"prioritize api\","
+        "\"priority_skills\":[{\"skill_id\":\"mypkg api\",\"action\":\"refresh\","
+        "\"reason\":\"api first\",\"must_cover\":[\"workflow\"],\"source_hints\":[\"src/api.py\"]}]}"
+        "</skill_plan>"
+    )
+
+    plan = cli._load_compile_skill_plan(
+        project_root,
+        package_id="mypkg",
+        mode="compile",
+        assistant_text=assistant_text,
+        available_skill_ids=["mypkg-api", "mypkg-index"],
+        core_skill_ids=["mypkg-api"],
+    )
+    assert isinstance(plan, dict)
+    priority = plan.get("priority_skills")
+    assert isinstance(priority, list)
+    assert priority
+    assert priority[0].get("skill_id") == "mypkg-api"
+    plan_path = project_root / cli.COMPILE_SKILL_PLAN_REL_PATH
+    assert plan_path.is_file()
+
+
+def test_compile_memory_lifecycle_records_run_summary(tmp_path: Path) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+
+    memory_rel = cli._ensure_compile_memory(
+        project_root,
+        package_id="mypkg",
+        mode="compile",
+    )
+    assert memory_rel == cli.COMPILE_MEMORY_REL_PATH
+    memory_path = project_root / memory_rel
+    assert memory_path.is_file()
+
+    cli._reset_compile_memory_short_term(
+        project_root,
+        package_id="mypkg",
+        mode="compile",
+        run_id="compile_20260219T010000Z",
+        run_goal="test compile memory",
+    )
+    update = cli._record_compile_memory_run(
+        project_root,
+        package_id="mypkg",
+        mode="compile",
+        run_id="compile_20260219T010000Z",
+        run_goal="test compile memory",
+        skill_plan={
+            "goal": "prioritize api coverage",
+            "priority_skills": [{"skill_id": "mypkg-api", "action": "refresh"}],
+        },
+        pass_scope_diffs={
+            "pass_2": {"changed": ["skills/mypkg-api/SKILL.md"]},
+            "pass_3": {"changed": ["skills/mypkg-api/references/source_map.md"]},
+        },
+        evidence={
+            "core_skills": ["mypkg-api"],
+            "source_inventory": {
+                "total_source_files": 10,
+                "referenced_source_files": 7,
+                "uncovered_source_files": 3,
+            },
+        },
+        validation={"ok": True, "errors": [], "warnings": []},
+        compile_report_path="skills/.compile_report.json",
+    )
+    assert isinstance(update, dict)
+    assert update.get("memory_path") == cli.COMPILE_MEMORY_REL_PATH
+
+    memory_text = memory_path.read_text(encoding="utf-8")
+    assert "## Short-Term Memory (Current Run)" in memory_text
+    assert "## Long-Term Memory (Persistent)" in memory_text
+    assert "compile_20260219T010000Z" in memory_text
+    assert "mypkg-api" in memory_text
+
+
+def test_build_compile_evidence_bundle_preserves_sidecar_files(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "project"
+    skill_dir = project_root / "skills" / "mypkg-api"
+    (skill_dir / "references").mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text("# API\n", encoding="utf-8")
+
+    evidence_root = project_root / "skills" / ".evidence"
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    memory_path = evidence_root / "memory.md"
+    memory_path.write_text("# memory\n", encoding="utf-8")
+    skill_plan_path = evidence_root / "skill_plan.json"
+    skill_plan_path.write_text("{\"version\":1}\n", encoding="utf-8")
+    paper_context_path = evidence_root / "paper_context" / "paper_context.json"
+    paper_context_path.parent.mkdir(parents=True, exist_ok=True)
+    paper_context_path.write_text("{\"mode\":\"paper\"}\n", encoding="utf-8")
+    stale_file = evidence_root / "old_topic.md"
+    stale_file.write_text("stale\n", encoding="utf-8")
+
+    manifest = cli._build_compile_evidence_bundle(project_root, core_skill_count=1)
+    assert isinstance(manifest, dict)
+    assert memory_path.is_file()
+    assert skill_plan_path.is_file()
+    assert paper_context_path.is_file()
+    assert not stale_file.exists()

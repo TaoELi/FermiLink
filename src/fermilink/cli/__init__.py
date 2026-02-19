@@ -28,8 +28,12 @@ from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.cli.compile_prompts import (
     COMPILE_EVIDENCE_DIR_REL_PATH,
+    COMPILE_MEMORY_REL_PATH,
     COMPILE_PROFILE_REL_PATH,
     COMPILE_PROFILE_TAG,
+    COMPILE_SKILL_PLAN_REL_PATH,
+    COMPILE_SKILL_PLAN_TAG,
+    COMPILE_SKILL_PLAN_TOKEN_RE,
     COMPILE_PROFILE_TOKEN_RE,
     COMPILE_REPORT_REL_PATH,
     COMPILE_PROMPT_1,
@@ -244,9 +248,22 @@ _resolve_exec_like_user_prompt = input_repo_helpers._resolve_exec_like_user_prom
 # Compile helpers
 _resolve_compile_tool_source = compile_helpers._resolve_compile_tool_source
 _load_compile_profile = compile_helpers._load_compile_profile
+_extract_compile_skill_plan_from_assistant_text = (
+    compile_helpers._extract_compile_skill_plan_from_assistant_text
+)
+_normalize_compile_skill_plan = compile_helpers._normalize_compile_skill_plan
+_write_compile_skill_plan = compile_helpers._write_compile_skill_plan
+_load_compile_skill_plan = compile_helpers._load_compile_skill_plan
+_list_skill_ids = compile_helpers._list_skill_ids
+_ensure_compile_memory = compile_helpers._ensure_compile_memory
+_reset_compile_memory_short_term = compile_helpers._reset_compile_memory_short_term
+_record_compile_memory_run = compile_helpers._record_compile_memory_run
 _run_compile_generator = compile_helpers._run_compile_generator
 _build_compile_evidence_bundle = compile_helpers._build_compile_evidence_bundle
 _build_recompile_evidence_bundle = compile_helpers._build_recompile_evidence_bundle
+_snapshot_skills_tree = compile_helpers._snapshot_skills_tree
+_diff_skills_tree_snapshot = compile_helpers._diff_skills_tree_snapshot
+_assert_skills_change_scope = compile_helpers._assert_skills_change_scope
 _extract_recompile_paper_plan_from_assistant_text = (
     compile_helpers._extract_recompile_paper_plan_from_assistant_text
 )
@@ -270,6 +287,7 @@ _build_recompile_paper_context = compile_helpers._build_recompile_paper_context
 _stage_recompile_paper_assets = compile_helpers._stage_recompile_paper_assets
 _validate_recompile_paper_outputs = compile_helpers._validate_recompile_paper_outputs
 _validate_compiled_skills = compile_helpers._validate_compiled_skills
+_load_previous_source_inventory = compile_helpers._load_previous_source_inventory
 _write_compile_report = compile_helpers._write_compile_report
 _run_codex_compile_pass = compile_helpers._run_codex_compile_pass
 

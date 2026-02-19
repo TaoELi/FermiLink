@@ -74,14 +74,18 @@ validation around ``sci-skills-generator`` to create/refine package
 Typical compile path:
 
 1. Validate package id does not already exist in registry (unless ``--install-off``).
-2. Copy ``sci-skills-generator`` tool into project root.
-3. Pass 1 discovers project structure and writes ``skills/.compile_profile.json``.
-4. Run deterministic ``generate_skills_folder.py`` using the discovered profile.
-5. Build ``skills/.evidence/`` bundle for core topic skills.
-6. Pass 2 enriches compact high-signal playbooks in core skills.
-7. Pass 3 audits/fixes path consistency and source-link quality.
-8. Validate required files, links, source entry points, and playbook sections.
-9. Write ``skills/.compile_report.json`` and install the package (validation findings are reported by default).
+2. Initialize/upgrade compile memory at ``skills/.evidence/memory.md``.
+3. Copy ``sci-skills-generator`` tool into project root.
+4. Pass 1 discovers project structure and writes ``skills/.compile_profile.json``
+   plus ``skills/.evidence/skill_plan.json``.
+5. Run deterministic ``generate_skills_folder.py`` using the discovered profile.
+6. Build ``skills/.evidence/`` bundle for core topic skills.
+7. Pass 2 enriches compact high-signal playbooks in plan-priority skills.
+8. Pass 3 audits/fixes path consistency and source-link quality.
+9. Validate required files, links, source entry points, playbook sections, and
+   plan-target coverage.
+10. Write ``skills/.compile_report.json``, update compile memory history, and install
+    the package (validation findings are reported by default).
 
 Useful compile options:
 
@@ -115,13 +119,16 @@ Paper-focused recompile (manuscript + supplementary data):
 Typical recompile path (standard mode):
 
 1. Validate ``skills/`` exists in the target project.
-2. Run pass 1 to rediscover layout and refresh ``skills/.compile_profile.json``.
-3. Build ``skills/.evidence/`` bundle plus ``skills/.evidence/recompile_coverage.md``
+2. Initialize/upgrade compile memory at ``skills/.evidence/memory.md``.
+3. Run pass 1 to rediscover layout and refresh ``skills/.compile_profile.json``
+   plus ``skills/.evidence/skill_plan.json``.
+4. Build ``skills/.evidence/`` bundle plus ``skills/.evidence/recompile_coverage.md``
    highlighting potential uncovered source files/functions.
-4. Run pass 2 to update ``skills/`` coverage and source links.
-5. Run pass 3 to audit/finalize link consistency and simulation-readiness.
-6. Validate skills and write ``skills/.compile_report.json``.
-7. Install updated package into scientific package storage (skipped with ``--install-off``).
+5. Run pass 2 to update plan-priority skills, coverage, and source links.
+6. Run pass 3 to audit/finalize link consistency and simulation-readiness.
+7. Validate skills (including plan coverage and source-coverage trend warnings),
+   write ``skills/.compile_report.json``, and update compile memory history.
+8. Install updated package into scientific package storage (skipped with ``--install-off``).
 
 Paper-mode pass flow (``--doc ...``):
 
@@ -172,6 +179,9 @@ including ``paper_context.json``, ``paper_plan.json``,
 ``figure_data_map.json``, ``paper_skill_manifest.json``,
 optional ``data/data_manifest_full.json``, ``data/data_manifest.json``,
 ``data/data_summary.md``, and ``staged_assets_manifest.json`` + ``staged_assets/``.
+Both compile and recompile maintain persistent compile memory at
+``skills/.evidence/memory.md`` and a run-plan sidecar at
+``skills/.evidence/skill_plan.json`` for future refresh iterations.
 
 Auto-compile + curated metadata onboarding
 ------------------------------------------
