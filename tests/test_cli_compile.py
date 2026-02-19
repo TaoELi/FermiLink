@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
 
@@ -27,6 +29,11 @@ def _default_profile() -> dict[str, object]:
         "profile_path": "skills/.compile_profile.json",
         "warnings": [],
     }
+
+
+@pytest.fixture(autouse=True)
+def _stub_compile_repo_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _path: False)
 
 
 def test_compile_rejects_existing_package_id(
@@ -123,6 +130,73 @@ def test_compile_install_off_skips_registry_and_install(
     assert payloads[0].get("active_package") is None
     assert payloads[0].get("router_sync") is None
     assert payloads[0].get("scipkg_root") is None
+
+
+def test_compile_auto_initializes_git_repo_when_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+
+    init_calls: list[Path] = []
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(
+        cli,
+        "_ensure_compile_repo_ready",
+        lambda repo_dir: init_calls.append(repo_dir) or True,
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(cli, "_load_compile_profile", lambda *_a, **_k: _default_profile())
+    monkeypatch.setattr(
+        cli,
+        "_run_compile_generator",
+        lambda *_a, **_k: {"status": "ok", "return_code": 0},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_compile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence", "core_skills": []},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 3,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+
+    code = cli.main(
+        [
+            "compile",
+            "newpkg",
+            str(project_root),
+            "--install-off",
+            "--json",
+        ]
+    )
+    assert code == 0
+    assert init_calls == [project_root]
+    assert payloads and payloads[0].get("git_repo_initialized") is True
 
 
 def test_compile_runs_staged_pipeline_then_installs(monkeypatch, tmp_path: Path) -> None:

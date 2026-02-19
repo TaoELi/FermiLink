@@ -43,6 +43,37 @@ def _ensure_exec_repo_ready(repo_dir: Path, args: argparse.Namespace) -> None:
     runner_app._ensure_template_agents_file(source_dir, repo_dir)
 
 
+def _ensure_compile_repo_ready(repo_dir: Path) -> bool:
+    """Ensure compile/recompile target path is a valid git repository.
+
+    Parameters
+    ----------
+    repo_dir : Path
+        Compile/recompile project root.
+
+    Returns
+    -------
+    bool
+        `True` when this helper initialized git for the target path.
+    """
+
+    cli = _cli()
+    runner_app = cli._load_runner_app_module()
+    if runner_app._is_valid_git_repo(repo_dir):
+        return False
+    try:
+        runner_app._ensure_git_repo(repo_dir)
+    except RuntimeError as exc:
+        raise cli.PackageError(
+            f"Failed to initialize git repository for compile target {repo_dir}: {exc}"
+        ) from exc
+    if not runner_app._is_valid_git_repo(repo_dir):
+        raise cli.PackageError(
+            f"Failed to initialize valid git repository for compile target: {repo_dir}"
+        )
+    return True
+
+
 def _resolve_project_path(raw_path: str) -> Path:
     path = Path(raw_path).expanduser()
     if not path.is_absolute():

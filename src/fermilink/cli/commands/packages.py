@@ -1422,6 +1422,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
     project_root = cli._resolve_project_path(args.project_path)
     if not project_root.exists() or not project_root.is_dir():
         raise cli.PackageError(f"Compile path is not a directory: {project_root}")
+    git_repo_initialized = cli._ensure_compile_repo_ready(project_root)
     max_skills = int(getattr(args, "max_skills", 30))
     if max_skills < 2:
         raise cli.PackageError("--max-skills must be >= 2.")
@@ -1688,6 +1689,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
     payload = {
         "compiled_package_id": package_id,
         "project_root": str(project_root),
+        "git_repo_initialized": git_repo_initialized,
         "run_id": run_id,
         "compile_runs": compile_runs,
         "compile_memory": compile_memory_path,
@@ -1733,6 +1735,10 @@ def cmd_compile(args: argparse.Namespace) -> int:
             )
         ),
     ]
+    if git_repo_initialized:
+        lines.insert(
+            1, f"Initialized git repository at {project_root} (missing .git)."
+        )
     cli._emit_output(args, payload, lines)
     return 0
 
@@ -1756,6 +1762,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     project_root = cli._resolve_project_path(args.project_path)
     if not project_root.exists() or not project_root.is_dir():
         raise cli.PackageError(f"Recompile path is not a directory: {project_root}")
+    git_repo_initialized = cli._ensure_compile_repo_ready(project_root)
 
     raw_memory_path = str(getattr(args, "memory", "") or "").strip()
     raw_doc_path = str(getattr(args, "doc", "") or "").strip()
@@ -2604,6 +2611,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     payload = {
         "recompiled_package_id": package_id,
         "project_root": str(project_root),
+        "git_repo_initialized": git_repo_initialized,
         "run_id": run_id,
         "run_mode": run_mode,
         "doc_path": str(resolved_doc_path) if isinstance(resolved_doc_path, Path) else None,
@@ -2662,6 +2670,10 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             )
         ),
     ]
+    if git_repo_initialized:
+        lines.insert(
+            1, f"Initialized git repository at {project_root} (missing .git)."
+        )
     cli._emit_output(args, payload, lines)
     return 0
 

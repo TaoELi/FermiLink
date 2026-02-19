@@ -74,19 +74,20 @@ validation around ``sci-skills-generator`` to create/refine package
 Typical compile path:
 
 1. Validate package id does not already exist in registry (unless ``--install-off``).
-2. Initialize/upgrade compile memory at ``skills/.evidence/memory.md``.
-3. Copy ``sci-skills-generator`` tool into project root.
-4. Pass 1 discovers project structure and writes ``skills/.compile_profile.json``
+2. Auto-initialize ``git`` in target project when ``.git`` is missing.
+3. Initialize/upgrade compile memory at ``skills/.evidence/memory.md``.
+4. Copy ``sci-skills-generator`` tool into project root.
+5. Pass 1 discovers project structure and writes ``skills/.compile_profile.json``
    plus ``skills/.evidence/skill_plan.json``.
-5. Run deterministic ``generate_skills_folder.py`` using the discovered profile.
-6. Build ``skills/.evidence/`` bundle for core topic skills.
-7. Pass 2 enriches compact high-signal playbooks in plan-priority skills.
-8. Pass 3 audits/fixes path consistency and source-link quality.
-9. Validate required files, links, source entry points, playbook sections, and
+6. Run deterministic ``generate_skills_folder.py`` using the discovered profile.
+7. Build ``skills/.evidence/`` bundle for core topic skills.
+8. Pass 2 enriches compact high-signal playbooks in plan-priority skills.
+9. Pass 3 audits/fixes path consistency and source-link quality.
+10. Validate required files, links, source entry points, playbook sections, and
    plan-target coverage.
-10. Write ``skills/.compile_report.json``, update compile memory history, and install
+11. Write ``skills/.compile_report.json``, update compile memory history, and install
     the package (validation findings are reported by default).
-11. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so compile-only evidence stays local.
+12. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so compile-only evidence stays local.
 
 Useful compile options:
 
@@ -130,17 +131,18 @@ Memory-focused recompile planning (extract from one memory file or a directory t
 Typical recompile path (standard mode):
 
 1. Validate ``skills/`` exists in the target project.
-2. Initialize/upgrade compile memory at ``skills/.evidence/memory.md``.
-3. Run pass 1 to rediscover layout and refresh ``skills/.compile_profile.json``
+2. Auto-initialize ``git`` in target project when ``.git`` is missing.
+3. Initialize/upgrade compile memory at ``skills/.evidence/memory.md``.
+4. Run pass 1 to rediscover layout and refresh ``skills/.compile_profile.json``
    plus ``skills/.evidence/skill_plan.json``.
-4. Build ``skills/.evidence/`` bundle plus ``skills/.evidence/recompile_coverage.md``
+5. Build ``skills/.evidence/`` bundle plus ``skills/.evidence/recompile_coverage.md``
    highlighting potential uncovered source files/functions.
-5. Run pass 2 to update plan-priority skills, coverage, and source links.
-6. Run pass 3 to audit/finalize link consistency and simulation-readiness.
-7. Validate skills (including plan coverage and source-coverage trend warnings),
+6. Run pass 2 to update plan-priority skills, coverage, and source links.
+7. Run pass 3 to audit/finalize link consistency and simulation-readiness.
+8. Validate skills (including plan coverage and source-coverage trend warnings),
    write ``skills/.compile_report.json``, and update compile memory history.
-8. Install updated package into scientific package storage (skipped with ``--install-off``).
-9. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so evidence artifacts are not committed by default.
+9. Install updated package into scientific package storage (skipped with ``--install-off``).
+10. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so evidence artifacts are not committed by default.
 
 Paper-mode pass flow (``--doc ...``):
 

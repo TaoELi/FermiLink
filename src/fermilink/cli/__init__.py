@@ -246,6 +246,7 @@ _run_exec_codex_prompt = exec_runtime._run_exec_codex_prompt
 
 # Repo and prompt input helpers
 _ensure_exec_repo_ready = input_repo_helpers._ensure_exec_repo_ready
+_ensure_compile_repo_ready = input_repo_helpers._ensure_compile_repo_ready
 _resolve_project_path = input_repo_helpers._resolve_project_path
 _resolve_exec_like_user_prompt = input_repo_helpers._resolve_exec_like_user_prompt
 
