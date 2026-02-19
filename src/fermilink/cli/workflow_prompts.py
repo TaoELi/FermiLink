@@ -54,7 +54,7 @@ LOOP_PROMPT_PREFIX = (
     "Persistent memory lives at `projects/memory.md` (relative to the repo root).\n"
     "This file uses a unified schema with short-term and long-term sections.\n"
     "\n"
-    "Long-running jobs (SLURM or similar): it is OK to submit a job, record job ids/paths\n"
+    "Long-running jobs (SLURM or similar spending more than ~20 minutes): it is OK to submit a job, record job ids/paths\n"
     "in `projects/memory.md`, and end the iteration without waiting. A later iteration can\n"
     "check status and continue.\n"
     "\n"
