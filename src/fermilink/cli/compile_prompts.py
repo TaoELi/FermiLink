@@ -197,6 +197,7 @@ RECOMPILE_PAPER_PROMPT_3_AUDIT = (
     "- Ensure root tutorial `SKILL.md` contains direct simulation strategy guidance, "
     "minimal execution recipes, and a beyond-manuscript exploration section.\n"
     "- Ensure tutorial is concrete, executable, and publication-grade.\n"
+    "- Modify the skill folder name and skill name as `paper_tutorial_<scope>, with <scope> being at most two words summarizing the manuscript's scientific scope.\n"`"
     "- Append paper tutorial routing in the index skill as an advanced topic.\n"
 )
 
