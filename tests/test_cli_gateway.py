@@ -68,6 +68,7 @@ def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> 
         requested_label="main",
         created_via="new",
     )
+    chat_state["execution_mode"] = "exec"
 
     gateway_commands._save_gateway_state(state_path, state)
     loaded = gateway_commands._load_gateway_state(state_path)
@@ -78,6 +79,7 @@ def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> 
     assert loaded_chat["active_workspace_id"] == workspace["id"]
     assert len(loaded_chat["workspaces"]) == 1
     assert loaded_chat["workspaces"][0]["label"] == "main"
+    assert loaded_chat["execution_mode"] == "exec"
 
 
 def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> None:
@@ -191,6 +193,126 @@ def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> Non
     assert run_paths[0] == run_paths[1]
     assert run_paths[2] != run_paths[0]
     assert run_paths[3] == run_paths[0]
+
+
+def test_handle_telegram_text_mode_switches_between_loop_and_exec(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+    loop_calls: list[Path] = []
+    exec_calls: list[Path] = []
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_loop_runner(
+        repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        loop_calls.append(repo_dir)
+        return 0, {"status": "done", "reason": "done_token"}
+
+    def fake_exec_runner(
+        repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        exec_calls.append(repo_dir)
+        return 0, {"status": "done", "reason": "exec_completed"}
+
+    chat_id = "501"
+    chat_key = "telegram:501"
+    loop_config = _loop_config()
+
+    mode_before = gateway_commands._handle_telegram_text(
+        text="/mode",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    set_exec = gateway_commands._handle_telegram_text(
+        text="/mode exec",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    exec_run = gateway_commands._handle_telegram_text(
+        text="run once",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    set_loop = gateway_commands._handle_telegram_text(
+        text="/mode loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    loop_run = gateway_commands._handle_telegram_text(
+        text="run iterative",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    where = gateway_commands._handle_telegram_text(
+        text="/where",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "Current mode: loop" in mode_before
+    assert "Execution mode set to exec." in set_exec
+    assert "Execution mode: <code>exec</code>." in exec_run
+    assert "Single-turn execution finished successfully." in exec_run
+    assert "Execution mode set to loop." in set_loop
+    assert "Execution mode: <code>loop</code>." in loop_run
+    assert "Current mode: loop" in where
+    assert len(exec_calls) == 1
+    assert len(loop_calls) == 1
+    assert exec_calls[0] == loop_calls[0]
 
 
 def test_collect_media_for_run_reply_prefers_memory_and_recent_files(

@@ -106,8 +106,8 @@ Step-by-step setup (iPhone + computer):
       fermilink gateway
 
 6. From iPhone Telegram, open the chat with your bot and test commands:
-   ``/help``, then a normal simulation request, then ``/new test2``,
-   ``/use main``, ``/where``, and ``/list``.
+   ``/help``, then a normal simulation request, then ``/mode exec``,
+   ``/mode loop``, ``/new test2``, ``/use main``, ``/where``, and ``/list``.
 7. Verify mapping/runtime state on computer:
 
    .. code-block:: bash
@@ -128,6 +128,9 @@ Gateway behavior:
   (completed plan items + key findings), instead of raw status payloads;
 - generated figures/documents are auto-attached back to Telegram when available
   so plots can be viewed directly on mobile clients;
+- ``/mode <loop|exec>`` switches normal-message execution between
+  ``fermilink loop`` (multi-iteration autonomous mode) and
+  ``fermilink exec`` (single-turn mode) per chat session;
 - ``/new [name]`` creates and switches to a new workspace;
 - ``/use <name-or-id>`` switches back to an existing workspace;
 - ``/where`` prints the active workspace and ``/list`` shows all chat

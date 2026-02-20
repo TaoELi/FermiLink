@@ -24,10 +24,12 @@ SESSION_SCHEMA_VERSION = 1
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 DOCUMENT_SUFFIXES = {".pdf"}
 CHECKLIST_ITEM_RE = re.compile(r"^\s*-\s*\[(?P<mark>[xX ])\]\s+(?P<item>.+?)\s*$")
+SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
 GATEWAY_HELP_TEXT = (
     "Commands:\n"
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
+    "/mode <loop|exec> - switch run mode for normal messages\n"
     "/where - show active workspace\n"
     "/list - list chat workspaces\n"
     "/help - show commands"
@@ -35,6 +37,9 @@ GATEWAY_HELP_TEXT = (
 
 
 LoopRunner = Callable[
+    [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
+]
+ExecRunner = Callable[
     [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
 ]
 WorkspaceRepoEnsurer = Callable[[Path, bool], None]
@@ -236,7 +241,11 @@ def _normalize_workspace_record(raw: object) -> dict[str, Any] | None:
 
 
 def _normalize_chat_state(raw: object) -> dict[str, Any]:
-    payload: dict[str, Any] = {"active_workspace_id": "", "workspaces": []}
+    payload: dict[str, Any] = {
+        "active_workspace_id": "",
+        "workspaces": [],
+        "execution_mode": "loop",
+    }
     if not isinstance(raw, dict):
         return payload
 
@@ -256,6 +265,10 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         payload["active_workspace_id"] = active_workspace_id
     elif workspace_records:
         payload["active_workspace_id"] = str(workspace_records[-1]["id"])
+
+    mode = str(raw.get("execution_mode") or "").strip().lower()
+    if mode in SUPPORTED_EXECUTION_MODES:
+        payload["execution_mode"] = mode
     return payload
 
 
@@ -461,7 +474,8 @@ def _format_workspace_list(chat_state: dict[str, Any]) -> str:
     if not records:
         return "No workspaces for this chat yet."
     active_id = str(chat_state.get("active_workspace_id") or "").strip()
-    lines = ["Workspaces:"]
+    mode = str(chat_state.get("execution_mode") or "loop")
+    lines = [f"Mode: {mode}", "", "Workspaces:"]
     for record in records:
         marker = "*" if str(record.get("id") or "") == active_id else "-"
         lines.append(f"{marker} {_format_workspace_short(record)}")
@@ -519,7 +533,7 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
         return None, stripped
     token, _, remainder = stripped.partition(" ")
     command = token.split("@", 1)[0].lower()
-    if command in {"/new", "/use", "/where", "/list", "/help", "/start"}:
+    if command in {"/new", "/use", "/mode", "/where", "/list", "/help", "/start"}:
         return command, remainder.strip()
     return None, stripped
 
@@ -588,6 +602,37 @@ def _run_loop_in_workspace(
     if isinstance(outcome, dict):
         return int(code), outcome
     return int(code), None
+
+
+def _run_exec_in_workspace(
+    repo_dir: Path,
+    prompt: str,
+    loop_config: GatewayLoopConfig,
+) -> tuple[int, dict[str, Any] | None]:
+    cli = _cli()
+    exec_args = argparse.Namespace(
+        command="exec",
+        prompt=[prompt],
+        package_id=loop_config.package_id,
+        sandbox=loop_config.sandbox,
+        codex_bin=loop_config.codex_bin,
+        init_git=loop_config.init_git,
+        no_init_git=not loop_config.init_git,
+    )
+    previous_cwd = Path.cwd()
+    try:
+        os.chdir(repo_dir)
+        code = cli._cmd_exec(exec_args)
+    finally:
+        os.chdir(previous_cwd)
+
+    if int(code) == 0:
+        return int(code), {"status": "done", "reason": "exec_completed"}
+    return int(code), {
+        "status": "provider_failure",
+        "reason": f"provider_exit_code_{int(code)}",
+        "provider_exit_code": int(code),
+    }
 
 
 def _extract_key_results(memory_text: str, *, max_items: int = 5) -> list[str]:
@@ -798,8 +843,9 @@ def _collect_recent_media(
     )
 
 
-def _build_loop_summary_message(
+def _build_run_summary_message(
     *,
+    mode: str,
     workspace: dict[str, Any],
     repo_dir: Path,
     code: int,
@@ -809,21 +855,39 @@ def _build_loop_summary_message(
     reason = str((outcome or {}).get("reason") or "").strip().replace("_", " ")
     provider_exit_code = (outcome or {}).get("provider_exit_code")
 
-    lines = [f"Run complete in workspace <code>{_html_escape(workspace['label'])}</code>."]
-    if code == 0 and status in {"", "done"}:
-        lines.append("The requested simulation workflow finished successfully.")
-    elif status == "incomplete_max_iterations":
-        lines.append(
-            "The run stopped before completion because max iterations were reached."
-        )
-    elif status == "provider_failure":
-        if isinstance(provider_exit_code, int):
-            lines.append(f"The run failed with provider exit code {provider_exit_code}.")
+    effective_mode = str(mode or "loop").strip().lower()
+    if effective_mode not in SUPPORTED_EXECUTION_MODES:
+        effective_mode = "loop"
+
+    lines = [
+        f"Run complete in workspace <code>{_html_escape(workspace['label'])}</code>.",
+        f"Execution mode: <code>{_html_escape(effective_mode)}</code>.",
+    ]
+    if effective_mode == "loop":
+        if code == 0 and status in {"", "done"}:
+            lines.append("The requested simulation workflow finished successfully.")
+        elif status == "incomplete_max_iterations":
+            lines.append(
+                "The run stopped before completion because max iterations were reached."
+            )
+        elif status == "provider_failure":
+            if isinstance(provider_exit_code, int):
+                lines.append(
+                    f"The run failed with provider exit code {provider_exit_code}."
+                )
+            else:
+                lines.append("The run failed due to a provider/runtime error.")
         else:
-            lines.append("The run failed due to a provider/runtime error.")
+            lines.append(f"The run exited with status code {code}.")
     else:
-        lines.append(f"The run exited with status code {code}.")
-    if reason:
+        if code == 0:
+            lines.append("Single-turn execution finished successfully.")
+        elif isinstance(provider_exit_code, int):
+            lines.append(f"Execution failed with provider exit code {provider_exit_code}.")
+        else:
+            lines.append(f"Execution failed with status code {code}.")
+
+    if reason and not (reason == "done token" and effective_mode == "loop" and code == 0):
         lines.append(f"Reason: {_html_escape(reason)}.")
 
     memory_path = repo_dir / "projects" / "memory.md"
@@ -874,7 +938,7 @@ def _build_loop_summary_message(
 
     lines.append("")
     lines.append(
-        "Commands: <code>/new</code>, <code>/use</code>, "
+        "Commands: <code>/new</code>, <code>/use</code>, <code>/mode</code>, "
         "<code>/where</code>, <code>/list</code>"
     )
     message = "\n".join(lines)
@@ -893,6 +957,7 @@ def _handle_telegram_text(
     workspaces_root: Path,
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
+    exec_runner: ExecRunner | None = None,
     workspace_repo_ensurer: WorkspaceRepoEnsurer | None = None,
 ) -> str:
     telegram = _telegram_state(state)
@@ -923,12 +988,50 @@ def _handle_telegram_text(
         _set_active_workspace(chat_state, str(workspace["id"]))
         return f"Switched workspace: {_format_workspace_short(workspace)}"
 
+    if command == "/mode":
+        current_mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
+        if current_mode not in SUPPORTED_EXECUTION_MODES:
+            current_mode = "loop"
+            chat_state["execution_mode"] = current_mode
+
+        if not argument:
+            return (
+                f"Current mode: {current_mode}\n"
+                "Usage: /mode <loop|exec>\n"
+                "Normal messages run with this mode in the active workspace."
+            )
+
+        requested = str(argument).split()[0].strip().lower()
+        if requested not in SUPPORTED_EXECUTION_MODES:
+            return (
+                f"Unsupported mode: {requested}\n"
+                "Usage: /mode <loop|exec>"
+            )
+
+        chat_state["execution_mode"] = requested
+        if requested == "loop":
+            return (
+                "Execution mode set to loop.\n"
+                "Normal messages will run with `fermilink loop`."
+            )
+        return (
+            "Execution mode set to exec.\n"
+            "Normal messages will run with `fermilink exec`."
+        )
+
     if command == "/list":
         return _format_workspace_list(chat_state)
 
     if command == "/where":
         workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
-        return f"Active workspace: {_format_workspace_short(workspace)}"
+        mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
+        if mode not in SUPPORTED_EXECUTION_MODES:
+            mode = "loop"
+            chat_state["execution_mode"] = mode
+        return (
+            f"Active workspace: {_format_workspace_short(workspace)}\n"
+            f"Current mode: {mode}"
+        )
 
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
     _touch_workspace(workspace)
@@ -937,9 +1040,18 @@ def _handle_telegram_text(
     repo_ensurer = workspace_repo_ensurer or _ensure_workspace_repo
     repo_ensurer(repo_dir, loop_config.init_git)
 
-    runner = loop_runner or _run_loop_in_workspace
+    mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
+    if mode not in SUPPORTED_EXECUTION_MODES:
+        mode = "loop"
+        chat_state["execution_mode"] = mode
+
+    if mode == "exec":
+        runner = exec_runner or _run_exec_in_workspace
+    else:
+        runner = loop_runner or _run_loop_in_workspace
     code, outcome = runner(repo_dir, text, loop_config)
-    return _build_loop_summary_message(
+    return _build_run_summary_message(
+        mode=mode,
         workspace=workspace,
         repo_dir=repo_dir,
         code=code,
