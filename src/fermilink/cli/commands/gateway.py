@@ -5,8 +5,10 @@ import html
 import json
 import mimetypes
 import os
+import queue
 import re
 import shutil
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -30,6 +32,7 @@ GATEWAY_HELP_TEXT = (
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
     "/mode <loop|exec> - switch run mode for normal messages\n"
+    "/status - show gateway/chat run status\n"
     "/where - show active workspace\n"
     "/list - list chat workspaces\n"
     "/help - show commands"
@@ -55,6 +58,18 @@ class GatewayLoopConfig:
     max_wait_seconds: float
     pid_stall_seconds: float
     init_git: bool
+
+
+@dataclass(frozen=True)
+class QueuedRunJob:
+    job_id: str
+    chat_id: str
+    chat_key: str
+    prompt: str
+    mode: str
+    workspace_id: str
+    workspace_label: str
+    queued_at_utc: str
 
 
 class _TelegramApiClient:
@@ -245,6 +260,20 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         "active_workspace_id": "",
         "workspaces": [],
         "execution_mode": "loop",
+        "is_running": False,
+        "pending_run_count": 0,
+        "current_run_id": "",
+        "current_run_started_at_utc": "",
+        "current_run_mode": "",
+        "current_run_workspace_id": "",
+        "current_run_workspace_label": "",
+        "current_run_prompt_preview": "",
+        "last_run_started_at_utc": "",
+        "last_run_finished_at_utc": "",
+        "last_run_status": "",
+        "last_run_reason": "",
+        "last_run_exit_code": None,
+        "last_run_mode": "",
     }
     if not isinstance(raw, dict):
         return payload
@@ -269,6 +298,45 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
     mode = str(raw.get("execution_mode") or "").strip().lower()
     if mode in SUPPORTED_EXECUTION_MODES:
         payload["execution_mode"] = mode
+
+    payload["is_running"] = bool(raw.get("is_running"))
+    pending_raw = raw.get("pending_run_count")
+    if isinstance(pending_raw, int):
+        payload["pending_run_count"] = max(0, pending_raw)
+    elif isinstance(pending_raw, str) and pending_raw.strip():
+        try:
+            payload["pending_run_count"] = max(0, int(pending_raw.strip()))
+        except ValueError:
+            payload["pending_run_count"] = 0
+
+    for key in (
+        "current_run_id",
+        "current_run_started_at_utc",
+        "current_run_mode",
+        "current_run_workspace_id",
+        "current_run_workspace_label",
+        "current_run_prompt_preview",
+    ):
+        payload[key] = str(raw.get(key) or "").strip()
+
+    for key in (
+        "last_run_started_at_utc",
+        "last_run_finished_at_utc",
+        "last_run_status",
+        "last_run_reason",
+        "last_run_mode",
+    ):
+        value = str(raw.get(key) or "").strip()
+        payload[key] = value
+
+    exit_code_raw = raw.get("last_run_exit_code")
+    if isinstance(exit_code_raw, int):
+        payload["last_run_exit_code"] = exit_code_raw
+    elif isinstance(exit_code_raw, str) and exit_code_raw.strip():
+        try:
+            payload["last_run_exit_code"] = int(exit_code_raw.strip())
+        except ValueError:
+            payload["last_run_exit_code"] = None
     return payload
 
 
@@ -474,12 +542,46 @@ def _format_workspace_list(chat_state: dict[str, Any]) -> str:
     if not records:
         return "No workspaces for this chat yet."
     active_id = str(chat_state.get("active_workspace_id") or "").strip()
-    mode = str(chat_state.get("execution_mode") or "loop")
+    mode = _effective_execution_mode(chat_state)
     lines = [f"Mode: {mode}", "", "Workspaces:"]
     for record in records:
         marker = "*" if str(record.get("id") or "") == active_id else "-"
         lines.append(f"{marker} {_format_workspace_short(record)}")
     return "\n".join(lines)
+
+
+def _effective_execution_mode(chat_state: dict[str, Any]) -> str:
+    mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
+    if mode not in SUPPORTED_EXECUTION_MODES:
+        mode = "loop"
+        chat_state["execution_mode"] = mode
+    return mode
+
+
+def _workspace_by_id(chat_state: dict[str, Any], workspace_id: str) -> dict[str, Any] | None:
+    target = str(workspace_id or "").strip()
+    if not target:
+        return None
+    for record in _workspace_records(chat_state):
+        if str(record.get("id") or "") == target:
+            return record
+    return None
+
+
+def _clear_chat_runtime_status(chat_state: dict[str, Any]) -> None:
+    chat_state["is_running"] = False
+    chat_state["pending_run_count"] = 0
+    chat_state["current_run_id"] = ""
+    chat_state["current_run_started_at_utc"] = ""
+    chat_state["current_run_mode"] = ""
+    chat_state["current_run_workspace_id"] = ""
+    chat_state["current_run_workspace_label"] = ""
+    chat_state["current_run_prompt_preview"] = ""
+
+
+def _normalize_prompt_preview(text: str, *, limit: int = 160) -> str:
+    flat = re.sub(r"\s+", " ", str(text or "").strip())
+    return _truncate_message(flat, limit=limit)
 
 
 def _normalize_allow_token(token: str) -> str:
@@ -533,7 +635,16 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
         return None, stripped
     token, _, remainder = stripped.partition(" ")
     command = token.split("@", 1)[0].lower()
-    if command in {"/new", "/use", "/mode", "/where", "/list", "/help", "/start"}:
+    if command in {
+        "/new",
+        "/use",
+        "/mode",
+        "/status",
+        "/where",
+        "/list",
+        "/help",
+        "/start",
+    }:
         return command, remainder.strip()
     return None, stripped
 
@@ -948,6 +1059,257 @@ def _build_run_summary_message(
     return message
 
 
+def _build_status_message(chat_state: dict[str, Any]) -> str:
+    mode = _effective_execution_mode(chat_state)
+    active = _active_workspace(chat_state)
+    active_workspace_text = (
+        _format_workspace_short(active) if active is not None else "(none yet)"
+    )
+    is_running = bool(chat_state.get("is_running"))
+    pending_raw = chat_state.get("pending_run_count")
+    if isinstance(pending_raw, int):
+        pending_count = max(0, pending_raw)
+    else:
+        pending_count = 0
+
+    if is_running and pending_count > 0:
+        run_state_text = f"<b>running</b> ({pending_count} queued)"
+    elif is_running:
+        run_state_text = "<b>running</b>"
+    elif pending_count > 0:
+        run_state_text = f"<b>queued</b> ({pending_count} pending)"
+    else:
+        run_state_text = "<b>idle</b>"
+
+    lines = [
+        "<b>Gateway Status</b>",
+        f"• State: <b>online</b> (responding now at {_html_escape(_now_utc_iso())})",
+        f"• Agent: {run_state_text}",
+        f"• Mode: <code>{_html_escape(mode)}</code>",
+        f"• Active workspace: <code>{_html_escape(active_workspace_text)}</code>",
+    ]
+
+    current_run_id = str(chat_state.get("current_run_id") or "").strip()
+    current_run_started = str(chat_state.get("current_run_started_at_utc") or "").strip()
+    current_run_mode = str(chat_state.get("current_run_mode") or "").strip().lower()
+    current_run_workspace_label = str(chat_state.get("current_run_workspace_label") or "").strip()
+    current_run_workspace_id = str(chat_state.get("current_run_workspace_id") or "").strip()
+    current_run_prompt_preview = str(chat_state.get("current_run_prompt_preview") or "").strip()
+
+    if is_running:
+        lines.append("")
+        lines.append("<b>Current Run</b>")
+        if current_run_mode:
+            lines.append(f"• Mode: <code>{_html_escape(current_run_mode)}</code>")
+        if current_run_workspace_label or current_run_workspace_id:
+            workspace_current = (
+                f"{current_run_workspace_label} ({current_run_workspace_id})"
+                if current_run_workspace_label and current_run_workspace_id
+                else (current_run_workspace_label or current_run_workspace_id)
+            )
+            lines.append(f"• Workspace: <code>{_html_escape(workspace_current)}</code>")
+        if current_run_started:
+            lines.append(f"• Started: <code>{_html_escape(current_run_started)}</code>")
+        if current_run_id:
+            lines.append(f"• Job id: <code>{_html_escape(current_run_id)}</code>")
+        if current_run_prompt_preview:
+            lines.append(f"• Prompt: {_html_escape(current_run_prompt_preview)}")
+
+    last_run_mode = str(chat_state.get("last_run_mode") or "").strip().lower()
+    last_run_started = str(chat_state.get("last_run_started_at_utc") or "").strip()
+    last_run_finished = str(chat_state.get("last_run_finished_at_utc") or "").strip()
+    last_run_status = str(chat_state.get("last_run_status") or "").strip()
+    last_run_reason = str(chat_state.get("last_run_reason") or "").strip().replace(
+        "_", " "
+    )
+    last_run_exit_code = chat_state.get("last_run_exit_code")
+
+    if last_run_status:
+        lines.append("")
+        lines.append("<b>Last Run</b>")
+        if last_run_mode:
+            lines.append(f"• Mode: <code>{_html_escape(last_run_mode)}</code>")
+        if last_run_started:
+            lines.append(f"• Started: <code>{_html_escape(last_run_started)}</code>")
+        if last_run_finished:
+            lines.append(f"• Finished: <code>{_html_escape(last_run_finished)}</code>")
+        lines.append(f"• Status: <code>{_html_escape(last_run_status)}</code>")
+        if isinstance(last_run_exit_code, int):
+            lines.append(f"• Exit code: <code>{last_run_exit_code}</code>")
+        if last_run_reason:
+            lines.append(f"• Reason: {_html_escape(last_run_reason)}")
+    else:
+        lines.append("")
+        lines.append("<b>Last Run</b>")
+        lines.append("• No completed run recorded yet for this chat.")
+
+    lines.append("")
+    lines.append(
+        "Commands: <code>/mode</code>, <code>/new</code>, <code>/use</code>, "
+        "<code>/where</code>, <code>/list</code>"
+    )
+    message = "\n".join(lines)
+    if len(message) > 4096:
+        return _truncate_message(_strip_html_tags(message), limit=3900)
+    return message
+
+
+def _resolve_run_mode(chat_state: dict[str, Any], requested_mode: str | None = None) -> str:
+    if requested_mode:
+        mode = str(requested_mode).strip().lower()
+        if mode in SUPPORTED_EXECUTION_MODES:
+            return mode
+    return _effective_execution_mode(chat_state)
+
+
+def _derive_run_outcome(
+    code: int,
+    outcome: dict[str, Any] | None,
+) -> tuple[str, str, int | None]:
+    status = str((outcome or {}).get("status") or "").strip() or (
+        "done" if int(code) == 0 else "provider_failure"
+    )
+    reason = str((outcome or {}).get("reason") or "").strip() or (
+        "completed" if int(code) == 0 else f"provider_exit_code_{int(code)}"
+    )
+    provider_exit_code_raw = (outcome or {}).get("provider_exit_code")
+    provider_exit_code: int | None
+    if isinstance(provider_exit_code_raw, int):
+        provider_exit_code = provider_exit_code_raw
+    else:
+        provider_exit_code = int(code) if int(code) != 0 else None
+    return status, reason, provider_exit_code
+
+
+def _run_prompt_for_workspace(
+    *,
+    chat_state: dict[str, Any],
+    workspace: dict[str, Any],
+    prompt: str,
+    requested_mode: str | None,
+    workspaces_root: Path,
+    loop_config: GatewayLoopConfig,
+    loop_runner: LoopRunner | None = None,
+    exec_runner: ExecRunner | None = None,
+    workspace_repo_ensurer: WorkspaceRepoEnsurer | None = None,
+) -> tuple[str, Path, float]:
+    _touch_workspace(workspace)
+    repo_dir = workspaces_root / str(workspace["id"]) / "repo"
+    repo_ensurer = workspace_repo_ensurer or _ensure_workspace_repo
+    repo_ensurer(repo_dir, loop_config.init_git)
+
+    mode = _resolve_run_mode(chat_state, requested_mode=requested_mode)
+    run_started_epoch = time.time()
+    chat_state["last_run_started_at_utc"] = _now_utc_iso()
+    chat_state["last_run_mode"] = mode
+    code, outcome = _run_prompt_with_mode(
+        repo_dir=repo_dir,
+        prompt=prompt,
+        mode=mode,
+        loop_config=loop_config,
+        loop_runner=loop_runner,
+        exec_runner=exec_runner,
+    )
+    status, reason, provider_exit_code = _derive_run_outcome(code, outcome)
+    chat_state["last_run_status"] = status
+    chat_state["last_run_reason"] = reason
+    chat_state["last_run_exit_code"] = provider_exit_code
+    chat_state["last_run_finished_at_utc"] = _now_utc_iso()
+    summary = _build_run_summary_message(
+        mode=mode,
+        workspace=workspace,
+        repo_dir=repo_dir,
+        code=code,
+        outcome=outcome,
+    )
+    return summary, repo_dir, run_started_epoch
+
+
+def _run_prompt_with_mode(
+    *,
+    repo_dir: Path,
+    prompt: str,
+    mode: str,
+    loop_config: GatewayLoopConfig,
+    loop_runner: LoopRunner | None = None,
+    exec_runner: ExecRunner | None = None,
+) -> tuple[int, dict[str, Any] | None]:
+    if mode == "exec":
+        runner = exec_runner or _run_exec_in_workspace
+    else:
+        runner = loop_runner or _run_loop_in_workspace
+    return runner(repo_dir, prompt, loop_config)
+
+
+def _queue_telegram_run(
+    *,
+    text: str,
+    chat_id: str,
+    chat_key: str,
+    state: dict[str, Any],
+) -> tuple[QueuedRunJob, str]:
+    telegram = _telegram_state(state)
+    chat_state = _ensure_chat_state(telegram, chat_key)
+    workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
+    _touch_workspace(workspace)
+    mode = _effective_execution_mode(chat_state)
+    pending_raw = chat_state.get("pending_run_count")
+    pending_count = max(0, int(pending_raw)) if isinstance(pending_raw, int) else 0
+    chat_state["pending_run_count"] = pending_count + 1
+    queue_position = pending_count + 1
+    prompt = str(text or "").strip()
+    queued_at = _now_utc_iso()
+    job = QueuedRunJob(
+        job_id=f"job-{uuid.uuid4().hex[:10]}",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        prompt=prompt,
+        mode=mode,
+        workspace_id=str(workspace["id"]),
+        workspace_label=str(workspace["label"]),
+        queued_at_utc=queued_at,
+    )
+
+    if bool(chat_state.get("is_running")) or pending_count > 0:
+        reply = (
+            f"Queued request in workspace <code>{_html_escape(workspace['label'])}</code>.\n"
+            f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
+            f"Queue position: <code>{queue_position}</code>.\n"
+            "Use <code>/status</code> to monitor progress."
+        )
+    else:
+        reply = (
+            f"Request accepted in workspace <code>{_html_escape(workspace['label'])}</code>.\n"
+            f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
+            "Run queued and starting shortly.\n"
+            "Use <code>/status</code> to monitor progress."
+    )
+    return job, reply
+
+
+def _mark_chat_job_running(chat_state: dict[str, Any], job: QueuedRunJob) -> None:
+    pending_raw = chat_state.get("pending_run_count")
+    pending_count = max(0, int(pending_raw)) if isinstance(pending_raw, int) else 0
+    chat_state["pending_run_count"] = max(0, pending_count - 1)
+    chat_state["is_running"] = True
+    chat_state["current_run_id"] = job.job_id
+    chat_state["current_run_started_at_utc"] = _now_utc_iso()
+    chat_state["current_run_mode"] = job.mode
+    chat_state["current_run_workspace_id"] = job.workspace_id
+    chat_state["current_run_workspace_label"] = job.workspace_label
+    chat_state["current_run_prompt_preview"] = _normalize_prompt_preview(job.prompt)
+
+
+def _mark_chat_job_idle(chat_state: dict[str, Any]) -> None:
+    chat_state["is_running"] = False
+    chat_state["current_run_id"] = ""
+    chat_state["current_run_started_at_utc"] = ""
+    chat_state["current_run_mode"] = ""
+    chat_state["current_run_workspace_id"] = ""
+    chat_state["current_run_workspace_label"] = ""
+    chat_state["current_run_prompt_preview"] = ""
+
+
 def _handle_telegram_text(
     *,
     text: str,
@@ -989,10 +1351,7 @@ def _handle_telegram_text(
         return f"Switched workspace: {_format_workspace_short(workspace)}"
 
     if command == "/mode":
-        current_mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
-        if current_mode not in SUPPORTED_EXECUTION_MODES:
-            current_mode = "loop"
-            chat_state["execution_mode"] = current_mode
+        current_mode = _effective_execution_mode(chat_state)
 
         if not argument:
             return (
@@ -1019,44 +1378,33 @@ def _handle_telegram_text(
             "Normal messages will run with `fermilink exec`."
         )
 
+    if command == "/status":
+        return _build_status_message(chat_state)
+
     if command == "/list":
         return _format_workspace_list(chat_state)
 
     if command == "/where":
         workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
-        mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
-        if mode not in SUPPORTED_EXECUTION_MODES:
-            mode = "loop"
-            chat_state["execution_mode"] = mode
+        mode = _effective_execution_mode(chat_state)
         return (
             f"Active workspace: {_format_workspace_short(workspace)}\n"
             f"Current mode: {mode}"
         )
 
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
-    _touch_workspace(workspace)
-
-    repo_dir = workspaces_root / str(workspace["id"]) / "repo"
-    repo_ensurer = workspace_repo_ensurer or _ensure_workspace_repo
-    repo_ensurer(repo_dir, loop_config.init_git)
-
-    mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
-    if mode not in SUPPORTED_EXECUTION_MODES:
-        mode = "loop"
-        chat_state["execution_mode"] = mode
-
-    if mode == "exec":
-        runner = exec_runner or _run_exec_in_workspace
-    else:
-        runner = loop_runner or _run_loop_in_workspace
-    code, outcome = runner(repo_dir, text, loop_config)
-    return _build_run_summary_message(
-        mode=mode,
+    summary, _, _ = _run_prompt_for_workspace(
+        chat_state=chat_state,
         workspace=workspace,
-        repo_dir=repo_dir,
-        code=code,
-        outcome=outcome,
+        prompt=text,
+        requested_mode=None,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=loop_runner,
+        exec_runner=exec_runner,
+        workspace_repo_ensurer=workspace_repo_ensurer,
     )
+    return summary
 
 
 def _resolve_active_workspace_repo(
@@ -1199,8 +1547,127 @@ def cmd_gateway(args: argparse.Namespace) -> int:
     telegram = _telegram_state(state)
     offset = int(telegram.get("offset") or 0)
     workspaces_root = resolve_workspaces_root()
+    state_lock = threading.Lock()
+    send_lock = threading.Lock()
+    run_queue: queue.Queue[QueuedRunJob | None] = queue.Queue()
+    worker_stop = threading.Event()
+
+    chats_raw = telegram.get("chats")
+    if isinstance(chats_raw, dict):
+        for key in list(chats_raw.keys()):
+            chat_state = _ensure_chat_state(telegram, str(key))
+            _clear_chat_runtime_status(chat_state)
+    _save_gateway_state(session_store_path, state)
 
     client = _TelegramApiClient(token=token)
+
+    def _send_message_safe(*, chat_id: str, text: str, parse_mode: str | None = "HTML") -> None:
+        with send_lock:
+            client.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
+
+    def _run_worker() -> None:
+        while not worker_stop.is_set():
+            try:
+                job = run_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+
+            if job is None:
+                run_queue.task_done()
+                return
+
+            mode = job.mode if job.mode in SUPPORTED_EXECUTION_MODES else "loop"
+            workspace: dict[str, Any] = {"id": job.workspace_id, "label": job.workspace_label}
+            repo_dir = workspaces_root / job.workspace_id / "repo"
+            run_started_epoch = time.time()
+
+            with state_lock:
+                telegram_local = _telegram_state(state)
+                chat_state = _ensure_chat_state(telegram_local, job.chat_key)
+                workspace_record = _workspace_by_id(chat_state, job.workspace_id)
+                if workspace_record is not None:
+                    workspace = workspace_record
+                _mark_chat_job_running(chat_state, job)
+                chat_state["last_run_started_at_utc"] = _now_utc_iso()
+                chat_state["last_run_mode"] = mode
+                _save_gateway_state(session_store_path, state)
+
+            summary = ""
+            try:
+                _ensure_workspace_repo(repo_dir, loop_config.init_git)
+                code, outcome = _run_prompt_with_mode(
+                    repo_dir=repo_dir,
+                    prompt=job.prompt,
+                    mode=mode,
+                    loop_config=loop_config,
+                    loop_runner=None,
+                    exec_runner=None,
+                )
+                status, reason, provider_exit_code = _derive_run_outcome(code, outcome)
+                with state_lock:
+                    telegram_local = _telegram_state(state)
+                    chat_state = _ensure_chat_state(telegram_local, job.chat_key)
+                    workspace_record = _workspace_by_id(chat_state, job.workspace_id)
+                    if workspace_record is not None:
+                        workspace = workspace_record
+                    chat_state["last_run_status"] = status
+                    chat_state["last_run_reason"] = reason
+                    chat_state["last_run_exit_code"] = provider_exit_code
+                    chat_state["last_run_finished_at_utc"] = _now_utc_iso()
+                    _mark_chat_job_idle(chat_state)
+                    _save_gateway_state(session_store_path, state)
+                summary = _build_run_summary_message(
+                    mode=mode,
+                    workspace=workspace,
+                    repo_dir=repo_dir,
+                    code=code,
+                    outcome=outcome,
+                )
+            except Exception as exc:
+                cli._print_tagged(
+                    "gateway",
+                    f"queued run failed for {job.chat_key}: {exc}",
+                    stderr=True,
+                )
+                with state_lock:
+                    telegram_local = _telegram_state(state)
+                    chat_state = _ensure_chat_state(telegram_local, job.chat_key)
+                    chat_state["last_run_status"] = "provider_failure"
+                    chat_state["last_run_reason"] = f"gateway_error_{type(exc).__name__}"
+                    chat_state["last_run_exit_code"] = None
+                    chat_state["last_run_finished_at_utc"] = _now_utc_iso()
+                    _mark_chat_job_idle(chat_state)
+                    _save_gateway_state(session_store_path, state)
+                summary = f"Gateway error: {exc}"
+
+            if summary:
+                try:
+                    _send_message_safe(chat_id=job.chat_id, text=summary, parse_mode="HTML")
+                except Exception as exc:  # pragma: no cover - network errors
+                    cli._print_tagged(
+                        "gateway",
+                        f"failed to send queued-run reply to {job.chat_key}: {exc}",
+                        stderr=True,
+                    )
+
+            with send_lock:
+                _send_run_media_reply(
+                    client=client,
+                    chat_id=job.chat_id,
+                    workspace=workspace,
+                    repo_dir=repo_dir,
+                    run_started_epoch=run_started_epoch,
+                    on_error=lambda msg: cli._print_tagged("gateway", msg, stderr=True),
+                )
+            run_queue.task_done()
+
+    worker_thread = threading.Thread(
+        target=_run_worker,
+        name="fermilink-gateway-worker",
+        daemon=True,
+    )
+    worker_thread.start()
+
     cli._print_tagged("gateway", f"session store: {session_store_path}")
     cli._print_tagged("gateway", f"workspaces root: {workspaces_root}")
     if allow_from:
@@ -1233,22 +1700,26 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                 update_id = update.get("update_id")
                 if isinstance(update_id, int):
                     offset = max(offset, update_id + 1)
-                    telegram["offset"] = offset
+                    with state_lock:
+                        telegram["offset"] = offset
 
                 message = update.get("message")
                 if not isinstance(message, dict):
-                    _save_gateway_state(session_store_path, state)
+                    with state_lock:
+                        _save_gateway_state(session_store_path, state)
                     continue
 
                 chat_info = message.get("chat")
                 sender_info = message.get("from")
                 text = message.get("text")
                 if not isinstance(chat_info, dict):
-                    _save_gateway_state(session_store_path, state)
+                    with state_lock:
+                        _save_gateway_state(session_store_path, state)
                     continue
                 chat_id_raw = chat_info.get("id")
                 if chat_id_raw is None:
-                    _save_gateway_state(session_store_path, state)
+                    with state_lock:
+                        _save_gateway_state(session_store_path, state)
                     continue
                 chat_id = str(chat_id_raw)
                 chat_key = f"telegram:{chat_id}"
@@ -1266,9 +1737,14 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     username=sender_username,
                     allowed_tokens=allow_from,
                 ):
-                    _save_gateway_state(session_store_path, state)
+                    with state_lock:
+                        _save_gateway_state(session_store_path, state)
                     try:
-                        client.send_message(chat_id=chat_id, text="Access denied.")
+                        _send_message_safe(
+                            chat_id=chat_id,
+                            text="Access denied.",
+                            parse_mode=None,
+                        )
                     except Exception as exc:  # pragma: no cover - network errors
                         cli._print_tagged(
                             "gateway",
@@ -1278,7 +1754,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     continue
 
                 if not isinstance(text, str) or not text.strip():
-                    _save_gateway_state(session_store_path, state)
+                    with state_lock:
+                        _save_gateway_state(session_store_path, state)
                     continue
 
                 cli._print_tagged(
@@ -1286,30 +1763,48 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     f"received message for {chat_key}: {text[:120]!r}",
                 )
                 command, _ = _parse_gateway_command(text)
-                run_started_epoch = time.time() if command is None else None
+                if command is None:
+                    try:
+                        with state_lock:
+                            job, reply = _queue_telegram_run(
+                                text=text,
+                                chat_id=chat_id,
+                                chat_key=chat_key,
+                                state=state,
+                            )
+                            _save_gateway_state(session_store_path, state)
+                        run_queue.put(job)
+                    except Exception as exc:
+                        cli._print_tagged(
+                            "gateway",
+                            f"message queueing failed for {chat_key}: {exc}",
+                            stderr=True,
+                        )
+                        reply = f"Gateway error: {exc}"
+                else:
+                    try:
+                        with state_lock:
+                            reply = _handle_telegram_text(
+                                text=text,
+                                chat_id=chat_id,
+                                chat_key=chat_key,
+                                state=state,
+                                workspaces_root=workspaces_root,
+                                loop_config=loop_config,
+                            )
+                            _save_gateway_state(session_store_path, state)
+                    except Exception as exc:
+                        cli._print_tagged(
+                            "gateway",
+                            f"message handling failed for {chat_key}: {exc}",
+                            stderr=True,
+                        )
+                        reply = f"Gateway error: {exc}"
 
-                try:
-                    reply = _handle_telegram_text(
-                        text=text,
-                        chat_id=chat_id,
-                        chat_key=chat_key,
-                        state=state,
-                        workspaces_root=workspaces_root,
-                        loop_config=loop_config,
-                    )
-                except Exception as exc:
-                    cli._print_tagged(
-                        "gateway",
-                        f"message handling failed for {chat_key}: {exc}",
-                        stderr=True,
-                    )
-                    reply = f"Gateway error: {exc}"
-
-                _save_gateway_state(session_store_path, state)
                 if not reply:
                     continue
                 try:
-                    client.send_message(chat_id=chat_id, text=reply, parse_mode="HTML")
+                    _send_message_safe(chat_id=chat_id, text=reply, parse_mode="HTML")
                 except Exception as exc:  # pragma: no cover - network errors
                     cli._print_tagged(
                         "gateway",
@@ -1317,26 +1812,21 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                         stderr=True,
                     )
                     continue
-
-                if command is None:
-                    workspace, repo_dir = _resolve_active_workspace_repo(
-                        state=state,
-                        chat_key=chat_key,
-                        workspaces_root=workspaces_root,
-                    )
-                    _send_run_media_reply(
-                        client=client,
-                        chat_id=chat_id,
-                        workspace=workspace,
-                        repo_dir=repo_dir,
-                        run_started_epoch=run_started_epoch,
-                        on_error=lambda msg: cli._print_tagged(
-                            "gateway", msg, stderr=True
-                        ),
-                    )
     except KeyboardInterrupt:
-        _save_gateway_state(session_store_path, state)
+        worker_stop.set()
+        run_queue.put(None)
+        with state_lock:
+            telegram = _telegram_state(state)
+            chats = telegram.get("chats")
+            if isinstance(chats, dict):
+                for key in list(chats.keys()):
+                    chat_state = _ensure_chat_state(telegram, str(key))
+                    _clear_chat_runtime_status(chat_state)
+            _save_gateway_state(session_store_path, state)
         cli._print_tagged("gateway", "stopped.")
         return 0
     finally:
+        worker_stop.set()
+        run_queue.put(None)
+        worker_thread.join(timeout=1.0)
         client.close()

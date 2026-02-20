@@ -107,7 +107,8 @@ Step-by-step setup (iPhone + computer):
 
 6. From iPhone Telegram, open the chat with your bot and test commands:
    ``/help``, then a normal simulation request, then ``/mode exec``,
-   ``/mode loop``, ``/new test2``, ``/use main``, ``/where``, and ``/list``.
+   ``/mode loop``, ``/status``, ``/new test2``, ``/use main``, ``/where``,
+   and ``/list``.
 7. Verify mapping/runtime state on computer:
 
    .. code-block:: bash
@@ -131,11 +132,16 @@ Gateway behavior:
 - ``/mode <loop|exec>`` switches normal-message execution between
   ``fermilink loop`` (multi-iteration autonomous mode) and
   ``fermilink exec`` (single-turn mode) per chat session;
+- ``/status`` returns a quick health snapshot for the current chat (gateway
+  online response timestamp, current mode, active workspace, live agent state
+  ``idle/queued/running`` (with current-run details while active), and last
+  run status/reason/timestamps;
 - ``/new [name]`` creates and switches to a new workspace;
 - ``/use <name-or-id>`` switches back to an existing workspace;
 - ``/where`` prints the active workspace and ``/list`` shows all chat
   workspaces;
-- for run messages, Telegram receives only final completion updates (no token
+- for run messages, Telegram immediately sends a queued/accepted ack, then
+  sends only final completion updates when the run finishes (no token
   streaming during execution).
 
 Useful flags:

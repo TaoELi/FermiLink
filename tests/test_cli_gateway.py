@@ -69,6 +69,10 @@ def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> 
         created_via="new",
     )
     chat_state["execution_mode"] = "exec"
+    chat_state["last_run_status"] = "done"
+    chat_state["last_run_reason"] = "exec_completed"
+    chat_state["last_run_exit_code"] = 0
+    chat_state["last_run_mode"] = "exec"
 
     gateway_commands._save_gateway_state(state_path, state)
     loaded = gateway_commands._load_gateway_state(state_path)
@@ -80,6 +84,10 @@ def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> 
     assert len(loaded_chat["workspaces"]) == 1
     assert loaded_chat["workspaces"][0]["label"] == "main"
     assert loaded_chat["execution_mode"] == "exec"
+    assert loaded_chat["last_run_status"] == "done"
+    assert loaded_chat["last_run_reason"] == "exec_completed"
+    assert loaded_chat["last_run_exit_code"] == 0
+    assert loaded_chat["last_run_mode"] == "exec"
 
 
 def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> None:
@@ -313,6 +321,131 @@ def test_handle_telegram_text_mode_switches_between_loop_and_exec(
     assert len(exec_calls) == 1
     assert len(loop_calls) == 1
     assert exec_calls[0] == loop_calls[0]
+
+
+def test_status_reports_online_mode_workspace_and_last_run(tmp_path: Path) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Run task\n\n"
+                "### Key results\n"
+                "- energy | value | -1.23 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_loop_runner(
+        repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        return 0, {"status": "done", "reason": "done_token"}
+
+    chat_id = "601"
+    chat_key = "telegram:601"
+    loop_config = _loop_config()
+
+    before = gateway_commands._handle_telegram_text(
+        text="/status",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    run_reply = gateway_commands._handle_telegram_text(
+        text="run status test",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    after = gateway_commands._handle_telegram_text(
+        text="/status",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "<b>Gateway Status</b>" in before
+    assert "No completed run recorded yet for this chat." in before
+    assert "Execution mode: <code>loop</code>." in run_reply
+    assert "<b>Last Run</b>" in after
+    assert "Status: <code>done</code>" in after
+    assert "Reason: done token" in after
+    assert "Started: <code>" in after
+    assert "Finished: <code>" in after
+
+
+def test_status_reports_running_job_details_for_immediate_polling() -> None:
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_id = "777"
+    chat_key = "telegram:777"
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+
+    job, queued_reply = gateway_commands._queue_telegram_run(
+        text="simulate h2o energy with pyscf",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+    )
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    assert "Run queued and starting shortly." in queued_reply
+    assert chat_state["pending_run_count"] == 1
+    assert chat_state["is_running"] is False
+
+    gateway_commands._mark_chat_job_running(chat_state, job)
+    status = gateway_commands._build_status_message(chat_state)
+
+    assert "Agent: <b>running</b>" in status
+    assert "<b>Current Run</b>" in status
+    assert "Mode: <code>loop</code>" in status
+    assert "Prompt: simulate h2o energy with pyscf" in status
+
+
+def test_status_reports_queued_when_requests_waiting() -> None:
+    state = gateway_commands._default_gateway_state()
+    chat_id = "778"
+    chat_key = "telegram:778"
+
+    _, first = gateway_commands._queue_telegram_run(
+        text="first run",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+    )
+    _, second = gateway_commands._queue_telegram_run(
+        text="second run",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+    )
+
+    telegram = gateway_commands._telegram_state(state)
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    status = gateway_commands._build_status_message(chat_state)
+
+    assert "Run queued and starting shortly." in first
+    assert "Queued request in workspace" in second
+    assert "Queue position: <code>2</code>" in second
+    assert "Agent: <b>queued</b> (2 pending)" in status
+    assert "<b>Current Run</b>" not in status
 
 
 def test_collect_media_for_run_reply_prefers_memory_and_recent_files(
