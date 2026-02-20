@@ -169,6 +169,10 @@ Paper-mode pass flow (``--doc ...``):
    under ``skills/.../workspace/``.
    Under ``## Figure Routing``, each figure entry should include a brief
    scope summary (scientific aim/condition) plus its playbook path.
+   If the root tutorial ``SKILL.md`` uses YAML frontmatter, keep
+   ``description`` dual-purpose: explicitly mention both manuscript
+   reproducibility and how to adapt workflows/parameters for closely related
+   systems.
    The generated tutorial must be self-contained (copy lightweight inputs,
    postprocess/plot scripts, and references into local ``assets/``) and must
    not depend on ``skills/.evidence/`` paths or external ``--data-dir`` paths.

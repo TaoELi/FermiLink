@@ -1103,8 +1103,11 @@ def test_recompile_accepts_doc_data_dir_and_comment(
     assert seen_prompts[0].startswith(cli.RECOMPILE_PAPER_PROMPT_1_PLAN)
     assert "Original manuscript content" in seen_prompts[0]
     assert seen_prompts[1].startswith(cli.RECOMPILE_PAPER_PROMPT_2_TUTORIAL)
+    assert "dual-purpose" in seen_prompts[1].lower()
+    assert "manuscript-result reproduction" in seen_prompts[1]
     assert "# paper" not in seen_prompts[1]
     assert seen_prompts[2].startswith(cli.RECOMPILE_PAPER_PROMPT_3_AUDIT)
+    assert "dual-purpose" in seen_prompts[2].lower()
     paper_context = payload.get("paper_context")
     assert isinstance(paper_context, dict)
     context_rel = str(paper_context.get("context_path") or "")
