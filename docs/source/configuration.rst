@@ -87,6 +87,27 @@ Common runner/web controls
      - ``true``
      - Enable model-based package second-guess preflight.
 
+Gateway controls
+----------------
+
+``fermilink gateway`` reads these Telegram-specific variables:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Variable
+     - Default
+     - Purpose
+   * - ``FERMILINK_GATEWAY_TELEGRAM_TOKEN``
+     - unset
+     - Telegram bot token used by ``gateway`` long polling.
+   * - ``FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM``
+     - unset
+     - Optional comma/space-separated sender allowlist (ids/usernames).
+
+To get a numeric Telegram user id for ``FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM``,
+message ``@userinfobot`` on Telegram and copy the returned ``Id`` value.
+
 Core runtime paths (when not overridden)
 ----------------------------------------
 

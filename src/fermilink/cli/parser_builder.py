@@ -39,6 +39,11 @@ def _build_parser() -> argparse.ArgumentParser:
         cmd_loop=cli._cmd_loop,
         default_codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN,
     )
+    cli.register_gateway_parser(
+        subparsers,
+        cmd_gateway=cli._cmd_gateway,
+        default_codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN,
+    )
     cli.register_workflow_parsers(
         subparsers,
         cmd_reproduce=cli._cmd_reproduce,

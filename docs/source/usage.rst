@@ -67,6 +67,83 @@ Useful flags:
 - ``--init-git`` initialize git repo if missing.
 - ``--no-init-git`` fail if git repo is missing.
 
+Telegram gateway (iPhone chat)
+------------------------------
+
+Use ``gateway`` to bind Telegram chat sessions to sticky workspace repos and
+run each message through ``fermilink loop``.
+
+.. code-block:: bash
+
+   export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<bot-token>"
+   export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="123456789"
+   fermilink gateway
+
+Step-by-step setup (iPhone + computer):
+
+1. Create a Telegram bot on iPhone:
+   open ``@BotFather`` in Telegram, run ``/newbot``, and copy the bot token.
+2. Find your numeric Telegram user id on iPhone:
+   message ``@get_telegram_id_smppcenter_bot`` and copy the ``Id`` value.
+3. Run the local FermiLink code on your computer:
+
+   .. code-block:: bash
+
+      cd /Users/taoli/Documents/Github/FermiLink_development
+      pip install .
+
+4. Export gateway variables on the computer or add it to ``.bashrc/zshrc``:
+
+   .. code-block:: bash
+
+      export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-botfather>"
+      export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-userinfobot>"
+
+5. Start the gateway:
+
+   .. code-block:: bash
+
+      fermilink gateway
+
+6. From iPhone Telegram, open the chat with your bot and test commands:
+   ``/help``, then a normal simulation request, then ``/new test2``,
+   ``/use main``, ``/where``, and ``/list``.
+7. Verify mapping/runtime state on computer:
+
+   .. code-block:: bash
+
+      cat ~/.fermilink/runtime/chat_sessions.json
+      ls ~/.fermilink/workspaces
+
+If you receive ``Access denied.``, the allowlist id/username does not match the
+sender account. Update ``FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM`` and restart.
+
+Gateway behavior:
+
+- each Telegram chat gets one active workspace under
+  ``$FERMILINK_WORKSPACES_ROOT/<workspace_id>/repo``;
+- normal messages run in the active workspace so follow-up requests reuse
+  ``projects/memory.md`` history;
+- run replies are rendered as a human-friendly summary from memory sections
+  (completed plan items + key findings), instead of raw status payloads;
+- generated figures/documents are auto-attached back to Telegram when available
+  so plots can be viewed directly on mobile clients;
+- ``/new [name]`` creates and switches to a new workspace;
+- ``/use <name-or-id>`` switches back to an existing workspace;
+- ``/where`` prints the active workspace and ``/list`` shows all chat
+  workspaces;
+- for run messages, Telegram receives only final completion updates (no token
+  streaming during execution).
+
+Useful flags:
+
+- ``--telegram-token <token>`` set bot token from CLI instead of env.
+- ``--allow-from <id-or-username>`` sender allowlist (repeatable).
+- ``--session-store <path>`` custom persistent chat-session store JSON path.
+- loop forwarding flags such as ``--package``, ``--sandbox``,
+  ``--max-iterations``, ``--wait-seconds``, ``--max-wait-seconds``,
+  ``--pid-stall-seconds``.
+
 Autonomous iterative loop
 -------------------------
 
