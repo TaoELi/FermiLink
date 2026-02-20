@@ -128,8 +128,8 @@ def register_exec_loop_parsers(
         type=float,
         default=1.0,
         help=(
-            "Polling interval seconds for <pid_number> waits; also used as "
-            "fallback sleep between iterations when no pid tags are returned "
+            "Polling interval seconds for <pid_number>/<slurm_job_number> waits; "
+            "also used as fallback sleep between iterations when no wait tags are returned "
             "(default: 1)."
         ),
     )
@@ -138,7 +138,7 @@ def register_exec_loop_parsers(
         type=float,
         default=6000.0,
         help=(
-            "Hard cap on per-iteration waiting for pid polling and wait "
+            "Hard cap on per-iteration waiting for pid/slurm polling and wait "
             "hints (default: 6000)."
         ),
     )

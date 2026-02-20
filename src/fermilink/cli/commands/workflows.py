@@ -16,6 +16,7 @@ from fermilink.cli.workflow_prompts import (
     LOOP_MEMORY_DIRNAME,
     LOOP_MEMORY_FILENAME,
     LOOP_PID_TOKEN_RE,
+    LOOP_SLURM_JOB_TOKEN_RE,
     LOOP_WAIT_TOKEN_RE,
     REPRODUCE_ARCHIVE_DIRNAME,
     REPRODUCE_AUDITOR_PROMPT_PREFIX,
@@ -3479,6 +3480,23 @@ def _extract_loop_pid_numbers(assistant_text: str) -> list[int]:
         seen.add(pid)
         pids.append(pid)
     return pids
+
+
+def _extract_loop_slurm_job_numbers(assistant_text: str) -> list[str]:
+    if not isinstance(assistant_text, str) or not assistant_text.strip():
+        return []
+    matches = LOOP_SLURM_JOB_TOKEN_RE.findall(assistant_text)
+    if not matches:
+        return []
+    seen: set[str] = set()
+    job_ids: list[str] = []
+    for raw in matches:
+        job_id = str(raw).strip()
+        if not job_id or job_id in seen:
+            continue
+        seen.add(job_id)
+        job_ids.append(job_id)
+    return job_ids
 
 
 def _materialize_mode_plan(

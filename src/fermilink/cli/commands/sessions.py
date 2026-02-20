@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -30,6 +32,80 @@ def _pid_is_alive(pid: int) -> bool:
         return True
     else:
         return True
+
+
+SLURM_FAILURE_STATES = {
+    "FAILED",
+    "CANCELLED",
+    "TIMEOUT",
+    "NODE_FAIL",
+    "OUT_OF_MEMORY",
+    "PREEMPTED",
+    "BOOT_FAIL",
+    "DEADLINE",
+    "REVOKED",
+    "SPECIAL_EXIT",
+    "STOPPED",
+}
+
+
+def _slurm_wait_tools_available() -> bool:
+    return shutil.which("sacct") is not None or shutil.which("squeue") is not None
+
+
+def _query_slurm_job_state(job_id: str) -> str:
+    state = ""
+    sacct_bin = shutil.which("sacct")
+    if sacct_bin:
+        try:
+            result = subprocess.run(
+                [sacct_bin, "-n", "-o", "State", "-j", str(job_id)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, ValueError):
+            result = None
+        if result is not None:
+            for line in result.stdout.splitlines():
+                token = line.strip()
+                if token:
+                    state = token
+                    break
+    if not state:
+        squeue_bin = shutil.which("squeue")
+        if squeue_bin:
+            try:
+                result = subprocess.run(
+                    [squeue_bin, "-h", "-j", str(job_id)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+            except (OSError, ValueError):
+                result = None
+            if result is not None and result.stdout.strip():
+                state = "PENDING"
+    normalized = state.split("+", 1)[0].strip()
+    if normalized:
+        normalized = normalized.split()[0]
+    return normalized.upper()
+
+
+def _poll_pending_slurm_jobs(
+    slurm_job_numbers: list[str],
+) -> tuple[list[str], list[tuple[str, str]]]:
+    pending: list[str] = []
+    failed: list[tuple[str, str]] = []
+    for job_id in slurm_job_numbers:
+        state = _query_slurm_job_state(job_id)
+        if state == "COMPLETED":
+            continue
+        if state in SLURM_FAILURE_STATES:
+            failed.append((job_id, state))
+            continue
+        pending.append(job_id)
+    return pending, failed
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -326,31 +402,78 @@ def cmd_loop(args: argparse.Namespace) -> int:
 
             if iteration < max_iterations:
                 pid_numbers = cli._extract_loop_pid_numbers(assistant_text)
-                if pid_numbers:
+                slurm_job_numbers = cli._extract_loop_slurm_job_numbers(assistant_text)
+                if pid_numbers or slurm_job_numbers:
                     poll_interval = wait_seconds if wait_seconds > 0 else 1.0
                     alive = [pid for pid in pid_numbers if _pid_is_alive(pid)]
-                    if alive:
-                        pid_text = ", ".join(str(pid) for pid in alive)
+                    pending_slurm_jobs = list(slurm_job_numbers)
+                    if pending_slurm_jobs and not _slurm_wait_tools_available():
+                        slurm_text = ", ".join(pending_slurm_jobs)
                         cli._print_tagged(
                             "loop",
                             (
-                                "polling local pid(s) until completion "
-                                f"(pids: {pid_text}, poll: {poll_interval:.1f}s, "
+                                "cannot poll slurm job(s) without `sacct` or `squeue`; "
+                                f"continuing without slurm wait (jobs: {slurm_text})"
+                            ),
+                            stderr=True,
+                        )
+                        pending_slurm_jobs = []
+                    failed_slurm_jobs: list[tuple[str, str]] = []
+                    if pending_slurm_jobs:
+                        pending_slurm_jobs, failed_slurm_jobs = _poll_pending_slurm_jobs(
+                            pending_slurm_jobs
+                        )
+                    if failed_slurm_jobs:
+                        failed_text = ", ".join(
+                            f"{job_id}:{state}" for job_id, state in failed_slurm_jobs
+                        )
+                        cli._print_tagged(
+                            "loop",
+                            (
+                                "slurm job(s) reached non-success terminal state; "
+                                f"continuing (jobs: {failed_text})"
+                            ),
+                            stderr=True,
+                        )
+                    if alive or pending_slurm_jobs:
+                        wait_targets: list[str] = []
+                        if alive:
+                            wait_targets.append(
+                                "pid(s): " + ", ".join(str(pid) for pid in alive)
+                            )
+                        if pending_slurm_jobs:
+                            wait_targets.append(
+                                "slurm job(s): " + ", ".join(pending_slurm_jobs)
+                            )
+                        cli._print_tagged(
+                            "loop",
+                            (
+                                "polling jobs until completion "
+                                f"({'; '.join(wait_targets)}, poll: {poll_interval:.1f}s, "
                                 f"max wait: {max_wait_seconds:.1f}s)"
                             ),
                         )
                         started = time.monotonic()
-                        while alive:
+                        while alive or pending_slurm_jobs:
                             elapsed = time.monotonic() - started
                             remaining = max_wait_seconds - elapsed
                             if remaining <= 0:
-                                pid_text = ", ".join(str(pid) for pid in alive)
+                                waiting_on: list[str] = []
+                                if alive:
+                                    waiting_on.append(
+                                        "pid(s): "
+                                        + ", ".join(str(pid) for pid in alive)
+                                    )
+                                if pending_slurm_jobs:
+                                    waiting_on.append(
+                                        "slurm job(s): " + ", ".join(pending_slurm_jobs)
+                                    )
                                 cli._print_tagged(
                                     "loop",
                                     (
-                                        "pid polling reached max wait "
+                                        "job polling reached max wait "
                                         f"({max_wait_seconds:.1f}s); continuing "
-                                        f"with still-running pid(s): {pid_text}"
+                                        f"with still-running targets: {'; '.join(waiting_on)}"
                                     ),
                                     stderr=True,
                                 )
@@ -359,11 +482,28 @@ def cmd_loop(args: argparse.Namespace) -> int:
                             if sleep_seconds > 0:
                                 time.sleep(sleep_seconds)
                             alive = [pid for pid in pid_numbers if _pid_is_alive(pid)]
-                        if not alive:
+                            if pending_slurm_jobs:
+                                pending_slurm_jobs, failed_slurm_jobs = (
+                                    _poll_pending_slurm_jobs(pending_slurm_jobs)
+                                )
+                                if failed_slurm_jobs:
+                                    failed_text = ", ".join(
+                                        f"{job_id}:{state}"
+                                        for job_id, state in failed_slurm_jobs
+                                    )
+                                    cli._print_tagged(
+                                        "loop",
+                                        (
+                                            "slurm job(s) reached non-success terminal state; "
+                                            f"continuing (jobs: {failed_text})"
+                                        ),
+                                        stderr=True,
+                                    )
+                        if not alive and not pending_slurm_jobs:
                             waited = time.monotonic() - started
                             cli._print_tagged(
                                 "loop",
-                                f"pid polling complete after {waited:.1f}s.",
+                                f"job polling complete after {waited:.1f}s.",
                             )
                     continue
                 suggested_wait = cli._extract_loop_wait_seconds(assistant_text)

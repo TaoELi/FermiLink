@@ -8,6 +8,7 @@ import pytest
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
 
 
@@ -483,6 +484,192 @@ def test_loop_pid_wait_respects_max_wait_cap(
             proc.wait(timeout=2)
 
 
+def test_loop_waits_for_pid_and_slurm_tags_before_next_iteration(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "pkg-a",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(0.2)"],
+    )
+    run_calls: list[dict[str, object]] = []
+    slurm_poll_calls = {"count": 0}
+
+    monkeypatch.setattr(session_commands, "_slurm_wait_tools_available", lambda: True)
+
+    def fake_query_slurm_job_state(job_id: str) -> str:
+        assert job_id == "12345"
+        slurm_poll_calls["count"] += 1
+        if slurm_poll_calls["count"] < 3:
+            return "RUNNING"
+        return "COMPLETED"
+
+    monkeypatch.setattr(
+        session_commands, "_query_slurm_job_state", fake_query_slurm_job_state
+    )
+
+    try:
+
+        def fake_run_chat_turn(**kwargs):
+            run_calls.append(kwargs)
+            if len(run_calls) == 1:
+                return {
+                    "assistant_text": (
+                        f"submitted\n<pid_number>{proc.pid}</pid_number>\n"
+                        "<slurm_job_number>12345</slurm_job_number>\n"
+                    ),
+                    "return_code": 0,
+                    "stderr": "",
+                }
+            assert proc.poll() is not None
+            return {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""}
+
+        monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
+        monkeypatch.setattr(
+            cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None
+        )
+
+        code = cli.main(
+            [
+                "loop",
+                "--max-iterations",
+                "2",
+                "--wait-seconds",
+                "0.02",
+                "--max-wait-seconds",
+                "2",
+                "finish it",
+            ]
+        )
+        assert code == 0
+        assert len(run_calls) == 2
+        assert slurm_poll_calls["count"] >= 3
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait(timeout=2)
+
+
+def test_loop_slurm_wait_skips_when_tools_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "pkg-a",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+
+    run_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        session_commands, "_slurm_wait_tools_available", lambda: False
+    )
+    monkeypatch.setattr(
+        session_commands,
+        "_query_slurm_job_state",
+        lambda _job_id: (_ for _ in ()).throw(
+            AssertionError("slurm query should not run when tools are unavailable")
+        ),
+    )
+
+    def fake_run_chat_turn(**kwargs):
+        run_calls.append(kwargs)
+        if len(run_calls) == 1:
+            return {
+                "assistant_text": "submitted\n<slurm_job_number>12345</slurm_job_number>\n",
+                "return_code": 0,
+                "stderr": "",
+            }
+        return {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""}
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    slept: list[float] = []
+    monkeypatch.setattr(cli.time, "sleep", lambda seconds: slept.append(float(seconds)))
+
+    code = cli.main(
+        [
+            "loop",
+            "--max-iterations",
+            "2",
+            "--wait-seconds",
+            "0.02",
+            "--max-wait-seconds",
+            "2",
+            "finish it",
+        ]
+    )
+    assert code == 0
+    assert len(run_calls) == 2
+    assert slept == []
+
+
 def test_extract_loop_wait_seconds_returns_none_for_invalid_values() -> None:
     assert cli._extract_loop_wait_seconds("no token here") is None
     assert cli._extract_loop_wait_seconds("<wait_seconds>-1</wait_seconds>") is None
@@ -505,6 +692,22 @@ def test_extract_loop_pid_numbers_returns_unique_positive_integers() -> None:
             )
         )
         == [15, 42]
+    )
+
+
+def test_extract_loop_slurm_job_numbers_returns_unique_values() -> None:
+    assert cli._extract_loop_slurm_job_numbers("no token here") == []
+    assert cli._extract_loop_slurm_job_numbers("<slurm_job_number>abc</slurm_job_number>") == []
+    assert (
+        cli._extract_loop_slurm_job_numbers(
+            (
+                "working\n"
+                "<slurm_job_number>123</slurm_job_number>\n"
+                "<slurm_job_number>123</slurm_job_number>\n"
+                "<slurm_job_number>456</slurm_job_number>\n"
+            )
+        )
+        == ["123", "456"]
     )
 
 

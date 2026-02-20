@@ -87,11 +87,12 @@ Loop behavior:
   ``Long-Term Memory`` (``File map``, ``Simulation history``,
   ``Key results``, ``Suggested skills updates``);
 - stops early when output includes ``<promise>DONE</promise>``;
-- supports local PID-based waiting via ``<pid_number>...</pid_number>`` tags;
-  when present, loop polls those local processes until completion or until
+- supports job-based waiting via ``<pid_number>...</pid_number>`` (local
+  processes) and ``<slurm_job_number>...</slurm_job_number>`` (HPC jobs) tags;
+  when present, loop polls those jobs until completion or until
   ``--max-wait-seconds`` is reached;
 - keeps backward-compatible ``<wait_seconds>...</wait_seconds>`` wait hints when
-  no PID tags are provided.
+  no pid/slurm wait tags are provided.
 
 Reproduce workflows
 -------------------

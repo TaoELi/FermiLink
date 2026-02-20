@@ -98,8 +98,9 @@ def register_workflow_parsers(
         type=float,
         default=1.0,
         help=(
-            "Forwarded to inner loop polling interval for <pid_number> waits; "
-            "also used as fallback sleep when no pid tags are returned "
+            "Forwarded to inner loop polling interval for "
+            "<pid_number>/<slurm_job_number> waits; "
+            "also used as fallback sleep when no wait tags are returned "
             "(default: 1)."
         ),
     )
@@ -108,7 +109,7 @@ def register_workflow_parsers(
         type=float,
         default=6000.0,
         help=(
-            "Forwarded to inner loop hard cap for per-iteration pid polling "
+            "Forwarded to inner loop hard cap for per-iteration pid/slurm polling "
             "and waits "
             "(default: 6000)."
         ),
@@ -300,8 +301,9 @@ def register_workflow_parsers(
         type=float,
         default=0.0,
         help=(
-            "Forwarded to inner loop polling interval for <pid_number> waits; "
-            "also used as fallback sleep when no pid tags are returned "
+            "Forwarded to inner loop polling interval for "
+            "<pid_number>/<slurm_job_number> waits; "
+            "also used as fallback sleep when no wait tags are returned "
             "(default: 0)."
         ),
     )
@@ -310,7 +312,7 @@ def register_workflow_parsers(
         type=float,
         default=600.0,
         help=(
-            "Forwarded to inner loop hard cap for per-iteration pid polling "
+            "Forwarded to inner loop hard cap for per-iteration pid/slurm polling "
             "and waits "
             "(default: 600)."
         ),
