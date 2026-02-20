@@ -78,6 +78,7 @@ Use ``loop`` for iterative autonomous work with persistent memory.
    fermilink loop "refactor router and add tests"
    fermilink loop --max-iterations 50 prompt.md
    fermilink loop --wait-seconds 30 --max-wait-seconds 300 prompt.md
+   fermilink loop --pid-stall-seconds 900 prompt.md
 
 Loop behavior:
 
@@ -91,6 +92,12 @@ Loop behavior:
   processes) and ``<slurm_job_number>...</slurm_job_number>`` (HPC jobs) tags;
   when present, loop polls those jobs until completion or until
   ``--max-wait-seconds`` is reached;
+- detects local pid failures/stalls and repeated unqueryable slurm-job states
+  during polling, then immediately advances to the next iteration for
+  debug/resubmit handoff (pid stall detection controlled by
+  ``--pid-stall-seconds``; set ``0`` to disable);
+- emits a polling heartbeat roughly every 10 minutes during active waits,
+  including UTC timestamp and currently tracked wait targets;
 - keeps backward-compatible ``<wait_seconds>...</wait_seconds>`` wait hints when
   no pid/slurm wait tags are provided.
 

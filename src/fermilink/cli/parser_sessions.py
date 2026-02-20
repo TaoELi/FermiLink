@@ -143,6 +143,16 @@ def register_exec_loop_parsers(
         ),
     )
     loop_parser.add_argument(
+        "--pid-stall-seconds",
+        type=float,
+        default=900.0,
+        help=(
+            "If > 0, treat local pid polling as stalled when process CPU time does not "
+            "advance for this many seconds and continue to next iteration early "
+            "(default: 900; set 0 to disable)."
+        ),
+    )
+    loop_parser.add_argument(
         "--init-git",
         action="store_true",
         help="Auto-run git init when current directory is not a git repository.",

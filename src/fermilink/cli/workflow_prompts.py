@@ -16,7 +16,7 @@ LOOP_PID_TOKEN_RE = re.compile(
     re.MULTILINE,
 )
 LOOP_SLURM_JOB_TOKEN_RE = re.compile(
-    r"^\s*<slurm_job_number>\s*([0-9]+)\s*</slurm_job_number>\s*$",
+    r"^\s*<slurm_job_number>\s*([0-9]+(?:_[0-9]+)?(?:\.[A-Za-z0-9_-]+)?)\s*</slurm_job_number>\s*$",
     re.MULTILINE,
 )
 
@@ -62,6 +62,12 @@ LOOP_PROMPT_PREFIX = (
     "in `projects/memory.md`, and end the iteration without waiting. A later iteration can\n"
     "check status and continue.\n"
     "\n"
+    "For local background jobs that must survive across loop iterations, use a persistence-safe launch pattern:\n"
+    "- start detached from the current shell/session (`setsid` and/or `nohup`),\n"
+    "- redirect stdin/stdout/stderr to explicit log files,\n"
+    "- capture and record the controller PID immediately after launch.\n"
+    "Avoid plain `cmd &` launches without full redirection/detach, because those jobs may be reaped when the turn exits.\n"
+    "\n"
     "At the start of this iteration:\n"
     "1) Read `projects/memory.md`.\n"
     "2) Maintain short-term memory sections:\n"
@@ -84,7 +90,9 @@ LOOP_PROMPT_PREFIX = (
     "  <pid_number>NUMBER</pid_number>\n"
     "- slurm job id:\n"
     "  <slurm_job_number>NUMBER</slurm_job_number>\n"
-    "Use one line per job id/pid (integer only, no extra text).\n"
+    "Use one line per job id/pid with no extra text.\n"
+    "For pid tags, use positive integers only.\n"
+    "For slurm tags, use job id text accepted by slurm (for example: 12345, 12345_7, 12345_7.batch).\n"
     "Do not include these tags once those jobs are finished or when no waiting is needed.\n"
     "\n"
     f"When (and only when) ALL steps are complete and the request is satisfied, output exactly:\n"

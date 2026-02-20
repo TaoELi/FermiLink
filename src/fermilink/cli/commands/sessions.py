@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import os
 import shutil
 import subprocess
@@ -34,6 +36,204 @@ def _pid_is_alive(pid: int) -> bool:
         return True
 
 
+PID_STALL_PROGRESS_EPSILON_SECONDS = 0.25
+POLL_STATUS_HEARTBEAT_SECONDS = 600.0
+SLURM_QUERY_TIMEOUT_SECONDS = 8.0
+SLURM_UNKNOWN_CONSECUTIVE_LIMIT = 3
+
+
+@dataclass(frozen=True)
+class _PidSnapshot:
+    pid: int
+    start_token: str
+    cpu_seconds: float | None
+
+
+@dataclass(frozen=True)
+class _PidMonitor:
+    start_token: str
+    last_cpu_seconds: float | None
+    last_progress_monotonic: float
+    progress_observable: bool
+
+
+@dataclass(frozen=True)
+class _SlurmMonitor:
+    last_state: str
+    last_state_change_monotonic: float
+    unknown_polls: int
+
+
+def _read_ps_field(pid: int, field: str) -> str:
+    ps_bin = shutil.which("ps")
+    if ps_bin is None:
+        return ""
+    try:
+        result = subprocess.run(
+            [ps_bin, "-p", str(pid), "-o", f"{field}="],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, ValueError):
+        return ""
+    if result.returncode != 0:
+        return ""
+    for line in result.stdout.splitlines():
+        token = line.strip()
+        if token:
+            return token
+    return ""
+
+
+def _parse_ps_duration_seconds(raw: str) -> float | None:
+    token = str(raw or "").strip()
+    if not token:
+        return None
+    days = 0.0
+    if "-" in token:
+        day_text, _, rest = token.partition("-")
+        try:
+            days = float(day_text.strip())
+        except ValueError:
+            return None
+        token = rest.strip()
+    parts = token.split(":")
+    try:
+        if len(parts) == 3:
+            hours = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+        elif len(parts) == 2:
+            hours = 0.0
+            minutes = float(parts[0])
+            seconds = float(parts[1])
+        elif len(parts) == 1:
+            hours = 0.0
+            minutes = 0.0
+            seconds = float(parts[0])
+        else:
+            return None
+    except ValueError:
+        return None
+    return days * 86400.0 + hours * 3600.0 + minutes * 60.0 + seconds
+
+
+def _query_pid_snapshot(pid: int) -> _PidSnapshot | None:
+    if not _pid_is_alive(pid):
+        return None
+    start_token = _read_ps_field(pid, "lstart")
+    if not start_token:
+        start_token = _read_ps_field(pid, "etime")
+    cpu_seconds = _parse_ps_duration_seconds(_read_ps_field(pid, "time"))
+    return _PidSnapshot(pid=pid, start_token=start_token, cpu_seconds=cpu_seconds)
+
+
+def _initialize_pid_monitors(
+    pid_numbers: list[int], *, now_monotonic: float
+) -> tuple[list[int], dict[int, _PidMonitor], list[int]]:
+    alive: list[int] = []
+    monitors: dict[int, _PidMonitor] = {}
+    dead: list[int] = []
+    for pid in pid_numbers:
+        snapshot = _query_pid_snapshot(pid)
+        if snapshot is None:
+            dead.append(pid)
+            continue
+        progress_observable = snapshot.cpu_seconds is not None
+        monitors[pid] = _PidMonitor(
+            start_token=snapshot.start_token,
+            last_cpu_seconds=snapshot.cpu_seconds,
+            last_progress_monotonic=now_monotonic,
+            progress_observable=progress_observable,
+        )
+        alive.append(pid)
+    return alive, monitors, dead
+
+
+def _refresh_pid_monitors(
+    pid_numbers: list[int],
+    monitors: dict[int, _PidMonitor],
+    *,
+    now_monotonic: float,
+    stall_seconds: float,
+) -> tuple[list[int], dict[int, _PidMonitor], list[tuple[str, int]]]:
+    alive: list[int] = []
+    next_monitors: dict[int, _PidMonitor] = {}
+    issues: list[tuple[str, int]] = []
+    for pid in pid_numbers:
+        monitor = monitors.get(pid)
+        snapshot = _query_pid_snapshot(pid)
+        if snapshot is None:
+            issues.append(("dead", pid))
+            continue
+        if monitor is None:
+            issues.append(("reused", pid))
+            continue
+        if (
+            monitor.start_token
+            and snapshot.start_token
+            and monitor.start_token != snapshot.start_token
+        ):
+            issues.append(("reused", pid))
+            continue
+        progress_observable = bool(monitor.progress_observable)
+        last_cpu_seconds = monitor.last_cpu_seconds
+        last_progress_monotonic = monitor.last_progress_monotonic
+        if snapshot.cpu_seconds is None:
+            progress_observable = False
+        elif (
+            last_cpu_seconds is None
+            or snapshot.cpu_seconds
+            > (last_cpu_seconds + PID_STALL_PROGRESS_EPSILON_SECONDS)
+        ):
+            last_progress_monotonic = now_monotonic
+            last_cpu_seconds = snapshot.cpu_seconds
+        if (
+            stall_seconds > 0
+            and progress_observable
+            and (now_monotonic - last_progress_monotonic) >= stall_seconds
+        ):
+            issues.append(("stalled", pid))
+            continue
+        next_monitors[pid] = _PidMonitor(
+            start_token=monitor.start_token or snapshot.start_token,
+            last_cpu_seconds=last_cpu_seconds,
+            last_progress_monotonic=last_progress_monotonic,
+            progress_observable=progress_observable,
+        )
+        alive.append(pid)
+    return alive, next_monitors, issues
+
+
+def _format_pid_issues(issues: list[tuple[str, int]]) -> str:
+    groups: dict[str, list[int]] = {"dead": [], "reused": [], "stalled": []}
+    for status, pid in issues:
+        if status in groups:
+            groups[status].append(pid)
+    parts: list[str] = []
+    for status in ("dead", "reused", "stalled"):
+        pids = groups[status]
+        if not pids:
+            continue
+        label = status
+        parts.append(f"{label}: {', '.join(str(pid) for pid in pids)}")
+    return "; ".join(parts)
+
+
+def _format_waiting_targets(*, alive: list[int], pending_slurm_jobs: list[str]) -> str:
+    waiting_on: list[str] = []
+    if alive:
+        waiting_on.append("pid(s): " + ", ".join(str(pid) for pid in alive))
+    if pending_slurm_jobs:
+        waiting_on.append("slurm job(s): " + ", ".join(pending_slurm_jobs))
+    return "; ".join(waiting_on)
+
+
+def _utc_now_timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 SLURM_FAILURE_STATES = {
     "FAILED",
     "CANCELLED",
@@ -53,19 +253,24 @@ def _slurm_wait_tools_available() -> bool:
     return shutil.which("sacct") is not None or shutil.which("squeue") is not None
 
 
+def _run_slurm_query(command: list[str]) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=SLURM_QUERY_TIMEOUT_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return None
+
+
 def _query_slurm_job_state(job_id: str) -> str:
     state = ""
     sacct_bin = shutil.which("sacct")
     if sacct_bin:
-        try:
-            result = subprocess.run(
-                [sacct_bin, "-n", "-o", "State", "-j", str(job_id)],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-        except (OSError, ValueError):
-            result = None
+        result = _run_slurm_query([sacct_bin, "-n", "-o", "State", "-j", str(job_id)])
         if result is not None:
             for line in result.stdout.splitlines():
                 token = line.strip()
@@ -75,21 +280,18 @@ def _query_slurm_job_state(job_id: str) -> str:
     if not state:
         squeue_bin = shutil.which("squeue")
         if squeue_bin:
-            try:
-                result = subprocess.run(
-                    [squeue_bin, "-h", "-j", str(job_id)],
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
-            except (OSError, ValueError):
-                result = None
+            result = _run_slurm_query([squeue_bin, "-h", "-j", str(job_id)])
             if result is not None and result.stdout.strip():
                 state = "PENDING"
+    if not state:
+        return "UNKNOWN"
     normalized = state.split("+", 1)[0].strip()
     if normalized:
         normalized = normalized.split()[0]
-    return normalized.upper()
+    normalized = normalized.upper()
+    if not normalized:
+        return "UNKNOWN"
+    return normalized
 
 
 def _poll_pending_slurm_jobs(
@@ -106,6 +308,70 @@ def _poll_pending_slurm_jobs(
             continue
         pending.append(job_id)
     return pending, failed
+
+
+def _refresh_slurm_monitors(
+    slurm_job_numbers: list[str],
+    monitors: dict[str, _SlurmMonitor],
+    *,
+    now_monotonic: float,
+    unknown_poll_limit: int,
+) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, _SlurmMonitor]]:
+    pending: list[str] = []
+    failed: list[tuple[str, str]] = []
+    issues: list[tuple[str, str]] = []
+    next_monitors: dict[str, _SlurmMonitor] = {}
+
+    for job_id in slurm_job_numbers:
+        previous = monitors.get(job_id)
+        state = _query_slurm_job_state(job_id)
+
+        if previous is None:
+            last_change = now_monotonic
+            unknown_polls = 1 if state == "UNKNOWN" else 0
+        else:
+            last_change = (
+                now_monotonic
+                if state != previous.last_state
+                else previous.last_state_change_monotonic
+            )
+            unknown_polls = (
+                previous.unknown_polls + 1 if state == "UNKNOWN" else 0
+            )
+
+        monitor = _SlurmMonitor(
+            last_state=state,
+            last_state_change_monotonic=last_change,
+            unknown_polls=unknown_polls,
+        )
+
+        if state == "COMPLETED":
+            continue
+        if state in SLURM_FAILURE_STATES:
+            failed.append((job_id, state))
+            continue
+        if state == "UNKNOWN" and unknown_polls >= unknown_poll_limit:
+            issues.append(("unqueryable", job_id))
+            continue
+
+        pending.append(job_id)
+        next_monitors[job_id] = monitor
+
+    return pending, failed, issues, next_monitors
+
+
+def _format_slurm_issues(issues: list[tuple[str, str]]) -> str:
+    groups: dict[str, list[str]] = {"unqueryable": []}
+    for status, job_id in issues:
+        if status in groups:
+            groups[status].append(job_id)
+    parts: list[str] = []
+    for status in ("unqueryable",):
+        job_ids = groups[status]
+        if not job_ids:
+            continue
+        parts.append(f"{status}: {', '.join(job_ids)}")
+    return "; ".join(parts)
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
@@ -313,6 +579,17 @@ def cmd_loop(args: argparse.Namespace) -> int:
     if max_wait_seconds < 0:
         raise cli.PackageError("--max-wait-seconds must be >= 0.")
 
+    pid_stall_seconds_raw = getattr(args, "pid_stall_seconds", 900.0)
+    try:
+        pid_stall_seconds = float(pid_stall_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError("--pid-stall-seconds must be a number.") from exc
+    if pid_stall_seconds < 0:
+        raise cli.PackageError("--pid-stall-seconds must be >= 0.")
+    effective_pid_stall_seconds = pid_stall_seconds
+    if max_wait_seconds > 0 and effective_pid_stall_seconds > max_wait_seconds:
+        effective_pid_stall_seconds = max_wait_seconds
+
     scipkg_root = cli.resolve_scipkg_root()
     runtime_policy = cli.resolve_agent_runtime_policy()
     provider = runtime_policy.provider
@@ -405,8 +682,17 @@ def cmd_loop(args: argparse.Namespace) -> int:
                 slurm_job_numbers = cli._extract_loop_slurm_job_numbers(assistant_text)
                 if pid_numbers or slurm_job_numbers:
                     poll_interval = wait_seconds if wait_seconds > 0 else 1.0
-                    alive = [pid for pid in pid_numbers if _pid_is_alive(pid)]
+                    poll_started = time.monotonic()
+                    (
+                        alive,
+                        pid_monitors,
+                        initially_dead_pids,
+                    ) = _initialize_pid_monitors(
+                        pid_numbers,
+                        now_monotonic=poll_started,
+                    )
                     pending_slurm_jobs = list(slurm_job_numbers)
+                    slurm_monitors: dict[str, _SlurmMonitor] = {}
                     if pending_slurm_jobs and not _slurm_wait_tools_available():
                         slurm_text = ", ".join(pending_slurm_jobs)
                         cli._print_tagged(
@@ -418,62 +704,110 @@ def cmd_loop(args: argparse.Namespace) -> int:
                             stderr=True,
                         )
                         pending_slurm_jobs = []
-                    failed_slurm_jobs: list[tuple[str, str]] = []
-                    if pending_slurm_jobs:
-                        pending_slurm_jobs, failed_slurm_jobs = _poll_pending_slurm_jobs(
-                            pending_slurm_jobs
-                        )
-                    if failed_slurm_jobs:
-                        failed_text = ", ".join(
-                            f"{job_id}:{state}" for job_id, state in failed_slurm_jobs
-                        )
+                    if initially_dead_pids:
+                        dead_text = ", ".join(str(pid) for pid in initially_dead_pids)
                         cli._print_tagged(
                             "loop",
                             (
-                                "slurm job(s) reached non-success terminal state; "
-                                f"continuing (jobs: {failed_text})"
+                                "detected non-running pid(s) before wait; "
+                                "continuing next iteration for debug/resubmit "
+                                f"(pid(s): {dead_text})"
                             ),
                             stderr=True,
                         )
+                        continue
+                    if pending_slurm_jobs:
+                        (
+                            pending_slurm_jobs,
+                            failed_slurm_jobs,
+                            slurm_issues,
+                            slurm_monitors,
+                        ) = _refresh_slurm_monitors(
+                            pending_slurm_jobs,
+                            slurm_monitors,
+                            now_monotonic=poll_started,
+                            unknown_poll_limit=SLURM_UNKNOWN_CONSECUTIVE_LIMIT,
+                        )
+                        if failed_slurm_jobs:
+                            failed_text = ", ".join(
+                                f"{job_id}:{state}"
+                                for job_id, state in failed_slurm_jobs
+                            )
+                            cli._print_tagged(
+                                "loop",
+                                (
+                                    "slurm job(s) reached non-success terminal state; "
+                                    f"continuing (jobs: {failed_text})"
+                                ),
+                                stderr=True,
+                            )
+                        if slurm_issues:
+                            issue_text = _format_slurm_issues(slurm_issues)
+                            cli._print_tagged(
+                                "loop",
+                                (
+                                    "detected slurm polling issue; "
+                                    "continuing next iteration for debug/resubmit "
+                                    f"({issue_text})"
+                                ),
+                                stderr=True,
+                            )
+                            continue
                     if alive or pending_slurm_jobs:
-                        wait_targets: list[str] = []
-                        if alive:
-                            wait_targets.append(
-                                "pid(s): " + ", ".join(str(pid) for pid in alive)
-                            )
-                        if pending_slurm_jobs:
-                            wait_targets.append(
-                                "slurm job(s): " + ", ".join(pending_slurm_jobs)
-                            )
+                        wait_targets = _format_waiting_targets(
+                            alive=alive, pending_slurm_jobs=pending_slurm_jobs
+                        )
+                        stall_text = (
+                            f"{effective_pid_stall_seconds:.1f}s"
+                            if effective_pid_stall_seconds > 0
+                            else "disabled"
+                        )
                         cli._print_tagged(
                             "loop",
                             (
                                 "polling jobs until completion "
-                                f"({'; '.join(wait_targets)}, poll: {poll_interval:.1f}s, "
-                                f"max wait: {max_wait_seconds:.1f}s)"
+                                f"({wait_targets}, poll: {poll_interval:.1f}s, "
+                                f"max wait: {max_wait_seconds:.1f}s, pid stall: {stall_text})"
                             ),
                         )
-                        started = time.monotonic()
+                        started = poll_started
+                        next_status_log = started + POLL_STATUS_HEARTBEAT_SECONDS
+                        pid_issue_caused_early_continue = False
+                        slurm_issue_caused_early_continue = False
                         while alive or pending_slurm_jobs:
-                            elapsed = time.monotonic() - started
+                            now_monotonic = time.monotonic()
+                            elapsed = now_monotonic - started
                             remaining = max_wait_seconds - elapsed
+                            if now_monotonic >= next_status_log:
+                                remaining_text = max(0.0, remaining)
+                                cli._print_tagged(
+                                    "loop",
+                                    (
+                                        "polling status @ "
+                                        f"{_utc_now_timestamp()} "
+                                        f"(elapsed: {elapsed:.1f}s, remaining: {remaining_text:.1f}s, "
+                                        "waiting on: "
+                                        + _format_waiting_targets(
+                                            alive=alive,
+                                            pending_slurm_jobs=pending_slurm_jobs,
+                                        )
+                                        + ")"
+                                    ),
+                                )
+                                next_status_log = (
+                                    now_monotonic + POLL_STATUS_HEARTBEAT_SECONDS
+                                )
                             if remaining <= 0:
-                                waiting_on: list[str] = []
-                                if alive:
-                                    waiting_on.append(
-                                        "pid(s): "
-                                        + ", ".join(str(pid) for pid in alive)
-                                    )
-                                if pending_slurm_jobs:
-                                    waiting_on.append(
-                                        "slurm job(s): " + ", ".join(pending_slurm_jobs)
-                                    )
                                 cli._print_tagged(
                                     "loop",
                                     (
                                         "job polling reached max wait "
                                         f"({max_wait_seconds:.1f}s); continuing "
-                                        f"with still-running targets: {'; '.join(waiting_on)}"
+                                        "with still-running targets: "
+                                        + _format_waiting_targets(
+                                            alive=alive,
+                                            pending_slurm_jobs=pending_slurm_jobs,
+                                        )
                                     ),
                                     stderr=True,
                                 )
@@ -481,10 +815,53 @@ def cmd_loop(args: argparse.Namespace) -> int:
                             sleep_seconds = min(poll_interval, remaining)
                             if sleep_seconds > 0:
                                 time.sleep(sleep_seconds)
-                            alive = [pid for pid in pid_numbers if _pid_is_alive(pid)]
+                            now_monotonic = time.monotonic()
+                            alive, pid_monitors, pid_issues = _refresh_pid_monitors(
+                                pid_numbers,
+                                pid_monitors,
+                                now_monotonic=now_monotonic,
+                                stall_seconds=effective_pid_stall_seconds,
+                            )
+                            if pid_issues:
+                                issue_text = _format_pid_issues(pid_issues)
+                                still_waiting_on: list[str] = []
+                                if alive:
+                                    still_waiting_on.append(
+                                        "still-running pid(s): "
+                                        + ", ".join(str(pid) for pid in alive)
+                                    )
+                                if pending_slurm_jobs:
+                                    still_waiting_on.append(
+                                        "pending slurm job(s): "
+                                        + ", ".join(pending_slurm_jobs)
+                                    )
+                                suffix = (
+                                    f"; {'; '.join(still_waiting_on)}"
+                                    if still_waiting_on
+                                    else ""
+                                )
+                                cli._print_tagged(
+                                    "loop",
+                                    (
+                                        "detected pid issue during polling; "
+                                        "continuing next iteration for debug/resubmit "
+                                        f"({issue_text}{suffix})"
+                                    ),
+                                    stderr=True,
+                                )
+                                pid_issue_caused_early_continue = True
+                                break
                             if pending_slurm_jobs:
-                                pending_slurm_jobs, failed_slurm_jobs = (
-                                    _poll_pending_slurm_jobs(pending_slurm_jobs)
+                                (
+                                    pending_slurm_jobs,
+                                    failed_slurm_jobs,
+                                    slurm_issues,
+                                    slurm_monitors,
+                                ) = _refresh_slurm_monitors(
+                                    pending_slurm_jobs,
+                                    slurm_monitors,
+                                    now_monotonic=now_monotonic,
+                                    unknown_poll_limit=SLURM_UNKNOWN_CONSECUTIVE_LIMIT,
                                 )
                                 if failed_slurm_jobs:
                                     failed_text = ", ".join(
@@ -499,6 +876,34 @@ def cmd_loop(args: argparse.Namespace) -> int:
                                         ),
                                         stderr=True,
                                     )
+                                if slurm_issues:
+                                    issue_text = _format_slurm_issues(slurm_issues)
+                                    waiting_on: list[str] = []
+                                    if alive:
+                                        waiting_on.append(
+                                            "still-running pid(s): "
+                                            + ", ".join(str(pid) for pid in alive)
+                                        )
+                                    suffix = (
+                                        f"; {'; '.join(waiting_on)}"
+                                        if waiting_on
+                                        else ""
+                                    )
+                                    cli._print_tagged(
+                                        "loop",
+                                        (
+                                            "detected slurm polling issue; "
+                                            "continuing next iteration for debug/resubmit "
+                                            f"({issue_text}{suffix})"
+                                        ),
+                                        stderr=True,
+                                    )
+                                    slurm_issue_caused_early_continue = True
+                                    break
+                        if pid_issue_caused_early_continue:
+                            continue
+                        if slurm_issue_caused_early_continue:
+                            continue
                         if not alive and not pending_slurm_jobs:
                             waited = time.monotonic() - started
                             cli._print_tagged(

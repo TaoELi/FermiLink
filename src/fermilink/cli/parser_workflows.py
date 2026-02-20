@@ -115,6 +115,16 @@ def register_workflow_parsers(
         ),
     )
     reproduce_parser.add_argument(
+        "--pid-stall-seconds",
+        type=float,
+        default=900.0,
+        help=(
+            "Forwarded to inner loop local-pid stall timeout. If > 0, a pid with no "
+            "CPU-time progress for this long triggers early next-iteration handoff "
+            "(default: 900; set 0 to disable)."
+        ),
+    )
+    reproduce_parser.add_argument(
         "--hpc-profile",
         default=None,
         help=(
@@ -315,6 +325,16 @@ def register_workflow_parsers(
             "Forwarded to inner loop hard cap for per-iteration pid/slurm polling "
             "and waits "
             "(default: 600)."
+        ),
+    )
+    research_parser.add_argument(
+        "--pid-stall-seconds",
+        type=float,
+        default=900.0,
+        help=(
+            "Forwarded to inner loop local-pid stall timeout. If > 0, a pid with no "
+            "CPU-time progress for this long triggers early next-iteration handoff "
+            "(default: 900; set 0 to disable)."
         ),
     )
     research_parser.add_argument(

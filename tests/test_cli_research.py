@@ -18,6 +18,7 @@ def test_research_parser_defaults() -> None:
     assert args.max_iterations == 10
     assert args.wait_seconds == 0.0
     assert args.max_wait_seconds == 600.0
+    assert args.pid_stall_seconds == 900.0
     assert args.hpc_profile is None
     assert args.data_dir is None
     assert args.data_writable is False

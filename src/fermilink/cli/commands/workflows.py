@@ -5022,6 +5022,14 @@ def cmd_plan_workflow(
     if max_wait_seconds < 0:
         raise cli.PackageError("--max-wait-seconds must be >= 0.")
 
+    pid_stall_seconds_raw = getattr(args, "pid_stall_seconds", 900.0)
+    try:
+        pid_stall_seconds = float(pid_stall_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError("--pid-stall-seconds must be a number.") from exc
+    if pid_stall_seconds < 0:
+        raise cli.PackageError("--pid-stall-seconds must be >= 0.")
+
     projects_dir = repo_dir / cli.LOOP_MEMORY_DIRNAME
     runs_root = projects_dir / runs_dir_name
     latest_path = runs_root / cli.REPRODUCE_LATEST_RUN_FILENAME
@@ -5558,6 +5566,7 @@ def cmd_plan_workflow(
             max_iterations=max_iterations,
             wait_seconds=wait_seconds,
             max_wait_seconds=max_wait_seconds,
+            pid_stall_seconds=pid_stall_seconds,
             init_git=args.init_git,
             no_init_git=args.no_init_git,
             workflow_prompt_preamble=workflow_prompt_preamble,
