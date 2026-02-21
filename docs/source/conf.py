@@ -86,8 +86,8 @@ html_theme = "furo"
 html_theme_options = {
     "sidebar_hide_name": False,
     "top_of_page_button": "edit",
-    "light_logo": "img/icon.png",
-    "dark_logo": "img/icon.png",
+    "light_logo": "img/mark.svg",
+    "dark_logo": "img/mark.svg",
     "light_css_variables": {
         "color-brand-primary": "#1264a3",
         "color-brand-content": "#0d2a4d",

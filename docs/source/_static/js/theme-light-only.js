@@ -5,11 +5,17 @@
     return value === "dark" ? "dark" : "light";
   }
 
-  function applyTheme(value) {
+  function applyTheme(value, options) {
+    const opts = options || {};
+    const persist = opts.persist !== false;
     const theme = normalizeTheme(value);
     const body = document.body;
     if (body) {
       body.dataset.theme = theme;
+    }
+    document.documentElement.style.colorScheme = theme;
+    if (!persist) {
+      return;
     }
     try {
       localStorage.setItem(THEME_KEY, theme);
@@ -19,6 +25,17 @@
   }
 
   function init() {
+    const body = document.body;
+    const forceDarkLanding = !!(
+      body && body.classList.contains("mxl-landing-simple")
+    );
+
+    if (forceDarkLanding) {
+      // Keep the index landing in dark mode without changing global preference.
+      applyTheme("dark", { persist: false });
+      return;
+    }
+
     let stored = null;
     try {
       stored = localStorage.getItem(THEME_KEY);
