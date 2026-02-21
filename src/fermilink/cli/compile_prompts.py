@@ -143,7 +143,7 @@ RECOMPILE_PROMPT_2 = (
     "to find source files/functions not well covered by current skills. Update "
     "`skills/` accordingly: refresh outdated links, add missing source entry points, "
     "expand or add concise `## High-Signal Playbook` sections for impacted core skills, "
-    "and merge low-signal one-doc topics into `<package>-advanced-topics` when useful. "
+    "and merge low-signal one-doc topics into `<package>-advanced-topics` when useful. The `skills/user-specific-settings/ should not be merged into the advanced topics skill; it should be reserved for machine-specific setup instructions that are not universally applicable to all users of the package."
     "Edits must stay under `skills/`."
 )
 
