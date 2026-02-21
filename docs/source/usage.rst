@@ -184,6 +184,10 @@ Loop behavior:
   during polling, then immediately advances to the next iteration for
   debug/resubmit handoff (pid stall detection controlled by
   ``--pid-stall-seconds``; set ``0`` to disable);
+- treats slurm command failures or unparsable/error state output as
+  unqueryable (instead of pending), and uses repeated-unqueryable detection to
+  avoid long false waits when jobs were never submitted, vanished from queue
+  lookup, or terminated early;
 - emits a polling heartbeat roughly every 10 minutes during active waits,
   including UTC timestamp and currently tracked wait targets;
 - keeps backward-compatible ``<wait_seconds>...</wait_seconds>`` wait hints when

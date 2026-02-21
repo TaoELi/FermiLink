@@ -1059,6 +1059,194 @@ def test_loop_slurm_unknown_state_triggers_early_handoff(
     assert clock["now"] == 2.0
 
 
+def test_query_slurm_job_state_returns_unknown_for_squeue_invalid_job_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        session_commands.shutil,
+        "which",
+        lambda binary: "/usr/bin/squeue" if binary == "squeue" else None,
+    )
+    monkeypatch.setattr(
+        session_commands,
+        "_run_slurm_query",
+        lambda command: subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="slurm_load_jobs error: Invalid job id specified\n",
+            stderr="",
+        ),
+    )
+
+    assert session_commands._query_slurm_job_state("12345") == "UNKNOWN"
+
+
+def test_query_slurm_job_state_returns_unknown_for_sacct_error_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        session_commands.shutil,
+        "which",
+        lambda binary: "/usr/bin/sacct" if binary == "sacct" else None,
+    )
+    monkeypatch.setattr(
+        session_commands,
+        "_run_slurm_query",
+        lambda command: subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="sacct: error: Invalid job id specified\n",
+            stderr="",
+        ),
+    )
+
+    assert session_commands._query_slurm_job_state("12345") == "UNKNOWN"
+
+
+def test_query_slurm_job_state_prefers_failure_over_active_and_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        session_commands.shutil,
+        "which",
+        lambda binary: "/usr/bin/sacct" if binary == "sacct" else None,
+    )
+    monkeypatch.setattr(
+        session_commands,
+        "_run_slurm_query",
+        lambda command: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="RUNNING\nCANCELLED by 1000\nCOMPLETED\n",
+            stderr="",
+        ),
+    )
+
+    assert session_commands._query_slurm_job_state("12345") == "CANCELLED"
+
+
+def test_query_slurm_job_state_prefers_active_over_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        session_commands.shutil,
+        "which",
+        lambda binary: "/usr/bin/sacct" if binary == "sacct" else None,
+    )
+    monkeypatch.setattr(
+        session_commands,
+        "_run_slurm_query",
+        lambda command: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="COMPLETED\nRUNNING\n",
+            stderr="",
+        ),
+    )
+
+    assert session_commands._query_slurm_job_state("12345") == "RUNNING"
+
+
+def test_loop_slurm_query_parse_failure_triggers_early_handoff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "pkg-a",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+    monkeypatch.setattr(session_commands, "_slurm_wait_tools_available", lambda: True)
+    monkeypatch.setattr(
+        session_commands.shutil,
+        "which",
+        lambda binary: "/usr/bin/squeue" if binary == "squeue" else None,
+    )
+
+    slurm_query_calls = {"count": 0}
+
+    def fake_run_slurm_query(command: list[str]):
+        slurm_query_calls["count"] += 1
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="slurm_load_jobs error: Invalid job id specified\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(session_commands, "_run_slurm_query", fake_run_slurm_query)
+
+    run_calls: list[dict[str, object]] = []
+
+    def fake_run_chat_turn(**kwargs):
+        run_calls.append(kwargs)
+        if len(run_calls) == 1:
+            return {
+                "assistant_text": "submitted\n<slurm_job_number>12345</slurm_job_number>\n",
+                "return_code": 0,
+                "stderr": "",
+            }
+        return {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""}
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
+
+    clock = {"now": 0.0}
+    monkeypatch.setattr(session_commands.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(
+        session_commands.time,
+        "sleep",
+        lambda seconds: clock.__setitem__("now", clock["now"] + float(seconds)),
+    )
+
+    code = cli.main(
+        [
+            "loop",
+            "--max-iterations",
+            "2",
+            "--wait-seconds",
+            "1",
+            "--max-wait-seconds",
+            "20",
+            "finish it",
+        ]
+    )
+    assert code == 0
+    assert len(run_calls) == 2
+    assert slurm_query_calls["count"] >= 3
+    assert clock["now"] == 2.0
+
+
 def test_extract_loop_wait_seconds_returns_none_for_invalid_values() -> None:
     assert cli._extract_loop_wait_seconds("no token here") is None
     assert cli._extract_loop_wait_seconds("<wait_seconds>-1</wait_seconds>") is None

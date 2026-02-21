@@ -248,6 +248,54 @@ SLURM_FAILURE_STATES = {
     "STOPPED",
 }
 
+SLURM_ACTIVE_STATES = {
+    "PENDING",
+    "CONFIGURING",
+    "RUNNING",
+    "COMPLETING",
+    "RESIZING",
+    "SUSPENDED",
+    "SIGNALING",
+    "STAGE_OUT",
+    "REQUEUED",
+    "REQUEUE_FED",
+    "REQUEUE_HOLD",
+    "RESV_DEL_HOLD",
+    "POWER_UP_NODE",
+}
+
+SLURM_STATE_ALIASES = {
+    "BF": "BOOT_FAIL",
+    "CA": "CANCELLED",
+    "CANCELED": "CANCELLED",
+    "CD": "COMPLETED",
+    "CF": "CONFIGURING",
+    "CG": "COMPLETING",
+    "DL": "DEADLINE",
+    "F": "FAILED",
+    "NF": "NODE_FAIL",
+    "OOM": "OUT_OF_MEMORY",
+    "PD": "PENDING",
+    "PR": "PREEMPTED",
+    "R": "RUNNING",
+    "RD": "RESV_DEL_HOLD",
+    "RF": "REQUEUE_FED",
+    "RH": "REQUEUE_HOLD",
+    "RQ": "REQUEUED",
+    "RS": "RESIZING",
+    "RV": "REVOKED",
+    "SE": "SPECIAL_EXIT",
+    "SI": "SIGNALING",
+    "SO": "STAGE_OUT",
+    "ST": "STOPPED",
+    "S": "SUSPENDED",
+    "TO": "TIMEOUT",
+}
+
+SLURM_KNOWN_STATES = (
+    set(SLURM_FAILURE_STATES) | set(SLURM_ACTIVE_STATES) | {"COMPLETED"}
+)
+
 
 def _slurm_wait_tools_available() -> bool:
     return shutil.which("sacct") is not None or shutil.which("squeue") is not None
@@ -266,32 +314,63 @@ def _run_slurm_query(command: list[str]) -> subprocess.CompletedProcess[str] | N
         return None
 
 
+def _normalize_slurm_state_token(raw: str) -> str | None:
+    token = str(raw or "").strip()
+    if not token:
+        return None
+    token = token.split("|", 1)[0].strip()
+    token = token.split("+", 1)[0].strip()
+    if token:
+        token = token.split()[0]
+    token = token.upper()
+    if not token:
+        return None
+    token = SLURM_STATE_ALIASES.get(token, token)
+    if token not in SLURM_KNOWN_STATES:
+        return None
+    return token
+
+
+def _extract_slurm_states(stdout: str) -> list[str]:
+    states: list[str] = []
+    for line in str(stdout or "").splitlines():
+        state = _normalize_slurm_state_token(line)
+        if state is not None:
+            states.append(state)
+    return states
+
+
+def _classify_slurm_states(states: list[str]) -> str | None:
+    for state in states:
+        if state in SLURM_FAILURE_STATES:
+            return state
+    for state in states:
+        if state in SLURM_ACTIVE_STATES:
+            return state
+    for state in states:
+        if state == "COMPLETED":
+            return state
+    return None
+
+
 def _query_slurm_job_state(job_id: str) -> str:
-    state = ""
     sacct_bin = shutil.which("sacct")
     if sacct_bin:
-        result = _run_slurm_query([sacct_bin, "-n", "-o", "State", "-j", str(job_id)])
-        if result is not None:
-            for line in result.stdout.splitlines():
-                token = line.strip()
-                if token:
-                    state = token
-                    break
-    if not state:
-        squeue_bin = shutil.which("squeue")
-        if squeue_bin:
-            result = _run_slurm_query([squeue_bin, "-h", "-j", str(job_id)])
-            if result is not None and result.stdout.strip():
-                state = "PENDING"
-    if not state:
-        return "UNKNOWN"
-    normalized = state.split("+", 1)[0].strip()
-    if normalized:
-        normalized = normalized.split()[0]
-    normalized = normalized.upper()
-    if not normalized:
-        return "UNKNOWN"
-    return normalized
+        result = _run_slurm_query(
+            [sacct_bin, "-n", "-P", "-o", "State", "-j", str(job_id)]
+        )
+        if result is not None and result.returncode == 0:
+            state = _classify_slurm_states(_extract_slurm_states(result.stdout))
+            if state is not None:
+                return state
+    squeue_bin = shutil.which("squeue")
+    if squeue_bin:
+        result = _run_slurm_query([squeue_bin, "-h", "-j", str(job_id), "-o", "%T"])
+        if result is not None and result.returncode == 0:
+            state = _classify_slurm_states(_extract_slurm_states(result.stdout))
+            if state is not None:
+                return state
+    return "UNKNOWN"
 
 
 def _poll_pending_slurm_jobs(
