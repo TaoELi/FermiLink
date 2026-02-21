@@ -727,6 +727,13 @@ def cmd_loop(args: argparse.Namespace) -> int:
     prompt = f"{cli.LOOP_PROMPT_PREFIX}{user_prompt.strip()}\n"
     try:
         for iteration in range(1, max_iterations + 1):
+            iteration_hook = getattr(args, "_fermilink_loop_iteration_hook", None)
+            if callable(iteration_hook):
+                try:
+                    iteration_hook(iteration, max_iterations)
+                except Exception:
+                    # Keep loop execution resilient if optional status hooks fail.
+                    pass
             cli._print_tagged("loop", f"iteration {iteration}/{max_iterations}")
             run_result = cli._run_exec_chat_turn(
                 repo_dir=repo_dir,

@@ -89,6 +89,51 @@ def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> 
     assert loaded_chat["last_run_mode"] == "exec"
 
 
+def test_run_loop_in_workspace_forwards_iteration_hook(
+    monkeypatch, tmp_path: Path
+) -> None:
+    captured_iterations: list[tuple[int, int]] = []
+
+    class _FakeCli:
+        def _cmd_loop(self, args: object) -> int:
+            hook = getattr(args, "_fermilink_loop_iteration_hook", None)
+            if callable(hook):
+                hook(2, 10)
+            setattr(
+                args,
+                "_fermilink_loop_outcome",
+                {"status": "done", "reason": "done_token"},
+            )
+            return 0
+
+    monkeypatch.setattr(gateway_commands, "_cli", lambda: _FakeCli())
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    loop_config = gateway_commands.GatewayLoopConfig(
+        package_id=None,
+        sandbox=None,
+        codex_bin="codex",
+        max_iterations=10,
+        wait_seconds=0.0,
+        max_wait_seconds=60.0,
+        pid_stall_seconds=5.0,
+        init_git=True,
+        loop_iteration_hook=lambda iteration, maximum: captured_iterations.append(
+            (iteration, maximum)
+        ),
+    )
+    code, outcome = gateway_commands._run_loop_in_workspace(
+        repo_dir,
+        "run a loop task",
+        loop_config,
+    )
+
+    assert code == 0
+    assert isinstance(outcome, dict)
+    assert outcome.get("status") == "done"
+    assert captured_iterations == [(2, 10)]
+
+
 def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> None:
     state = gateway_commands._default_gateway_state()
     workspaces_root = tmp_path / "workspaces"
@@ -412,14 +457,23 @@ def test_status_reports_running_job_details_for_immediate_polling(tmp_path: Path
     assert chat_state["is_running"] is False
 
     gateway_commands._mark_chat_job_running(chat_state, job)
+    chat_state["current_run_mode"] = "loop 2/10"
     repo_dir = tmp_path / "repo"
     projects_dir = repo_dir / "projects"
     projects_dir.mkdir(parents=True, exist_ok=True)
     (projects_dir / "memory.md").write_text(
         (
             "# FermiLink Unified Memory\n\n"
+            "### Plan\n"
+            "- [x] launch baseline run\n"
+            "- [ ] verify field export consistency\n\n"
             "### Progress log\n"
+            "- bootstrapped workspace and inputs\n"
             "- iterate mesh convergence in project script\n"
+            "- patched parser for SCF stability reporting\n\n"
+            "## Long-Term Memory (Persistent)\n"
+            "### Key results\n"
+            "- metric | value | 1.0 | test | projects/result.json\n"
         ),
         encoding="utf-8",
     )
@@ -427,11 +481,54 @@ def test_status_reports_running_job_details_for_immediate_polling(tmp_path: Path
 
     assert "Agent: <b>running</b>" in status
     assert "<b>Current Run</b>" in status
-    assert status.count("Mode: <code>loop</code>") == 1
+    assert status.count("Mode: <code>loop 2/10</code>") == 1
     assert "Workspace:" not in status
     assert "<b>Last Run</b>" not in status
-    assert "Thinking: iterate mesh convergence in project script" in status
+    assert "Thinking: Progress:" in status
+    assert "iterate mesh convergence in project script" in status
+    assert "patched parser for SCF stability reporting" in status
+    assert "Next: verify field export consistency" in status
+    assert "bootstrapped workspace and inputs" not in status
+    assert "Long-Term Memory (Persistent)" not in status
+    assert "Prompt: simulate h2o energy with pyscf" in status
     assert "(UTC" not in status
+
+
+def test_status_thinking_progress_log_stops_at_markdown_heading(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_id = "779"
+    chat_key = "telegram:779"
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+
+    job, _ = gateway_commands._queue_telegram_run(
+        text="track heading boundary behavior",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+    )
+    gateway_commands._mark_chat_job_running(chat_state, job)
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Progress log\n"
+            "- finished mesh sweep for cavity mode\n"
+            "## Long-Term Memory (Persistent)\n"
+            "- this line must never be parsed as progress\n"
+        ),
+        encoding="utf-8",
+    )
+
+    status = gateway_commands._build_status_message(chat_state, repo_dir=repo_dir)
+
+    assert "finished mesh sweep for cavity mode" in status
+    assert "Long-Term Memory (Persistent)" not in status
+    assert "this line must never be parsed as progress" not in status
 
 
 def test_status_reports_queued_when_requests_waiting() -> None:

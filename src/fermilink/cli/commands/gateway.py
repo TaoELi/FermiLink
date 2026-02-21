@@ -11,7 +11,7 @@ import shutil
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -50,6 +50,7 @@ ExecRunner = Callable[
     [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
 ]
 WorkspaceRepoEnsurer = Callable[[Path, bool], None]
+LoopIterationHook = Callable[[int, int], None]
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ class GatewayLoopConfig:
     max_wait_seconds: float
     pid_stall_seconds: float
     init_git: bool
+    loop_iteration_hook: LoopIterationHook | None = None
 
 
 @dataclass(frozen=True)
@@ -729,6 +731,7 @@ def _run_loop_in_workspace(
         init_git=loop_config.init_git,
         no_init_git=not loop_config.init_git,
         workflow_prompt_preamble=None,
+        _fermilink_loop_iteration_hook=loop_config.loop_iteration_hook,
     )
     previous_cwd = Path.cwd()
     try:
@@ -834,13 +837,15 @@ def _extract_plan_progress(
     return done, pending
 
 
-def _extract_latest_progress_log_entry(memory_text: str) -> str:
+def _extract_progress_log_entries(
+    memory_text: str, *, max_items: int = 2
+) -> list[str]:
     lines = memory_text.splitlines()
     in_progress = False
     entries: list[str] = []
     for raw in lines:
         stripped = raw.strip()
-        if stripped.startswith("### "):
+        if stripped.startswith("#"):
             if stripped == "### Progress log":
                 in_progress = True
                 continue
@@ -857,9 +862,34 @@ def _extract_latest_progress_log_entry(memory_text: str) -> str:
         if not entry:
             continue
         entries.append(entry)
-    if not entries:
+    if max_items > 0:
+        return entries[-max_items:]
+    return entries
+
+
+def _build_memory_thinking_snapshot(memory_text: str) -> str:
+    progress_entries = _extract_progress_log_entries(memory_text, max_items=2)
+    _, pending_steps = _extract_plan_progress(
+        memory_text,
+        max_done=0,
+        max_pending=1,
+    )
+    parts: list[str] = []
+    if progress_entries:
+        normalized_entries = [
+            _normalize_prompt_preview(entry, limit=140)
+            for entry in progress_entries
+            if str(entry).strip()
+        ]
+        if normalized_entries:
+            parts.append(f"Progress: {' | '.join(normalized_entries)}")
+    if pending_steps:
+        next_step = _normalize_prompt_preview(pending_steps[0], limit=140)
+        if next_step:
+            parts.append(f"Next: {next_step}")
+    if not parts:
         return ""
-    return _normalize_prompt_preview(entries[-1], limit=220)
+    return _normalize_prompt_preview("; ".join(parts), limit=320)
 
 
 def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
@@ -1195,7 +1225,9 @@ def _build_status_message(
 
     current_run_id = str(chat_state.get("current_run_id") or "").strip()
     current_run_started = str(chat_state.get("current_run_started_at_utc") or "").strip()
+    current_run_mode = str(chat_state.get("current_run_mode") or "").strip()
     current_run_prompt_preview = str(chat_state.get("current_run_prompt_preview") or "").strip()
+    mode_text = current_run_mode if is_running and current_run_mode else mode
 
     current_thinking = ""
     if is_running and repo_dir is not None:
@@ -1207,7 +1239,7 @@ def _build_status_message(
         "<b>Gateway Status</b>",
         f"• State: <b>online</b> (responding now at <code>{_html_escape(now_text)}</code>)",
         f"• Agent: {run_state_text}",
-        f"• Mode: <code>{_html_escape(mode)}</code>",
+        f"• Mode: <code>{_html_escape(mode_text)}</code>",
         f"• Active workspace: <code>{_html_escape(active_workspace_text)}</code>",
     ]
     if current_thinking:
@@ -1221,6 +1253,8 @@ def _build_status_message(
             lines.append(f"• Started: <code>{_html_escape(started_local)}</code>")
         if current_run_id:
             lines.append(f"• Job id: <code>{_html_escape(current_run_id)}</code>")
+        if current_run_prompt_preview:
+            lines.append(f"• Prompt: {_html_escape(current_run_prompt_preview)}")
 
     last_run_mode = str(chat_state.get("last_run_mode") or "").strip().lower()
     last_run_started = str(chat_state.get("last_run_started_at_utc") or "").strip()
@@ -1558,7 +1592,7 @@ def _load_memory_progress_hint(repo_dir: Path) -> str:
     memory_text = _load_memory_text(repo_dir)
     if not memory_text:
         return ""
-    return _extract_latest_progress_log_entry(memory_text)
+    return _build_memory_thinking_snapshot(memory_text)
 
 
 def _collect_media_for_run_reply(
@@ -1723,11 +1757,30 @@ def cmd_gateway(args: argparse.Namespace) -> int:
             summary = ""
             try:
                 _ensure_workspace_repo(repo_dir, loop_config.init_git)
+                run_loop_config = loop_config
+                if mode == "loop":
+
+                    def _iteration_hook(iteration: int, max_iterations: int) -> None:
+                        progress_mode = f"loop {iteration}/{max_iterations}"
+                        with state_lock:
+                            telegram_local = _telegram_state(state)
+                            chat_state_local = _ensure_chat_state(
+                                telegram_local, job.chat_key
+                            )
+                            if not bool(chat_state_local.get("is_running")):
+                                return
+                            chat_state_local["current_run_mode"] = progress_mode
+                            _save_gateway_state(session_store_path, state)
+
+                    run_loop_config = replace(
+                        loop_config,
+                        loop_iteration_hook=_iteration_hook,
+                    )
                 code, outcome = _run_prompt_with_mode(
                     repo_dir=repo_dir,
                     prompt=job.prompt,
                     mode=mode,
-                    loop_config=loop_config,
+                    loop_config=run_loop_config,
                     loop_runner=None,
                     exec_runner=None,
                 )
