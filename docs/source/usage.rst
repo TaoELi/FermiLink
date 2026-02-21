@@ -127,6 +127,8 @@ Gateway behavior:
   ``projects/memory.md`` history;
 - run replies are rendered as a human-friendly summary from memory sections
   (completed plan items + key findings), instead of raw status payloads;
+  key findings are summarized as latest distinct metrics to avoid repeated
+  old/new duplicates in the same completion message;
 - generated figures/documents are auto-attached back to Telegram when available
   so plots can be viewed directly on mobile clients;
 - ``/mode <loop|exec>`` switches normal-message execution between

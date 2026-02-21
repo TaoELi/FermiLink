@@ -496,3 +496,58 @@ def test_collect_media_for_run_reply_prefers_memory_and_recent_files(
     assert key_image in images
     assert recent_image in images
     assert key_doc in docs
+
+
+def test_split_key_result_item_handles_labeled_values_with_pipe_markers() -> None:
+    item = (
+        "result_id: run2_ez | metric: final Ez spatial field | "
+        "value: shape 80x80, max |Ez| | conditions: 2d bragg | "
+        "evidence_path: projects/ez_field_final.png"
+    )
+    result_id, metric, value, conditions, evidence_path = (
+        gateway_commands._split_key_result_item(item)
+    )
+    assert result_id == "run2_ez"
+    assert metric == "final Ez spatial field"
+    assert "shape 80x80, max" in value
+    assert "Ez" in value
+    assert conditions == "2d bragg"
+    assert evidence_path == "projects/ez_field_final.png"
+
+
+def test_run_summary_deduplicates_key_findings_by_metric_keep_latest(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Key results\n"
+            "- result_id: run1_ez | metric: final Ez spatial field | "
+            "value: shape 80x80, max |Ez| | conditions: old run | "
+            "evidence_path: projects/old_ez.png\n"
+            "- result_id: run1_pe | metric: Pe(t) | value: Pe_final=3.059e-4 | "
+            "conditions: old run | evidence_path: projects/old_pe.csv\n"
+            "- result_id: run2_ez | metric: final Ez spatial field | "
+            "value: shape 80, max |Ez| | conditions: latest run | "
+            "evidence_path: projects/new_ez.png\n"
+            "- result_id: run2_pe | metric: Pe(t) | value: Pe_final=4.553e-4 | "
+            "conditions: latest run | evidence_path: projects/new_pe.csv\n"
+        ),
+        encoding="utf-8",
+    )
+
+    summary = gateway_commands._build_run_summary_message(
+        mode="exec",
+        workspace={"id": "mxl", "label": "mxl"},
+        repo_dir=repo_dir,
+        code=0,
+        outcome={"status": "done", "reason": "exec_completed"},
+    )
+
+    assert summary.count("final Ez spatial field:") == 1
+    assert summary.count("Pe(t):") == 1
+    assert "latest run" in summary
+    assert "old run" not in summary

@@ -26,6 +26,10 @@ SESSION_SCHEMA_VERSION = 1
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 DOCUMENT_SUFFIXES = {".pdf"}
 CHECKLIST_ITEM_RE = re.compile(r"^\s*-\s*\[(?P<mark>[xX ])\]\s+(?P<item>.+?)\s*$")
+KEY_RESULT_FIELD_RE = re.compile(
+    r"^(result_id|metric|value|conditions|evidence_path)\s*:\s*(.*)$",
+    re.IGNORECASE,
+)
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
 GATEWAY_HELP_TEXT = (
     "Commands:\n"
@@ -810,25 +814,75 @@ def _extract_plan_progress(
 def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
     normalized = str(item).replace("`", "").strip()
     parts = [part.strip() for part in normalized.split("|")]
+    if any(KEY_RESULT_FIELD_RE.match(part or "") for part in parts):
+        fields = {
+            "result_id": "",
+            "metric": "",
+            "value": "",
+            "conditions": "",
+            "evidence_path": "",
+        }
+        current_field: str | None = None
+        for token in parts:
+            text = token.strip()
+            if not text:
+                continue
+            match = KEY_RESULT_FIELD_RE.match(text)
+            if match is not None:
+                current_field = str(match.group(1)).lower()
+                text = str(match.group(2) or "").strip()
+            elif current_field is None:
+                current_field = "metric"
+
+            if current_field is None or not text:
+                continue
+            existing = str(fields.get(current_field) or "").strip()
+            if existing:
+                fields[current_field] = f"{existing} | {text}"
+            else:
+                fields[current_field] = text
+        return (
+            str(fields["result_id"]),
+            str(fields["metric"]),
+            str(fields["value"]),
+            str(fields["conditions"]),
+            str(fields["evidence_path"]),
+        )
+
     if len(parts) >= 5:
         result_id = parts[0]
         metric = parts[1]
-        value = parts[2]
-        conditions = parts[3]
-        evidence_path = "|".join(parts[4:]).strip()
+        value = " | ".join(parts[2:-2]).strip()
+        conditions = parts[-2]
+        evidence_path = parts[-1]
         return result_id, metric, value, conditions, evidence_path
     if len(parts) == 4:
-        result_id = parts[0]
-        metric = parts[1]
-        value = parts[2]
-        conditions = parts[3]
+        result_id, metric, value, conditions = parts
         return result_id, metric, value, conditions, ""
     if len(parts) == 3:
-        result_id = parts[0]
-        metric = parts[1]
-        value = parts[2]
+        result_id, metric, value = parts
         return result_id, metric, value, "", ""
     return "", normalized, "", "", ""
+
+
+def _select_key_results_for_summary(
+    key_results: list[str], *, max_items: int = 4
+) -> list[str]:
+    selected: list[str] = []
+    seen_metric_keys: set[str] = set()
+    for item in reversed(key_results):
+        _, metric, _, _, _ = _split_key_result_item(item)
+        metric_key = re.sub(r"\s+", " ", str(metric or "").strip().lower())
+        if not metric_key:
+            metric_key = re.sub(r"\s+", " ", str(item).strip().lower())
+        if metric_key in seen_metric_keys:
+            continue
+        seen_metric_keys.add(metric_key)
+        selected.append(item)
+        if len(selected) >= max_items:
+            break
+    selected.reverse()
+    return selected
 
 
 def _format_key_results_human(
@@ -1009,12 +1063,14 @@ def _build_run_summary_message(
     try:
         if memory_path.is_file():
             memory_text = memory_path.read_text(encoding="utf-8")
-            key_results = _extract_key_results(memory_text)
+            key_results = _extract_key_results(memory_text, max_items=20)
             done_steps, pending_steps = _extract_plan_progress(memory_text)
     except OSError:
         key_results = []
         done_steps = []
         pending_steps = []
+
+    summary_key_results = _select_key_results_for_summary(key_results, max_items=4)
 
     if done_steps:
         lines.append("")
@@ -1022,10 +1078,10 @@ def _build_run_summary_message(
         for item in done_steps:
             lines.append(f"• {_html_escape(item)}")
 
-    if key_results:
+    if summary_key_results:
         lines.append("")
         lines.append("<b>Key Findings</b>")
-        for headline, detail in _format_key_results_human(key_results):
+        for headline, detail in _format_key_results_human(summary_key_results):
             lines.append(f"• {_html_escape(headline)}")
             if detail:
                 lines.append(f"  <i>{_html_escape(detail)}</i>")
