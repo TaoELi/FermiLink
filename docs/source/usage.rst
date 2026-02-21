@@ -137,9 +137,7 @@ Gateway behavior:
 - ``/status`` returns a quick health snapshot for the current chat (gateway
   online response timestamp in local machine timezone, current mode, active
   workspace label, live agent state ``idle/queued/running``, and when running:
-  compact current-run details (including current prompt preview) plus a richer
-  ``Thinking`` snapshot from ``projects/memory.md`` (up to 2 latest
-  ``### Progress log`` entries + 1 pending ``### Plan`` step);
+  compact current-run details (including current prompt preview);
   running loop mode displays live iteration progress as ``loop i/max`` when
   available;
   when running, ``Last Run`` is omitted to keep replies concise;

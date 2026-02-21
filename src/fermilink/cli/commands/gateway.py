@@ -837,61 +837,6 @@ def _extract_plan_progress(
     return done, pending
 
 
-def _extract_progress_log_entries(
-    memory_text: str, *, max_items: int = 2
-) -> list[str]:
-    lines = memory_text.splitlines()
-    in_progress = False
-    entries: list[str] = []
-    for raw in lines:
-        stripped = raw.strip()
-        if stripped.startswith("#"):
-            if stripped == "### Progress log":
-                in_progress = True
-                continue
-            if in_progress:
-                break
-        if not in_progress or not stripped:
-            continue
-        if stripped.startswith("- "):
-            entry = stripped[2:].strip()
-        elif stripped.startswith("* "):
-            entry = stripped[2:].strip()
-        else:
-            entry = stripped
-        if not entry:
-            continue
-        entries.append(entry)
-    if max_items > 0:
-        return entries[-max_items:]
-    return entries
-
-
-def _build_memory_thinking_snapshot(memory_text: str) -> str:
-    progress_entries = _extract_progress_log_entries(memory_text, max_items=2)
-    _, pending_steps = _extract_plan_progress(
-        memory_text,
-        max_done=0,
-        max_pending=1,
-    )
-    parts: list[str] = []
-    if progress_entries:
-        normalized_entries = [
-            _normalize_prompt_preview(entry, limit=140)
-            for entry in progress_entries
-            if str(entry).strip()
-        ]
-        if normalized_entries:
-            parts.append(f"Progress: {' | '.join(normalized_entries)}")
-    if pending_steps:
-        next_step = _normalize_prompt_preview(pending_steps[0], limit=140)
-        if next_step:
-            parts.append(f"Next: {next_step}")
-    if not parts:
-        return ""
-    return _normalize_prompt_preview("; ".join(parts), limit=320)
-
-
 def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
     normalized = str(item).replace("`", "").strip()
     parts = [part.strip() for part in normalized.split("|")]
@@ -1229,12 +1174,6 @@ def _build_status_message(
     current_run_prompt_preview = str(chat_state.get("current_run_prompt_preview") or "").strip()
     mode_text = current_run_mode if is_running and current_run_mode else mode
 
-    current_thinking = ""
-    if is_running and repo_dir is not None:
-        current_thinking = _load_memory_progress_hint(repo_dir)
-    if is_running and not current_thinking and current_run_prompt_preview:
-        current_thinking = current_run_prompt_preview
-
     lines = [
         "<b>Gateway Status</b>",
         f"• State: <b>online</b> (responding now at <code>{_html_escape(now_text)}</code>)",
@@ -1242,8 +1181,6 @@ def _build_status_message(
         f"• Mode: <code>{_html_escape(mode_text)}</code>",
         f"• Active workspace: <code>{_html_escape(active_workspace_text)}</code>",
     ]
-    if current_thinking:
-        lines.append(f"• Thinking: {_html_escape(current_thinking)}")
 
     if is_running:
         lines.append("")
@@ -1586,13 +1523,6 @@ def _load_memory_key_results(repo_dir: Path) -> list[str]:
     if not memory_text:
         return []
     return _extract_key_results(memory_text)
-
-
-def _load_memory_progress_hint(repo_dir: Path) -> str:
-    memory_text = _load_memory_text(repo_dir)
-    if not memory_text:
-        return ""
-    return _build_memory_thinking_snapshot(memory_text)
 
 
 def _collect_media_for_run_reply(

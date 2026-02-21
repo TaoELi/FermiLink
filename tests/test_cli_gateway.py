@@ -484,17 +484,12 @@ def test_status_reports_running_job_details_for_immediate_polling(tmp_path: Path
     assert status.count("Mode: <code>loop 2/10</code>") == 1
     assert "Workspace:" not in status
     assert "<b>Last Run</b>" not in status
-    assert "Thinking: Progress:" in status
-    assert "iterate mesh convergence in project script" in status
-    assert "patched parser for SCF stability reporting" in status
-    assert "Next: verify field export consistency" in status
-    assert "bootstrapped workspace and inputs" not in status
-    assert "Long-Term Memory (Persistent)" not in status
+    assert "Thinking:" not in status
     assert "Prompt: simulate h2o energy with pyscf" in status
     assert "(UTC" not in status
 
 
-def test_status_thinking_progress_log_stops_at_markdown_heading(
+def test_status_hides_thinking_line_even_when_progress_log_exists(
     tmp_path: Path,
 ) -> None:
     state = gateway_commands._default_gateway_state()
@@ -526,7 +521,8 @@ def test_status_thinking_progress_log_stops_at_markdown_heading(
 
     status = gateway_commands._build_status_message(chat_state, repo_dir=repo_dir)
 
-    assert "finished mesh sweep for cavity mode" in status
+    assert "Thinking:" not in status
+    assert "finished mesh sweep for cavity mode" not in status
     assert "Long-Term Memory (Persistent)" not in status
     assert "this line must never be parsed as progress" not in status
 
