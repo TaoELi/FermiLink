@@ -205,6 +205,29 @@ def _now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _parse_iso_timestamp(raw: str) -> datetime | None:
+    token = str(raw or "").strip()
+    if not token:
+        return None
+    normalized = token[:-1] + "+00:00" if token.endswith("Z") else token
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _format_local_timestamp(raw: str) -> str:
+    parsed = _parse_iso_timestamp(raw)
+    if parsed is None:
+        return str(raw or "").strip()
+    local_dt = parsed.astimezone()
+    tz_name = local_dt.tzname() or "local"
+    return f"{local_dt:%Y-%m-%d %H:%M:%S} {tz_name}"
+
+
 def _truncate_message(text: str, *, limit: int) -> str:
     content = str(text)
     if len(content) <= limit:
@@ -811,6 +834,34 @@ def _extract_plan_progress(
     return done, pending
 
 
+def _extract_latest_progress_log_entry(memory_text: str) -> str:
+    lines = memory_text.splitlines()
+    in_progress = False
+    entries: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("### "):
+            if stripped == "### Progress log":
+                in_progress = True
+                continue
+            if in_progress:
+                break
+        if not in_progress or not stripped:
+            continue
+        if stripped.startswith("- "):
+            entry = stripped[2:].strip()
+        elif stripped.startswith("* "):
+            entry = stripped[2:].strip()
+        else:
+            entry = stripped
+        if not entry:
+            continue
+        entries.append(entry)
+    if not entries:
+        return ""
+    return _normalize_prompt_preview(entries[-1], limit=220)
+
+
 def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
     normalized = str(item).replace("`", "").strip()
     parts = [part.strip() for part in normalized.split("|")]
@@ -1115,18 +1166,23 @@ def _build_run_summary_message(
     return message
 
 
-def _build_status_message(chat_state: dict[str, Any]) -> str:
+def _build_status_message(
+    chat_state: dict[str, Any],
+    *,
+    repo_dir: Path | None = None,
+) -> str:
     mode = _effective_execution_mode(chat_state)
     active = _active_workspace(chat_state)
-    active_workspace_text = (
-        _format_workspace_short(active) if active is not None else "(none yet)"
-    )
+    active_workspace_text = str(active.get("label") or "").strip() if active is not None else ""
+    if not active_workspace_text:
+        active_workspace_text = "(none yet)"
     is_running = bool(chat_state.get("is_running"))
     pending_raw = chat_state.get("pending_run_count")
     if isinstance(pending_raw, int):
         pending_count = max(0, pending_raw)
     else:
         pending_count = 0
+    now_text = _format_local_timestamp(_now_utc_iso())
 
     if is_running and pending_count > 0:
         run_state_text = f"<b>running</b> ({pending_count} queued)"
@@ -1137,39 +1193,34 @@ def _build_status_message(chat_state: dict[str, Any]) -> str:
     else:
         run_state_text = "<b>idle</b>"
 
+    current_run_id = str(chat_state.get("current_run_id") or "").strip()
+    current_run_started = str(chat_state.get("current_run_started_at_utc") or "").strip()
+    current_run_prompt_preview = str(chat_state.get("current_run_prompt_preview") or "").strip()
+
+    current_thinking = ""
+    if is_running and repo_dir is not None:
+        current_thinking = _load_memory_progress_hint(repo_dir)
+    if is_running and not current_thinking and current_run_prompt_preview:
+        current_thinking = current_run_prompt_preview
+
     lines = [
         "<b>Gateway Status</b>",
-        f"• State: <b>online</b> (responding now at {_html_escape(_now_utc_iso())})",
+        f"• State: <b>online</b> (responding now at <code>{_html_escape(now_text)}</code>)",
         f"• Agent: {run_state_text}",
         f"• Mode: <code>{_html_escape(mode)}</code>",
         f"• Active workspace: <code>{_html_escape(active_workspace_text)}</code>",
     ]
-
-    current_run_id = str(chat_state.get("current_run_id") or "").strip()
-    current_run_started = str(chat_state.get("current_run_started_at_utc") or "").strip()
-    current_run_mode = str(chat_state.get("current_run_mode") or "").strip().lower()
-    current_run_workspace_label = str(chat_state.get("current_run_workspace_label") or "").strip()
-    current_run_workspace_id = str(chat_state.get("current_run_workspace_id") or "").strip()
-    current_run_prompt_preview = str(chat_state.get("current_run_prompt_preview") or "").strip()
+    if current_thinking:
+        lines.append(f"• Thinking: {_html_escape(current_thinking)}")
 
     if is_running:
         lines.append("")
         lines.append("<b>Current Run</b>")
-        if current_run_mode:
-            lines.append(f"• Mode: <code>{_html_escape(current_run_mode)}</code>")
-        if current_run_workspace_label or current_run_workspace_id:
-            workspace_current = (
-                f"{current_run_workspace_label} ({current_run_workspace_id})"
-                if current_run_workspace_label and current_run_workspace_id
-                else (current_run_workspace_label or current_run_workspace_id)
-            )
-            lines.append(f"• Workspace: <code>{_html_escape(workspace_current)}</code>")
         if current_run_started:
-            lines.append(f"• Started: <code>{_html_escape(current_run_started)}</code>")
+            started_local = _format_local_timestamp(current_run_started)
+            lines.append(f"• Started: <code>{_html_escape(started_local)}</code>")
         if current_run_id:
             lines.append(f"• Job id: <code>{_html_escape(current_run_id)}</code>")
-        if current_run_prompt_preview:
-            lines.append(f"• Prompt: {_html_escape(current_run_prompt_preview)}")
 
     last_run_mode = str(chat_state.get("last_run_mode") or "").strip().lower()
     last_run_started = str(chat_state.get("last_run_started_at_utc") or "").strip()
@@ -1180,24 +1231,27 @@ def _build_status_message(chat_state: dict[str, Any]) -> str:
     )
     last_run_exit_code = chat_state.get("last_run_exit_code")
 
-    if last_run_status:
-        lines.append("")
-        lines.append("<b>Last Run</b>")
-        if last_run_mode:
-            lines.append(f"• Mode: <code>{_html_escape(last_run_mode)}</code>")
-        if last_run_started:
-            lines.append(f"• Started: <code>{_html_escape(last_run_started)}</code>")
-        if last_run_finished:
-            lines.append(f"• Finished: <code>{_html_escape(last_run_finished)}</code>")
-        lines.append(f"• Status: <code>{_html_escape(last_run_status)}</code>")
-        if isinstance(last_run_exit_code, int):
-            lines.append(f"• Exit code: <code>{last_run_exit_code}</code>")
-        if last_run_reason:
-            lines.append(f"• Reason: {_html_escape(last_run_reason)}")
-    else:
-        lines.append("")
-        lines.append("<b>Last Run</b>")
-        lines.append("• No completed run recorded yet for this chat.")
+    if not is_running:
+        if last_run_status:
+            lines.append("")
+            lines.append("<b>Last Run</b>")
+            if last_run_mode:
+                lines.append(f"• Mode: <code>{_html_escape(last_run_mode)}</code>")
+            if last_run_started:
+                started_local = _format_local_timestamp(last_run_started)
+                lines.append(f"• Started: <code>{_html_escape(started_local)}</code>")
+            if last_run_finished:
+                finished_local = _format_local_timestamp(last_run_finished)
+                lines.append(f"• Finished: <code>{_html_escape(finished_local)}</code>")
+            lines.append(f"• Status: <code>{_html_escape(last_run_status)}</code>")
+            if isinstance(last_run_exit_code, int):
+                lines.append(f"• Exit code: <code>{last_run_exit_code}</code>")
+            if last_run_reason:
+                lines.append(f"• Reason: {_html_escape(last_run_reason)}")
+        else:
+            lines.append("")
+            lines.append("<b>Last Run</b>")
+            lines.append("• No completed run recorded yet for this chat.")
 
     lines.append("")
     lines.append(
@@ -1435,7 +1489,12 @@ def _handle_telegram_text(
         )
 
     if command == "/status":
-        return _build_status_message(chat_state)
+        _, status_repo_dir = _resolve_active_workspace_repo(
+            state=state,
+            chat_key=chat_key,
+            workspaces_root=workspaces_root,
+        )
+        return _build_status_message(chat_state, repo_dir=status_repo_dir)
 
     if command == "/list":
         return _format_workspace_list(chat_state)
@@ -1478,15 +1537,28 @@ def _resolve_active_workspace_repo(
     return workspace, repo_dir
 
 
-def _load_memory_key_results(repo_dir: Path) -> list[str]:
+def _load_memory_text(repo_dir: Path) -> str:
     memory_path = repo_dir / "projects" / "memory.md"
     if not memory_path.is_file():
-        return []
+        return ""
     try:
-        memory_text = memory_path.read_text(encoding="utf-8")
+        return memory_path.read_text(encoding="utf-8")
     except OSError:
+        return ""
+
+
+def _load_memory_key_results(repo_dir: Path) -> list[str]:
+    memory_text = _load_memory_text(repo_dir)
+    if not memory_text:
         return []
     return _extract_key_results(memory_text)
+
+
+def _load_memory_progress_hint(repo_dir: Path) -> str:
+    memory_text = _load_memory_text(repo_dir)
+    if not memory_text:
+        return ""
+    return _extract_latest_progress_log_entry(memory_text)
 
 
 def _collect_media_for_run_reply(

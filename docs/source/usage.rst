@@ -135,9 +135,10 @@ Gateway behavior:
   ``fermilink loop`` (multi-iteration autonomous mode) and
   ``fermilink exec`` (single-turn mode) per chat session;
 - ``/status`` returns a quick health snapshot for the current chat (gateway
-  online response timestamp, current mode, active workspace, live agent state
-  ``idle/queued/running`` (with current-run details while active), and last
-  run status/reason/timestamps;
+  online response timestamp in local machine timezone, current mode, active
+  workspace label, live agent state ``idle/queued/running``, and when running:
+  compact current-run details plus latest memory ``### Progress log`` hint;
+  when running, ``Last Run`` is omitted to keep replies concise;
 - ``/new [name]`` creates and switches to a new workspace;
 - ``/use <name-or-id>`` switches back to an existing workspace;
 - ``/where`` prints the active workspace and ``/list`` shows all chat

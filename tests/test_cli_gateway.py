@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import time
 from pathlib import Path
 
@@ -385,14 +384,16 @@ def test_status_reports_online_mode_workspace_and_last_run(tmp_path: Path) -> No
     assert "<b>Gateway Status</b>" in before
     assert "No completed run recorded yet for this chat." in before
     assert "Execution mode: <code>loop</code>." in run_reply
+    assert "Active workspace: <code>main</code>" in after
     assert "<b>Last Run</b>" in after
     assert "Status: <code>done</code>" in after
     assert "Reason: done token" in after
     assert "Started: <code>" in after
     assert "Finished: <code>" in after
+    assert "(UTC" not in after
 
 
-def test_status_reports_running_job_details_for_immediate_polling() -> None:
+def test_status_reports_running_job_details_for_immediate_polling(tmp_path: Path) -> None:
     state = gateway_commands._default_gateway_state()
     telegram = gateway_commands._telegram_state(state)
     chat_id = "777"
@@ -411,12 +412,26 @@ def test_status_reports_running_job_details_for_immediate_polling() -> None:
     assert chat_state["is_running"] is False
 
     gateway_commands._mark_chat_job_running(chat_state, job)
-    status = gateway_commands._build_status_message(chat_state)
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Progress log\n"
+            "- iterate mesh convergence in project script\n"
+        ),
+        encoding="utf-8",
+    )
+    status = gateway_commands._build_status_message(chat_state, repo_dir=repo_dir)
 
     assert "Agent: <b>running</b>" in status
     assert "<b>Current Run</b>" in status
-    assert "Mode: <code>loop</code>" in status
-    assert "Prompt: simulate h2o energy with pyscf" in status
+    assert status.count("Mode: <code>loop</code>") == 1
+    assert "Workspace:" not in status
+    assert "<b>Last Run</b>" not in status
+    assert "Thinking: iterate mesh convergence in project script" in status
+    assert "(UTC" not in status
 
 
 def test_status_reports_queued_when_requests_waiting() -> None:
