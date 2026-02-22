@@ -72,7 +72,9 @@ Telegram gateway (iPhone chat)
 
 Use ``gateway`` to bind Telegram chat sessions to sticky workspace repos and
 run each message through ``fermilink exec`` by default (switch to ``loop`` via
-``/mode loop`` when needed).
+``/mode loop`` when needed). Workflow prompts are also supported by sending
+``fermilink research ...`` or ``fermilink reproduce ...`` as normal chat
+messages.
 
 .. code-block:: bash
 
@@ -109,6 +111,8 @@ Step-by-step setup (iPhone + computer):
 6. From iPhone Telegram, open the chat with your bot and test commands:
    ``/help``, then a normal simulation request, then ``/mode exec``,
    ``/mode loop``, ``/reply agent``, ``/reply summary``, ``/status``,
+   ``fermilink research <idea.md-or-inline>``,
+   ``fermilink reproduce <paper.md-or-inline>``,
    ``/new test2``, ``/use main``, ``/where``, and ``/list``.
 7. Verify mapping/runtime state on computer:
 
@@ -135,6 +139,10 @@ Gateway behavior:
 - ``/mode <loop|exec>`` switches normal-message execution between
   ``fermilink loop`` (multi-iteration autonomous mode) and
   ``fermilink exec`` (single-turn mode, default) per chat session;
+- explicit workflow prompts are available without changing ``/mode``:
+  send ``fermilink research <prompt-or-file>`` or
+  ``fermilink reproduce <prompt-or-file>`` as a normal chat message to run
+  workflow orchestration in the active workspace;
 - ``/reply <summary|agent|both>`` controls final completion replies:
   ``agent`` (default) sends exact agent text only (falling back to summary when
   exact text is unavailable),
@@ -165,6 +173,8 @@ Useful flags:
 - loop forwarding flags such as ``--package``, ``--sandbox``,
   ``--max-iterations``, ``--wait-seconds``, ``--max-wait-seconds``,
   ``--pid-stall-seconds``.
+- ``--hpc-profile <json>`` forward an HPC profile to workflow prompts run
+  through gateway (``fermilink research ...`` / ``fermilink reproduce ...``).
 
 Autonomous iterative loop
 -------------------------

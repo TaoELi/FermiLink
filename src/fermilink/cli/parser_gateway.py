@@ -79,7 +79,7 @@ def register_gateway_parser(
         "--sandbox",
         default=None,
         help=(
-            "Override sandbox mode for loop runs triggered by gateway messages. "
+            "Override sandbox mode for loop/workflow runs triggered by gateway messages. "
             "When omitted, uses `fermilink agent` policy."
         ),
     )
@@ -116,6 +116,14 @@ def register_gateway_parser(
         help=(
             "Forwarded to loop local-pid stall timeout in seconds "
             "(default: 900; set 0 to disable)."
+        ),
+    )
+    gateway_parser.add_argument(
+        "--hpc-profile",
+        default=None,
+        help=(
+            "Optional JSON file forwarded to gateway-triggered workflow prompts "
+            "(`fermilink research ...` / `fermilink reproduce ...`)."
         ),
     )
     init_git_group = gateway_parser.add_mutually_exclusive_group(required=False)

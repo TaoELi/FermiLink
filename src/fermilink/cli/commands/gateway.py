@@ -31,7 +31,13 @@ KEY_RESULT_FIELD_RE = re.compile(
     re.IGNORECASE,
 )
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
+SUPPORTED_WORKFLOW_PROMPT_MODES = {"research", "reproduce"}
+SUPPORTED_GATEWAY_RUN_MODES = SUPPORTED_EXECUTION_MODES | SUPPORTED_WORKFLOW_PROMPT_MODES
 SUPPORTED_REPLY_STYLES = {"summary", "agent", "both"}
+WORKFLOW_PROMPT_RE = re.compile(
+    r"^\s*fermilink\s+(research|reproduce)\s+(.*?)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 LOOP_WAIT_LINE_RE = re.compile(
     r"^\s*<wait_seconds>\s*[0-9]+(?:\.[0-9]+)?\s*</wait_seconds>\s*$"
 )
@@ -60,7 +66,10 @@ GATEWAY_HELP_TEXT = (
     "/status - show gateway/chat run status\n"
     "/where - show active workspace\n"
     "/list - list chat workspaces\n"
-    "/help - show commands"
+    "/help - show commands\n\n"
+    "Workflow prompts:\n"
+    "fermilink research <prompt-or-file> - run research workflow\n"
+    "fermilink reproduce <prompt-or-file> - run reproduce workflow"
 )
 
 
@@ -68,6 +77,9 @@ LoopRunner = Callable[
     [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
 ]
 ExecRunner = Callable[
+    [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
+]
+WorkflowRunner = Callable[
     [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
 ]
 WorkspaceRepoEnsurer = Callable[[Path, bool], None]
@@ -84,6 +96,7 @@ class GatewayLoopConfig:
     max_wait_seconds: float
     pid_stall_seconds: float
     init_git: bool
+    hpc_profile: str | None = None
     loop_iteration_hook: LoopIterationHook | None = None
 
 
@@ -982,7 +995,37 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
     return None, stripped
 
 
+def _parse_gateway_workflow_prompt(text: str) -> tuple[str, str] | None:
+    match = WORKFLOW_PROMPT_RE.match(str(text or ""))
+    if match is None:
+        return None
+    mode = str(match.group(1) or "").strip().lower()
+    prompt = str(match.group(2) or "").strip()
+    if mode not in SUPPORTED_WORKFLOW_PROMPT_MODES or not prompt:
+        return None
+    return mode, prompt
+
+
+def _resolve_prompt_mode_and_text(
+    *,
+    chat_state: dict[str, Any],
+    text: str,
+) -> tuple[str, str]:
+    workflow_request = _parse_gateway_workflow_prompt(text)
+    if workflow_request is not None:
+        return workflow_request
+    return _effective_execution_mode(chat_state), str(text or "").strip()
+
+
 def _build_loop_config(args: argparse.Namespace) -> GatewayLoopConfig:
+    hpc_profile_raw = getattr(args, "hpc_profile", None)
+    hpc_profile: str | None = None
+    if isinstance(hpc_profile_raw, str) and hpc_profile_raw.strip():
+        resolved_hpc_profile = Path(hpc_profile_raw.strip()).expanduser()
+        if not resolved_hpc_profile.is_absolute():
+            resolved_hpc_profile = (Path.cwd() / resolved_hpc_profile).resolve()
+        hpc_profile = str(resolved_hpc_profile)
+
     return GatewayLoopConfig(
         package_id=getattr(args, "package_id", None),
         sandbox=getattr(args, "sandbox", None),
@@ -992,6 +1035,7 @@ def _build_loop_config(args: argparse.Namespace) -> GatewayLoopConfig:
         max_wait_seconds=float(getattr(args, "max_wait_seconds", 6000.0)),
         pid_stall_seconds=float(getattr(args, "pid_stall_seconds", 900.0)),
         init_git=bool(getattr(args, "init_git", True)),
+        hpc_profile=hpc_profile,
     )
 
 
@@ -1148,6 +1192,86 @@ def _run_exec_in_workspace(
         "provider_exit_code": int(code),
         **agent_reply_payload,
     }
+
+
+def _run_workflow_in_workspace(
+    repo_dir: Path,
+    prompt: str,
+    loop_config: GatewayLoopConfig,
+    *,
+    workflow_name: str,
+) -> tuple[int, dict[str, Any] | None]:
+    cli = _cli()
+    workflow = str(workflow_name or "").strip().lower()
+    if workflow not in SUPPORTED_WORKFLOW_PROMPT_MODES:
+        raise cli.PackageError(f"Unsupported workflow mode: {workflow_name}")
+    workflow_args = argparse.Namespace(
+        command=workflow,
+        prompt=[prompt],
+        package_id=loop_config.package_id,
+        sandbox=loop_config.sandbox,
+        codex_bin=loop_config.codex_bin,
+        task_max_runs=5,
+        planner_max_tries=2,
+        auditor_max_tries=2,
+        max_iterations=loop_config.max_iterations,
+        wait_seconds=loop_config.wait_seconds,
+        max_wait_seconds=loop_config.max_wait_seconds,
+        pid_stall_seconds=loop_config.pid_stall_seconds,
+        hpc_profile=loop_config.hpc_profile,
+        plan_only=False,
+        report_only=False,
+        skip_report=False,
+        resume=True,
+        init_git=loop_config.init_git,
+        no_init_git=not loop_config.init_git,
+    )
+    previous_cwd = Path.cwd()
+    try:
+        os.chdir(repo_dir)
+        if workflow == "research":
+            code = cli._cmd_research(workflow_args)
+        else:
+            code = cli._cmd_reproduce(workflow_args)
+    finally:
+        os.chdir(previous_cwd)
+
+    if int(code) == 0:
+        return int(code), {
+            "status": "done",
+            "reason": f"{workflow}_completed",
+        }
+    return int(code), {
+        "status": "provider_failure",
+        "reason": f"{workflow}_exit_code_{int(code)}",
+        "provider_exit_code": int(code),
+    }
+
+
+def _run_research_in_workspace(
+    repo_dir: Path,
+    prompt: str,
+    loop_config: GatewayLoopConfig,
+) -> tuple[int, dict[str, Any] | None]:
+    return _run_workflow_in_workspace(
+        repo_dir=repo_dir,
+        prompt=prompt,
+        loop_config=loop_config,
+        workflow_name="research",
+    )
+
+
+def _run_reproduce_in_workspace(
+    repo_dir: Path,
+    prompt: str,
+    loop_config: GatewayLoopConfig,
+) -> tuple[int, dict[str, Any] | None]:
+    return _run_workflow_in_workspace(
+        repo_dir=repo_dir,
+        prompt=prompt,
+        loop_config=loop_config,
+        workflow_name="reproduce",
+    )
 
 
 def _extract_key_results(memory_text: str, *, max_items: int = 5) -> list[str]:
@@ -1412,7 +1536,7 @@ def _build_run_summary_message(
     provider_exit_code = (outcome or {}).get("provider_exit_code")
 
     effective_mode = str(mode or "loop").strip().lower()
-    if effective_mode not in SUPPORTED_EXECUTION_MODES:
+    if effective_mode not in SUPPORTED_GATEWAY_RUN_MODES:
         effective_mode = "loop"
 
     lines = [
@@ -1435,13 +1559,25 @@ def _build_run_summary_message(
                 lines.append("The run failed due to a provider/runtime error.")
         else:
             lines.append(f"The run exited with status code {code}.")
-    else:
+    elif effective_mode == "exec":
         if code == 0:
             lines.append("Single-turn execution finished successfully.")
         elif isinstance(provider_exit_code, int):
             lines.append(f"Execution failed with provider exit code {provider_exit_code}.")
         else:
             lines.append(f"Execution failed with status code {code}.")
+    else:
+        workflow_label = (
+            "Research workflow" if effective_mode == "research" else "Reproduce workflow"
+        )
+        if code == 0 and status in {"", "done"}:
+            lines.append(f"{workflow_label} orchestration finished successfully.")
+        elif isinstance(provider_exit_code, int):
+            lines.append(
+                f"{workflow_label} failed with provider exit code {provider_exit_code}."
+            )
+        else:
+            lines.append(f"{workflow_label} failed with status code {code}.")
 
     if reason and not (reason == "done token" and effective_mode == "loop" and code == 0):
         lines.append(f"Reason: {_html_escape(reason)}.")
@@ -1603,7 +1739,7 @@ def _build_status_message(
 def _resolve_run_mode(chat_state: dict[str, Any], requested_mode: str | None = None) -> str:
     if requested_mode:
         mode = str(requested_mode).strip().lower()
-        if mode in SUPPORTED_EXECUTION_MODES:
+        if mode in SUPPORTED_GATEWAY_RUN_MODES:
             return mode
     return _effective_execution_mode(chat_state)
 
@@ -1637,6 +1773,8 @@ def _run_prompt_for_workspace(
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
     exec_runner: ExecRunner | None = None,
+    research_runner: WorkflowRunner | None = None,
+    reproduce_runner: WorkflowRunner | None = None,
     workspace_repo_ensurer: WorkspaceRepoEnsurer | None = None,
 ) -> tuple[str, Path, float]:
     _touch_workspace(workspace)
@@ -1655,6 +1793,8 @@ def _run_prompt_for_workspace(
         loop_config=loop_config,
         loop_runner=loop_runner,
         exec_runner=exec_runner,
+        research_runner=research_runner,
+        reproduce_runner=reproduce_runner,
     )
     status, reason, provider_exit_code = _derive_run_outcome(code, outcome)
     chat_state["last_run_status"] = status
@@ -1686,9 +1826,17 @@ def _run_prompt_with_mode(
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
     exec_runner: ExecRunner | None = None,
+    research_runner: WorkflowRunner | None = None,
+    reproduce_runner: WorkflowRunner | None = None,
 ) -> tuple[int, dict[str, Any] | None]:
     if mode == "exec":
         runner = exec_runner or _run_exec_in_workspace
+    elif mode == "loop":
+        runner = loop_runner or _run_loop_in_workspace
+    elif mode == "research":
+        runner = research_runner or _run_research_in_workspace
+    elif mode == "reproduce":
+        runner = reproduce_runner or _run_reproduce_in_workspace
     else:
         runner = loop_runner or _run_loop_in_workspace
     return runner(repo_dir, prompt, loop_config)
@@ -1705,12 +1853,11 @@ def _queue_telegram_run(
     chat_state = _ensure_chat_state(telegram, chat_key)
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
     _touch_workspace(workspace)
-    mode = _effective_execution_mode(chat_state)
+    mode, prompt = _resolve_prompt_mode_and_text(chat_state=chat_state, text=text)
     pending_raw = chat_state.get("pending_run_count")
     pending_count = max(0, int(pending_raw)) if isinstance(pending_raw, int) else 0
     chat_state["pending_run_count"] = pending_count + 1
     queue_position = pending_count + 1
-    prompt = str(text or "").strip()
     queued_at = _now_utc_iso()
     job = QueuedRunJob(
         job_id=f"job-{uuid.uuid4().hex[:10]}",
@@ -1773,6 +1920,8 @@ def _handle_telegram_text(
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
     exec_runner: ExecRunner | None = None,
+    research_runner: WorkflowRunner | None = None,
+    reproduce_runner: WorkflowRunner | None = None,
     workspace_repo_ensurer: WorkspaceRepoEnsurer | None = None,
 ) -> str:
     telegram = _telegram_state(state)
@@ -1810,7 +1959,9 @@ def _handle_telegram_text(
             return (
                 f"Current mode: {current_mode}\n"
                 "Usage: /mode <loop|exec>\n"
-                "Normal messages run with this mode in the active workspace."
+                "Normal messages run with this mode in the active workspace.\n"
+                "Use `fermilink research ...` or `fermilink reproduce ...` "
+                "for workflow orchestration prompts."
             )
 
         requested = str(argument).split()[0].strip().lower()
@@ -1872,16 +2023,19 @@ def _handle_telegram_text(
             f"Current mode: {mode}"
         )
 
+    requested_mode, run_prompt = _resolve_prompt_mode_and_text(chat_state=chat_state, text=text)
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
     reply, _, _ = _run_prompt_for_workspace(
         chat_state=chat_state,
         workspace=workspace,
-        prompt=text,
-        requested_mode=None,
+        prompt=run_prompt,
+        requested_mode=requested_mode,
         workspaces_root=workspaces_root,
         loop_config=loop_config,
         loop_runner=loop_runner,
         exec_runner=exec_runner,
+        research_runner=research_runner,
+        reproduce_runner=reproduce_runner,
         workspace_repo_ensurer=workspace_repo_ensurer,
     )
     return reply
@@ -2062,7 +2216,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                 run_queue.task_done()
                 return
 
-            mode = job.mode if job.mode in SUPPORTED_EXECUTION_MODES else "loop"
+            mode = job.mode if job.mode in SUPPORTED_GATEWAY_RUN_MODES else "loop"
             workspace: dict[str, Any] = {"id": job.workspace_id, "label": job.workspace_label}
             repo_dir = workspaces_root / job.workspace_id / "repo"
             run_started_epoch = time.time()

@@ -43,6 +43,8 @@ def test_gateway_parser_supports_loop_forwarding_flags() -> None:
             "60",
             "--pid-stall-seconds",
             "11",
+            "--hpc-profile",
+            "scripts/hpc_profile_anvil.json",
             "--no-init-git",
         ]
     )
@@ -54,6 +56,7 @@ def test_gateway_parser_supports_loop_forwarding_flags() -> None:
     assert args.wait_seconds == 2.0
     assert args.max_wait_seconds == 60.0
     assert args.pid_stall_seconds == 11.0
+    assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
     assert args.init_git is False
 
 
@@ -249,6 +252,57 @@ def test_run_exec_in_workspace_captures_last_message(
     assert outcome.get("status") == "done"
     assert outcome.get("agent_reply_source") == "exec_last_message"
     assert outcome.get("agent_reply_text") == "Exact exec reply with final recommendation."
+
+
+def test_run_research_in_workspace_forwards_hpc_profile(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class _FakeCli:
+        def __init__(self) -> None:
+            self.research_args = None
+
+        def _cmd_research(self, args: object) -> int:
+            self.research_args = args
+            return 0
+
+        def _cmd_reproduce(self, _args: object) -> int:
+            raise AssertionError("reproduce runner should not be called")
+
+    fake_cli = _FakeCli()
+    monkeypatch.setattr(gateway_commands, "_cli", lambda: fake_cli)
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    loop_config = gateway_commands.GatewayLoopConfig(
+        package_id="maxwelllink",
+        sandbox="workspace-write",
+        codex_bin="codex",
+        max_iterations=8,
+        wait_seconds=2.0,
+        max_wait_seconds=90.0,
+        pid_stall_seconds=12.0,
+        init_git=True,
+        hpc_profile="scripts/hpc_profile_anvil.json",
+    )
+    code, outcome = gateway_commands._run_research_in_workspace(
+        repo_dir,
+        "research prompt",
+        loop_config,
+    )
+
+    assert code == 0
+    assert isinstance(outcome, dict)
+    assert outcome.get("status") == "done"
+    assert outcome.get("reason") == "research_completed"
+    assert fake_cli.research_args is not None
+    assert fake_cli.research_args.command == "research"
+    assert fake_cli.research_args.prompt == ["research prompt"]
+    assert fake_cli.research_args.max_iterations == 8
+    assert fake_cli.research_args.wait_seconds == 2.0
+    assert fake_cli.research_args.max_wait_seconds == 90.0
+    assert fake_cli.research_args.pid_stall_seconds == 12.0
+    assert fake_cli.research_args.hpc_profile == "scripts/hpc_profile_anvil.json"
+    assert fake_cli.research_args.plan_only is False
+    assert fake_cli.research_args.report_only is False
 
 
 def test_strip_loop_control_lines_removes_machine_tags() -> None:
@@ -528,6 +582,143 @@ def test_handle_telegram_text_mode_switches_between_loop_and_exec(
     assert len(exec_calls) == 1
     assert len(loop_calls) == 1
     assert exec_calls[0] == loop_calls[0]
+
+
+def test_queue_telegram_run_detects_workflow_prompt_mode() -> None:
+    state = gateway_commands._default_gateway_state()
+    job, reply = gateway_commands._queue_telegram_run(
+        text="fermilink research plan a cavity qed benchmark",
+        chat_id="905",
+        chat_key="telegram:905",
+        state=state,
+    )
+    assert job.mode == "research"
+    assert job.prompt == "plan a cavity qed benchmark"
+    assert "Execution mode: <code>research</code>." in reply
+
+
+def test_handle_telegram_text_supports_workflow_prompts(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+    loop_calls: list[Path] = []
+    exec_calls: list[Path] = []
+    research_calls: list[tuple[Path, str, str | None]] = []
+    reproduce_calls: list[tuple[Path, str, str | None]] = []
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_loop_runner(
+        repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        loop_calls.append(repo_dir)
+        return 0, {"status": "done", "reason": "done_token"}
+
+    def fake_exec_runner(
+        repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        exec_calls.append(repo_dir)
+        return 0, {"status": "done", "reason": "exec_completed"}
+
+    def fake_research_runner(
+        repo_dir: Path,
+        prompt: str,
+        loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        research_calls.append((repo_dir, prompt, loop_config.hpc_profile))
+        return 0, {"status": "done", "reason": "research_completed"}
+
+    def fake_reproduce_runner(
+        repo_dir: Path,
+        prompt: str,
+        loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        reproduce_calls.append((repo_dir, prompt, loop_config.hpc_profile))
+        return 0, {"status": "done", "reason": "reproduce_completed"}
+
+    chat_id = "904"
+    chat_key = "telegram:904"
+    loop_config = gateway_commands.GatewayLoopConfig(
+        package_id=None,
+        sandbox=None,
+        codex_bin="codex",
+        max_iterations=2,
+        wait_seconds=0.0,
+        max_wait_seconds=10.0,
+        pid_stall_seconds=0.0,
+        init_git=True,
+        hpc_profile="scripts/hpc_profile_anvil.json",
+    )
+
+    gateway_commands._handle_telegram_text(
+        text="/mode loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    research_reply = gateway_commands._handle_telegram_text(
+        text="fermilink research analyze cavity stability",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    reproduce_reply = gateway_commands._handle_telegram_text(
+        text="fermilink reproduce paper.md",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        exec_runner=fake_exec_runner,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert len(loop_calls) == 0
+    assert len(exec_calls) == 0
+    assert len(research_calls) == 1
+    assert len(reproduce_calls) == 1
+    assert research_calls[0][1] == "analyze cavity stability"
+    assert research_calls[0][2] == "scripts/hpc_profile_anvil.json"
+    assert reproduce_calls[0][1] == "paper.md"
+    assert reproduce_calls[0][2] == "scripts/hpc_profile_anvil.json"
+    assert "Execution mode: <code>research</code>." in research_reply
+    assert "Research workflow orchestration finished successfully." in research_reply
+    assert "Execution mode: <code>reproduce</code>." in reproduce_reply
+    assert "Reproduce workflow orchestration finished successfully." in reproduce_reply
 
 
 def test_handle_telegram_text_reply_style_switches_to_agent(
