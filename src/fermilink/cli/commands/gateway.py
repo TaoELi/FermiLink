@@ -31,11 +31,32 @@ KEY_RESULT_FIELD_RE = re.compile(
     re.IGNORECASE,
 )
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
+SUPPORTED_REPLY_STYLES = {"summary", "agent", "both"}
+LOOP_WAIT_LINE_RE = re.compile(
+    r"^\s*<wait_seconds>\s*[0-9]+(?:\.[0-9]+)?\s*</wait_seconds>\s*$"
+)
+LOOP_PID_LINE_RE = re.compile(r"^\s*<pid_number>\s*[0-9]+\s*</pid_number>\s*$")
+LOOP_SLURM_JOB_LINE_RE = re.compile(
+    r"^\s*<slurm_job_number>\s*[0-9]+(?:_[0-9]+)?(?:\.[A-Za-z0-9_-]+)?\s*</slurm_job_number>\s*$"
+)
+MARKDOWN_FENCE_RE = re.compile(
+    r"```(?:[ \t]*([A-Za-z0-9_+.#-]+))?[ \t]*\n(.*?)```",
+    re.DOTALL,
+)
+MARKDOWN_INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
+MARKDOWN_HEADING_LINE_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$")
+MARKDOWN_UL_LINE_RE = re.compile(r"^\s{0,3}[-*+]\s+(.+?)\s*$")
+MARKDOWN_OL_LINE_RE = re.compile(r"^\s{0,3}([0-9]+)\.\s+(.+?)\s*$")
+MARKDOWN_QUOTE_LINE_RE = re.compile(r"^\s*&gt;\s?(.+?)\s*$")
+MARKDOWN_BOLD_RE = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
+MARKDOWN_ITALIC_RE = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)")
+MARKDOWN_LINK_RE = re.compile(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)")
 GATEWAY_HELP_TEXT = (
     "Commands:\n"
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
     "/mode <loop|exec> - switch run mode for normal messages\n"
+    "/reply <summary|agent|both> - switch final-reply style\n"
     "/status - show gateway/chat run status\n"
     "/where - show active workspace\n"
     "/list - list chat workspaces\n"
@@ -288,7 +309,8 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "active_workspace_id": "",
         "workspaces": [],
-        "execution_mode": "loop",
+        "execution_mode": "exec",
+        "reply_style": "agent",
         "is_running": False,
         "pending_run_count": 0,
         "current_run_id": "",
@@ -303,6 +325,9 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         "last_run_reason": "",
         "last_run_exit_code": None,
         "last_run_mode": "",
+        "last_run_agent_reply_preview": "",
+        "last_run_agent_reply_source": "none",
+        "last_run_agent_reply_exact": False,
     }
     if not isinstance(raw, dict):
         return payload
@@ -327,6 +352,9 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
     mode = str(raw.get("execution_mode") or "").strip().lower()
     if mode in SUPPORTED_EXECUTION_MODES:
         payload["execution_mode"] = mode
+    reply_style = str(raw.get("reply_style") or "").strip().lower()
+    if reply_style in SUPPORTED_REPLY_STYLES:
+        payload["reply_style"] = reply_style
 
     payload["is_running"] = bool(raw.get("is_running"))
     pending_raw = raw.get("pending_run_count")
@@ -354,9 +382,20 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         "last_run_status",
         "last_run_reason",
         "last_run_mode",
+        "last_run_agent_reply_preview",
+        "last_run_agent_reply_source",
     ):
         value = str(raw.get(key) or "").strip()
         payload[key] = value
+    if payload["last_run_agent_reply_source"] not in {
+        "exec_last_message",
+        "loop_last_informative_turn",
+        "loop_final_turn",
+        "none",
+    }:
+        payload["last_run_agent_reply_source"] = "none"
+
+    payload["last_run_agent_reply_exact"] = bool(raw.get("last_run_agent_reply_exact"))
 
     exit_code_raw = raw.get("last_run_exit_code")
     if isinstance(exit_code_raw, int):
@@ -580,11 +619,19 @@ def _format_workspace_list(chat_state: dict[str, Any]) -> str:
 
 
 def _effective_execution_mode(chat_state: dict[str, Any]) -> str:
-    mode = str(chat_state.get("execution_mode") or "loop").strip().lower()
+    mode = str(chat_state.get("execution_mode") or "exec").strip().lower()
     if mode not in SUPPORTED_EXECUTION_MODES:
-        mode = "loop"
+        mode = "exec"
         chat_state["execution_mode"] = mode
     return mode
+
+
+def _effective_reply_style(chat_state: dict[str, Any]) -> str:
+    style = str(chat_state.get("reply_style") or "agent").strip().lower()
+    if style not in SUPPORTED_REPLY_STYLES:
+        style = "agent"
+        chat_state["reply_style"] = style
+    return style
 
 
 def _workspace_by_id(chat_state: dict[str, Any], workspace_id: str) -> dict[str, Any] | None:
@@ -611,6 +658,262 @@ def _clear_chat_runtime_status(chat_state: dict[str, Any]) -> None:
 def _normalize_prompt_preview(text: str, *, limit: int = 160) -> str:
     flat = re.sub(r"\s+", " ", str(text or "").strip())
     return _truncate_message(flat, limit=limit)
+
+
+def _loop_done_token() -> str:
+    try:
+        return str(_cli().LOOP_DONE_TOKEN)
+    except Exception:
+        return "<promise>DONE</promise>"
+
+
+def _is_loop_control_line(line: str, *, done_token: str) -> bool:
+    stripped = str(line or "").strip()
+    if not stripped:
+        return False
+    if stripped == done_token:
+        return True
+    if LOOP_WAIT_LINE_RE.match(stripped):
+        return True
+    if LOOP_PID_LINE_RE.match(stripped):
+        return True
+    if LOOP_SLURM_JOB_LINE_RE.match(stripped):
+        return True
+    return False
+
+
+def _contains_done_token_line(text: str, *, done_token: str) -> bool:
+    for line in str(text or "").splitlines():
+        if str(line).strip() == done_token:
+            return True
+    return False
+
+
+def _strip_loop_control_lines(text: str, *, done_token: str | None = None) -> str:
+    token = str(done_token or _loop_done_token())
+    lines: list[str] = []
+    for line in str(text or "").splitlines():
+        if _is_loop_control_line(line, done_token=token):
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def _derive_loop_agent_reply_payload(turns: list[str]) -> dict[str, Any]:
+    done_token = _loop_done_token()
+    turn_texts = [str(turn or "") for turn in turns]
+    non_empty_turns = [turn.strip() for turn in turn_texts if turn.strip()]
+    final_raw = non_empty_turns[-1] if non_empty_turns else ""
+    payload: dict[str, Any] = {
+        "agent_reply_source": "none",
+        "agent_reply_exact": False,
+        "loop_turn_count": len(turn_texts),
+        "loop_done_token_seen": any(
+            _contains_done_token_line(turn, done_token=done_token) for turn in turn_texts
+        ),
+        "loop_final_reply_raw": final_raw,
+    }
+    final_cleaned = _strip_loop_control_lines(final_raw, done_token=done_token)
+    if final_cleaned:
+        payload["agent_reply_raw"] = final_raw
+        payload["agent_reply_text"] = final_cleaned
+        payload["agent_reply_source"] = "loop_final_turn"
+        payload["agent_reply_exact"] = True
+        return payload
+
+    for raw in reversed(non_empty_turns):
+        cleaned = _strip_loop_control_lines(raw, done_token=done_token)
+        if not cleaned:
+            continue
+        payload["agent_reply_raw"] = raw
+        payload["agent_reply_text"] = cleaned
+        payload["agent_reply_source"] = "loop_last_informative_turn"
+        payload["agent_reply_exact"] = True
+        return payload
+    return payload
+
+
+def _derive_exec_agent_reply_payload(assistant_reply: str) -> dict[str, Any]:
+    raw = str(assistant_reply or "").strip()
+    if not raw:
+        return {
+            "agent_reply_source": "none",
+            "agent_reply_exact": False,
+        }
+    return {
+        "agent_reply_raw": raw,
+        "agent_reply_text": raw,
+        "agent_reply_source": "exec_last_message",
+        "agent_reply_exact": True,
+    }
+
+
+def _extract_outcome_agent_reply_text(outcome: dict[str, Any] | None) -> str:
+    if not isinstance(outcome, dict):
+        return ""
+    text = str(outcome.get("agent_reply_text") or "").strip()
+    if text:
+        return text
+    raw = str(outcome.get("agent_reply_raw") or "").strip()
+    if not raw:
+        return ""
+    source = str(outcome.get("agent_reply_source") or "").strip().lower()
+    if source.startswith("loop_"):
+        return _strip_loop_control_lines(raw)
+    return raw
+
+
+def _record_last_run_agent_reply(
+    chat_state: dict[str, Any],
+    outcome: dict[str, Any] | None,
+) -> None:
+    reply_text = _extract_outcome_agent_reply_text(outcome)
+    source = "none"
+    exact = False
+    if isinstance(outcome, dict):
+        source = str(outcome.get("agent_reply_source") or "none").strip() or "none"
+        exact = bool(outcome.get("agent_reply_exact"))
+    if source not in {
+        "exec_last_message",
+        "loop_last_informative_turn",
+        "loop_final_turn",
+        "none",
+    }:
+        source = "none"
+    chat_state["last_run_agent_reply_preview"] = (
+        _normalize_prompt_preview(reply_text) if reply_text else ""
+    )
+    chat_state["last_run_agent_reply_source"] = source
+    chat_state["last_run_agent_reply_exact"] = bool(exact and reply_text)
+
+
+def _format_agent_markdown_inline(escaped_text: str) -> str:
+    content = str(escaped_text or "")
+    content = MARKDOWN_BOLD_RE.sub(
+        lambda match: f"<b>{match.group(1) or match.group(2) or ''}</b>",
+        content,
+    )
+    content = MARKDOWN_ITALIC_RE.sub(
+        lambda match: f"<i>{match.group(1) or ''}</i>",
+        content,
+    )
+    content = MARKDOWN_LINK_RE.sub(
+        lambda match: (
+            f'<a href="{_html_escape(match.group(2) or "")}">'
+            f"{match.group(1) or ''}</a>"
+        ),
+        content,
+    )
+    return content
+
+
+def _render_agent_markdown_html(markdown_text: str) -> str:
+    text = str(markdown_text or "").replace("\r\n", "\n").replace("\r", "\n")
+    if not text.strip():
+        return ""
+
+    placeholders: dict[str, str] = {}
+    inline_index = 0
+    fence_index = 0
+
+    def _replace_fence(match: re.Match[str]) -> str:
+        nonlocal fence_index
+        language = str(match.group(1) or "").strip()
+        code_text = str(match.group(2) or "").rstrip("\n")
+        token = f"@@TG_FENCE_{fence_index}@@"
+        fence_index += 1
+        if language:
+            placeholders[token] = (
+                f'<pre><code class="language-{_html_escape(language)}">'
+                f"{_html_escape(code_text)}</code></pre>"
+            )
+        else:
+            placeholders[token] = f"<pre>{_html_escape(code_text)}</pre>"
+        return token
+
+    text = MARKDOWN_FENCE_RE.sub(_replace_fence, text)
+
+    def _replace_inline_code(match: re.Match[str]) -> str:
+        nonlocal inline_index
+        token = f"@@TG_INLINE_{inline_index}@@"
+        inline_index += 1
+        code_text = str(match.group(1) or "")
+        placeholders[token] = f"<code>{_html_escape(code_text)}</code>"
+        return token
+
+    text = MARKDOWN_INLINE_CODE_RE.sub(_replace_inline_code, text)
+    escaped_text = _html_escape(text)
+
+    rendered_lines: list[str] = []
+    for raw_line in escaped_text.splitlines():
+        line = str(raw_line or "")
+        stripped = line.strip()
+        if not stripped:
+            rendered_lines.append("")
+            continue
+
+        heading_match = MARKDOWN_HEADING_LINE_RE.match(line)
+        if heading_match is not None:
+            heading_text = _format_agent_markdown_inline(str(heading_match.group(1) or ""))
+            rendered_lines.append(f"<b>{heading_text}</b>")
+            continue
+
+        ul_match = MARKDOWN_UL_LINE_RE.match(line)
+        if ul_match is not None:
+            item_text = _format_agent_markdown_inline(str(ul_match.group(1) or ""))
+            rendered_lines.append(f"• {item_text}")
+            continue
+
+        ol_match = MARKDOWN_OL_LINE_RE.match(line)
+        if ol_match is not None:
+            number = str(ol_match.group(1) or "").strip() or "1"
+            item_text = _format_agent_markdown_inline(str(ol_match.group(2) or ""))
+            rendered_lines.append(f"{number}. {item_text}")
+            continue
+
+        quote_match = MARKDOWN_QUOTE_LINE_RE.match(line)
+        if quote_match is not None:
+            quote_text = _format_agent_markdown_inline(str(quote_match.group(1) or ""))
+            rendered_lines.append(f"<i>&gt; {quote_text}</i>")
+            continue
+
+        rendered_lines.append(_format_agent_markdown_inline(line))
+
+    rendered = "\n".join(rendered_lines).strip()
+    if not rendered:
+        return ""
+    for token, html_value in placeholders.items():
+        rendered = rendered.replace(token, html_value)
+    return rendered
+
+
+def _build_agent_reply_section(reply_text: str) -> str:
+    rendered = _render_agent_markdown_html(_truncate_message(reply_text, limit=2600))
+    if not rendered:
+        rendered = _html_escape(_truncate_message(reply_text, limit=2600))
+    return "\n".join(["<b>Agent Reply</b>", rendered])
+
+
+def _compose_run_completion_message(
+    *,
+    summary: str,
+    outcome: dict[str, Any] | None,
+    reply_style: str,
+) -> str:
+    style = str(reply_style or "agent").strip().lower()
+    if style not in SUPPORTED_REPLY_STYLES:
+        style = "agent"
+    if style == "summary":
+        return summary
+
+    reply_text = _extract_outcome_agent_reply_text(outcome)
+    if not reply_text:
+        return summary
+
+    agent_section = _build_agent_reply_section(reply_text)
+    if style == "agent":
+        return agent_section
+    return f"{agent_section}\n\n{summary}"
 
 
 def _normalize_allow_token(token: str) -> str:
@@ -668,6 +971,7 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
         "/new",
         "/use",
         "/mode",
+        "/reply",
         "/status",
         "/where",
         "/list",
@@ -718,6 +1022,16 @@ def _run_loop_in_workspace(
     loop_config: GatewayLoopConfig,
 ) -> tuple[int, dict[str, Any] | None]:
     cli = _cli()
+    captured_assistant_turns: list[str] = []
+    original_run_exec_chat_turn = getattr(cli, "_run_exec_chat_turn", None)
+    should_capture_turns = callable(original_run_exec_chat_turn)
+
+    def _run_exec_chat_turn_capture(*args: Any, **kwargs: Any) -> dict[str, object]:
+        result = original_run_exec_chat_turn(*args, **kwargs)  # type: ignore[misc]
+        if isinstance(result, dict):
+            captured_assistant_turns.append(str(result.get("assistant_text") or ""))
+        return result
+
     loop_args = argparse.Namespace(
         command="loop",
         prompt=[prompt],
@@ -735,14 +1049,18 @@ def _run_loop_in_workspace(
     )
     previous_cwd = Path.cwd()
     try:
+        if should_capture_turns:
+            setattr(cli, "_run_exec_chat_turn", _run_exec_chat_turn_capture)
         os.chdir(repo_dir)
         code = cli._cmd_loop(loop_args)
     finally:
+        if should_capture_turns:
+            setattr(cli, "_run_exec_chat_turn", original_run_exec_chat_turn)
         os.chdir(previous_cwd)
-    outcome = getattr(loop_args, "_fermilink_loop_outcome", None)
-    if isinstance(outcome, dict):
-        return int(code), outcome
-    return int(code), None
+    outcome_raw = getattr(loop_args, "_fermilink_loop_outcome", None)
+    outcome = dict(outcome_raw) if isinstance(outcome_raw, dict) else {}
+    outcome.update(_derive_loop_agent_reply_payload(captured_assistant_turns))
+    return int(code), outcome
 
 
 def _run_exec_in_workspace(
@@ -760,19 +1078,75 @@ def _run_exec_in_workspace(
         init_git=loop_config.init_git,
         no_init_git=not loop_config.init_git,
     )
+    assistant_reply = ""
+    original_build_exec_command = getattr(cli, "build_exec_command", None)
+    inject_option = getattr(cli, "_inject_exec_option_before_prompt", None)
+    should_capture_last_message = callable(original_build_exec_command) and callable(
+        inject_option
+    )
     previous_cwd = Path.cwd()
-    try:
-        os.chdir(repo_dir)
-        code = cli._cmd_exec(exec_args)
-    finally:
-        os.chdir(previous_cwd)
+    if should_capture_last_message:
+        with cli.tempfile.TemporaryDirectory(prefix="fermilink-gateway-exec-") as temp_dir:
+            last_message_path = Path(temp_dir) / "last_message.txt"
 
+            def _build_exec_command_with_last_message(
+                *,
+                provider: str,
+                provider_bin: str,
+                repo_dir: Path,
+                prompt: str,
+                sandbox_policy: str = "enforce",
+                sandbox_mode: str | None = None,
+                json_output: bool = True,
+            ) -> list[str]:
+                command = original_build_exec_command(
+                    provider=provider,
+                    provider_bin=provider_bin,
+                    repo_dir=repo_dir,
+                    prompt=prompt,
+                    sandbox_policy=sandbox_policy,
+                    sandbox_mode=sandbox_mode,
+                    json_output=json_output,
+                )
+                if json_output:
+                    return command
+                return inject_option(
+                    command,
+                    "--output-last-message",
+                    str(last_message_path),
+                )
+
+            try:
+                setattr(cli, "build_exec_command", _build_exec_command_with_last_message)
+                os.chdir(repo_dir)
+                code = cli._cmd_exec(exec_args)
+            finally:
+                setattr(cli, "build_exec_command", original_build_exec_command)
+                os.chdir(previous_cwd)
+
+            try:
+                assistant_reply = last_message_path.read_text(encoding="utf-8").strip()
+            except OSError:
+                assistant_reply = ""
+    else:
+        try:
+            os.chdir(repo_dir)
+            code = cli._cmd_exec(exec_args)
+        finally:
+            os.chdir(previous_cwd)
+
+    agent_reply_payload = _derive_exec_agent_reply_payload(assistant_reply)
     if int(code) == 0:
-        return int(code), {"status": "done", "reason": "exec_completed"}
+        return int(code), {
+            "status": "done",
+            "reason": "exec_completed",
+            **agent_reply_payload,
+        }
     return int(code), {
         "status": "provider_failure",
         "reason": f"provider_exit_code_{int(code)}",
         "provider_exit_code": int(code),
+        **agent_reply_payload,
     }
 
 
@@ -894,21 +1268,12 @@ def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
 def _select_key_results_for_summary(
     key_results: list[str], *, max_items: int = 4
 ) -> list[str]:
-    selected: list[str] = []
-    seen_metric_keys: set[str] = set()
-    for item in reversed(key_results):
-        _, metric, _, _, _ = _split_key_result_item(item)
-        metric_key = re.sub(r"\s+", " ", str(metric or "").strip().lower())
-        if not metric_key:
-            metric_key = re.sub(r"\s+", " ", str(item).strip().lower())
-        if metric_key in seen_metric_keys:
-            continue
-        seen_metric_keys.add(metric_key)
-        selected.append(item)
-        if len(selected) >= max_items:
-            break
-    selected.reverse()
-    return selected
+    if max_items <= 0 or not key_results:
+        return []
+    latest = str(key_results[-1] or "").strip()
+    if not latest:
+        return []
+    return [latest]
 
 
 def _format_key_results_human(
@@ -1096,7 +1461,7 @@ def _build_run_summary_message(
         done_steps = []
         pending_steps = []
 
-    summary_key_results = _select_key_results_for_summary(key_results, max_items=4)
+    summary_key_results = _select_key_results_for_summary(key_results, max_items=1)
 
     if done_steps:
         lines.append("")
@@ -1132,7 +1497,7 @@ def _build_run_summary_message(
     lines.append("")
     lines.append(
         "Commands: <code>/new</code>, <code>/use</code>, <code>/mode</code>, "
-        "<code>/where</code>, <code>/list</code>"
+        "<code>/reply</code>, <code>/where</code>, <code>/list</code>"
     )
     message = "\n".join(lines)
     if len(message) > 4096:
@@ -1226,8 +1591,8 @@ def _build_status_message(
 
     lines.append("")
     lines.append(
-        "Commands: <code>/mode</code>, <code>/new</code>, <code>/use</code>, "
-        "<code>/where</code>, <code>/list</code>"
+        "Commands: <code>/mode</code>, <code>/reply</code>, <code>/new</code>, "
+        "<code>/use</code>, <code>/where</code>, <code>/list</code>"
     )
     message = "\n".join(lines)
     if len(message) > 4096:
@@ -1296,6 +1661,7 @@ def _run_prompt_for_workspace(
     chat_state["last_run_reason"] = reason
     chat_state["last_run_exit_code"] = provider_exit_code
     chat_state["last_run_finished_at_utc"] = _now_utc_iso()
+    _record_last_run_agent_reply(chat_state, outcome)
     summary = _build_run_summary_message(
         mode=mode,
         workspace=workspace,
@@ -1303,7 +1669,13 @@ def _run_prompt_for_workspace(
         code=code,
         outcome=outcome,
     )
-    return summary, repo_dir, run_started_epoch
+    reply_style = _effective_reply_style(chat_state)
+    final_reply = _compose_run_completion_message(
+        summary=summary,
+        outcome=outcome,
+        reply_style=reply_style,
+    )
+    return final_reply, repo_dir, run_started_epoch
 
 
 def _run_prompt_with_mode(
@@ -1459,6 +1831,28 @@ def _handle_telegram_text(
             "Normal messages will run with `fermilink exec`."
         )
 
+    if command == "/reply":
+        current_style = _effective_reply_style(chat_state)
+
+        if not argument:
+            return (
+                f"Current reply style: {current_style}\n"
+                "Usage: /reply <summary|agent|both>\n"
+                "Normal message completion replies use this style."
+            )
+
+        requested_style = str(argument).split()[0].strip().lower()
+        if requested_style not in SUPPORTED_REPLY_STYLES:
+            return (
+                f"Unsupported reply style: {requested_style}\n"
+                "Usage: /reply <summary|agent|both>"
+            )
+        chat_state["reply_style"] = requested_style
+        return (
+            f"Reply style set to {requested_style}.\n"
+            "Normal message completion replies will use this style."
+        )
+
     if command == "/status":
         _, status_repo_dir = _resolve_active_workspace_repo(
             state=state,
@@ -1479,7 +1873,7 @@ def _handle_telegram_text(
         )
 
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
-    summary, _, _ = _run_prompt_for_workspace(
+    reply, _, _ = _run_prompt_for_workspace(
         chat_state=chat_state,
         workspace=workspace,
         prompt=text,
@@ -1490,7 +1884,7 @@ def _handle_telegram_text(
         exec_runner=exec_runner,
         workspace_repo_ensurer=workspace_repo_ensurer,
     )
-    return summary
+    return reply
 
 
 def _resolve_active_workspace_repo(
@@ -1685,6 +2079,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                 _save_gateway_state(session_store_path, state)
 
             summary = ""
+            final_reply = ""
+            reply_style = "agent"
             try:
                 _ensure_workspace_repo(repo_dir, loop_config.init_git)
                 run_loop_config = loop_config
@@ -1725,6 +2121,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     chat_state["last_run_reason"] = reason
                     chat_state["last_run_exit_code"] = provider_exit_code
                     chat_state["last_run_finished_at_utc"] = _now_utc_iso()
+                    _record_last_run_agent_reply(chat_state, outcome)
+                    reply_style = _effective_reply_style(chat_state)
                     _mark_chat_job_idle(chat_state)
                     _save_gateway_state(session_store_path, state)
                 summary = _build_run_summary_message(
@@ -1733,6 +2131,11 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     repo_dir=repo_dir,
                     code=code,
                     outcome=outcome,
+                )
+                final_reply = _compose_run_completion_message(
+                    summary=summary,
+                    outcome=outcome,
+                    reply_style=reply_style,
                 )
             except Exception as exc:
                 cli._print_tagged(
@@ -1747,13 +2150,19 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     chat_state["last_run_reason"] = f"gateway_error_{type(exc).__name__}"
                     chat_state["last_run_exit_code"] = None
                     chat_state["last_run_finished_at_utc"] = _now_utc_iso()
+                    _record_last_run_agent_reply(chat_state, None)
                     _mark_chat_job_idle(chat_state)
                     _save_gateway_state(session_store_path, state)
                 summary = f"Gateway error: {exc}"
+                final_reply = summary
 
-            if summary:
+            if final_reply:
                 try:
-                    _send_message_safe(chat_id=job.chat_id, text=summary, parse_mode="HTML")
+                    _send_message_safe(
+                        chat_id=job.chat_id,
+                        text=final_reply,
+                        parse_mode="HTML",
+                    )
                 except Exception as exc:  # pragma: no cover - network errors
                     cli._print_tagged(
                         "gateway",

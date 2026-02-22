@@ -1,4 +1,5 @@
 from __future__ import annotations
+import tempfile
 import time
 from pathlib import Path
 
@@ -134,6 +135,158 @@ def test_run_loop_in_workspace_forwards_iteration_hook(
     assert captured_iterations == [(2, 10)]
 
 
+def test_run_loop_in_workspace_captures_last_informative_reply(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class _FakeCli:
+        LOOP_DONE_TOKEN = "<promise>DONE</promise>"
+
+        def __init__(self) -> None:
+            self._turn = 0
+
+        def _run_exec_chat_turn(self, *args: object, **kwargs: object) -> dict[str, object]:
+            self._turn += 1
+            if self._turn == 1:
+                return {
+                    "assistant_text": (
+                        "Prepared run artifacts.\n"
+                        "<pid_number>12345</pid_number>"
+                    ),
+                    "return_code": 0,
+                    "stderr": "",
+                }
+            return {
+                "assistant_text": "<promise>DONE</promise>",
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        def _cmd_loop(self, args: object) -> int:
+            self._run_exec_chat_turn()
+            self._run_exec_chat_turn()
+            setattr(
+                args,
+                "_fermilink_loop_outcome",
+                {"status": "done", "reason": "done_token"},
+            )
+            return 0
+
+    monkeypatch.setattr(gateway_commands, "_cli", lambda: _FakeCli())
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    code, outcome = gateway_commands._run_loop_in_workspace(
+        repo_dir,
+        "run and summarize",
+        _loop_config(),
+    )
+
+    assert code == 0
+    assert isinstance(outcome, dict)
+    assert outcome.get("agent_reply_source") == "loop_last_informative_turn"
+    assert outcome.get("agent_reply_text") == "Prepared run artifacts."
+    assert outcome.get("loop_done_token_seen") is True
+    assert outcome.get("loop_turn_count") == 2
+
+
+def test_run_exec_in_workspace_captures_last_message(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class _FakeCli:
+        tempfile = tempfile
+
+        def _inject_exec_option_before_prompt(
+            self, command: list[str], *option_tokens: str
+        ) -> list[str]:
+            if not command:
+                return command
+            prompt_arg = command[-1]
+            return [*command[:-1], *option_tokens, prompt_arg]
+
+        def build_exec_command(
+            self,
+            *,
+            provider: str,
+            provider_bin: str,
+            repo_dir: Path,
+            prompt: str,
+            sandbox_policy: str = "enforce",
+            sandbox_mode: str | None = None,
+            json_output: bool = True,
+        ) -> list[str]:
+            del provider, provider_bin, repo_dir, sandbox_policy, sandbox_mode, json_output
+            return ["codex", "exec", prompt]
+
+        def _cmd_exec(self, args: object) -> int:
+            prompt = str(getattr(args, "prompt")[0])
+            command = self.build_exec_command(
+                provider="codex",
+                provider_bin="codex",
+                repo_dir=Path.cwd(),
+                prompt=prompt,
+                sandbox_policy="enforce",
+                sandbox_mode=None,
+                json_output=False,
+            )
+            output_index = command.index("--output-last-message")
+            output_path = Path(command[output_index + 1])
+            output_path.write_text(
+                "Exact exec reply with final recommendation.",
+                encoding="utf-8",
+            )
+            return 0
+
+    monkeypatch.setattr(gateway_commands, "_cli", lambda: _FakeCli())
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    code, outcome = gateway_commands._run_exec_in_workspace(
+        repo_dir,
+        "single turn request",
+        _loop_config(),
+    )
+
+    assert code == 0
+    assert isinstance(outcome, dict)
+    assert outcome.get("status") == "done"
+    assert outcome.get("agent_reply_source") == "exec_last_message"
+    assert outcome.get("agent_reply_text") == "Exact exec reply with final recommendation."
+
+
+def test_strip_loop_control_lines_removes_machine_tags() -> None:
+    raw = (
+        "Progress update: generated output files.\n"
+        "<pid_number>12345</pid_number>\n"
+        "<slurm_job_number>12345_7.batch</slurm_job_number>\n"
+        "<wait_seconds>15</wait_seconds>\n"
+        "<promise>DONE</promise>\n"
+    )
+    cleaned = gateway_commands._strip_loop_control_lines(
+        raw,
+        done_token="<promise>DONE</promise>",
+    )
+    assert cleaned == "Progress update: generated output files."
+
+
+def test_build_agent_reply_section_renders_markdown_to_html() -> None:
+    section = gateway_commands._build_agent_reply_section(
+        (
+            "# Final Summary\n"
+            "- **Energy**: `-1.234`\n"
+            "- [Report](https://example.com/report)\n"
+            "> keep this note\n"
+            "```python\n"
+            "print('ok')\n"
+            "```\n"
+        )
+    )
+
+    assert "<b>Agent Reply</b>" in section
+    assert "<b>Final Summary</b>" in section
+    assert "• <b>Energy</b>: <code>-1.234</code>" in section
+    assert '<a href="https://example.com/report">Report</a>' in section
+    assert "<i>&gt; keep this note</i>" in section
+    assert "<pre><code class=\"language-python\">print('ok')</code></pre>" in section
+
+
 def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> None:
     state = gateway_commands._default_gateway_state()
     workspaces_root = tmp_path / "workspaces"
@@ -168,6 +321,16 @@ def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> Non
     chat_id = "42"
     chat_key = "telegram:42"
     loop_config = _loop_config()
+    gateway_commands._handle_telegram_text(
+        text="/mode loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
 
     first = gateway_commands._handle_telegram_text(
         text="simulate baseline",
@@ -355,7 +518,7 @@ def test_handle_telegram_text_mode_switches_between_loop_and_exec(
         workspace_repo_ensurer=fake_repo_ensurer,
     )
 
-    assert "Current mode: loop" in mode_before
+    assert "Current mode: exec" in mode_before
     assert "Execution mode set to exec." in set_exec
     assert "Execution mode: <code>exec</code>." in exec_run
     assert "Single-turn execution finished successfully." in exec_run
@@ -365,6 +528,230 @@ def test_handle_telegram_text_mode_switches_between_loop_and_exec(
     assert len(exec_calls) == 1
     assert len(loop_calls) == 1
     assert exec_calls[0] == loop_calls[0]
+
+
+def test_handle_telegram_text_reply_style_switches_to_agent(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_exec_runner(
+        _repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        return 0, {
+            "status": "done",
+            "reason": "exec_completed",
+            "agent_reply_raw": "Exact recommendation: use dt=0.05 for stability.",
+            "agent_reply_text": "Exact recommendation: use dt=0.05 for stability.",
+            "agent_reply_source": "exec_last_message",
+            "agent_reply_exact": True,
+        }
+
+    chat_id = "901"
+    chat_key = "telegram:901"
+    loop_config = _loop_config()
+
+    gateway_commands._handle_telegram_text(
+        text="/mode exec",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    set_reply = gateway_commands._handle_telegram_text(
+        text="/reply agent",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    run_reply = gateway_commands._handle_telegram_text(
+        text="run once",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    query_reply = gateway_commands._handle_telegram_text(
+        text="/reply",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "Reply style set to agent." in set_reply
+    assert "<b>Agent Reply</b>" in run_reply
+    assert "Exact recommendation: use dt=0.05 for stability." in run_reply
+    assert "Run complete in workspace" not in run_reply
+    assert "Current reply style: agent" in query_reply
+
+
+def test_gateway_defaults_to_exec_mode_and_agent_reply_style(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_exec_runner(
+        _repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        return 0, {
+            "status": "done",
+            "reason": "exec_completed",
+            "agent_reply_raw": "Exact recommendation: set cutoff to 8.0.",
+            "agent_reply_text": "Exact recommendation: set cutoff to 8.0.",
+            "agent_reply_source": "exec_last_message",
+            "agent_reply_exact": True,
+        }
+
+    chat_id = "903"
+    chat_key = "telegram:903"
+    loop_config = _loop_config()
+
+    mode_reply = gateway_commands._handle_telegram_text(
+        text="/mode",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    reply_reply = gateway_commands._handle_telegram_text(
+        text="/reply",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    run_reply = gateway_commands._handle_telegram_text(
+        text="run with defaults",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        exec_runner=fake_exec_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "Current mode: exec" in mode_reply
+    assert "Current reply style: agent" in reply_reply
+    assert "<b>Agent Reply</b>" in run_reply
+    assert "Run complete in workspace" not in run_reply
+
+
+def test_handle_telegram_text_reply_style_agent_falls_back_to_summary(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_loop_runner(
+        _repo_dir: Path,
+        _prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        return 0, {"status": "done", "reason": "done_token"}
+
+    chat_id = "902"
+    chat_key = "telegram:902"
+    loop_config = _loop_config()
+    gateway_commands._handle_telegram_text(
+        text="/mode loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    gateway_commands._handle_telegram_text(
+        text="/reply agent",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    run_reply = gateway_commands._handle_telegram_text(
+        text="run loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "<b>Agent Reply</b>" not in run_reply
+    assert "Run complete in workspace" in run_reply
 
 
 def test_status_reports_online_mode_workspace_and_last_run(tmp_path: Path) -> None:
@@ -394,6 +781,16 @@ def test_status_reports_online_mode_workspace_and_last_run(tmp_path: Path) -> No
     chat_id = "601"
     chat_key = "telegram:601"
     loop_config = _loop_config()
+    gateway_commands._handle_telegram_text(
+        text="/mode loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
 
     before = gateway_commands._handle_telegram_text(
         text="/status",
@@ -623,7 +1020,7 @@ def test_split_key_result_item_handles_labeled_values_with_pipe_markers() -> Non
     assert evidence_path == "projects/ez_field_final.png"
 
 
-def test_run_summary_deduplicates_key_findings_by_metric_keep_latest(
+def test_run_summary_uses_only_last_key_finding_entry(
     tmp_path: Path,
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -655,7 +1052,7 @@ def test_run_summary_deduplicates_key_findings_by_metric_keep_latest(
         outcome={"status": "done", "reason": "exec_completed"},
     )
 
-    assert summary.count("final Ez spatial field:") == 1
+    assert "final Ez spatial field:" not in summary
     assert summary.count("Pe(t):") == 1
     assert "latest run" in summary
     assert "old run" not in summary

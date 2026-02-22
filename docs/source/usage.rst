@@ -71,7 +71,8 @@ Telegram gateway (iPhone chat)
 ------------------------------
 
 Use ``gateway`` to bind Telegram chat sessions to sticky workspace repos and
-run each message through ``fermilink loop``.
+run each message through ``fermilink exec`` by default (switch to ``loop`` via
+``/mode loop`` when needed).
 
 .. code-block:: bash
 
@@ -107,8 +108,8 @@ Step-by-step setup (iPhone + computer):
 
 6. From iPhone Telegram, open the chat with your bot and test commands:
    ``/help``, then a normal simulation request, then ``/mode exec``,
-   ``/mode loop``, ``/status``, ``/new test2``, ``/use main``, ``/where``,
-   and ``/list``.
+   ``/mode loop``, ``/reply agent``, ``/reply summary``, ``/status``,
+   ``/new test2``, ``/use main``, ``/where``, and ``/list``.
 7. Verify mapping/runtime state on computer:
 
    .. code-block:: bash
@@ -127,13 +128,20 @@ Gateway behavior:
   ``projects/memory.md`` history;
 - run replies are rendered as a human-friendly summary from memory sections
   (completed plan items + key findings), instead of raw status payloads;
-  key findings are summarized as latest distinct metrics to avoid repeated
-  old/new duplicates in the same completion message;
+  key findings show only the last `### Key results` entry from memory so
+  completion messages reflect the newest recorded simulation result;
 - generated figures/documents are auto-attached back to Telegram when available
   so plots can be viewed directly on mobile clients;
 - ``/mode <loop|exec>`` switches normal-message execution between
   ``fermilink loop`` (multi-iteration autonomous mode) and
-  ``fermilink exec`` (single-turn mode) per chat session;
+  ``fermilink exec`` (single-turn mode, default) per chat session;
+- ``/reply <summary|agent|both>`` controls final completion replies:
+  ``agent`` (default) sends exact agent text only (falling back to summary when
+  exact text is unavailable),
+  ``summary`` keeps the memory-based summary only,
+  and ``both`` sends exact agent text followed by the summary;
+  agent replies preserve common markdown formatting (headings, lists, inline
+  code, fenced code blocks, and links) when displayed in Telegram/iPhone;
 - ``/status`` returns a quick health snapshot for the current chat (gateway
   online response timestamp in local machine timezone, current mode, active
   workspace label, live agent state ``idle/queued/running``, and when running:

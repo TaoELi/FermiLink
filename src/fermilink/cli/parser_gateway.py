@@ -35,7 +35,7 @@ def register_gateway_parser(
         "gateway",
         help=(
             "Run Telegram gateway that maps chat sessions to sticky workspaces "
-            "and executes requests via fermilink loop."
+            "and executes requests via fermilink exec by default."
         ),
     )
     gateway_parser.add_argument(
