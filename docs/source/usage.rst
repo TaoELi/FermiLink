@@ -215,11 +215,8 @@ publication-scale requests.
    fermilink reproduce paper.tex
    fermilink reproduce "reproduce Figures 1-4 from this paper ..."
    fermilink reproduce paper.tex --plan-only
-   fermilink reproduce paper.tex --data-dir ./data
-   fermilink reproduce paper.tex --dry-run
-   fermilink reproduce paper.tex --enforce-simulation
-   fermilink reproduce paper.tex --hpc-profile scripts/hpc_profile_anvil.json
    fermilink reproduce paper.tex --report-only
+   fermilink reproduce paper.tex --hpc-profile scripts/hpc_profile_anvil.json
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
@@ -238,8 +235,7 @@ at run root:
   with the same failure-tolerant behavior;
 - ``03_run_plots.sh``: executes all task-level plotting scripts with the same
   failure-tolerant behavior.
-For HPC/SLURM workflows, these stage drivers also propagate inter-stage job
-dependencies via run-scoped map files:
+Stage drivers propagate inter-stage job dependencies via run-scoped map files:
 
 - ``simulation_job_ids.tsv``: task-to-job-id mapping emitted by
   ``01_run_simulations.sh`` from ``FERMILINK_FINAL_JOB_ID=<job_id>`` markers;
@@ -254,32 +250,13 @@ In HPC mode, workflow report finalization retries script/report generation with
 explicit validator feedback when SLURM contract checks fail (up to a bounded
 attempt limit). Validation diagnostics are written to
 ``hpc_contract_errors.json`` under the run directory.
-When ``--data-dir`` is provided, additional run-scoped artifacts are written to
-``projects/reproduce/<run-id>/data/``:
-
-- ``data_manifest_full.json`` deterministic full indexed inventory (traceability);
-- ``data_manifest.json`` compact relevance-first manifest used for LLM mapping
-  (deterministic noise filtering + family collapse metadata);
-- ``data_summary.md`` compact-manifest summary including exclusion/collapse stats;
-- ``task_data_map.json`` task-to-file mapping with confidence/rationale
-  (single global mapping for small manifests, per-task internal mapping loop for
-  large manifests);
-- ``task_XXX.md`` per-task data scope context consumed by ``loop``.
-
-By default, ``--data-dir`` is read-only across planner/auditor/loop turns.
-Use ``--data-writable`` only when you intentionally allow mutations.
-By default, ``reproduce`` runs in dry-run scaffold mode (prepare simulation
-inputs, post-processing/plot scripts, and README instructions) without running
-full simulations. Use ``--enforce-simulation`` to disable dry-run and run
-actual simulations.
-By default, workflow execution target is local-machine mode (no SLURM).
-Use ``--hpc-profile <json>`` to switch planning/prompts to HPC SLURM-ready
-artifacts. ``--hpc-profile`` has highest precedence over package/skill defaults.
-When the HPC profile includes ``defaults`` (for example ``nodes``, ``ntasks``,
-``ntasks_per_node``) and ``comments``, workflow prompts include a concise
-resource-policy hint so task execution prefers the specified resource shape
-when scientifically appropriate.
-An example profile is available at ``scripts/hpc_profile_anvil.json``.
+``reproduce`` always executes planned simulation work (no dry-run scaffold mode).
+By default, workflow execution target is local-machine mode (no SLURM). Use
+``--hpc-profile <json>`` to run planning/task execution/report generation under
+an explicit SLURM machine profile. The profile JSON uses a lightweight schema
+with three required string keys: ``slurm_default_partition``,
+``slurm_defaults``, and ``slurm_resource_policy`` (see
+``scripts/hpc_profile_anvil.json``).
 
 Research workflows
 ------------------
@@ -291,18 +268,15 @@ paper.
 
    fermilink research "Design and validate a cavity QED protocol"
    fermilink research idea.md --plan-only
-   fermilink research idea.md --data-dir ./data
-   fermilink research idea.md --dry-run
-   fermilink research idea.md --enforce-simulation
-   fermilink research idea.md --hpc-profile scripts/hpc_profile_anvil.json
    fermilink research idea.md --report-only
+   fermilink research idea.md --hpc-profile scripts/hpc_profile_anvil.json
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
-``report.md``) and support resume from edited plan state. ``--data-dir`` uses
-the same run-scoped ``data/`` artifact contract and read-only defaults as
-``reproduce``.
-``research`` uses the same local-default / ``--hpc-profile`` override behavior
-as ``reproduce`` for execution-target-specific artifact generation.
+``report.md``) and support resume from edited plan state.
+``research`` also always executes planned simulation work (no dry-run mode).
+Like ``reproduce``, ``research`` defaults to local execution and accepts
+``--hpc-profile <json>`` to enforce an HPC SLURM target profile using the same
+three-key JSON schema.
 The same four orchestration scripts (``00_run_all.sh`` plus
 ``01_run_simulations.sh`` / ``02_run_postprocess.sh`` / ``03_run_plots.sh``)
 are also generated under

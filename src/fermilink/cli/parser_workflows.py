@@ -128,57 +128,9 @@ def register_workflow_parsers(
         "--hpc-profile",
         default=None,
         help=(
-            "Optional path to an HPC JSON profile used to generate SLURM-ready "
-            "artifacts. When omitted, defaults to local-machine mode (no SLURM)."
-        ),
-    )
-    reproduce_parser.add_argument(
-        "--data-dir",
-        default=None,
-        help=(
-            "Optional data directory to analyze for task planning/execution context. "
-            "Supports relative paths (e.g. ./data)."
-        ),
-    )
-    reproduce_parser.add_argument(
-        "--data-writable",
-        action="store_true",
-        help=(
-            "Allow writes to --data-dir. Default is read-only verification across "
-            "planning/auditing/task runs."
-        ),
-    )
-    reproduce_parser.add_argument(
-        "--data-max-files",
-        type=int,
-        default=4000,
-        help="Maximum number of files to index from --data-dir (default: 4000).",
-    )
-    reproduce_parser.add_argument(
-        "--data-max-total-bytes",
-        type=int,
-        default=1073741824,
-        help=(
-            "Maximum cumulative bytes to index from --data-dir "
-            "(default: 1073741824 = 1 GiB)."
-        ),
-    )
-    reproduce_parser.add_argument(
-        "--data-max-file-bytes",
-        type=int,
-        default=67108864,
-        help=(
-            "Skip files larger than this byte size while indexing --data-dir "
-            "(default: 67108864 = 64 MiB)."
-        ),
-    )
-    reproduce_parser.add_argument(
-        "--data-hash-max-bytes",
-        type=int,
-        default=1048576,
-        help=(
-            "Compute optional SHA256 only for files <= this size in bytes "
-            "(default: 1048576 = 1 MiB)."
+            "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
+            "and `slurm_resource_policy`; when set, workflow planning/task "
+            "prompts/reporting are constrained to this HPC profile."
         ),
     )
     reproduce_parser.add_argument(
@@ -199,27 +151,6 @@ def register_workflow_parsers(
         action="store_true",
         help="Skip final report generation after all tasks complete.",
     )
-    reproduce_run_mode = reproduce_parser.add_mutually_exclusive_group(required=False)
-    reproduce_run_mode.add_argument(
-        "--dry-run",
-        dest="dry_run",
-        action="store_true",
-        help=(
-            "Prepare simulation inputs/post-processing/plot scripts without running "
-            "simulations (default behavior); generate README instructions for later "
-            "execution."
-        ),
-    )
-    reproduce_run_mode.add_argument(
-        "--enforce-simulation",
-        dest="dry_run",
-        action="store_false",
-        help=(
-            "Disable dry-run scaffolding and enforce normal simulation execution "
-            "for planned tasks."
-        ),
-    )
-    reproduce_parser.set_defaults(dry_run=True)
     resume_group = reproduce_parser.add_mutually_exclusive_group(required=False)
     resume_group.add_argument(
         "--resume",
@@ -341,57 +272,9 @@ def register_workflow_parsers(
         "--hpc-profile",
         default=None,
         help=(
-            "Optional path to an HPC JSON profile used to generate SLURM-ready "
-            "artifacts. When omitted, defaults to local-machine mode (no SLURM)."
-        ),
-    )
-    research_parser.add_argument(
-        "--data-dir",
-        default=None,
-        help=(
-            "Optional data directory to analyze for task planning/execution context. "
-            "Supports relative paths (e.g. ./data)."
-        ),
-    )
-    research_parser.add_argument(
-        "--data-writable",
-        action="store_true",
-        help=(
-            "Allow writes to --data-dir. Default is read-only verification across "
-            "planning/auditing/task runs."
-        ),
-    )
-    research_parser.add_argument(
-        "--data-max-files",
-        type=int,
-        default=4000,
-        help="Maximum number of files to index from --data-dir (default: 4000).",
-    )
-    research_parser.add_argument(
-        "--data-max-total-bytes",
-        type=int,
-        default=1073741824,
-        help=(
-            "Maximum cumulative bytes to index from --data-dir "
-            "(default: 1073741824 = 1 GiB)."
-        ),
-    )
-    research_parser.add_argument(
-        "--data-max-file-bytes",
-        type=int,
-        default=67108864,
-        help=(
-            "Skip files larger than this byte size while indexing --data-dir "
-            "(default: 67108864 = 64 MiB)."
-        ),
-    )
-    research_parser.add_argument(
-        "--data-hash-max-bytes",
-        type=int,
-        default=1048576,
-        help=(
-            "Compute optional SHA256 only for files <= this size in bytes "
-            "(default: 1048576 = 1 MiB)."
+            "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
+            "and `slurm_resource_policy`; when set, workflow planning/task "
+            "prompts/reporting are constrained to this HPC profile."
         ),
     )
     research_parser.add_argument(
@@ -412,27 +295,6 @@ def register_workflow_parsers(
         action="store_true",
         help="Skip final report generation after all tasks complete.",
     )
-    research_run_mode = research_parser.add_mutually_exclusive_group(required=False)
-    research_run_mode.add_argument(
-        "--dry-run",
-        dest="dry_run",
-        action="store_true",
-        help=(
-            "Prepare simulation inputs/post-processing/plot scripts without running "
-            "simulations (default behavior); generate README instructions for later "
-            "execution."
-        ),
-    )
-    research_run_mode.add_argument(
-        "--enforce-simulation",
-        dest="dry_run",
-        action="store_false",
-        help=(
-            "Disable dry-run scaffolding and enforce normal simulation execution "
-            "for planned tasks."
-        ),
-    )
-    research_parser.set_defaults(dry_run=True)
     research_resume_group = research_parser.add_mutually_exclusive_group(required=False)
     research_resume_group.add_argument(
         "--resume",

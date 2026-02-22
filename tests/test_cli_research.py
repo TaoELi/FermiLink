@@ -20,23 +20,25 @@ def test_research_parser_defaults() -> None:
     assert args.max_wait_seconds == 600.0
     assert args.pid_stall_seconds == 900.0
     assert args.hpc_profile is None
-    assert args.data_dir is None
-    assert args.data_writable is False
-    assert args.data_max_files == 4000
-    assert args.data_max_total_bytes == 1073741824
-    assert args.data_max_file_bytes == 67108864
-    assert args.data_hash_max_bytes == 1048576
+    assert not hasattr(args, "data_dir")
+    assert not hasattr(args, "data_writable")
+    assert not hasattr(args, "data_max_files")
+    assert not hasattr(args, "data_max_total_bytes")
+    assert not hasattr(args, "data_max_file_bytes")
+    assert not hasattr(args, "data_hash_max_bytes")
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
-    assert args.dry_run is True
+    assert not hasattr(args, "dry_run")
     assert args.resume is True
 
 
-def test_research_parser_enforce_simulation_disables_dry_run() -> None:
+def test_research_parser_rejects_removed_dry_run_flags() -> None:
     parser = cli._build_parser()
-    args = parser.parse_args(["research", "idea.md", "--enforce-simulation"])
-    assert args.dry_run is False
+    with pytest.raises(SystemExit):
+        parser.parse_args(["research", "idea.md", "--dry-run"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["research", "idea.md", "--enforce-simulation"])
 
 
 def test_research_parser_accepts_hpc_profile() -> None:
@@ -45,6 +47,20 @@ def test_research_parser_accepts_hpc_profile() -> None:
         ["research", "idea.md", "--hpc-profile", "scripts/hpc_profile_anvil.json"]
     )
     assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
+
+
+def test_research_parser_rejects_removed_data_dir_flags() -> None:
+    parser = cli._build_parser()
+    for argv in (
+        ["research", "idea.md", "--data-dir", "input_data"],
+        ["research", "idea.md", "--data-writable"],
+        ["research", "idea.md", "--data-max-files", "10"],
+        ["research", "idea.md", "--data-max-total-bytes", "1024"],
+        ["research", "idea.md", "--data-max-file-bytes", "512"],
+        ["research", "idea.md", "--data-hash-max-bytes", "256"],
+    ):
+        with pytest.raises(SystemExit):
+            parser.parse_args(argv)
 
 
 def test_extract_research_plan_payload_parses_tagged_json() -> None:
@@ -111,7 +127,7 @@ def test_research_plan_only_writes_plan_without_running_loop(
     assert hpc_context.get("mode") == "local"
 
 
-def test_research_dry_run_adds_loop_constraints(
+def test_research_loop_preamble_enforces_simulation_execution(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -144,23 +160,18 @@ def test_research_dry_run_adds_loop_constraints(
         return 0
 
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
-    code = cli.main(["research", "idea.md", "--dry-run", "--skip-report"])
+    code = cli.main(["research", "idea.md", "--skip-report"])
     assert code == 0
     assert len(loop_preambles) == 1
-    assert "DRY-RUN mode constraints:" in loop_preambles[0]
-    assert "Do not execute full simulations" in loop_preambles[0]
-    assert "1-4 focused steps" in loop_preambles[0]
-    assert "overrides the default loop guidance of 5-15 steps" in loop_preambles[0]
-    assert (
-        "execution_target: local machine (default when `--hpc-profile` is omitted)."
-        in loop_preambles[0]
-    )
+    assert "Simulation policy:" in loop_preambles[0]
+    assert "Execute the simulations required by each task" in loop_preambles[0]
+    assert "execution_target: local machine (workflow default)." in loop_preambles[0]
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
     run_dir = runs_root / latest_run
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert state["dry_run"] is True
+    assert "dry_run" not in state
 
 
 def test_research_executes_tasks_with_retries(
@@ -223,6 +234,7 @@ def test_research_executes_tasks_with_retries(
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
     assert "Before acting, read `projects/memory.md`." in loop_preambles[0]
+    assert "Before acting, read original paper or request `idea.md`." in loop_preambles[0]
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
@@ -318,7 +330,7 @@ def test_research_resume_uses_user_edited_plan(
     assert loop_calls[1].name == "task_edited.md"
 
 
-def test_research_resume_rejects_mismatched_dry_run_mode(
+def test_research_resume_ignores_legacy_dry_run_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -352,21 +364,38 @@ def test_research_resume_rejects_mismatched_dry_run_mode(
     )
 
     assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-    code = cli.main(["research", "idea.md", "--enforce-simulation"])
-    assert code == 2
-    assert "matching dry-run mode" in capsys.readouterr().err
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state_path = run_dir / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["dry_run"] = True
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_cmd_loop", lambda _args: 0)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_workflow_report",
+        lambda **kwargs: {
+            "report_path": str(Path(kwargs["runs_root"]) / "report.md"),
+            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
+            "summary_count": 1,
+        },
+    )
+
+    code = cli.main(["research", "idea.md"])
+    assert code == 0
+    assert "matching dry-run mode" not in capsys.readouterr().err
 
 
-def test_research_resume_rejects_mismatched_data_dir_mode(
+def test_research_resume_ignores_legacy_data_context(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
 ) -> None:
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(repo_dir)
     (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-    data_dir = repo_dir / "input_data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "dataset.csv").write_text("x,y\n1,2\n", encoding="utf-8")
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     monkeypatch.setattr(
@@ -393,13 +422,94 @@ def test_research_resume_rejects_mismatched_data_dir_mode(
         ),
     )
 
-    assert (
-        cli.main(["research", "idea.md", "--plan-only", "--data-dir", "input_data"])
-        == 0
+    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state_path = run_dir / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["data_context"] = {
+        "enabled": True,
+        "source_path": str(repo_dir / "input_data"),
+        "read_only": True,
+        "limits": {},
+        "artifacts": {},
+    }
+    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_cmd_loop", lambda _args: 0)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_workflow_report",
+        lambda **kwargs: {
+            "report_path": str(Path(kwargs["runs_root"]) / "report.md"),
+            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
+            "summary_count": 1,
+        },
     )
+
     code = cli.main(["research", "idea.md"])
+    assert code == 0
+    error_text = capsys.readouterr().err
+    assert "matching data-dir mode" not in error_text
+
+
+def test_research_resume_rejects_mismatched_hpc_profile_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+    (repo_dir / "anvil.json").write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1",
+                "slurm_resource_policy": "Use single-node defaults unless MPI is required",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
+    code = cli.main(
+        [
+            "research",
+            "idea.md",
+            "--hpc-profile",
+            "anvil.json",
+        ]
+    )
     assert code == 2
-    assert "matching data-dir mode" in capsys.readouterr().err
+    assert "matching --hpc-profile mode" in capsys.readouterr().err
 
 
 def test_research_report_only_conflicts_with_restart(

@@ -31,9 +31,6 @@ from fermilink.cli.workflow_prompts import (
     RESEARCH_PLAN_TAG,
     RESEARCH_PLAN_TOKEN_RE,
     RESEARCH_PLANNER_PROMPT_PREFIX,
-    WORKFLOW_DRY_RUN_AUDITOR_PROMPT_SUFFIX,
-    WORKFLOW_DRY_RUN_LOOP_PREAMBLE,
-    WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX,
     WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX,
     WORKFLOW_DATA_DIRNAME,
     WORKFLOW_DATA_MANIFEST_FULL_FILENAME,
@@ -245,107 +242,28 @@ def _normalize_hpc_profile(
 ) -> dict[str, object]:
     cli = _cli()
     profile_label = str(profile_path)
-    version_raw = raw_profile.get("version", 1)
-    try:
-        version = int(version_raw)
-    except (TypeError, ValueError) as exc:
-        raise cli.PackageError(
-            f"--hpc-profile invalid `version` in {profile_label}: expected integer >= 1."
-        ) from exc
-    if version < 1:
-        raise cli.PackageError(
-            f"--hpc-profile invalid `version` in {profile_label}: expected integer >= 1."
-        )
-
-    cluster_name = str(raw_profile.get("cluster_name") or "").strip()
-    if not cluster_name:
-        raise cli.PackageError(
-            f"--hpc-profile missing required `cluster_name` in {profile_label}."
-        )
-
-    scheduler = str(raw_profile.get("scheduler") or "").strip().lower()
-    if scheduler != "slurm":
-        raise cli.PackageError(
-            f"--hpc-profile `scheduler` must be `slurm` in {profile_label}."
-        )
-
-    partitions_raw = raw_profile.get("partitions")
-    if not isinstance(partitions_raw, dict) or not partitions_raw:
-        raise cli.PackageError(
-            f"--hpc-profile missing non-empty `partitions` object in {profile_label}."
-        )
-    normalized_partitions: dict[str, object] = {}
-    for partition_name_raw, partition_payload in partitions_raw.items():
-        partition_name = str(partition_name_raw).strip()
-        if not partition_name:
+    required_keys = (
+        "slurm_default_partition",
+        "slurm_defaults",
+        "slurm_resource_policy",
+    )
+    normalized: dict[str, object] = {}
+    for key in required_keys:
+        raw_value = raw_profile.get(key)
+        if raw_value is None:
             raise cli.PackageError(
-                f"--hpc-profile has an empty partition name in {profile_label}."
+                f"--hpc-profile missing required `{key}` in {profile_label}."
             )
-        if not isinstance(partition_payload, dict):
+        if not isinstance(raw_value, str):
             raise cli.PackageError(
-                "--hpc-profile partition entry must be an object for "
-                f"`{partition_name}` in {profile_label}."
+                f"--hpc-profile `{key}` must be a non-empty string in {profile_label}."
             )
-        entry: dict[str, object] = dict(partition_payload)
-        cpus_per_node = entry.get("cpus_per_node")
-        if cpus_per_node is not None:
-            entry["cpus_per_node"] = _normalize_positive_int(
-                cpus_per_node,
-                flag_name=(f"--hpc-profile partitions.{partition_name}.cpus_per_node"),
-                minimum=1,
-            )
-        max_nodes = entry.get("max_nodes")
-        if max_nodes is not None:
-            entry["max_nodes"] = _normalize_positive_int(
-                max_nodes,
-                flag_name=f"--hpc-profile partitions.{partition_name}.max_nodes",
-                minimum=1,
-            )
-        normalized_partitions[partition_name] = entry
-
-    default_partition = str(raw_profile.get("default_partition") or "").strip()
-    if not default_partition:
-        default_partition = sorted(normalized_partitions.keys())[0]
-    if default_partition not in normalized_partitions:
-        raise cli.PackageError(
-            "--hpc-profile `default_partition` must be one of the keys in "
-            f"`partitions` for {profile_label}."
-        )
-
-    defaults_raw = raw_profile.get("defaults")
-    normalized_defaults: dict[str, object] = {}
-    if defaults_raw is not None:
-        if not isinstance(defaults_raw, dict):
+        text_value = " ".join(raw_value.strip().split())
+        if not text_value:
             raise cli.PackageError(
-                f"--hpc-profile `defaults` must be an object in {profile_label}."
+                f"--hpc-profile `{key}` must be a non-empty string in {profile_label}."
             )
-        normalized_defaults = dict(defaults_raw)
-        for int_field in ("nodes", "ntasks", "ntasks_per_node"):
-            raw_value = defaults_raw.get(int_field)
-            if raw_value is None:
-                continue
-            normalized_defaults[int_field] = _normalize_positive_int(
-                raw_value,
-                flag_name=f"--hpc-profile defaults.{int_field}",
-                minimum=1,
-            )
-        raw_time = defaults_raw.get("time")
-        if raw_time is not None:
-            time_text = str(raw_time).strip()
-            if not time_text:
-                raise cli.PackageError(
-                    f"--hpc-profile defaults.time cannot be empty in {profile_label}."
-                )
-            normalized_defaults["time"] = time_text
-
-    normalized: dict[str, object] = dict(raw_profile)
-    normalized["version"] = version
-    normalized["cluster_name"] = cluster_name
-    normalized["scheduler"] = scheduler
-    normalized["default_partition"] = default_partition
-    normalized["partitions"] = normalized_partitions
-    if defaults_raw is not None:
-        normalized["defaults"] = normalized_defaults
+        normalized[key] = text_value
     return normalized
 
 
@@ -502,110 +420,28 @@ def _assert_hpc_context_compatible(
         )
 
 
-def _summarize_hpc_partitions(profile: object) -> str:
-    if not isinstance(profile, dict):
-        return ""
-    partitions = profile.get("partitions")
-    if not isinstance(partitions, dict) or not partitions:
-        return ""
-    parts: list[str] = []
-    for partition_name in sorted(partitions.keys()):
-        payload = partitions.get(partition_name)
-        if isinstance(payload, dict):
-            cpus = payload.get("cpus_per_node")
-            max_nodes = payload.get("max_nodes")
-            suffix_bits: list[str] = []
-            if cpus is not None:
-                suffix_bits.append(f"cpus_per_node={cpus}")
-            if max_nodes is not None:
-                suffix_bits.append(f"max_nodes={max_nodes}")
-            if suffix_bits:
-                parts.append(f"{partition_name} ({', '.join(suffix_bits)})")
-                continue
-        parts.append(str(partition_name))
-    return ", ".join(parts)
-
-
-def _coerce_positive_int_or_none(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value if value > 0 else None
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            parsed = int(text)
-        except ValueError:
-            return None
-        return parsed if parsed > 0 else None
-    return None
-
-
-def _build_hpc_resource_policy_lines(profile: dict[str, object]) -> list[str]:
-    defaults = profile.get("defaults")
-    if not isinstance(defaults, dict):
-        defaults = {}
-
-    nodes = _coerce_positive_int_or_none(defaults.get("nodes"))
-    ntasks = _coerce_positive_int_or_none(defaults.get("ntasks"))
-    ntasks_per_node = _coerce_positive_int_or_none(defaults.get("ntasks_per_node"))
-
-    lines: list[str] = []
-    flag_bits: list[str] = []
-    if nodes is not None:
-        flag_bits.append(f"--nodes={nodes}")
-    if ntasks is not None:
-        flag_bits.append(f"--ntasks={ntasks}")
-    if ntasks_per_node is not None:
-        flag_bits.append(f"--ntasks-per-node={ntasks_per_node}")
-
-    if flag_bits:
-        lines.append("- slurm_defaults: `" + " ".join(flag_bits) + "`.")
-
-    if nodes == 1 and ntasks == 1 and ntasks_per_node == 1:
-        lines.append(
-            "- slurm_resource_policy: prefer serial run, use `--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1` unless method requires MPI."
-        )
-
-    raw_comment = profile.get("comments")
-    if raw_comment is None:
-        raw_comment = profile.get("comment")
-    if isinstance(raw_comment, str):
-        comment_text = " ".join(raw_comment.strip().split())
-        if comment_text:
-            if comment_text.endswith((".", "!", "?")):
-                lines.append(f"- slurm_profile_comment: {comment_text}")
-            else:
-                lines.append(f"- slurm_profile_comment: {comment_text}.")
-    return lines
-
-
 def _build_hpc_prompt_lines(hpc_context: dict[str, object] | None) -> list[str]:
     context = (
         hpc_context if isinstance(hpc_context, dict) else _default_local_hpc_context()
     )
-    lines = [
-        "- CLI precedence: `--hpc-profile` overrides package/skill/default machine settings.",
-    ]
+    lines: list[str] = []
     if not bool(context.get("enabled")):
         lines.extend(
             [
-                "- execution_target: local machine (default when `--hpc-profile` is omitted).",
+                "- execution_target: local machine (workflow default).",
                 "- Do not assume SLURM/HPC resources by default.",
-                "- Generate local-run-ready commands/scripts in dry-run artifacts.",
+                "- Generate local-run-ready commands/scripts by default.",
             ]
         )
         return lines
 
     profile = context.get("profile") if isinstance(context.get("profile"), dict) else {}
-    cluster_name = str(profile.get("cluster_name") or "unknown").strip()
-    default_partition = str(profile.get("default_partition") or "").strip()
-    partition_summary = _summarize_hpc_partitions(profile)
+    default_partition = str(profile.get("slurm_default_partition") or "").strip()
+    slurm_defaults = str(profile.get("slurm_defaults") or "").strip()
+    slurm_resource_policy = str(profile.get("slurm_resource_policy") or "").strip()
     lines.extend(
         [
-            f"- execution_target: HPC SLURM (`{cluster_name}`).",
+            "- execution_target: HPC SLURM.",
             (
                 f"- slurm_default_partition: `{default_partition}`."
                 if default_partition
@@ -613,9 +449,20 @@ def _build_hpc_prompt_lines(hpc_context: dict[str, object] | None) -> list[str]:
             ),
         ]
     )
-    if partition_summary:
-        lines.append(f"- slurm_partition_options: {partition_summary}.")
-    lines.extend(_build_hpc_resource_policy_lines(profile))
+    lines.append(
+        (
+            f"- slurm_defaults: `{slurm_defaults}`."
+            if slurm_defaults
+            else "- slurm_defaults: not specified."
+        )
+    )
+    if slurm_resource_policy:
+        if slurm_resource_policy.endswith((".", "!", "?")):
+            lines.append(f"- slurm_resource_policy: {slurm_resource_policy}")
+        else:
+            lines.append(f"- slurm_resource_policy: {slurm_resource_policy}.")
+    else:
+        lines.append("- slurm_resource_policy: not specified.")
     lines.append(
         "- Generate SLURM-ready scripts and machine-tuned run instructions using this profile."
     )
@@ -1565,7 +1412,6 @@ def _sanitize_task_id(raw_id: object, index: int, used: set[str]) -> str:
 def _render_reproduce_task_prompt(
     task: dict[str, object],
     *,
-    dry_run: bool = False,
     hpc_context: dict[str, object] | None = None,
 ) -> str:
     task_id = str(task.get("id") or "task")
@@ -1614,36 +1460,13 @@ def _render_reproduce_task_prompt(
             ["", "## Acceptance checks", *[f"- {item}" for item in acceptance_checks]]
         )
     lines.extend(["", "## Execution target", *_build_hpc_prompt_lines(hpc_context)])
-    if dry_run:
-        profile_mode = bool(
-            isinstance(hpc_context, dict) and hpc_context.get("enabled")
-        )
-        lines.extend(
-            [
-                "",
-                "## Dry-run deliverables",
-                "- Prepare simulation input/config files only (do not run simulations).",
-                "- Prepare post-processing scripts for expected simulation outputs.",
-                "- Prepare plotting scripts for the target figures.",
-                "- Create or update README.md with exact future simulation commands and validation steps.",
-                (
-                    "- Prepare SLURM-ready submission scripts from the provided `--hpc-profile`."
-                    if profile_mode
-                    else "- Prepare local-machine run commands/scripts by default (no SLURM)."
-                ),
-            ]
-        )
     lines.extend(
         [
             "",
             "## Execution notes",
             "- Keep scripts, data, and plots reproducible.",
             "- Save run details and blockers in projects/memory.md.",
-            (
-                "- Do not execute full simulations in dry-run mode."
-                if dry_run
-                else "- Execute simulation work only when required by the task plan."
-            ),
+            "- Execute simulation work required by the task plan.",
         ]
     )
     return "\n".join(lines).strip() + "\n"
@@ -2554,7 +2377,6 @@ def _normalize_automation_plan(
     raw_plan: object,
     *,
     source_description: str,
-    dry_run: bool = False,
     hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     cli = _cli()
@@ -2600,7 +2422,7 @@ def _normalize_automation_plan(
             normalized_task["data_context_file"] = data_context_file
         if not prompt_markdown:
             prompt_markdown = _render_reproduce_task_prompt(
-                normalized_task, dry_run=dry_run, hpc_context=hpc_context
+                normalized_task, hpc_context=hpc_context
             ).strip()
         normalized_task["prompt_markdown"] = prompt_markdown
         normalized_tasks.append(normalized_task)
@@ -2618,13 +2440,11 @@ def _normalize_reproduce_plan(
     raw_plan: object,
     *,
     source_description: str,
-    dry_run: bool = False,
     hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _normalize_automation_plan(
         raw_plan,
         source_description=source_description,
-        dry_run=dry_run,
         hpc_context=hpc_context,
     )
 
@@ -2633,13 +2453,11 @@ def _normalize_research_plan(
     raw_plan: object,
     *,
     source_description: str,
-    dry_run: bool = False,
     hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return _normalize_automation_plan(
         raw_plan,
         source_description=source_description,
-        dry_run=dry_run,
         hpc_context=hpc_context,
     )
 
@@ -2803,7 +2621,6 @@ def _generate_mode_plan(
     extract_payload,
     normalize_plan,
     log_tag: str,
-    dry_run: bool = False,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
@@ -2816,8 +2633,6 @@ def _generate_mode_plan(
         "Paper content / request:\n"
         f"{source_text.strip()}\n"
     ]
-    if dry_run:
-        planner_prompt_parts.append(f"\n{WORKFLOW_DRY_RUN_PLANNER_PROMPT_SUFFIX}\n")
     planner_prompt_parts.append(
         "\nExecution target constraints:\n"
         + "\n".join(_build_hpc_prompt_lines(hpc_context))
@@ -2853,7 +2668,6 @@ def _generate_mode_plan(
             planner_plan = normalize_plan(
                 raw_payload,
                 source_description=source_description,
-                dry_run=dry_run,
                 hpc_context=hpc_context,
             )
         except cli.PackageError as exc:
@@ -2960,8 +2774,6 @@ def _generate_mode_plan(
             "- For each task, include direction to use only mapped files by default.\n"
             "- Require map updates when strong evidence suggests expansion.\n"
         )
-    if dry_run:
-        auditor_prompt_parts.append(f"\n{WORKFLOW_DRY_RUN_AUDITOR_PROMPT_SUFFIX}\n")
     auditor_prompt_parts.append(
         "\nExecution target constraints:\n"
         + "\n".join(_build_hpc_prompt_lines(hpc_context))
@@ -2996,7 +2808,6 @@ def _generate_mode_plan(
             audited_plan = normalize_plan(
                 raw_payload,
                 source_description=source_description,
-                dry_run=dry_run,
                 hpc_context=hpc_context,
             )
         except cli.PackageError as exc:
@@ -3043,7 +2854,6 @@ def _generate_reproduce_plan(
     codex_bin: str,
     planner_max_tries: int,
     auditor_max_tries: int,
-    dry_run: bool = False,
     run_dir: Path | None = None,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
@@ -3064,7 +2874,6 @@ def _generate_reproduce_plan(
         extract_payload=_extract_reproduce_plan_payload,
         normalize_plan=_normalize_reproduce_plan,
         log_tag="reproduce",
-        dry_run=dry_run,
         data_context=data_context,
         hpc_context=hpc_context,
     )
@@ -3080,7 +2889,6 @@ def _generate_research_plan(
     codex_bin: str,
     planner_max_tries: int,
     auditor_max_tries: int,
-    dry_run: bool = False,
     run_dir: Path | None = None,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
@@ -3101,7 +2909,6 @@ def _generate_research_plan(
         extract_payload=_extract_research_plan_payload,
         normalize_plan=_normalize_research_plan,
         log_tag="research",
-        dry_run=dry_run,
         data_context=data_context,
         hpc_context=hpc_context,
     )
@@ -3566,7 +3373,6 @@ def _maybe_sync_mode_plan_from_disk(
     state: dict[str, object],
     source_description: str,
     workflow_name: str,
-    dry_run: bool = False,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
 ) -> bool:
@@ -3598,7 +3404,6 @@ def _maybe_sync_mode_plan_from_disk(
     normalized_plan = _normalize_automation_plan(
         raw_plan,
         source_description=source_description,
-        dry_run=dry_run,
         hpc_context=hpc_context,
     )
     if _is_data_context_enabled(data_context):
@@ -4968,7 +4773,6 @@ def cmd_plan_workflow(
     plan_only = bool(getattr(args, "plan_only", False))
     report_only = bool(getattr(args, "report_only", False))
     skip_report = bool(getattr(args, "skip_report", False))
-    dry_run = bool(getattr(args, "dry_run", False))
     if plan_only and report_only:
         raise cli.PackageError("Cannot combine --plan-only and --report-only.")
     if report_only and skip_report:
@@ -5080,7 +4884,6 @@ def cmd_plan_workflow(
             "version": 1,
             "run_id": run_id,
             "status": "planning",
-            "dry_run": dry_run,
             "created_at_utc": cli._utc_now_z(),
             "updated_at_utc": cli._utc_now_z(),
             "source_fingerprint": source_fingerprint,
@@ -5106,25 +4909,21 @@ def cmd_plan_workflow(
         args=args,
     )
 
-    state_data_context = _coerce_saved_data_context(state)
-    if created_new_run:
-        state_data_context = invocation_data_context
-    _assert_data_context_compatible(
-        run_id=str(run_dir.name),
-        workflow_name=workflow_name,
-        state_data_context=state_data_context,
-        invocation_data_context=invocation_data_context,
-    )
+    # Workflow CLI no longer exposes --data-dir; keep workflow data context fixed
+    # to invocation defaults and ignore legacy saved run-state toggles.
+    state_data_context = invocation_data_context
     state["data_context"] = state_data_context
-    state_hpc_context = _coerce_saved_hpc_context(state)
     if created_new_run:
         state_hpc_context = invocation_hpc_context
-    _assert_hpc_context_compatible(
-        run_id=str(run_dir.name),
-        workflow_name=workflow_name,
-        state_hpc_context=state_hpc_context,
-        invocation_hpc_context=invocation_hpc_context,
-    )
+    else:
+        saved_hpc_context = _coerce_saved_hpc_context(state)
+        _assert_hpc_context_compatible(
+            run_id=str(state.get("run_id") or run_dir.name),
+            workflow_name=workflow_name,
+            state_hpc_context=saved_hpc_context,
+            invocation_hpc_context=invocation_hpc_context,
+        )
+        state_hpc_context = invocation_hpc_context
     state["hpc_context"] = state_hpc_context
 
     if created_new_run:
@@ -5136,15 +4935,8 @@ def cmd_plan_workflow(
                 f"Failed to write latest {workflow_name} run file: {latest_path}: {exc}"
             ) from exc
 
-    state_dry_run = bool(state.get("dry_run", False))
-    if state_dry_run != dry_run:
-        expected_mode = "--dry-run" if state_dry_run else "without --dry-run"
-        current_mode = "--dry-run" if dry_run else "without --dry-run"
-        raise cli.PackageError(
-            f"Run {run_dir.name} was created {expected_mode}; current invocation is "
-            f"{current_mode}. Use --restart or rerun with matching dry-run mode."
-        )
-    state["dry_run"] = state_dry_run
+    if "dry_run" in state:
+        state.pop("dry_run", None)
 
     prompts_dir = run_dir / cli.REPRODUCE_PROMPTS_DIRNAME
     logs_dir = run_dir / cli.REPRODUCE_LOGS_DIRNAME
@@ -5209,7 +5001,6 @@ def cmd_plan_workflow(
             codex_bin=args.codex_bin,
             planner_max_tries=planner_max_tries,
             auditor_max_tries=auditor_max_tries,
-            dry_run=dry_run,
             data_context=state_data_context,
             hpc_context=state_hpc_context,
         )
@@ -5238,7 +5029,6 @@ def cmd_plan_workflow(
         state=state,
         source_description=source_description,
         workflow_name=workflow_name,
-        dry_run=dry_run,
         data_context=state_data_context,
         hpc_context=state_hpc_context,
     )
@@ -5460,9 +5250,19 @@ def cmd_plan_workflow(
 
         workflow_prompt_preamble_lines = [
             "Workflow preflight (research/reproduce mode):",
-            "- Before acting, read `projects/memory.md`.",
-            f"- Before acting, read `{_memory_relpath(plan_path)}`.",
+            "- Before acting, read short/long term memory at `projects/memory.md`.",
+            f"- Before acting, read the full workflow plan at `{_memory_relpath(plan_path)}`.",
         ]
+        if isinstance(prompt_file, str) and prompt_file.strip():
+            workflow_prompt_preamble_lines.append(
+                "- Before acting, optionally read original paper or request at "
+                f"`{_memory_relpath(Path(prompt_file))}` for additional context if needed."
+            )
+        else:
+            workflow_prompt_preamble_lines.append(
+                "- Before acting, read original request from "
+                "`projects/memory.md` under `## Original request`."
+            )
         if _is_data_context_enabled(state_data_context) and task_data_path is not None:
             workflow_prompt_preamble_lines.extend(
                 [
@@ -5485,8 +5285,13 @@ def cmd_plan_workflow(
                 *_build_hpc_prompt_lines(state_hpc_context),
             ]
         )
-        if dry_run:
-            workflow_prompt_preamble_lines.extend(["", WORKFLOW_DRY_RUN_LOOP_PREAMBLE])
+        workflow_prompt_preamble_lines.extend(
+            [
+                "",
+                "Simulation policy:",
+                "- Execute the simulations required by each task and record reproducible results.",
+            ]
+        )
         workflow_prompt_preamble = "\n".join(workflow_prompt_preamble_lines).strip()
 
         task_runs = int(task_runs_state.get(task_id, 0))
@@ -5502,11 +5307,7 @@ def cmd_plan_workflow(
 
             workflow_context_lines = [
                 f"- workflow: {workflow_name}",
-                (
-                    "- dry_run: true (prepare artifacts only; do not execute simulations)"
-                    if dry_run
-                    else "- dry_run: false (normal execution)"
-                ),
+                "- simulation_execution: enforced (run required simulations; no dry-run mode)",
                 f"- plan_json: {_memory_relpath(plan_path)} (overall workflow task plan)",
                 f"- state_json: {_memory_relpath(state_path)} (workflow progress and task status)",
             ]
