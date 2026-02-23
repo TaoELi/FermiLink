@@ -113,6 +113,19 @@ WORKFLOW_TASK_SIMULATION_SCRIPT_FILENAME = "run_simulation.sh"
 WORKFLOW_TASK_POSTPROCESS_SCRIPT_FILENAME = "run_postprocess.sh"
 WORKFLOW_TASK_PLOT_SCRIPT_FILENAME = "run_plot.sh"
 
+WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS = (
+    "Unified-memory requirements (apply in this stage):\n"
+    "- Before acting, read `projects/memory.md`.\n"
+    "- After completing this stage, update `projects/memory.md` with concise entries:\n"
+    "  - `## Short-Term Memory (Operational) -> ### Plan`\n"
+    "  - `## Short-Term Memory (Operational) -> ### Progress log`\n"
+    "- Update long-term sections only when there is durable information:\n"
+    "  - `### File map`\n"
+    "  - `### Simulation history`\n"
+    "  - `### Key results`\n"
+    "  - `### Suggested skills updates`\n"
+)
+
 USEFUL_SUFFIXES = {
     ".json",
     ".yaml",
@@ -2629,6 +2642,8 @@ def _generate_mode_plan(
     cli = _cli()
     planner_prompt_parts = [
         f"{planner_prompt_prefix}\n\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
         f"Paper source: {source_description}\n\n"
         "Paper content / request:\n"
         f"{source_text.strip()}\n"
@@ -2735,6 +2750,8 @@ def _generate_mode_plan(
     audited_plan: dict[str, object] | None = None
     auditor_prompt_parts = [
         f"{auditor_prompt_prefix}\n\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
         f"Paper source: {source_description}\n\n"
         "Original paper content / request:\n"
         f"{source_text.strip()}\n\n"
@@ -2978,6 +2995,49 @@ def _append_memory_block(content: str, block: str) -> str:
     return normalized + block.rstrip() + "\n"
 
 
+def _normalize_workflow_context_lines(
+    workflow_context_lines: list[str] | None,
+) -> list[str]:
+    if not isinstance(workflow_context_lines, list):
+        return []
+    return [
+        str(line).rstrip()
+        for line in workflow_context_lines
+        if isinstance(line, str) and line.strip()
+    ]
+
+
+def _upsert_workflow_context_block(
+    content: str, workflow_context_lines: list[str] | None
+) -> str:
+    normalized_context = _normalize_workflow_context_lines(workflow_context_lines)
+    if not normalized_context:
+        return content
+
+    without_context = re.sub(
+        r"(?ms)^## Workflow context\s*$\n.*?(?=^##\s|\Z)",
+        "",
+        content,
+    )
+    block = "## Workflow context\n" + "\n".join(normalized_context) + "\n"
+    short_match = re.search(
+        rf"(?m)^\s*{re.escape(UNIFIED_MEMORY_SHORT_TERM_HEADING)}\s*$",
+        without_context,
+    )
+    if short_match is None:
+        return _append_memory_block(without_context, block)
+
+    prefix = without_context[: short_match.start()].rstrip()
+    suffix = without_context[short_match.start() :].lstrip()
+    parts: list[str] = []
+    if prefix:
+        parts.append(prefix)
+    parts.append(block.rstrip())
+    if suffix:
+        parts.append(suffix)
+    return "\n\n".join(parts).rstrip() + "\n"
+
+
 def _upgrade_loop_memory_schema(memory_path: Path) -> None:
     cli = _cli()
     try:
@@ -3087,21 +3147,28 @@ def _ensure_loop_memory(
             raise cli.PackageError(f"{memory_path} exists but is a directory.")
         if not overwrite:
             _upgrade_loop_memory_schema(memory_path)
+            try:
+                content = memory_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise cli.PackageError(
+                    f"Failed to read memory file for workflow context update: {memory_path}: {exc}"
+                ) from exc
+            updated = _upsert_workflow_context_block(content, workflow_context_lines)
+            if updated != content:
+                try:
+                    memory_path.write_text(updated, encoding="utf-8")
+                except OSError as exc:
+                    raise cli.PackageError(
+                        f"Failed to update workflow context in memory file: {memory_path}: {exc}"
+                    ) from exc
             return memory_path
 
     started_at = _utc_now_z()
     source_line = f"- prompt_source: {prompt_file}\n" if prompt_file else ""
     context_block = ""
-    if isinstance(workflow_context_lines, list):
-        normalized_context = [
-            str(line).rstrip()
-            for line in workflow_context_lines
-            if isinstance(line, str) and line.strip()
-        ]
-        if normalized_context:
-            context_block = (
-                "\n" "## Workflow context\n" + "\n".join(normalized_context) + "\n"
-            )
+    normalized_context = _normalize_workflow_context_lines(workflow_context_lines)
+    if normalized_context:
+        context_block = "\n" "## Workflow context\n" + "\n".join(normalized_context) + "\n"
     initial = (
         "# FermiLink Unified Memory\n"
         "\n"
@@ -4440,6 +4507,8 @@ def _finalize_workflow_report(
 
     generator_prompt = (
         f"{WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX}\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
         f"Workflow: {workflow_name}\n"
         f"Source description: {source_description}\n"
         "\n"
@@ -4591,6 +4660,8 @@ def _finalize_workflow_report(
 
     auditor_prompt = (
         f"{WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX}\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
         f"Workflow: {workflow_name}\n"
         f"Source description: {source_description}\n"
         "\n"
@@ -4769,6 +4840,12 @@ def cmd_plan_workflow(
     cli._ensure_exec_repo_ready(repo_dir, args)
 
     user_prompt, prompt_file = cli._resolve_exec_like_user_prompt(args)
+    cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt=user_prompt,
+        prompt_file=prompt_file,
+        overwrite=False,
+    )
     source_description = prompt_file or "inline prompt"
     plan_only = bool(getattr(args, "plan_only", False))
     report_only = bool(getattr(args, "report_only", False))

@@ -1490,3 +1490,39 @@ def test_reset_loop_short_term_memory_preserves_long_term(
     assert (
         "- result-001 | test_metric | 1.0 | baseline | artifacts/result.txt" in updated
     )
+
+
+def test_reset_loop_short_term_memory_upserts_workflow_context_when_memory_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    memory_path = cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt="initial request",
+        prompt_file="paper.md",
+        overwrite=False,
+    )
+    baseline = memory_path.read_text(encoding="utf-8")
+    assert "## Workflow context" not in baseline
+    assert "## Original request\ninitial request" in baseline
+
+    workflow_commands._reset_loop_short_term_memory(
+        repo_dir=repo_dir,
+        user_prompt="task prompt",
+        prompt_file="projects/reproduce/run-001/prompts/task_001.md",
+        workflow_context_lines=[
+            "- workflow: reproduce",
+            "- plan_json: projects/reproduce/run-001/plan.json",
+            "- state_json: projects/reproduce/run-001/state.json",
+        ],
+    )
+
+    updated = memory_path.read_text(encoding="utf-8")
+    assert "## Workflow context" in updated
+    assert "- workflow: reproduce" in updated
+    assert "- plan_json: projects/reproduce/run-001/plan.json" in updated
+    assert "- state_json: projects/reproduce/run-001/state.json" in updated
+    assert "## Original request\ninitial request" in updated

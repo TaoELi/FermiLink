@@ -238,6 +238,9 @@ publication-scale requests.
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
 ``report.md``).
+Planner/auditor and final summary/audit stages follow the same unified-memory
+contract as loop tasks: read/update ``projects/memory.md`` with concise
+short-term progress and relevant long-term durable outcomes.
 After successful report finalization, four orchestration scripts are generated
 at run root:
 
@@ -290,6 +293,8 @@ paper.
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
 ``report.md``) and support resume from edited plan state.
+Planner/auditor and final summary/audit stages also read/update
+``projects/memory.md`` under the unified-memory contract.
 ``research`` also always executes planned simulation work (no dry-run mode).
 Like ``reproduce``, ``research`` defaults to local execution and accepts
 ``--hpc-profile <json>`` to enforce an HPC SLURM target profile using the same

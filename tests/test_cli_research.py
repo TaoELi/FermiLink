@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from fermilink import cli
+from fermilink.cli.commands import workflows as workflow_commands
 
 
 def test_research_parser_defaults() -> None:
@@ -74,6 +75,58 @@ def test_extract_research_plan_payload_parses_tagged_json() -> None:
     tasks = payload.get("tasks")
     assert isinstance(tasks, list)
     assert tasks[0]["id"] == "task_001"
+
+
+def test_generate_research_plan_includes_unified_memory_stage_instructions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    prompts: list[str] = []
+
+    plan_payload = {
+        "version": 1,
+        "paper_source": "idea.md",
+        "assumptions": [],
+        "tasks": [
+            {
+                "id": "task_001",
+                "title": "task one",
+                "objective": "objective",
+                "prompt_markdown": "prepare only",
+            }
+        ],
+    }
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompt = str(kwargs.get("prompt") or "")
+        prompts.append(prompt)
+        assistant_text = (
+            "<research_plan>" + json.dumps(plan_payload) + "</research_plan>"
+        )
+        return {"return_code": 0, "assistant_text": assistant_text, "stderr": ""}
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+
+    plan = cli._generate_research_plan(
+        repo_dir=repo_dir,
+        source_text="source",
+        source_description="idea.md",
+        requested_package_id=None,
+        sandbox_override=None,
+        codex_bin="codex",
+        planner_max_tries=1,
+        auditor_max_tries=1,
+    )
+
+    assert plan["version"] == 1
+    assert len(prompts) == 2
+    assert "Unified-memory requirements (apply in this stage):" in prompts[0]
+    assert "Before acting, read `projects/memory.md`." in prompts[0]
+    assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "Unified-memory requirements (apply in this stage):" in prompts[1]
+    assert "Before acting, read `projects/memory.md`." in prompts[1]
+    assert "After completing this stage, update `projects/memory.md`" in prompts[1]
 
 
 def test_research_plan_only_writes_plan_without_running_loop(
@@ -233,10 +286,14 @@ def test_research_executes_tasks_with_retries(
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
-    assert "Before acting, read `projects/memory.md`." in loop_preambles[0]
     assert (
-        "Before acting, read original paper or request `idea.md`." in loop_preambles[0]
+        "Before acting, read short/long term memory at `projects/memory.md`."
+        in loop_preambles[0]
     )
+    assert (
+        "Before acting, optionally read original paper or request at `idea.md` "
+        "for additional context if needed."
+    ) in loop_preambles[0]
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()

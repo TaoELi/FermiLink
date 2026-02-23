@@ -266,10 +266,14 @@ def test_reproduce_executes_tasks_with_retries(
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
-    assert "Before acting, read `projects/memory.md`." in loop_preambles[0]
     assert (
-        "Before acting, read original paper or request `paper.md`." in loop_preambles[0]
+        "Before acting, read short/long term memory at `projects/memory.md`."
+        in loop_preambles[0]
     )
+    assert (
+        "Before acting, optionally read original paper or request at `paper.md` "
+        "for additional context if needed."
+    ) in loop_preambles[0]
 
     runs_root = repo_dir / "projects" / "reproduce"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
@@ -759,9 +763,11 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     run_id = run_dir.name
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
     audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
+    prompts: list[str] = []
 
     def fake_exec_turn(**kwargs) -> dict[str, object]:
         prompt = str(kwargs.get("prompt") or "")
+        prompts.append(prompt)
         summary_path = run_dir / "summaries" / "task_001" / "summary.md"
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         simulation_script = summary_path.parent / "run_simulation.sh"
@@ -840,6 +846,12 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     assert "run_postprocess.sh" in run_all_driver
     assert "run_plot.sh" in run_all_driver
     assert "FERMILINK_UPSTREAM_JOB_ID" in run_all_driver
+    assert "Unified-memory requirements (apply in this stage):" in prompts[0]
+    assert "Before acting, read `projects/memory.md`." in prompts[0]
+    assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "Unified-memory requirements (apply in this stage):" in prompts[1]
+    assert "Before acting, read `projects/memory.md`." in prompts[1]
+    assert "After completing this stage, update `projects/memory.md`" in prompts[1]
 
 
 def test_finalize_workflow_report_rejects_stale_generation_outputs(
@@ -1408,6 +1420,12 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
     )
     assert plan["version"] == 1
     assert len(prompts) == 2
+    assert "Unified-memory requirements (apply in this stage):" in prompts[0]
+    assert "Before acting, read `projects/memory.md`." in prompts[0]
+    assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "Unified-memory requirements (apply in this stage):" in prompts[1]
+    assert "Before acting, read `projects/memory.md`." in prompts[1]
+    assert "After completing this stage, update `projects/memory.md`" in prompts[1]
     assert "Execution target constraints:" in prompts[0]
     assert "execution_target: HPC SLURM." in prompts[0]
     assert "slurm_default_partition: `shared`." in prompts[0]
