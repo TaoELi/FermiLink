@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-02-17T17:00:36.476905Z",
+  "updated_at": "2026-02-23T02:20:38.383586Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -2153,6 +2153,431 @@
         "deepchem",
         "batman",
         "mpas-model"
+      ]
+    },
+    "scanpy": {
+      "description": "Route requests about single-cell omics analysis pipelines using AnnData, including QC, embedding, clustering, marker discovery, and pseudotime workflows.",
+      "strong_keywords": [
+        "scanpy",
+        "single-cell rna-seq",
+        "anndata",
+        "scverse",
+        "leiden clustering",
+        "umap embedding",
+        "trajectory inference",
+        "differential expression",
+        "highly variable genes"
+      ],
+      "keywords": [
+        "quality control filtering",
+        "normalization log1p",
+        "pca neighborhood graph",
+        "marker gene ranking",
+        "pseudotime analysis",
+        "batch correction",
+        "gene expression matrix",
+        "single-cell visualization",
+        "large-scale single-cell",
+        "dask out-of-core"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "lightkurve",
+        "biopython",
+        "deepchem",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "meep",
+        "mitgcm"
+      ]
+    },
+    "anndata": {
+      "description": "Route to this family for intents about AnnData objects, single-cell omics matrix annotation, h5ad or zarr I/O, and Scanpy-scverse data workflows.",
+      "strong_keywords": [
+        "anndata",
+        "anndata object",
+        "single-cell omics",
+        "h5ad",
+        "obs var annotations",
+        "scanpy"
+      ],
+      "keywords": [
+        "scverse",
+        "gene expression matrix",
+        "cell by gene matrix",
+        "metadata annotations",
+        "sparse count matrix",
+        "backed mode",
+        "layers",
+        "obsm",
+        "varm",
+        "uns",
+        "zarr",
+        "spatial transcriptomics"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "cantera",
+        "deepchem",
+        "lightkurve",
+        "cesm",
+        "mpas-model",
+        "amuse",
+        "arc"
+      ]
+    },
+    "scvi-tools": {
+      "description": "Routes requests about probabilistic analysis workflows for single-cell, multimodal, and spatial omics, especially latent embeddings, batch correction, annotation, and deconvolution tasks.",
+      "strong_keywords": [
+        "scvi-tools",
+        "single-cell variational inference",
+        "single-cell omics",
+        "spatial omics",
+        "probabilistic modeling",
+        "batch correction",
+        "doublet detection",
+        "spatial deconvolution"
+      ],
+      "keywords": [
+        "latent variable models",
+        "dimensionality reduction",
+        "data integration",
+        "cell type annotation",
+        "multimodal integration",
+        "scrna-seq",
+        "scatac-seq",
+        "totalvi",
+        "scanvi",
+        "multivi",
+        "gene expression modeling",
+        "variational autoencoder"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "deepchem",
+        "biopython",
+        "lightkurve",
+        "meep",
+        "mitgcm"
+      ]
+    },
+    "squidpy": {
+      "description": "Use this package for spatial transcriptomics and image-aware single-cell workflows, especially graph-based neighborhood statistics and tissue-section visualization in the scverse ecosystem.",
+      "strong_keywords": [
+        "squidpy",
+        "spatial single-cell analysis",
+        "spatial omics",
+        "spatial transcriptomics",
+        "spatial neighbor graphs",
+        "neighborhood enrichment",
+        "co-occurrence analysis",
+        "moran i",
+        "visium",
+        "xenium"
+      ],
+      "keywords": [
+        "slide-seq",
+        "tissue microscopy images",
+        "image feature extraction",
+        "tissue section exploration",
+        "interactive napari visualization",
+        "cell type spatial enrichment",
+        "spatial autocorrelation",
+        "ripley statistics",
+        "graph-based tissue analysis",
+        "spatial molecular data",
+        "scanpy integration",
+        "anndata workflows"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "deepchem",
+        "cantera",
+        "lightkurve",
+        "meep",
+        "mitgcm",
+        "mom6"
+      ]
+    },
+    "cellrank": {
+      "description": "Use this family for single-cell trajectory questions focused on Markov-based fate mapping, RNA velocity integration, and inference of initial, intermediate, or terminal cell states.",
+      "strong_keywords": [
+        "cellrank",
+        "single cell fate mapping",
+        "markov state modeling",
+        "rna velocity",
+        "lineage fate probabilities",
+        "terminal state inference",
+        "macrostates",
+        "trajectory inference"
+      ],
+      "keywords": [
+        "single cell dynamics",
+        "pseudotime priors",
+        "developmental trajectories",
+        "initial intermediate terminal states",
+        "driver gene inference",
+        "gene expression trends",
+        "multiview single cell data",
+        "differentiation direction",
+        "cell fate probabilities",
+        "gpcca"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "lightkurve",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "deepchem",
+        "dftd4",
+        "meep",
+        "mom6"
+      ]
+    },
+    "openfoam-dev": {
+      "description": "Router hint: classify this package in computational fluid dynamics and finite-volume continuum physics simulation.",
+      "strong_keywords": [
+        "openfoam-dev",
+        "openfoam",
+        "computational fluid dynamics",
+        "finite volume method",
+        "turbulence modeling",
+        "multiphase flow",
+        "blockmesh",
+        "snappyhexmesh"
+      ],
+      "keywords": [
+        "rans",
+        "les",
+        "pimple algorithm",
+        "simple algorithm",
+        "interfoam",
+        "icofoam",
+        "fvsolution",
+        "fvschemes",
+        "controldict",
+        "reacting flow",
+        "heat transfer",
+        "parallel cfd"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "anndata",
+        "biopython",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "lightkurve",
+        "cellrank",
+        "meep",
+        "bloqade"
+      ]
+    },
+    "su2": {
+      "description": "Best matched for CFD and aerodynamic design workflows involving Navier Stokes PDE solvers, multiphysics coupling, and gradient-based engineering optimization.",
+      "strong_keywords": [
+        "su2",
+        "computational fluid dynamics",
+        "aerodynamic shape optimization",
+        "adjoint optimization",
+        "multiphysics simulation",
+        "pde constrained optimization",
+        "finite volume cfd",
+        "aerospace aerodynamics"
+      ],
+      "keywords": [
+        "compressible flow solver",
+        "incompressible navier stokes",
+        "rans turbulence modeling",
+        "design sensitivity analysis",
+        "mesh adaptation",
+        "fluid structure interaction",
+        "chemically reacting flows",
+        "electrodynamics simulation",
+        "drag and lift optimization",
+        "engineering pde solver"
+      ],
+      "negative_keywords": [
+        "anndata",
+        "astropy",
+        "biopython",
+        "cantera",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "meep",
+        "mitgcm",
+        "deepchem"
+      ]
+    },
+    "nekrs": {
+      "description": "Best for high-order spectral-element CFD workflows involving incompressible or low-Mach turbulent flow, moving meshes, and large-scale GPU/MPI simulations.",
+      "strong_keywords": [
+        "nekrs",
+        "nek5000",
+        "computational fluid dynamics",
+        "spectral element method",
+        "incompressible navier stokes",
+        "low mach number flow",
+        "gpu accelerated cfd",
+        "mpi cfd solver"
+      ],
+      "keywords": [
+        "high-order hexahedral elements",
+        "scalar transport",
+        "semi-implicit time integration",
+        "les turbulence modeling",
+        "rans turbulence modeling",
+        "arbitrary lagrangian eulerian",
+        "moving mesh cfd",
+        "overset grids",
+        "lagrangian particle phase",
+        "conjugate heat transfer",
+        "paraview visualization",
+        "visit visualization",
+        "ascent in situ",
+        "exascale fluid simulation"
+      ],
+      "negative_keywords": [
+        "anndata",
+        "astropy",
+        "biopython",
+        "deepchem",
+        "dftd4",
+        "lightkurve",
+        "cellrank",
+        "batman",
+        "gromacs",
+        "lammps"
+      ]
+    },
+    "pyfr": {
+      "description": "Routes requests about high-order computational fluid dynamics, conservation-law PDE solvers, and unstructured-grid flow simulation on accelerator hardware.",
+      "strong_keywords": [
+        "pyfr",
+        "flux reconstruction",
+        "huynh method",
+        "advection diffusion equations",
+        "unstructured grid cfd",
+        "mixed element meshes",
+        "high-order flow solver"
+      ],
+      "keywords": [
+        "euler equations",
+        "navier stokes equations",
+        "discontinuous methods",
+        "riemann fluxes",
+        "time integration schemes",
+        "streaming architectures",
+        "mako templating kernels",
+        "compressible flow simulation",
+        "test cases"
+      ],
+      "negative_keywords": [
+        "anndata",
+        "astropy",
+        "biopython",
+        "deepchem",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "lightkurve",
+        "cellrank",
+        "meep"
+      ]
+    },
+    "palabos": {
+      "description": "Routes to mesoscopic CFD and lattice Boltzmann solvers for incompressible, multiphase, and porous-media flow simulation on parallel CPU systems.",
+      "strong_keywords": [
+        "palabos",
+        "lattice boltzmann method",
+        "lbm",
+        "computational fluid dynamics",
+        "parallel lattice boltzmann",
+        "mesoscopic fluid simulation",
+        "multiphase flow",
+        "porous media flow"
+      ],
+      "keywords": [
+        "fluid flow simulation",
+        "incompressible flow",
+        "boundary conditions",
+        "free surface flow",
+        "particle-laden flow",
+        "hemodynamics",
+        "thermal flows",
+        "turbulence modeling",
+        "parallel simulation",
+        "vtk output"
+      ],
+      "negative_keywords": [
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "meep",
+        "astropy",
+        "biopython",
+        "anndata",
+        "lightkurve",
+        "espresso"
+      ]
+    },
+    "fdtdbath-meep": {
+      "description": "Use this family for FDTD-Bath approach simulation of polaritonics, which supports also conventional MEEP calculations",
+      "strong_keywords": [
+        "fdtd-bath",
+        "meep",
+        "fdtd",
+        "finite-difference time-domain",
+        "electromagnetic simulation",
+        "maxwell equations",
+        "photonic simulation",
+        "perfectly matched layer",
+        "near-to-far field",
+        "frequency-domain eigensolver"
+      ],
+      "keywords": [
+        "condensed-phase polaritonics",
+        "bloch periodic boundary",
+        "mode decomposition",
+        "s-parameters",
+        "poynting flux",
+        "local density of states",
+        "ring resonator modes",
+        "waveguide eigenmode source",
+        "anisotropic permittivity",
+        "dispersive media",
+        "nonlinear kerr material",
+        "gyrotropic media",
+        "gdsii geometry import",
+        "hdf5 field export",
+        "subpixel smoothing"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "anndata",
+        "astropy",
+        "biopython",
+        "cantera",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "lightkurve",
+        "cellrank"
       ]
     }
   }

@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-02-17T17:00:36.476905Z",
+  "updated_at": "2026-02-23T02:20:38.383586Z",
   "packages": [
     {
       "package_id": "amuse",
@@ -29,6 +29,33 @@
         "nbody",
         "hydrodynamics",
         "stellar_evolution"
+      ]
+    },
+    {
+      "package_id": "anndata",
+      "title": "AnnData Annotated Data Matrices",
+      "description": "anndata provides an efficient annotated matrix container for single-cell and spatial omics, supporting metadata-rich observations, variables, sparse storage, and on-disk workflows.",
+      "upstream_repo_url": "https://github.com/scverse/anndata",
+      "homepage_url": "http://anndata.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/anndata/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/anndata/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "anndata",
+        "single-cell",
+        "omics",
+        "bioinformatics",
+        "h5ad"
       ]
     },
     {
@@ -307,6 +334,34 @@
       ]
     },
     {
+      "package_id": "cellrank",
+      "title": "CellRank Single-Cell Fate Mapping",
+      "description": "CellRank is a single-cell analysis framework that models cellular dynamics with Markov state methods to infer lineage fates, macrostates, and driver genes from multiview data.",
+      "upstream_repo_url": "https://github.com/theislab/cellrank",
+      "homepage_url": "https://cellrank.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/cellrank/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/cellrank/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "single-cell",
+        "fate-mapping",
+        "trajectory-inference",
+        "rna-velocity",
+        "markov-models",
+        "computational-biology"
+      ]
+    },
+    {
       "package_id": "cesm",
       "title": "CESM (Community Earth System Model)",
       "description": "CESM is a coupled Earth system modeling framework for simulating climate dynamics across atmosphere, ocean, land, and sea ice components on HPC systems using CIME workflows.",
@@ -551,6 +606,34 @@
         "bayesian-inference",
         "time-series",
         "mcmc"
+      ]
+    },
+    {
+      "package_id": "fdtdbath-meep",
+      "title": "Modified Meep FDTD Electromagnetics Simulator for FDTD-Bath approach",
+      "description": "The modified Meep code with standard meep functions + fdtd-bath implementation for condensed-phase polaritonics",
+      "upstream_repo_url": "https://github.com/TaoELi/meep",
+      "homepage_url": "https://github.com/TaoELi/meep",
+      "zip_url": "https://github.com/skilled-scipkg/fdtdbath-meep/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/fdtdbath-meep/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electromagnetics",
+        "fdtd",
+        "photonics",
+        "maxwell",
+        "computational-physics",
+        "wave-simulation"
       ]
     },
     {
@@ -833,6 +916,34 @@
       ]
     },
     {
+      "package_id": "nekrs",
+      "title": "nekRS CFD Solver",
+      "description": "nekRS is a GPU-accelerated high-order spectral-element computational fluid dynamics solver for incompressible and low-Mach Navier-Stokes flows on massively parallel HPC systems.",
+      "upstream_repo_url": "https://github.com/Nek5000/nekRS",
+      "homepage_url": "https://nek5000.mcs.anl.gov/",
+      "zip_url": "https://github.com/skilled-scipkg/nekRS/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/nekRS/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cfd",
+        "hpc",
+        "gpu",
+        "spectral-elements",
+        "navier-stokes",
+        "fluid-dynamics"
+      ]
+    },
+    {
       "package_id": "nextflow",
       "title": "Nextflow Scientific Workflow Engine",
       "description": "Nextflow is a dataflow-driven DSL and runtime for building reproducible, portable scientific pipelines that scale from laptops to HPC schedulers and cloud batch systems.",
@@ -944,6 +1055,34 @@
       ]
     },
     {
+      "package_id": "openfoam-dev",
+      "title": "OpenFOAM-dev CFD Platform",
+      "description": "OpenFOAM-dev is the OpenFOAM Foundation development codebase for finite-volume CFD and multiphysics simulation, supporting incompressible and compressible flow, turbulence, heat transfer, and extensible solver workflows.",
+      "upstream_repo_url": "https://github.com/OpenFOAM/OpenFOAM-dev",
+      "homepage_url": "https://openfoam.org",
+      "zip_url": "https://github.com/skilled-scipkg/OpenFOAM-dev/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/OpenFOAM-dev/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cfd",
+        "finite-volume",
+        "multiphysics",
+        "turbulence",
+        "meshing",
+        "openfoam"
+      ]
+    },
+    {
       "package_id": "openmm",
       "title": "OpenMM Molecular Dynamics Toolkit",
       "description": "OpenMM is a high-performance molecular dynamics toolkit for biomolecular simulation, offering flexible custom forces and integrators with fast GPU execution through Python and C++ interfaces.",
@@ -1023,6 +1162,33 @@
       ]
     },
     {
+      "package_id": "palabos",
+      "title": "Palabos Lattice Boltzmann CFD",
+      "description": "Palabos is an open-source parallel computational fluid dynamics package implementing the lattice Boltzmann method for simulating complex fluid flows and transport phenomena.",
+      "upstream_repo_url": "https://github.com/omalaspinas/palabos",
+      "homepage_url": "https://github.com/omalaspinas/palabos",
+      "zip_url": "https://github.com/skilled-scipkg/palabos/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/palabos/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cfd",
+        "lattice-boltzmann",
+        "fluid-dynamics",
+        "hpc",
+        "multiphase-flow"
+      ]
+    },
+    {
       "package_id": "photutils",
       "title": "Photutils Astronomical Photometry Toolkit",
       "description": "Photutils provides robust algorithms for detecting astronomical sources and performing aperture and PSF photometry, with background estimation, segmentation, centroiding, and profile analysis for telescope image data.",
@@ -1075,6 +1241,33 @@
         "ab-initio",
         "computational-chemistry",
         "molecular-modeling"
+      ]
+    },
+    {
+      "package_id": "pyfr",
+      "title": "PyFR High-Order CFD Solver",
+      "description": "PyFR is a Python framework for high-order flux-reconstruction simulation of advection-diffusion governing equations on mixed unstructured meshes, optimized for CPUs and GPUs via a templated kernel language.",
+      "upstream_repo_url": "https://github.com/PyFR/PyFR",
+      "homepage_url": "https://github.com/PyFR/PyFR",
+      "zip_url": "https://github.com/skilled-scipkg/PyFR/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/PyFR/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cfd",
+        "pde",
+        "flux-reconstruction",
+        "unstructured-mesh",
+        "gpu-computing"
       ]
     },
     {
@@ -1271,6 +1464,34 @@
       ]
     },
     {
+      "package_id": "scanpy",
+      "title": "Scanpy Single-Cell Toolkit",
+      "description": "Scanpy is a scalable Python toolkit for preprocessing, visualization, clustering, trajectory inference, and differential expression analysis of single-cell gene expression data.",
+      "upstream_repo_url": "https://github.com/scverse/scanpy",
+      "homepage_url": "https://scanpy.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/scanpy/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/scanpy/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "singlecell",
+        "transcriptomics",
+        "bioinformatics",
+        "rnaseq",
+        "clustering",
+        "trajectory"
+      ]
+    },
+    {
       "package_id": "scikit-bio",
       "title": "scikit-bio Bioinformatics Library",
       "description": "Community-driven Python bioinformatics library with reusable data structures and algorithms for sequence processing, phylogenetics, microbiome ecology, diversity metrics, ordination, and omic data analysis.",
@@ -1296,6 +1517,33 @@
         "phylogenetics",
         "sequence-analysis",
         "community-ecology"
+      ]
+    },
+    {
+      "package_id": "scvi-tools",
+      "title": "scvi-tools Single-Cell Probabilistic Modeling",
+      "description": "scvi-tools provides deep probabilistic models for single-cell and spatial omics, enabling latent representation learning, batch correction, cell type annotation, doublet detection, and multimodal integration within the scverse ecosystem.",
+      "upstream_repo_url": "https://github.com/scverse/scvi-tools",
+      "homepage_url": "http://scvi-tools.org/",
+      "zip_url": "https://github.com/skilled-scipkg/scvi-tools/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/scvi-tools/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "single-cell-omics",
+        "spatial-omics",
+        "probabilistic-modeling",
+        "variational-inference",
+        "scverse"
       ]
     },
     {
@@ -1354,6 +1602,34 @@
       ]
     },
     {
+      "package_id": "squidpy",
+      "title": "Squidpy Spatial Omics Analysis",
+      "description": "Squidpy is a Python toolkit for scalable spatial single-cell and spatial omics analysis, combining tissue image feature extraction, spatial statistics, neighborhood graphs, and interactive exploration.",
+      "upstream_repo_url": "https://github.com/scverse/squidpy",
+      "homepage_url": "https://squidpy.readthedocs.io/en/stable/",
+      "zip_url": "https://github.com/skilled-scipkg/squidpy/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/squidpy/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "spatial-omics",
+        "single-cell",
+        "bioinformatics",
+        "spatial-transcriptomics",
+        "tissue-imaging",
+        "scverse"
+      ]
+    },
+    {
       "package_id": "starry",
       "title": "starry stellar and exoplanet mapper",
       "description": "starry provides fast analytic models of stellar and exoplanet surface maps to generate and fit transit, eclipse, and phase light curves.",
@@ -1379,6 +1655,34 @@
         "lightcurve",
         "mapping",
         "sphericalharmonics"
+      ]
+    },
+    {
+      "package_id": "su2",
+      "title": "SU2 Open-Source CFD Suite",
+      "description": "SU2 is an open-source C++ suite for computational fluid dynamics, multiphysics PDE simulation, and adjoint-driven aerodynamic shape optimization for engineering analysis and design.",
+      "upstream_repo_url": "https://github.com/su2code/SU2",
+      "homepage_url": "https://su2code.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/SU2/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/SU2/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cfd",
+        "aerodynamics",
+        "multiphysics",
+        "pde",
+        "optimization",
+        "simulation"
       ]
     },
     {
