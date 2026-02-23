@@ -238,7 +238,7 @@ WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX = (
     "You must generate concise per-task summaries and a polished top-level summary report.\n"
     "The top-level report must be written as an APS Physical Review A style paper in Markdown\n"
     "(publication-style scientific writing while remaining faithful to available artifacts).\n"
-    "Cover: title, abstract, background/introduction, theory + methods, simulation results,\n"
+    "Cover: title, abstract, background/introduction, theory + methods [including what major (one or two) scientific packages are used], simulation results,\n"
     "discussion, conclusion, and reproducibility notes.\n"
     "Figures should be inserted as Markdown image links to artifact paths when available; otherwise, explicitly note missing figures.\n"
     "Results must be grounded in performed simulations and linked artifact paths; explicitly mark\n"
