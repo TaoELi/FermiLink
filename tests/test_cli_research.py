@@ -657,3 +657,69 @@ def test_research_report_only_requires_existing_run(
     code = cli.main(["research", "idea.md", "--report-only"])
     assert code == 2
     assert "requires an existing resumable research run" in capsys.readouterr().err
+
+
+def test_research_report_only_uses_saved_hpc_context_without_mode_match(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+    (repo_dir / "anvil.json").write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "debug",
+                "slurm_defaults": "--time=00:05:00",
+                "slurm_resource_policy": "keep allocations small",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "request_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+
+    captured_hpc_context: dict[str, object] = {}
+
+    def _capture_finalize(**kwargs):
+        raw_hpc_context = kwargs.get("hpc_context")
+        if isinstance(raw_hpc_context, dict):
+            captured_hpc_context.update(raw_hpc_context)
+        return {
+            "report_path": str(Path(kwargs["run_dir"]) / "report.md"),
+            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
+            "summary_count": 1,
+        }
+
+    monkeypatch.setattr(cli, "_finalize_workflow_report", _capture_finalize)
+
+    assert (
+        cli.main(
+            [
+                "research",
+                "idea.md",
+                "--plan-only",
+                "--hpc-profile",
+                "anvil.json",
+            ]
+        )
+        == 0
+    )
+    assert cli.main(["research", "idea.md", "--report-only"]) == 0
+    assert captured_hpc_context.get("enabled") is True

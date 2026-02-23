@@ -312,6 +312,9 @@ paper.
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
 ``report.md``) and support resume from edited plan state.
+When ``--report-only`` is used, ``research`` skips planning/task-loop execution
+and runs only the final summary + summary-audit report finalization from the
+saved run context.
 The finalized ``report.md`` follows the same APS Physical Review A style
 Markdown manuscript format, and the summary-audit stage improves scientific
 writing flow and readability without inventing unsupported results.

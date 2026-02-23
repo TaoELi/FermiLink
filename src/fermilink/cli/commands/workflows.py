@@ -5034,33 +5034,41 @@ def cmd_plan_workflow(
     else:
         cli._print_tagged(workflow_name, f"resuming run: {run_dir.name}")
 
-    invocation_data_context = _resolve_invocation_data_context(
-        repo_dir=repo_dir,
-        run_dir=run_dir,
-        workflow_name=workflow_name,
-        args=args,
-    )
-    invocation_hpc_context = _resolve_invocation_hpc_context(
-        repo_dir=repo_dir,
-        args=args,
-    )
-
-    # Workflow CLI no longer exposes --data-dir; keep workflow data context fixed
-    # to invocation defaults and ignore legacy saved run-state toggles.
-    state_data_context = invocation_data_context
-    state["data_context"] = state_data_context
-    if created_new_run:
-        state_hpc_context = invocation_hpc_context
+    if report_only and not created_new_run:
+        # Report-only runs should finalize from existing run artifacts/config and
+        # must not be blocked by invocation-time mode drift from legacy runs.
+        state_data_context = _coerce_saved_data_context(state)
+        state_hpc_context = _coerce_saved_hpc_context(state)
+        state["data_context"] = state_data_context
+        state["hpc_context"] = state_hpc_context
     else:
-        saved_hpc_context = _coerce_saved_hpc_context(state)
-        _assert_hpc_context_compatible(
-            run_id=str(state.get("run_id") or run_dir.name),
+        invocation_data_context = _resolve_invocation_data_context(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
             workflow_name=workflow_name,
-            state_hpc_context=saved_hpc_context,
-            invocation_hpc_context=invocation_hpc_context,
+            args=args,
         )
-        state_hpc_context = invocation_hpc_context
-    state["hpc_context"] = state_hpc_context
+        invocation_hpc_context = _resolve_invocation_hpc_context(
+            repo_dir=repo_dir,
+            args=args,
+        )
+
+        # Workflow CLI no longer exposes --data-dir; keep workflow data context fixed
+        # to invocation defaults and ignore legacy saved run-state toggles.
+        state_data_context = invocation_data_context
+        state["data_context"] = state_data_context
+        if created_new_run:
+            state_hpc_context = invocation_hpc_context
+        else:
+            saved_hpc_context = _coerce_saved_hpc_context(state)
+            _assert_hpc_context_compatible(
+                run_id=str(state.get("run_id") or run_dir.name),
+                workflow_name=workflow_name,
+                state_hpc_context=saved_hpc_context,
+                invocation_hpc_context=invocation_hpc_context,
+            )
+            state_hpc_context = invocation_hpc_context
+        state["hpc_context"] = state_hpc_context
 
     if created_new_run:
         cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
