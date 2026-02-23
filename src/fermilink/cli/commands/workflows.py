@@ -145,7 +145,6 @@ WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS = (
     "  - `### Parameter source mapping` for simulation parameter/setting provenance.\n"
     "  - `### Simulation uncertainty` for uncertainty, assumptions, and confidence gaps.\n"
     "  - `### Suggested skills updates` for recurring failure patterns and concrete fixes.\n"
-    
 )
 
 USEFUL_SUFFIXES = {
@@ -3148,9 +3147,7 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
                 f"{UNIFIED_MEMORY_PARAM_SOURCE_HEADING}\n"
                 "- (run_id | parameter_or_setting | value | source | evidence_path | notes)\n",
             )
-        if not _memory_heading_exists(
-            upgraded, UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING
-        ):
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING):
             upgraded = _append_memory_block(
                 upgraded,
                 f"{UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING}\n"
@@ -3219,7 +3216,9 @@ def _ensure_loop_memory(
     context_block = ""
     normalized_context = _normalize_workflow_context_lines(workflow_context_lines)
     if normalized_context:
-        context_block = "\n" "## Workflow context\n" + "\n".join(normalized_context) + "\n"
+        context_block = (
+            "\n" "## Workflow context\n" + "\n".join(normalized_context) + "\n"
+        )
     initial = (
         "# FermiLink Unified Memory\n"
         "\n"

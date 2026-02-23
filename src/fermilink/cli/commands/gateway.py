@@ -778,9 +778,7 @@ def _build_loopcfg_message(
     max_wait_override = _chat_loop_max_wait_seconds_override(chat_state)
     effective = _effective_loop_config(chat_state, base_loop_config=base_loop_config)
     iterations_source = (
-        "chat override"
-        if max_iterations_override is not None
-        else "gateway default"
+        "chat override" if max_iterations_override is not None else "gateway default"
     )
     max_wait_source = (
         "chat override" if max_wait_override is not None else "gateway default"
@@ -1608,7 +1606,9 @@ def _extract_memory_section_items(
         lowered = item.lower()
         if not item:
             continue
-        if item.startswith("(") and all(marker in lowered for marker in placeholder_markers):
+        if item.startswith("(") and all(
+            marker in lowered for marker in placeholder_markers
+        ):
             continue
         items.append(item)
     return items[-max_items:]
@@ -1857,9 +1857,7 @@ def _filter_items_to_latest_run_id(
     if not latest_run_id:
         return items
     filtered = [
-        item
-        for item in items
-        if str(run_id_resolver(item)).strip() == latest_run_id
+        item for item in items if str(run_id_resolver(item)).strip() == latest_run_id
     ]
     return filtered if filtered else items
 

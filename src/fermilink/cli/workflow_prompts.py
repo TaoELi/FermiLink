@@ -252,7 +252,7 @@ WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
     "You are an independent reviewer. Read the generated summary report and improve it for\n"
     "scientific clarity, completeness, and reproducibility.\n"
     "Preserve and strengthen APS Physical Review A style structure in Markdown and polish language\n"
-    "flow to read like a human-written published paper.\n"
+    "flow to read like a human-written published paper with enriched explanation.\n"
     "Improve transitions, narrative coherence, terminology consistency, and reader accessibility\n"
     "without changing factual conclusions beyond available evidence.\n"
     "Do not fabricate data; flag uncertain or missing support explicitly.\n"

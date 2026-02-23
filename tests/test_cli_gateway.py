@@ -746,9 +746,7 @@ def test_handle_telegram_text_mode_switches_to_workflow_modes(
     assert "Research workflow orchestration finished successfully." in research_run
     assert "Execution mode set to reproduce." in set_reproduce
     assert "Execution mode: <code>reproduce</code>." in reproduce_run
-    assert (
-        "Reproduce workflow orchestration finished successfully." in reproduce_run
-    )
+    assert "Reproduce workflow orchestration finished successfully." in reproduce_run
     assert "Current mode: reproduce" in where
     assert len(research_calls) == 1
     assert len(reproduce_calls) == 1
