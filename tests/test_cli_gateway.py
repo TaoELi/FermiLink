@@ -93,6 +93,28 @@ def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> 
     assert loaded_chat["last_run_mode"] == "exec"
 
 
+def test_gateway_state_round_trip_preserves_workflow_mode(tmp_path: Path) -> None:
+    state_path = tmp_path / "chat_sessions.json"
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_state = gateway_commands._ensure_chat_state(telegram, "telegram:43")
+    gateway_commands._create_workspace(
+        chat_state,
+        chat_id="43",
+        requested_label="main",
+        created_via="new",
+    )
+    chat_state["execution_mode"] = "research"
+
+    gateway_commands._save_gateway_state(state_path, state)
+    loaded = gateway_commands._load_gateway_state(state_path)
+    loaded_chat = gateway_commands._ensure_chat_state(
+        gateway_commands._telegram_state(loaded), "telegram:43"
+    )
+
+    assert loaded_chat["execution_mode"] == "research"
+
+
 def test_run_loop_in_workspace_forwards_iteration_hook(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -612,6 +634,119 @@ def test_handle_telegram_text_mode_switches_between_loop_and_exec(
     assert len(exec_calls) == 1
     assert len(loop_calls) == 1
     assert exec_calls[0] == loop_calls[0]
+
+
+def test_handle_telegram_text_mode_switches_to_workflow_modes(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+    research_calls: list[tuple[Path, str]] = []
+    reproduce_calls: list[tuple[Path, str]] = []
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_research_runner(
+        repo_dir: Path,
+        prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        research_calls.append((repo_dir, prompt))
+        return 0, {"status": "done", "reason": "research_completed"}
+
+    def fake_reproduce_runner(
+        repo_dir: Path,
+        prompt: str,
+        _loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        reproduce_calls.append((repo_dir, prompt))
+        return 0, {"status": "done", "reason": "reproduce_completed"}
+
+    chat_id = "511"
+    chat_key = "telegram:511"
+    loop_config = _loop_config()
+
+    set_research = gateway_commands._handle_telegram_text(
+        text="/mode research",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    research_run = gateway_commands._handle_telegram_text(
+        text="draft a cavity qed study plan",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    set_reproduce = gateway_commands._handle_telegram_text(
+        text="/mode reproduce",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    reproduce_run = gateway_commands._handle_telegram_text(
+        text="paper.md",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    where = gateway_commands._handle_telegram_text(
+        text="/where",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        research_runner=fake_research_runner,
+        reproduce_runner=fake_reproduce_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "Execution mode set to research." in set_research
+    assert "Execution mode: <code>research</code>." in research_run
+    assert "Research workflow orchestration finished successfully." in research_run
+    assert "Execution mode set to reproduce." in set_reproduce
+    assert "Execution mode: <code>reproduce</code>." in reproduce_run
+    assert (
+        "Reproduce workflow orchestration finished successfully." in reproduce_run
+    )
+    assert "Current mode: reproduce" in where
+    assert len(research_calls) == 1
+    assert len(reproduce_calls) == 1
+    assert research_calls[0][1] == "draft a cavity qed study plan"
+    assert reproduce_calls[0][1] == "paper.md"
+    assert research_calls[0][0] == reproduce_calls[0][0]
 
 
 def test_handle_telegram_text_loopcfg_overrides_apply_without_restart(

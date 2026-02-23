@@ -139,15 +139,16 @@ Gateway behavior:
   completion messages reflect the newest recorded simulation result;
 - generated figures/documents are auto-attached back to Telegram when available
   so plots can be viewed directly on mobile clients;
-- ``/mode <loop|exec>`` switches normal-message execution between
-  ``fermilink loop`` (multi-iteration autonomous mode) and
-  ``fermilink exec`` (single-turn mode, default) per chat session;
+- ``/mode <exec|loop|research|reproduce>`` switches normal-message execution
+  per chat session between ``fermilink exec`` (single-turn mode, default),
+  ``fermilink loop`` (multi-iteration autonomous mode), and workflow modes
+  ``fermilink research`` / ``fermilink reproduce``;
 - ``/loopcfg`` shows current per-chat loop controls and supports runtime
   updates from Telegram without gateway restart:
   ``/loopcfg --max-iterations <N>`` and
   ``/loopcfg --max-wait-seconds <S>`` (use ``/loopcfg --reset`` to clear
   overrides back to gateway startup defaults);
-- explicit workflow prompts are available without changing ``/mode``:
+- explicit workflow prompts are also available without changing ``/mode``:
   send ``fermilink research <prompt-or-file>`` or
   ``fermilink reproduce <prompt-or-file>`` as a normal chat message to run
   workflow orchestration in the active workspace;

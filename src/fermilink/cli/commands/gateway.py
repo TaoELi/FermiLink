@@ -67,7 +67,7 @@ GATEWAY_HELP_TEXT = (
     "Commands:\n"
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
-    "/mode <loop|exec> - switch run mode for normal messages\n"
+    "/mode <exec|loop|research|reproduce> - switch run mode for normal messages\n"
     "/loopcfg - show/set loop max-iterations and max-wait-seconds\n"
     "/reply <summary|agent|both> - switch final-reply style\n"
     "/status - show gateway/chat run status\n"
@@ -420,7 +420,7 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         payload["active_workspace_id"] = str(workspace_records[-1]["id"])
 
     mode = str(raw.get("execution_mode") or "").strip().lower()
-    if mode in SUPPORTED_EXECUTION_MODES:
+    if mode in SUPPORTED_GATEWAY_RUN_MODES:
         payload["execution_mode"] = mode
     reply_style = str(raw.get("reply_style") or "").strip().lower()
     if reply_style in SUPPORTED_REPLY_STYLES:
@@ -704,7 +704,7 @@ def _format_workspace_list(chat_state: dict[str, Any]) -> str:
 
 def _effective_execution_mode(chat_state: dict[str, Any]) -> str:
     mode = str(chat_state.get("execution_mode") or "exec").strip().lower()
-    if mode not in SUPPORTED_EXECUTION_MODES:
+    if mode not in SUPPORTED_GATEWAY_RUN_MODES:
         mode = "exec"
         chat_state["execution_mode"] = mode
     return mode
@@ -2222,25 +2222,36 @@ def _handle_telegram_text(
         if not argument:
             return (
                 f"Current mode: {current_mode}\n"
-                "Usage: /mode <loop|exec>\n"
-                "Normal messages run with this mode in the active workspace.\n"
-                "Use `fermilink research ...` or `fermilink reproduce ...` "
-                "for workflow orchestration prompts."
+                "Usage: /mode <exec|loop|research|reproduce>\n"
+                "Normal messages run with this mode in the active workspace."
             )
 
         requested = str(argument).split()[0].strip().lower()
-        if requested not in SUPPORTED_EXECUTION_MODES:
-            return f"Unsupported mode: {requested}\n" "Usage: /mode <loop|exec>"
+        if requested not in SUPPORTED_GATEWAY_RUN_MODES:
+            return (
+                f"Unsupported mode: {requested}\n"
+                "Usage: /mode <exec|loop|research|reproduce>"
+            )
 
         chat_state["execution_mode"] = requested
+        if requested == "exec":
+            return (
+                "Execution mode set to exec.\n"
+                "Normal messages will run with `fermilink exec`."
+            )
         if requested == "loop":
             return (
                 "Execution mode set to loop.\n"
                 "Normal messages will run with `fermilink loop`."
             )
+        if requested == "research":
+            return (
+                "Execution mode set to research.\n"
+                "Normal messages will run with `fermilink research`."
+            )
         return (
-            "Execution mode set to exec.\n"
-            "Normal messages will run with `fermilink exec`."
+            "Execution mode set to reproduce.\n"
+            "Normal messages will run with `fermilink reproduce`."
         )
 
     if command == "/loopcfg":
