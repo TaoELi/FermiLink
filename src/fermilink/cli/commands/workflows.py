@@ -9,6 +9,7 @@ import re
 import shlex
 import shutil
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,6 +55,24 @@ def _cli():
 
 def _utc_now_z() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+WorkflowStatusHook = Callable[[str], None]
+
+
+def _emit_workflow_status(
+    workflow_status_hook: WorkflowStatusHook | None, mode_text: str
+) -> None:
+    if not callable(workflow_status_hook):
+        return
+    status_text = str(mode_text or "").strip()
+    if not status_text:
+        return
+    try:
+        workflow_status_hook(status_text)
+    except Exception:
+        # Keep workflow execution resilient if optional status hooks fail.
+        return
 
 
 def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
@@ -2639,6 +2658,7 @@ def _generate_mode_plan(
     log_tag: str,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
 ) -> dict[str, object]:
     """Generate + audit a workflow plan used by both `reproduce` and `research`."""
 
@@ -2658,6 +2678,7 @@ def _generate_mode_plan(
     )
     planner_prompt = "".join(planner_prompt_parts)
     planner_plan: dict[str, object] | None = None
+    _emit_workflow_status(workflow_status_hook, f"{log_tag} plan")
     for attempt in range(1, planner_max_tries + 1):
         cli._print_tagged(log_tag, f"planner attempt {attempt}/{planner_max_tries}")
         run_result = _run_reproduce_exec_turn(
@@ -2800,6 +2821,7 @@ def _generate_mode_plan(
         + "\n"
     )
     auditor_prompt = "".join(auditor_prompt_parts)
+    _emit_workflow_status(workflow_status_hook, f"{log_tag} audit")
     for attempt in range(1, auditor_max_tries + 1):
         cli._print_tagged(log_tag, f"auditor attempt {attempt}/{auditor_max_tries}")
         run_result = _run_reproduce_exec_turn(
@@ -2877,6 +2899,7 @@ def _generate_reproduce_plan(
     run_dir: Path | None = None,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
 ) -> dict[str, object]:
     return _generate_mode_plan(
         repo_dir=repo_dir,
@@ -2896,6 +2919,7 @@ def _generate_reproduce_plan(
         log_tag="reproduce",
         data_context=data_context,
         hpc_context=hpc_context,
+        workflow_status_hook=workflow_status_hook,
     )
 
 
@@ -2912,6 +2936,7 @@ def _generate_research_plan(
     run_dir: Path | None = None,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
 ) -> dict[str, object]:
     return _generate_mode_plan(
         repo_dir=repo_dir,
@@ -2931,6 +2956,7 @@ def _generate_research_plan(
         log_tag="research",
         data_context=data_context,
         hpc_context=hpc_context,
+        workflow_status_hook=workflow_status_hook,
     )
 
 
@@ -4457,6 +4483,7 @@ def _finalize_workflow_report(
     codex_bin: str,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
 ) -> dict[str, object]:
     """Generate and audit final workflow reports for `reproduce` and `research`."""
 
@@ -4580,6 +4607,7 @@ def _finalize_workflow_report(
     generation_hpc_stall_count = 0
     generation_success = False
     generation_last_hpc_issues: list[dict[str, str]] = []
+    _emit_workflow_status(workflow_status_hook, "summary")
     for attempt in range(1, generation_max_attempts + 1):
         cli._print_tagged(
             workflow_name,
@@ -4713,6 +4741,7 @@ def _finalize_workflow_report(
     audit_hpc_stall_count = 0
     audit_success = False
     audit_last_hpc_issues: list[dict[str, str]] = []
+    _emit_workflow_status(workflow_status_hook, "summary audit")
     for attempt in range(1, audit_max_attempts + 1):
         cli._print_tagged(
             workflow_name,
@@ -4937,6 +4966,10 @@ def cmd_plan_workflow(
         raise cli.PackageError("--pid-stall-seconds must be a number.") from exc
     if pid_stall_seconds < 0:
         raise cli.PackageError("--pid-stall-seconds must be >= 0.")
+    workflow_status_hook_raw = getattr(args, "_fermilink_workflow_status_hook", None)
+    workflow_status_hook: WorkflowStatusHook | None = (
+        workflow_status_hook_raw if callable(workflow_status_hook_raw) else None
+    )
 
     projects_dir = repo_dir / cli.LOOP_MEMORY_DIRNAME
     runs_root = projects_dir / runs_dir_name
@@ -5107,6 +5140,7 @@ def cmd_plan_workflow(
             auditor_max_tries=auditor_max_tries,
             data_context=state_data_context,
             hpc_context=state_hpc_context,
+            workflow_status_hook=workflow_status_hook,
         )
         cli._materialize_mode_plan(
             run_dir=run_dir,
@@ -5148,6 +5182,7 @@ def cmd_plan_workflow(
     tasks_state = state.get("tasks")
     if not isinstance(tasks_state, list) or not tasks_state:
         raise cli.PackageError(f"No tasks found in {workflow_name} state.")
+    total_task_count = len(tasks_state)
     task_runs_state = state.get("task_runs")
     if not isinstance(task_runs_state, dict):
         task_runs_state = {}
@@ -5191,6 +5226,7 @@ def cmd_plan_workflow(
                 codex_bin=args.codex_bin,
                 data_context=state_data_context,
                 hpc_context=state_hpc_context,
+                workflow_status_hook=workflow_status_hook,
             )
         except cli.PackageError as exc:
             state["last_error"] = str(exc)
@@ -5301,6 +5337,7 @@ def cmd_plan_workflow(
                         codex_bin=args.codex_bin,
                         data_context=state_data_context,
                         hpc_context=state_hpc_context,
+                        workflow_status_hook=workflow_status_hook,
                     )
                 except cli.PackageError as exc:
                     state["status"] = "failed"
@@ -5455,13 +5492,26 @@ def cmd_plan_workflow(
             )
 
         run_number = task_runs + 1
+        task_ordinal = current_index + 1
         cli._print_tagged(
             workflow_name,
             (
-                f"task {current_index + 1}/{len(tasks_state)} "
+                f"task {task_ordinal}/{total_task_count} "
                 f"{task_id} run {run_number}/{task_max_runs}"
             ),
         )
+
+        def _workflow_loop_iteration_hook(
+            iteration: int, max_loop_iterations: int
+        ) -> None:
+            _emit_workflow_status(
+                workflow_status_hook,
+                (
+                    f"{workflow_name} task {task_ordinal}/{total_task_count} "
+                    f"loop {iteration}/{max_loop_iterations}"
+                ),
+            )
+
         loop_args = argparse.Namespace(
             command="loop",
             prompt=[str(prompt_path)],
@@ -5475,6 +5525,7 @@ def cmd_plan_workflow(
             init_git=args.init_git,
             no_init_git=args.no_init_git,
             workflow_prompt_preamble=workflow_prompt_preamble,
+            _fermilink_loop_iteration_hook=_workflow_loop_iteration_hook,
         )
         data_guard_before_scan: dict[str, object] | None = None
         if (

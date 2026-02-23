@@ -309,6 +309,8 @@ def test_run_exec_in_workspace_captures_last_message(
 def test_run_research_in_workspace_forwards_hpc_profile(
     monkeypatch, tmp_path: Path
 ) -> None:
+    status_updates: list[str] = []
+
     class _FakeCli:
         def __init__(self) -> None:
             self.research_args = None
@@ -334,6 +336,7 @@ def test_run_research_in_workspace_forwards_hpc_profile(
         pid_stall_seconds=12.0,
         init_git=True,
         hpc_profile="scripts/hpc_profile_anvil.json",
+        workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
     )
     code, outcome = gateway_commands._run_research_in_workspace(
         repo_dir,
@@ -355,6 +358,9 @@ def test_run_research_in_workspace_forwards_hpc_profile(
     assert fake_cli.research_args.hpc_profile == "scripts/hpc_profile_anvil.json"
     assert fake_cli.research_args.plan_only is False
     assert fake_cli.research_args.report_only is False
+    assert callable(fake_cli.research_args._fermilink_workflow_status_hook)
+    fake_cli.research_args._fermilink_workflow_status_hook("research task 1/3 loop 2/8")
+    assert status_updates == ["research task 1/3 loop 2/8"]
 
 
 def test_strip_loop_control_lines_removes_machine_tags() -> None:
@@ -1414,6 +1420,30 @@ def test_status_reports_running_job_details_for_immediate_polling(
     assert "Thinking:" not in status
     assert "Prompt: simulate h2o energy with pyscf" in status
     assert "(UTC" not in status
+
+
+def test_status_reports_workflow_task_progress_with_totals() -> None:
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_id = "778"
+    chat_key = "telegram:778"
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+
+    job, _ = gateway_commands._queue_telegram_run(
+        text="fermilink research benchmark cavity",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+    )
+    gateway_commands._mark_chat_job_running(chat_state, job)
+    chat_state["current_run_mode"] = "research task 2/5 loop 3/10"
+
+    status = gateway_commands._build_status_message(chat_state)
+
+    assert "Agent: <b>running</b>" in status
+    assert "Mode: <code>research task 2/5 loop 3/10</code>" in status
+    assert "<b>Current Run</b>" in status
+    assert "<b>Last Run</b>" not in status
 
 
 def test_status_hides_thinking_line_even_when_progress_log_exists(

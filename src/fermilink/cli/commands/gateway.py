@@ -102,6 +102,7 @@ WorkflowRunner = Callable[
 ]
 WorkspaceRepoEnsurer = Callable[[Path, bool], None]
 LoopIterationHook = Callable[[int, int], None]
+WorkflowStatusHook = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,7 @@ class GatewayLoopConfig:
     init_git: bool
     hpc_profile: str | None = None
     loop_iteration_hook: LoopIterationHook | None = None
+    workflow_status_hook: WorkflowStatusHook | None = None
 
 
 @dataclass(frozen=True)
@@ -1469,6 +1471,7 @@ def _run_workflow_in_workspace(
         resume=True,
         init_git=loop_config.init_git,
         no_init_git=not loop_config.init_git,
+        _fermilink_workflow_status_hook=loop_config.workflow_status_hook,
     )
     previous_cwd = Path.cwd()
     try:
@@ -2936,6 +2939,26 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     run_loop_config = replace(
                         run_loop_config,
                         loop_iteration_hook=_iteration_hook,
+                    )
+                elif mode in SUPPORTED_WORKFLOW_PROMPT_MODES:
+
+                    def _workflow_status_hook(mode_text: str) -> None:
+                        progress_mode = str(mode_text or "").strip()
+                        if not progress_mode:
+                            return
+                        with state_lock:
+                            telegram_local = _telegram_state(state)
+                            chat_state_local = _ensure_chat_state(
+                                telegram_local, job.chat_key
+                            )
+                            if not bool(chat_state_local.get("is_running")):
+                                return
+                            chat_state_local["current_run_mode"] = progress_mode
+                            _save_gateway_state(session_store_path, state)
+
+                    run_loop_config = replace(
+                        run_loop_config,
+                        workflow_status_hook=_workflow_status_hook,
                     )
                 code, outcome = _run_prompt_with_mode(
                     repo_dir=repo_dir,

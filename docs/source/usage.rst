@@ -169,7 +169,9 @@ Gateway behavior:
   timestamp), live agent state ``idle/queued/running``, and when running:
   compact current-run details (including current prompt preview);
   running loop mode displays live iteration progress as ``loop i/max`` when
-  available;
+  available; running workflow task mode displays
+  ``<research|reproduce> task n/n_max loop m/m_max`` with both task progress
+  and in-task loop progress;
   when running, ``Last Run`` is omitted to keep replies concise;
 - ``/new [name]`` creates and switches to a new workspace;
 - ``/use <name-or-id>`` switches back to an existing workspace;

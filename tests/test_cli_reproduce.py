@@ -291,6 +291,61 @@ def test_reproduce_executes_tasks_with_retries(
     assert f"projects/reproduce/{latest_run}/state.json" in memory
 
 
+def test_reproduce_status_hook_emits_task_progress_with_totals(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    status_updates: list[str] = []
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                },
+                {
+                    "id": "task_002",
+                    "title": "task two",
+                    "prompt_markdown": "run task two",
+                },
+            ],
+        },
+    )
+
+    def fake_loop(loop_args) -> int:
+        iteration_hook = getattr(loop_args, "_fermilink_loop_iteration_hook", None)
+        if callable(iteration_hook):
+            iteration_hook(2, 10)
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    parser = cli._build_parser()
+    args = parser.parse_args(["reproduce", "paper.md", "--skip-report"])
+    setattr(
+        args,
+        "_fermilink_workflow_status_hook",
+        lambda mode_text: status_updates.append(str(mode_text)),
+    )
+
+    code = cli._cmd_reproduce(args)
+    assert code == 0
+    assert status_updates == [
+        "reproduce task 1/2 loop 2/10",
+        "reproduce task 2/2 loop 2/10",
+    ]
+
+
 def test_reproduce_loop_preamble_enforces_simulation_execution(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -764,6 +819,7 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     generation_marker = f"<!-- FERMILINK_REPORT_STAGE:generated run_id={run_id} -->"
     audit_marker = f"<!-- FERMILINK_REPORT_STAGE:audited run_id={run_id} -->"
     prompts: list[str] = []
+    status_updates: list[str] = []
 
     def fake_exec_turn(**kwargs) -> dict[str, object]:
         prompt = str(kwargs.get("prompt") or "")
@@ -811,6 +867,7 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
         requested_package_id=None,
         sandbox_override=None,
         codex_bin="codex",
+        workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
     )
     assert Path(str(info["report_path"])) == run_dir / "report.md"
     assert not (runs_root / "report.md").exists()
@@ -856,6 +913,7 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     assert "After completing this stage, update `projects/memory.md`" in prompts[1]
     assert "### Parameter source mapping" in prompts[1]
     assert "### Simulation uncertainty" in prompts[1]
+    assert status_updates == ["summary", "summary audit"]
 
 
 def test_finalize_workflow_report_rejects_stale_generation_outputs(
@@ -1329,6 +1387,7 @@ def test_generate_reproduce_plan_omits_dry_run_prompt_requirements(
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
     prompts: list[str] = []
+    status_updates: list[str] = []
 
     plan_payload = {
         "version": 1,
@@ -1363,11 +1422,13 @@ def test_generate_reproduce_plan_omits_dry_run_prompt_requirements(
         codex_bin="codex",
         planner_max_tries=1,
         auditor_max_tries=1,
+        workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
     )
     assert plan["version"] == 1
     assert len(prompts) == 2
     assert "Dry-run planning requirements:" not in prompts[0]
     assert "Dry-run audit requirements:" not in prompts[1]
+    assert status_updates == ["reproduce plan", "reproduce audit"]
 
 
 def test_generate_reproduce_plan_appends_hpc_prompt_context(

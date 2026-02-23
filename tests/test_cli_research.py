@@ -83,6 +83,7 @@ def test_generate_research_plan_includes_unified_memory_stage_instructions(
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
     prompts: list[str] = []
+    status_updates: list[str] = []
 
     plan_payload = {
         "version": 1,
@@ -117,6 +118,7 @@ def test_generate_research_plan_includes_unified_memory_stage_instructions(
         codex_bin="codex",
         planner_max_tries=1,
         auditor_max_tries=1,
+        workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
     )
 
     assert plan["version"] == 1
@@ -131,6 +133,7 @@ def test_generate_research_plan_includes_unified_memory_stage_instructions(
     assert "After completing this stage, update `projects/memory.md`" in prompts[1]
     assert "### Parameter source mapping" in prompts[1]
     assert "### Simulation uncertainty" in prompts[1]
+    assert status_updates == ["research plan", "research audit"]
 
 
 def test_research_plan_only_writes_plan_without_running_loop(
@@ -313,6 +316,61 @@ def test_research_executes_tasks_with_retries(
     assert "## Workflow context" in memory
     assert f"projects/research/{latest_run}/plan.json" in memory
     assert f"projects/research/{latest_run}/state.json" in memory
+
+
+def test_research_status_hook_emits_task_progress_with_totals(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    status_updates: list[str] = []
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                },
+                {
+                    "id": "task_002",
+                    "title": "task two",
+                    "prompt_markdown": "run task two",
+                },
+            ],
+        },
+    )
+
+    def fake_loop(loop_args) -> int:
+        iteration_hook = getattr(loop_args, "_fermilink_loop_iteration_hook", None)
+        if callable(iteration_hook):
+            iteration_hook(2, 10)
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    parser = cli._build_parser()
+    args = parser.parse_args(["research", "idea.md", "--skip-report"])
+    setattr(
+        args,
+        "_fermilink_workflow_status_hook",
+        lambda mode_text: status_updates.append(str(mode_text)),
+    )
+
+    code = cli._cmd_research(args)
+    assert code == 0
+    assert status_updates == [
+        "research task 1/2 loop 2/10",
+        "research task 2/2 loop 2/10",
+    ]
 
 
 def test_research_resume_uses_user_edited_plan(
