@@ -164,7 +164,9 @@ Gateway behavior:
   code, fenced code blocks, and links) when displayed in Telegram/iPhone;
 - ``/status`` returns a quick health snapshot for the current chat (gateway
   online response timestamp in local machine timezone, current mode, active
-  workspace label, live agent state ``idle/queued/running``, and when running:
+  workspace label, latest progress from the last ``### Progress log`` entry
+  (with local-time timestamp formatting when the entry starts with a UTC ISO
+  timestamp), live agent state ``idle/queued/running``, and when running:
   compact current-run details (including current prompt preview);
   running loop mode displays live iteration progress as ``loop i/max`` when
   available;

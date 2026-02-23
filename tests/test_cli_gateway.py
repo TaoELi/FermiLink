@@ -1407,6 +1407,8 @@ def test_status_reports_running_job_details_for_immediate_polling(
     assert "Agent: <b>running</b>" in status
     assert "<b>Current Run</b>" in status
     assert status.count("Mode: <code>loop 2/10</code>") == 1
+    assert "Latest progress:" in status
+    assert "patched parser for SCF stability reporting" in status
     assert "Workspace:" not in status
     assert "<b>Last Run</b>" not in status
     assert "Thinking:" not in status
@@ -1447,9 +1449,41 @@ def test_status_hides_thinking_line_even_when_progress_log_exists(
     status = gateway_commands._build_status_message(chat_state, repo_dir=repo_dir)
 
     assert "Thinking:" not in status
-    assert "finished mesh sweep for cavity mode" not in status
+    assert "Latest progress:" in status
+    assert "finished mesh sweep for cavity mode" in status
     assert "Long-Term Memory (Persistent)" not in status
     assert "this line must never be parsed as progress" not in status
+
+
+def test_status_latest_progress_formats_timestamp_and_markdown(tmp_path: Path) -> None:
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_state = gateway_commands._ensure_chat_state(telegram, "telegram:780")
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Progress log\n"
+            "- initialized\n"
+            "- 2026-02-23T12:42:11Z: Completed "
+            "`projects/2026-02-23-hcn-bragg-rttddft-rescaling-sweep-x2-x32/summary.md` "
+            "with sweep checks.\n"
+        ),
+        encoding="utf-8",
+    )
+
+    status = gateway_commands._build_status_message(chat_state, repo_dir=repo_dir)
+    expected_local = gateway_commands._format_local_timestamp("2026-02-23T12:42:11Z")
+
+    assert "Latest progress:" in status
+    assert expected_local in status
+    assert "2026-02-23T12:42:11Z" not in status
+    assert (
+        "<code>projects/2026-02-23-hcn-bragg-rttddft-rescaling-sweep-x2-x32/summary.md</code>"
+        in status
+    )
 
 
 def test_status_reports_queued_when_requests_waiting() -> None:

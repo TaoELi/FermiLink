@@ -42,6 +42,9 @@ SIM_UNCERTAINTY_FIELD_RE = re.compile(
     r"^(run_id|uncertainty_or_assumption|impact|mitigation_or_next_step|status)\s*:\s*(.*)$",
     re.IGNORECASE,
 )
+PROGRESS_LOG_TIMESTAMP_RE = re.compile(
+    r"^\s*(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s*:\s*(?P<body>.+)\s*$"
+)
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
 SUPPORTED_WORKFLOW_PROMPT_MODES = {"research", "reproduce"}
 SUPPORTED_GATEWAY_RUN_MODES = (
@@ -1608,6 +1611,51 @@ def _extract_memory_section_items(
     return items[-max_items:]
 
 
+def _extract_latest_progress_log_entry(memory_text: str) -> str:
+    lines = memory_text.splitlines()
+    in_progress = False
+    entries: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        heading_match = MARKDOWN_HEADING_LINE_RE.match(raw)
+        if heading_match is not None:
+            heading_text = str(heading_match.group(1) or "").strip().lower()
+            if heading_text == "progress log":
+                in_progress = True
+                continue
+            if in_progress:
+                break
+        if not in_progress:
+            continue
+        if not stripped.startswith("- "):
+            continue
+        item = stripped[2:].strip()
+        if item:
+            entries.append(item)
+    if not entries:
+        return ""
+    return entries[-1]
+
+
+def _format_latest_progress_for_status(entry: str) -> str:
+    raw = str(entry or "").strip()
+    if not raw:
+        return ""
+    body = raw
+    prefix = ""
+    match = PROGRESS_LOG_TIMESTAMP_RE.match(raw)
+    if match is not None:
+        timestamp = _format_local_timestamp(str(match.group("ts") or "").strip())
+        body = str(match.group("body") or "").strip()
+        if timestamp:
+            prefix = f"<code>{_html_escape(timestamp)}</code>: "
+    body = _truncate_message(body, limit=520)
+    rendered_body = _render_agent_markdown_html(body).strip()
+    if not rendered_body:
+        rendered_body = _html_escape(body)
+    return f"{prefix}{rendered_body}".strip()
+
+
 def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
     normalized = str(item).replace("`", "").strip()
     parts = [part.strip() for part in normalized.split("|")]
@@ -2225,6 +2273,14 @@ def _build_status_message(
         chat_state.get("current_run_prompt_preview") or ""
     ).strip()
     mode_text = current_run_mode if is_running and current_run_mode else mode
+    latest_progress_text = ""
+    if repo_dir is not None:
+        memory_text = _load_memory_text(repo_dir)
+        if memory_text:
+            latest_progress_entry = _extract_latest_progress_log_entry(memory_text)
+            latest_progress_text = _format_latest_progress_for_status(
+                latest_progress_entry
+            )
 
     lines = [
         "<b>Gateway Status</b>",
@@ -2233,6 +2289,8 @@ def _build_status_message(
         f"• Mode: <code>{_html_escape(mode_text)}</code>",
         f"• Active workspace: <code>{_html_escape(active_workspace_text)}</code>",
     ]
+    if latest_progress_text:
+        lines.append(f"• Latest progress: {latest_progress_text}")
 
     if is_running:
         lines.append("")
