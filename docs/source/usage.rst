@@ -134,9 +134,12 @@ Gateway behavior:
 - normal messages run in the active workspace so follow-up requests reuse
   ``projects/memory.md`` history;
 - run replies are rendered as a human-friendly summary from memory sections
-  (completed plan items + key findings), instead of raw status payloads;
+  (completed plan items + key findings + parameter provenance + uncertainty notes),
+  instead of raw status payloads;
   key findings show only the last `### Key results` entry from memory so
   completion messages reflect the newest recorded simulation result;
+  parameter provenance and uncertainty sections similarly show only entries
+  matching the latest run id within their respective memory sections;
 - generated figures/documents are auto-attached back to Telegram when available
   so plots can be viewed directly on mobile clients;
 - ``/mode <exec|loop|research|reproduce>`` switches normal-message execution

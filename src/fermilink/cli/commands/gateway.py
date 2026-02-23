@@ -34,6 +34,14 @@ KEY_RESULT_FIELD_RE = re.compile(
     r"^(result_id|metric|value|conditions|evidence_path)\s*:\s*(.*)$",
     re.IGNORECASE,
 )
+PARAM_SOURCE_FIELD_RE = re.compile(
+    r"^(run_id|parameter_or_setting|value|source|evidence_path|notes)\s*:\s*(.*)$",
+    re.IGNORECASE,
+)
+SIM_UNCERTAINTY_FIELD_RE = re.compile(
+    r"^(run_id|uncertainty_or_assumption|impact|mitigation_or_next_step|status)\s*:\s*(.*)$",
+    re.IGNORECASE,
+)
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
 SUPPORTED_WORKFLOW_PROMPT_MODES = {"research", "reproduce"}
 SUPPORTED_GATEWAY_RUN_MODES = (
@@ -1568,6 +1576,38 @@ def _extract_plan_progress(
     return done, pending
 
 
+def _extract_memory_section_items(
+    memory_text: str,
+    *,
+    heading: str,
+    placeholder_markers: tuple[str, ...],
+    max_items: int = 5,
+) -> list[str]:
+    lines = memory_text.splitlines()
+    in_section = False
+    items: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("### "):
+            if stripped == heading:
+                in_section = True
+                continue
+            if in_section:
+                break
+        if not in_section:
+            continue
+        if not stripped.startswith("- "):
+            continue
+        item = stripped[2:].strip()
+        lowered = item.lower()
+        if not item:
+            continue
+        if item.startswith("(") and all(marker in lowered for marker in placeholder_markers):
+            continue
+        items.append(item)
+    return items[-max_items:]
+
+
 def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
     normalized = str(item).replace("`", "").strip()
     parts = [part.strip() for part in normalized.split("|")]
@@ -1622,6 +1662,157 @@ def _split_key_result_item(item: str) -> tuple[str, str, str, str, str]:
     return "", normalized, "", "", ""
 
 
+def _split_parameter_source_item(item: str) -> tuple[str, str, str, str, str, str]:
+    normalized = str(item).replace("`", "").strip()
+    parts = [part.strip() for part in normalized.split("|")]
+    if any(PARAM_SOURCE_FIELD_RE.match(part or "") for part in parts):
+        fields = {
+            "run_id": "",
+            "parameter_or_setting": "",
+            "value": "",
+            "source": "",
+            "evidence_path": "",
+            "notes": "",
+        }
+        current_field: str | None = None
+        for token in parts:
+            text = token.strip()
+            if not text:
+                continue
+            match = PARAM_SOURCE_FIELD_RE.match(text)
+            if match is not None:
+                current_field = str(match.group(1)).lower()
+                text = str(match.group(2) or "").strip()
+            elif current_field is None:
+                current_field = "parameter_or_setting"
+
+            if current_field is None or not text:
+                continue
+            existing = str(fields.get(current_field) or "").strip()
+            if existing:
+                fields[current_field] = f"{existing} | {text}"
+            else:
+                fields[current_field] = text
+        return (
+            str(fields["run_id"]),
+            str(fields["parameter_or_setting"]),
+            str(fields["value"]),
+            str(fields["source"]),
+            str(fields["evidence_path"]),
+            str(fields["notes"]),
+        )
+
+    if len(parts) >= 6:
+        run_id = parts[0]
+        parameter = parts[1]
+        value = parts[2]
+        source = parts[3]
+        evidence_path = parts[4]
+        notes = " | ".join(parts[5:]).strip()
+        return run_id, parameter, value, source, evidence_path, notes
+    if len(parts) == 5:
+        run_id, parameter, value, source, evidence_path = parts
+        return run_id, parameter, value, source, evidence_path, ""
+    if len(parts) == 4:
+        run_id, parameter, value, source = parts
+        return run_id, parameter, value, source, "", ""
+    if len(parts) == 3:
+        run_id, parameter, value = parts
+        return run_id, parameter, value, "", "", ""
+    if len(parts) == 2:
+        run_id, parameter = parts
+        return run_id, parameter, "", "", "", ""
+    return "", normalized, "", "", "", ""
+
+
+def _split_simulation_uncertainty_item(item: str) -> tuple[str, str, str, str, str]:
+    normalized = str(item).replace("`", "").strip()
+    parts = [part.strip() for part in normalized.split("|")]
+    if any(SIM_UNCERTAINTY_FIELD_RE.match(part or "") for part in parts):
+        fields = {
+            "run_id": "",
+            "uncertainty_or_assumption": "",
+            "impact": "",
+            "mitigation_or_next_step": "",
+            "status": "",
+        }
+        current_field: str | None = None
+        for token in parts:
+            text = token.strip()
+            if not text:
+                continue
+            match = SIM_UNCERTAINTY_FIELD_RE.match(text)
+            if match is not None:
+                current_field = str(match.group(1)).lower()
+                text = str(match.group(2) or "").strip()
+            elif current_field is None:
+                current_field = "uncertainty_or_assumption"
+
+            if current_field is None or not text:
+                continue
+            existing = str(fields.get(current_field) or "").strip()
+            if existing:
+                fields[current_field] = f"{existing} | {text}"
+            else:
+                fields[current_field] = text
+        return (
+            str(fields["run_id"]),
+            str(fields["uncertainty_or_assumption"]),
+            str(fields["impact"]),
+            str(fields["mitigation_or_next_step"]),
+            str(fields["status"]),
+        )
+
+    if len(parts) >= 5:
+        run_id = parts[0]
+        uncertainty = parts[1]
+        impact = parts[2]
+        mitigation = parts[3]
+        status = " | ".join(parts[4:]).strip()
+        return run_id, uncertainty, impact, mitigation, status
+    if len(parts) == 4:
+        run_id, uncertainty, impact, mitigation = parts
+        return run_id, uncertainty, impact, mitigation, ""
+    if len(parts) == 3:
+        run_id, uncertainty, impact = parts
+        return run_id, uncertainty, impact, "", ""
+    if len(parts) == 2:
+        run_id, uncertainty = parts
+        return run_id, uncertainty, "", "", ""
+    return "", normalized, "", "", ""
+
+
+def _parameter_source_run_id(item: str) -> str:
+    run_id, _, _, _, _, _ = _split_parameter_source_item(item)
+    return str(run_id).strip()
+
+
+def _simulation_uncertainty_run_id(item: str) -> str:
+    run_id, _, _, _, _ = _split_simulation_uncertainty_item(item)
+    return str(run_id).strip()
+
+
+def _filter_items_to_latest_run_id(
+    items: list[str], *, run_id_resolver: Callable[[str], str]
+) -> list[str]:
+    if not items:
+        return []
+    latest_run_id = ""
+    for raw in reversed(items):
+        candidate = str(run_id_resolver(raw)).strip()
+        if candidate:
+            latest_run_id = candidate
+            break
+    if not latest_run_id:
+        return items
+    filtered = [
+        item
+        for item in items
+        if str(run_id_resolver(item)).strip() == latest_run_id
+    ]
+    return filtered if filtered else items
+
+
 def _select_key_results_for_summary(
     key_results: list[str], *, max_items: int = 4
 ) -> list[str]:
@@ -1649,6 +1840,62 @@ def _format_key_results_human(
             lines.append((entry, _truncate_message(condition_text, limit=140)))
         else:
             lines.append((entry, None))
+    return lines
+
+
+def _format_parameter_source_mapping_human(
+    items: list[str], *, max_items: int = 3
+) -> list[tuple[str, str | None]]:
+    lines: list[tuple[str, str | None]] = []
+    for item in items[:max_items]:
+        run_id, parameter, value, source, evidence_path, notes = (
+            _split_parameter_source_item(item)
+        )
+        title = parameter or run_id or "parameter/source entry"
+        if run_id and parameter:
+            title = f"[{run_id}] {title}"
+        if value:
+            title = f"{title}: {value}"
+        detail_parts: list[str] = []
+        if source:
+            detail_parts.append(f"source: {source}")
+        if evidence_path:
+            detail_parts.append(f"evidence: {evidence_path}")
+        if notes:
+            detail_parts.append(notes)
+        detail = (
+            _truncate_message("; ".join(detail_parts), limit=220)
+            if detail_parts
+            else None
+        )
+        lines.append((_truncate_message(title, limit=220), detail))
+    return lines
+
+
+def _format_simulation_uncertainty_human(
+    items: list[str], *, max_items: int = 3
+) -> list[tuple[str, str | None]]:
+    lines: list[tuple[str, str | None]] = []
+    for item in items[:max_items]:
+        run_id, uncertainty, impact, mitigation, status = (
+            _split_simulation_uncertainty_item(item)
+        )
+        title = uncertainty or run_id or "uncertainty entry"
+        if run_id and uncertainty:
+            title = f"[{run_id}] {title}"
+        detail_parts: list[str] = []
+        if impact:
+            detail_parts.append(f"impact: {impact}")
+        if mitigation:
+            detail_parts.append(f"next step: {mitigation}")
+        if status:
+            detail_parts.append(f"status: {status}")
+        detail = (
+            _truncate_message("; ".join(detail_parts), limit=220)
+            if detail_parts
+            else None
+        )
+        lines.append((_truncate_message(title, limit=220), detail))
     return lines
 
 
@@ -1826,17 +2073,45 @@ def _build_run_summary_message(
     key_results: list[str] = []
     done_steps: list[str] = []
     pending_steps: list[str] = []
+    parameter_source_items: list[str] = []
+    simulation_uncertainty_items: list[str] = []
     try:
         if memory_path.is_file():
             memory_text = memory_path.read_text(encoding="utf-8")
             key_results = _extract_key_results(memory_text, max_items=20)
             done_steps, pending_steps = _extract_plan_progress(memory_text)
+            parameter_source_items = _extract_memory_section_items(
+                memory_text,
+                heading="### Parameter source mapping",
+                placeholder_markers=("run_id", "parameter_or_setting", "source"),
+                max_items=8,
+            )
+            simulation_uncertainty_items = _extract_memory_section_items(
+                memory_text,
+                heading="### Simulation uncertainty",
+                placeholder_markers=(
+                    "run_id",
+                    "uncertainty_or_assumption",
+                    "mitigation_or_next_step",
+                ),
+                max_items=8,
+            )
     except OSError:
         key_results = []
         done_steps = []
         pending_steps = []
+        parameter_source_items = []
+        simulation_uncertainty_items = []
 
     summary_key_results = _select_key_results_for_summary(key_results, max_items=1)
+    parameter_source_items = _filter_items_to_latest_run_id(
+        parameter_source_items,
+        run_id_resolver=_parameter_source_run_id,
+    )
+    simulation_uncertainty_items = _filter_items_to_latest_run_id(
+        simulation_uncertainty_items,
+        run_id_resolver=_simulation_uncertainty_run_id,
+    )
 
     if done_steps:
         lines.append("")
@@ -1856,6 +2131,34 @@ def _build_run_summary_message(
         lines.append("<b>Key Findings</b>")
         lines.append(
             "• Key findings are not recorded yet in <code>projects/memory.md</code>."
+        )
+
+    lines.append("")
+    lines.append("<b>Parameter Source Mapping</b>")
+    if parameter_source_items:
+        for headline, detail in _format_parameter_source_mapping_human(
+            parameter_source_items
+        ):
+            lines.append(f"• {_html_escape(headline)}")
+            if detail:
+                lines.append(f"  <i>{_html_escape(detail)}</i>")
+    else:
+        lines.append(
+            "• Parameter provenance is not recorded yet in <code>projects/memory.md</code>."
+        )
+
+    lines.append("")
+    lines.append("<b>Simulation Uncertainty</b>")
+    if simulation_uncertainty_items:
+        for headline, detail in _format_simulation_uncertainty_human(
+            simulation_uncertainty_items
+        ):
+            lines.append(f"• {_html_escape(headline)}")
+            if detail:
+                lines.append(f"  <i>{_html_escape(detail)}</i>")
+    else:
+        lines.append(
+            "• Uncertainty notes are not recorded yet in <code>projects/memory.md</code>."
         )
 
     if pending_steps:

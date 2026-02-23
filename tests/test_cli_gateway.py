@@ -503,6 +503,8 @@ def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> Non
     assert "The requested simulation workflow finished successfully." in first
     assert "<b>What Was Done</b>" in first
     assert "<b>Key Findings</b>" in first
+    assert "<b>Parameter Source Mapping</b>" in first
+    assert "<b>Simulation Uncertainty</b>" in first
     assert "<b>Recent Artifacts</b>" in first
     assert "Run complete in workspace" in second
     assert "Switched to new workspace" in new_reply
@@ -1582,3 +1584,54 @@ def test_run_summary_uses_only_last_key_finding_entry(
     assert summary.count("Pe(t):") == 1
     assert "latest run" in summary
     assert "old run" not in summary
+
+
+def test_run_summary_includes_parameter_source_and_uncertainty_sections(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Key results\n"
+            "- result_id: r1 | metric: splitting | value: 5210 cm^-1 | "
+            "conditions: x8 | evidence_path: projects/result.json\n\n"
+            "### Parameter source mapping\n"
+            "- run_03 | dt_fs | 0.02 | project README defaults | "
+            "projects/input.yaml | stable in x4 sweep\n"
+            "- run_id: run_04 | parameter_or_setting: kappa | "
+            "value: max |E| threshold | source: sweep script defaults | "
+            "evidence_path: projects/sweep.json | notes: tune after x16 check\n\n"
+            "### Simulation uncertainty\n"
+            "- run_03 | unresolved basis-set sensitivity | shifts splitting by ~5% | "
+            "run higher basis sanity check | open\n"
+            "- run_id: run_04 | uncertainty_or_assumption: detector window clipping | "
+            "impact: may clip |Omega| peaks | "
+            "mitigation_or_next_step: widen window and refit | status: planned\n"
+        ),
+        encoding="utf-8",
+    )
+
+    summary = gateway_commands._build_run_summary_message(
+        mode="loop",
+        workspace={"id": "mxl", "label": "mxl"},
+        repo_dir=repo_dir,
+        code=0,
+        outcome={"status": "done", "reason": "done_token"},
+    )
+
+    assert "<b>Parameter Source Mapping</b>" in summary
+    assert "[run_04] kappa:" in summary
+    assert "source: sweep script defaults" in summary
+    assert "evidence: projects/sweep.json" in summary
+    assert "[run_03] dt_fs: 0.02" not in summary
+    assert "<b>Simulation Uncertainty</b>" in summary
+    assert "[run_04] detector window clipping" in summary
+    assert "impact: may clip" in summary
+    assert "Omega" in summary
+    assert "peaks" in summary
+    assert "next step: widen window and refit" in summary
+    assert "status: planned" in summary
+    assert "[run_03] unresolved basis-set sensitivity" not in summary
