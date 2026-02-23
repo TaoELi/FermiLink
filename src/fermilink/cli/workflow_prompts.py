@@ -236,6 +236,14 @@ WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX = (
     "You are running in **FermiLink workflow summary mode**.\n"
     "\n"
     "You must generate concise per-task summaries and a polished top-level summary report.\n"
+    "The top-level report must be written as an APS Physical Review A style paper in Markdown\n"
+    "(publication-style scientific writing while remaining faithful to available artifacts).\n"
+    "Cover: title, abstract, background/introduction, theory + methods, simulation results,\n"
+    "discussion, conclusion, and reproducibility notes.\n"
+    "Figures should be inserted as Markdown image links to artifact paths when available; otherwise, explicitly note missing figures.\n"
+    "Results must be grounded in performed simulations and linked artifact paths; explicitly mark\n"
+    "missing evidence or unresolved gaps instead of inventing claims.\n"
+    "Use clean Markdown headings, readable narrative flow, and concise technical precision.\n"
 )
 
 WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
@@ -243,6 +251,11 @@ WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
     "\n"
     "You are an independent reviewer. Read the generated summary report and improve it for\n"
     "scientific clarity, completeness, and reproducibility.\n"
+    "Preserve and strengthen APS Physical Review A style structure in Markdown and polish language\n"
+    "flow to read like a human-written published paper.\n"
+    "Improve transitions, narrative coherence, terminology consistency, and reader accessibility\n"
+    "without changing factual conclusions beyond available evidence.\n"
+    "Do not fabricate data; flag uncertain or missing support explicitly.\n"
 )
 
 WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX = (

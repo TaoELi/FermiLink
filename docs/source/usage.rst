@@ -253,6 +253,10 @@ publication-scale requests.
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
 ``report.md``).
+The finalized ``report.md`` is generated as an APS Physical Review A style
+Markdown manuscript (background/theory/results/conclusion plus reproducibility
+notes), and the summary-audit stage polishes language flow for publication-like
+readability while preserving evidence-grounded claims.
 Planner/auditor and final summary/audit stages follow the same unified-memory
 contract as loop tasks: read/update ``projects/memory.md`` with concise
 short-term progress and relevant long-term durable outcomes.
@@ -308,6 +312,9 @@ paper.
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
 ``report.md``) and support resume from edited plan state.
+The finalized ``report.md`` follows the same APS Physical Review A style
+Markdown manuscript format, and the summary-audit stage improves scientific
+writing flow and readability without inventing unsupported results.
 Planner/auditor and final summary/audit stages also read/update
 ``projects/memory.md`` under the unified-memory contract.
 ``research`` also always executes planned simulation work (no dry-run mode).
