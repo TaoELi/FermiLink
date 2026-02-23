@@ -234,7 +234,9 @@ def test_research_executes_tasks_with_retries(
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
     assert "Before acting, read `projects/memory.md`." in loop_preambles[0]
-    assert "Before acting, read original paper or request `idea.md`." in loop_preambles[0]
+    assert (
+        "Before acting, read original paper or request `idea.md`." in loop_preambles[0]
+    )
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()

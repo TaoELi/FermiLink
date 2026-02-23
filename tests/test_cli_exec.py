@@ -339,7 +339,9 @@ def test_exec_hpc_profile_appends_execution_target_constraints(
     )
     monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
 
-    code = cli.main(["exec", "simulate one cavity", "--hpc-profile", "hpc_profile.json"])
+    code = cli.main(
+        ["exec", "simulate one cavity", "--hpc-profile", "hpc_profile.json"]
+    )
     assert code == 0
     prompt = str(captured["prompt"])
     assert "Execution target constraints:" in prompt

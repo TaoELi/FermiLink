@@ -237,7 +237,11 @@ def test_loop_hpc_profile_appends_execution_target_constraints(
         cli,
         "_run_exec_chat_turn",
         lambda **kwargs: captured.update(kwargs)
-        or {"assistant_text": f"{cli.LOOP_DONE_TOKEN}\n", "return_code": 0, "stderr": ""},
+        or {
+            "assistant_text": f"{cli.LOOP_DONE_TOKEN}\n",
+            "return_code": 0,
+            "stderr": "",
+        },
     )
     monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
 
@@ -477,6 +481,7 @@ def test_loop_waits_for_pid_tags_before_next_iteration(
     run_calls: list[dict[str, object]] = []
 
     try:
+
         def fake_run_chat_turn(**kwargs):
             run_calls.append(kwargs)
             if len(run_calls) == 1:
@@ -486,7 +491,11 @@ def test_loop_waits_for_pid_tags_before_next_iteration(
                     "stderr": "",
                 }
             assert proc.poll() is not None
-            return {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""}
+            return {
+                "assistant_text": cli.LOOP_DONE_TOKEN,
+                "return_code": 0,
+                "stderr": "",
+            }
 
         monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
         monkeypatch.setattr(
@@ -559,6 +568,7 @@ def test_loop_pid_wait_respects_max_wait_cap(
     run_calls: list[dict[str, object]] = []
 
     try:
+
         def fake_run_chat_turn(**kwargs):
             run_calls.append(kwargs)
             if len(run_calls) == 1:
@@ -568,7 +578,11 @@ def test_loop_pid_wait_respects_max_wait_cap(
                     "stderr": "",
                 }
             assert proc.poll() is None
-            return {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""}
+            return {
+                "assistant_text": cli.LOOP_DONE_TOKEN,
+                "return_code": 0,
+                "stderr": "",
+            }
 
         monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
         monkeypatch.setattr(
@@ -668,7 +682,11 @@ def test_loop_waits_for_pid_and_slurm_tags_before_next_iteration(
                     "stderr": "",
                 }
             assert proc.poll() is not None
-            return {"assistant_text": cli.LOOP_DONE_TOKEN, "return_code": 0, "stderr": ""}
+            return {
+                "assistant_text": cli.LOOP_DONE_TOKEN,
+                "return_code": 0,
+                "stderr": "",
+            }
 
         monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_chat_turn)
         monkeypatch.setattr(
@@ -737,9 +755,7 @@ def test_loop_slurm_wait_skips_when_tools_unavailable(
     )
 
     run_calls: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        session_commands, "_slurm_wait_tools_available", lambda: False
-    )
+    monkeypatch.setattr(session_commands, "_slurm_wait_tools_available", lambda: False)
     monkeypatch.setattr(
         session_commands,
         "_query_slurm_job_state",
@@ -820,9 +836,7 @@ def test_loop_pid_issue_breaks_mixed_wait_early(
             "linked_dependency_count": 0,
         },
     )
-    monkeypatch.setattr(
-        cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None
-    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
 
     run_calls: list[dict[str, object]] = []
 
@@ -871,7 +885,9 @@ def test_loop_pid_issue_breaks_mixed_wait_early(
             cpu_seconds=float(pid_calls[pid]),
         )
 
-    monkeypatch.setattr(session_commands, "_query_pid_snapshot", fake_query_pid_snapshot)
+    monkeypatch.setattr(
+        session_commands, "_query_pid_snapshot", fake_query_pid_snapshot
+    )
 
     clock = {"now": 0.0}
     monkeypatch.setattr(session_commands.time, "monotonic", lambda: clock["now"])
@@ -938,9 +954,7 @@ def test_loop_pid_stall_triggers_early_handoff(
             "linked_dependency_count": 0,
         },
     )
-    monkeypatch.setattr(
-        cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None
-    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
     monkeypatch.setattr(session_commands, "_slurm_wait_tools_available", lambda: False)
 
     run_calls: list[dict[str, object]] = []
@@ -1369,42 +1383,36 @@ def test_extract_loop_pid_numbers_returns_unique_positive_integers() -> None:
     assert cli._extract_loop_pid_numbers("<pid_number>-1</pid_number>") == []
     assert cli._extract_loop_pid_numbers("<pid_number>abc</pid_number>") == []
     assert cli._extract_loop_pid_numbers("<pid_number>0</pid_number>") == []
-    assert (
-        cli._extract_loop_pid_numbers(
-            (
-                "working\n"
-                "<pid_number>15</pid_number>\n"
-                "<pid_number>15</pid_number>\n"
-                "<pid_number>42</pid_number>\n"
-            )
+    assert cli._extract_loop_pid_numbers(
+        (
+            "working\n"
+            "<pid_number>15</pid_number>\n"
+            "<pid_number>15</pid_number>\n"
+            "<pid_number>42</pid_number>\n"
         )
-        == [15, 42]
-    )
+    ) == [15, 42]
 
 
 def test_extract_loop_slurm_job_numbers_returns_unique_values() -> None:
     assert cli._extract_loop_slurm_job_numbers("no token here") == []
-    assert cli._extract_loop_slurm_job_numbers("<slurm_job_number>abc</slurm_job_number>") == []
     assert (
-        cli._extract_loop_slurm_job_numbers(
-            (
-                "working\n"
-                "<slurm_job_number>123</slurm_job_number>\n"
-                "<slurm_job_number>123</slurm_job_number>\n"
-                "<slurm_job_number>456</slurm_job_number>\n"
-            )
-        )
-        == ["123", "456"]
+        cli._extract_loop_slurm_job_numbers("<slurm_job_number>abc</slurm_job_number>")
+        == []
     )
-    assert (
-        cli._extract_loop_slurm_job_numbers(
-            (
-                "<slurm_job_number>123_4</slurm_job_number>\n"
-                "<slurm_job_number>123_4.batch</slurm_job_number>\n"
-            )
+    assert cli._extract_loop_slurm_job_numbers(
+        (
+            "working\n"
+            "<slurm_job_number>123</slurm_job_number>\n"
+            "<slurm_job_number>123</slurm_job_number>\n"
+            "<slurm_job_number>456</slurm_job_number>\n"
         )
-        == ["123_4", "123_4.batch"]
-    )
+    ) == ["123", "456"]
+    assert cli._extract_loop_slurm_job_numbers(
+        (
+            "<slurm_job_number>123_4</slurm_job_number>\n"
+            "<slurm_job_number>123_4.batch</slurm_job_number>\n"
+        )
+    ) == ["123_4", "123_4.batch"]
 
 
 def test_ensure_loop_memory_upgrades_legacy_schema(

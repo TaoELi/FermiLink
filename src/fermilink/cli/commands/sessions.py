@@ -182,10 +182,8 @@ def _refresh_pid_monitors(
         last_progress_monotonic = monitor.last_progress_monotonic
         if snapshot.cpu_seconds is None:
             progress_observable = False
-        elif (
-            last_cpu_seconds is None
-            or snapshot.cpu_seconds
-            > (last_cpu_seconds + PID_STALL_PROGRESS_EPSILON_SECONDS)
+        elif last_cpu_seconds is None or snapshot.cpu_seconds > (
+            last_cpu_seconds + PID_STALL_PROGRESS_EPSILON_SECONDS
         ):
             last_progress_monotonic = now_monotonic
             last_cpu_seconds = snapshot.cpu_seconds
@@ -395,7 +393,9 @@ def _refresh_slurm_monitors(
     *,
     now_monotonic: float,
     unknown_poll_limit: int,
-) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, _SlurmMonitor]]:
+) -> tuple[
+    list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, _SlurmMonitor]
+]:
     pending: list[str] = []
     failed: list[tuple[str, str]] = []
     issues: list[tuple[str, str]] = []
@@ -414,9 +414,7 @@ def _refresh_slurm_monitors(
                 if state != previous.last_state
                 else previous.last_state_change_monotonic
             )
-            unknown_polls = (
-                previous.unknown_polls + 1 if state == "UNKNOWN" else 0
-            )
+            unknown_polls = previous.unknown_polls + 1 if state == "UNKNOWN" else 0
 
         monitor = _SlurmMonitor(
             last_state=state,
@@ -479,8 +477,7 @@ def _assemble_prompt_with_optional_constraints(
     if constraints_block and prompt_prefix.endswith(request_marker):
         base_prefix = prompt_prefix[: -len(request_marker)]
         return (
-            f"{base_prefix}{constraints_block}\n\n"
-            f"{request_marker}{request_text}\n"
+            f"{base_prefix}{constraints_block}\n\n" f"{request_marker}{request_text}\n"
         )
     if constraints_block:
         return f"{prompt_prefix}{constraints_block}\n\n{request_text}\n"

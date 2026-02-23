@@ -32,7 +32,9 @@ KEY_RESULT_FIELD_RE = re.compile(
 )
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
 SUPPORTED_WORKFLOW_PROMPT_MODES = {"research", "reproduce"}
-SUPPORTED_GATEWAY_RUN_MODES = SUPPORTED_EXECUTION_MODES | SUPPORTED_WORKFLOW_PROMPT_MODES
+SUPPORTED_GATEWAY_RUN_MODES = (
+    SUPPORTED_EXECUTION_MODES | SUPPORTED_WORKFLOW_PROMPT_MODES
+)
 SUPPORTED_REPLY_STYLES = {"summary", "agent", "both"}
 WORKFLOW_PROMPT_RE = re.compile(
     r"^\s*fermilink\s+(research|reproduce)\s+(.*?)\s*$",
@@ -190,7 +192,9 @@ class _TelegramApiClient:
             raise RuntimeError(f"Telegram sendMessage failed: {retry_result!r}")
         raise RuntimeError(f"Telegram sendMessage failed: {result!r}")
 
-    def send_photo(self, *, chat_id: str, file_path: Path, caption: str | None = None) -> None:
+    def send_photo(
+        self, *, chat_id: str, file_path: Path, caption: str | None = None
+    ) -> None:
         if not file_path.is_file():
             raise RuntimeError(f"Telegram photo path does not exist: {file_path}")
         mime = mimetypes.guess_type(file_path.name)[0] or "image/png"
@@ -199,7 +203,9 @@ class _TelegramApiClient:
             data["caption"] = _truncate_message(caption, limit=900)
         with file_path.open("rb") as handle:
             files = {"photo": (file_path.name, handle, mime)}
-            response = self._client.post(f"{self._base_url}/sendPhoto", data=data, files=files)
+            response = self._client.post(
+                f"{self._base_url}/sendPhoto", data=data, files=files
+            )
         response.raise_for_status()
         result = response.json()
         if not isinstance(result, dict) or result.get("ok") is not True:
@@ -465,7 +471,9 @@ def _save_gateway_state(path: Path, state: dict[str, Any]) -> None:
     normalized = _normalize_gateway_state(state)
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(json.dumps(normalized, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temp.write_text(
+        json.dumps(normalized, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temp.replace(path)
 
 
@@ -574,7 +582,9 @@ def _active_workspace(chat_state: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _ensure_active_workspace(chat_state: dict[str, Any], *, chat_id: str) -> dict[str, Any]:
+def _ensure_active_workspace(
+    chat_state: dict[str, Any], *, chat_id: str
+) -> dict[str, Any]:
     active = _active_workspace(chat_state)
     if active is not None:
         return active
@@ -647,7 +657,9 @@ def _effective_reply_style(chat_state: dict[str, Any]) -> str:
     return style
 
 
-def _workspace_by_id(chat_state: dict[str, Any], workspace_id: str) -> dict[str, Any] | None:
+def _workspace_by_id(
+    chat_state: dict[str, Any], workspace_id: str
+) -> dict[str, Any] | None:
     target = str(workspace_id or "").strip()
     if not target:
         return None
@@ -722,7 +734,8 @@ def _derive_loop_agent_reply_payload(turns: list[str]) -> dict[str, Any]:
         "agent_reply_exact": False,
         "loop_turn_count": len(turn_texts),
         "loop_done_token_seen": any(
-            _contains_done_token_line(turn, done_token=done_token) for turn in turn_texts
+            _contains_done_token_line(turn, done_token=done_token)
+            for turn in turn_texts
         ),
         "loop_final_reply_raw": final_raw,
     }
@@ -867,7 +880,9 @@ def _render_agent_markdown_html(markdown_text: str) -> str:
 
         heading_match = MARKDOWN_HEADING_LINE_RE.match(line)
         if heading_match is not None:
-            heading_text = _format_agent_markdown_inline(str(heading_match.group(1) or ""))
+            heading_text = _format_agent_markdown_inline(
+                str(heading_match.group(1) or "")
+            )
             rendered_lines.append(f"<b>{heading_text}</b>")
             continue
 
@@ -1045,7 +1060,9 @@ def _ensure_workspace_repo(repo_dir: Path, init_git: bool) -> None:
     source_dir = runner_app._resolve_source_dir()
 
     if repo_dir.exists() and not repo_dir.is_dir():
-        raise cli.PackageError(f"Workspace repo path exists but is not a directory: {repo_dir}")
+        raise cli.PackageError(
+            f"Workspace repo path exists but is not a directory: {repo_dir}"
+        )
 
     if not repo_dir.exists():
         repo_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -1132,7 +1149,9 @@ def _run_exec_in_workspace(
     )
     previous_cwd = Path.cwd()
     if should_capture_last_message:
-        with cli.tempfile.TemporaryDirectory(prefix="fermilink-gateway-exec-") as temp_dir:
+        with cli.tempfile.TemporaryDirectory(
+            prefix="fermilink-gateway-exec-"
+        ) as temp_dir:
             last_message_path = Path(temp_dir) / "last_message.txt"
 
             def _build_exec_command_with_last_message(
@@ -1163,7 +1182,9 @@ def _run_exec_in_workspace(
                 )
 
             try:
-                setattr(cli, "build_exec_command", _build_exec_command_with_last_message)
+                setattr(
+                    cli, "build_exec_command", _build_exec_command_with_last_message
+                )
                 os.chdir(repo_dir)
                 code = cli._cmd_exec(exec_args)
             finally:
@@ -1565,12 +1586,16 @@ def _build_run_summary_message(
         if code == 0:
             lines.append("Single-turn execution finished successfully.")
         elif isinstance(provider_exit_code, int):
-            lines.append(f"Execution failed with provider exit code {provider_exit_code}.")
+            lines.append(
+                f"Execution failed with provider exit code {provider_exit_code}."
+            )
         else:
             lines.append(f"Execution failed with status code {code}.")
     else:
         workflow_label = (
-            "Research workflow" if effective_mode == "research" else "Reproduce workflow"
+            "Research workflow"
+            if effective_mode == "research"
+            else "Reproduce workflow"
         )
         if code == 0 and status in {"", "done"}:
             lines.append(f"{workflow_label} orchestration finished successfully.")
@@ -1581,7 +1606,9 @@ def _build_run_summary_message(
         else:
             lines.append(f"{workflow_label} failed with status code {code}.")
 
-    if reason and not (reason == "done token" and effective_mode == "loop" and code == 0):
+    if reason and not (
+        reason == "done token" and effective_mode == "loop" and code == 0
+    ):
         lines.append(f"Reason: {_html_escape(reason)}.")
 
     memory_path = repo_dir / "projects" / "memory.md"
@@ -1617,7 +1644,9 @@ def _build_run_summary_message(
     else:
         lines.append("")
         lines.append("<b>Key Findings</b>")
-        lines.append("• Key findings are not recorded yet in <code>projects/memory.md</code>.")
+        lines.append(
+            "• Key findings are not recorded yet in <code>projects/memory.md</code>."
+        )
 
     if pending_steps:
         lines.append("")
@@ -1651,7 +1680,9 @@ def _build_status_message(
 ) -> str:
     mode = _effective_execution_mode(chat_state)
     active = _active_workspace(chat_state)
-    active_workspace_text = str(active.get("label") or "").strip() if active is not None else ""
+    active_workspace_text = (
+        str(active.get("label") or "").strip() if active is not None else ""
+    )
     if not active_workspace_text:
         active_workspace_text = "(none yet)"
     is_running = bool(chat_state.get("is_running"))
@@ -1672,9 +1703,13 @@ def _build_status_message(
         run_state_text = "<b>idle</b>"
 
     current_run_id = str(chat_state.get("current_run_id") or "").strip()
-    current_run_started = str(chat_state.get("current_run_started_at_utc") or "").strip()
+    current_run_started = str(
+        chat_state.get("current_run_started_at_utc") or ""
+    ).strip()
     current_run_mode = str(chat_state.get("current_run_mode") or "").strip()
-    current_run_prompt_preview = str(chat_state.get("current_run_prompt_preview") or "").strip()
+    current_run_prompt_preview = str(
+        chat_state.get("current_run_prompt_preview") or ""
+    ).strip()
     mode_text = current_run_mode if is_running and current_run_mode else mode
 
     lines = [
@@ -1700,8 +1735,8 @@ def _build_status_message(
     last_run_started = str(chat_state.get("last_run_started_at_utc") or "").strip()
     last_run_finished = str(chat_state.get("last_run_finished_at_utc") or "").strip()
     last_run_status = str(chat_state.get("last_run_status") or "").strip()
-    last_run_reason = str(chat_state.get("last_run_reason") or "").strip().replace(
-        "_", " "
+    last_run_reason = (
+        str(chat_state.get("last_run_reason") or "").strip().replace("_", " ")
     )
     last_run_exit_code = chat_state.get("last_run_exit_code")
 
@@ -1738,7 +1773,9 @@ def _build_status_message(
     return message
 
 
-def _resolve_run_mode(chat_state: dict[str, Any], requested_mode: str | None = None) -> str:
+def _resolve_run_mode(
+    chat_state: dict[str, Any], requested_mode: str | None = None
+) -> str:
     if requested_mode:
         mode = str(requested_mode).strip().lower()
         if mode in SUPPORTED_GATEWAY_RUN_MODES:
@@ -1885,7 +1922,7 @@ def _queue_telegram_run(
             f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
             "Run queued and starting shortly.\n"
             "Use <code>/status</code> to monitor progress."
-    )
+        )
     return job, reply
 
 
@@ -1950,7 +1987,9 @@ def _handle_telegram_text(
             return "Usage: /use <name-or-id>"
         workspace = _find_workspace(chat_state, argument)
         if workspace is None:
-            return f"Workspace not found: {argument}\n{_format_workspace_list(chat_state)}"
+            return (
+                f"Workspace not found: {argument}\n{_format_workspace_list(chat_state)}"
+            )
         _set_active_workspace(chat_state, str(workspace["id"]))
         return f"Switched workspace: {_format_workspace_short(workspace)}"
 
@@ -1968,10 +2007,7 @@ def _handle_telegram_text(
 
         requested = str(argument).split()[0].strip().lower()
         if requested not in SUPPORTED_EXECUTION_MODES:
-            return (
-                f"Unsupported mode: {requested}\n"
-                "Usage: /mode <loop|exec>"
-            )
+            return f"Unsupported mode: {requested}\n" "Usage: /mode <loop|exec>"
 
         chat_state["execution_mode"] = requested
         if requested == "loop":
@@ -2025,7 +2061,9 @@ def _handle_telegram_text(
             f"Current mode: {mode}"
         )
 
-    requested_mode, run_prompt = _resolve_prompt_mode_and_text(chat_state=chat_state, text=text)
+    requested_mode, run_prompt = _resolve_prompt_mode_and_text(
+        chat_state=chat_state, text=text
+    )
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
     reply, _, _ = _run_prompt_for_workspace(
         chat_state=chat_state,
@@ -2170,7 +2208,11 @@ def cmd_gateway(args: argparse.Namespace) -> int:
 
     cli = _cli()
     token = str(
-        (getattr(args, "telegram_token", None) or os.getenv("FERMILINK_GATEWAY_TELEGRAM_TOKEN") or "")
+        (
+            getattr(args, "telegram_token", None)
+            or os.getenv("FERMILINK_GATEWAY_TELEGRAM_TOKEN")
+            or ""
+        )
     ).strip()
     if not token:
         raise cli.PackageError(
@@ -2184,7 +2226,9 @@ def cmd_gateway(args: argparse.Namespace) -> int:
 
     loop_config = _build_loop_config(args)
     allow_from = _parse_allow_from(getattr(args, "allow_from", None))
-    session_store_path = _resolve_session_store_path(getattr(args, "session_store", None))
+    session_store_path = _resolve_session_store_path(
+        getattr(args, "session_store", None)
+    )
     state = _load_gateway_state(session_store_path)
     telegram = _telegram_state(state)
     offset = int(telegram.get("offset") or 0)
@@ -2203,7 +2247,9 @@ def cmd_gateway(args: argparse.Namespace) -> int:
 
     client = _TelegramApiClient(token=token)
 
-    def _send_message_safe(*, chat_id: str, text: str, parse_mode: str | None = "HTML") -> None:
+    def _send_message_safe(
+        *, chat_id: str, text: str, parse_mode: str | None = "HTML"
+    ) -> None:
         with send_lock:
             client.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
 
@@ -2219,7 +2265,10 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                 return
 
             mode = job.mode if job.mode in SUPPORTED_GATEWAY_RUN_MODES else "loop"
-            workspace: dict[str, Any] = {"id": job.workspace_id, "label": job.workspace_label}
+            workspace: dict[str, Any] = {
+                "id": job.workspace_id,
+                "label": job.workspace_label,
+            }
             repo_dir = workspaces_root / job.workspace_id / "repo"
             run_started_epoch = time.time()
 
@@ -2303,7 +2352,9 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     telegram_local = _telegram_state(state)
                     chat_state = _ensure_chat_state(telegram_local, job.chat_key)
                     chat_state["last_run_status"] = "provider_failure"
-                    chat_state["last_run_reason"] = f"gateway_error_{type(exc).__name__}"
+                    chat_state["last_run_reason"] = (
+                        f"gateway_error_{type(exc).__name__}"
+                    )
                     chat_state["last_run_exit_code"] = None
                     chat_state["last_run_finished_at_utc"] = _now_utc_iso()
                     _record_last_run_agent_reply(chat_state, None)
@@ -2350,7 +2401,9 @@ def cmd_gateway(args: argparse.Namespace) -> int:
         preview = ", ".join(sorted(allow_from))
         cli._print_tagged("gateway", f"telegram allowlist: {preview}")
     else:
-        cli._print_tagged("gateway", "telegram allowlist: disabled (all senders allowed)")
+        cli._print_tagged(
+            "gateway", "telegram allowlist: disabled (all senders allowed)"
+        )
     cli._print_tagged("gateway", "running (Ctrl-C to stop)")
 
     try:

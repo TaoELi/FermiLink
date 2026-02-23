@@ -37,7 +37,9 @@ def _stub_compile_repo_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _path: False)
 
 
-def test_run_codex_compile_pass_reports_large_doc_prompt(monkeypatch, tmp_path: Path) -> None:
+def test_run_codex_compile_pass_reports_large_doc_prompt(
+    monkeypatch, tmp_path: Path
+) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir(parents=True, exist_ok=True)
 

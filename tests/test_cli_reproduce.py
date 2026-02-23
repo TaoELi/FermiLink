@@ -267,7 +267,9 @@ def test_reproduce_executes_tasks_with_retries(
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
     assert "Before acting, read `projects/memory.md`." in loop_preambles[0]
-    assert "Before acting, read original paper or request `paper.md`." in loop_preambles[0]
+    assert (
+        "Before acting, read original paper or request `paper.md`." in loop_preambles[0]
+    )
 
     runs_root = repo_dir / "projects" / "reproduce"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
@@ -1419,9 +1421,7 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
     )
 
 
-def test_build_hpc_prompt_lines_uses_profile_entries_verbatim() -> (
-    None
-):
+def test_build_hpc_prompt_lines_uses_profile_entries_verbatim() -> None:
     lines = workflow_commands._build_hpc_prompt_lines(
         {
             "enabled": True,

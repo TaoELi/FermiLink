@@ -152,13 +152,14 @@ def test_run_loop_in_workspace_captures_last_informative_reply(
         def __init__(self) -> None:
             self._turn = 0
 
-        def _run_exec_chat_turn(self, *args: object, **kwargs: object) -> dict[str, object]:
+        def _run_exec_chat_turn(
+            self, *args: object, **kwargs: object
+        ) -> dict[str, object]:
             self._turn += 1
             if self._turn == 1:
                 return {
                     "assistant_text": (
-                        "Prepared run artifacts.\n"
-                        "<pid_number>12345</pid_number>"
+                        "Prepared run artifacts.\n" "<pid_number>12345</pid_number>"
                     ),
                     "return_code": 0,
                     "stderr": "",
@@ -223,7 +224,14 @@ def test_run_exec_in_workspace_captures_last_message(
             sandbox_mode: str | None = None,
             json_output: bool = True,
         ) -> list[str]:
-            del provider, provider_bin, repo_dir, sandbox_policy, sandbox_mode, json_output
+            del (
+                provider,
+                provider_bin,
+                repo_dir,
+                sandbox_policy,
+                sandbox_mode,
+                json_output,
+            )
             return ["codex", "exec", prompt]
 
         def _cmd_exec(self, args: object) -> int:
@@ -270,7 +278,9 @@ def test_run_exec_in_workspace_captures_last_message(
     assert isinstance(outcome, dict)
     assert outcome.get("status") == "done"
     assert outcome.get("agent_reply_source") == "exec_last_message"
-    assert outcome.get("agent_reply_text") == "Exact exec reply with final recommendation."
+    assert (
+        outcome.get("agent_reply_text") == "Exact exec reply with final recommendation."
+    )
     assert captured_hpc_profile == "scripts/hpc_profile_anvil.json"
 
 
@@ -1046,7 +1056,9 @@ def test_status_reports_online_mode_workspace_and_last_run(tmp_path: Path) -> No
     assert "(UTC" not in after
 
 
-def test_status_reports_running_job_details_for_immediate_polling(tmp_path: Path) -> None:
+def test_status_reports_running_job_details_for_immediate_polling(
+    tmp_path: Path,
+) -> None:
     state = gateway_commands._default_gateway_state()
     telegram = gateway_commands._telegram_state(state)
     chat_id = "777"
