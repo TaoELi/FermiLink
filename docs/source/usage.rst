@@ -112,7 +112,8 @@ Step-by-step setup (iPhone + computer):
 
 6. From iPhone Telegram, open the chat with your bot and test commands:
    ``/help``, then a normal simulation request, then ``/mode exec``,
-   ``/mode loop``, ``/reply agent``, ``/reply summary``, ``/status``,
+   ``/mode loop``, ``/loopcfg --max-iterations 20 --max-wait-seconds 1800``,
+   ``/reply agent``, ``/reply summary``, ``/status``,
    ``fermilink research <idea.md-or-inline>``,
    ``fermilink reproduce <paper.md-or-inline>``,
    ``/new test2``, ``/use main``, ``/where``, and ``/list``.
@@ -141,6 +142,11 @@ Gateway behavior:
 - ``/mode <loop|exec>`` switches normal-message execution between
   ``fermilink loop`` (multi-iteration autonomous mode) and
   ``fermilink exec`` (single-turn mode, default) per chat session;
+- ``/loopcfg`` shows current per-chat loop controls and supports runtime
+  updates from Telegram without gateway restart:
+  ``/loopcfg --max-iterations <N>`` and
+  ``/loopcfg --max-wait-seconds <S>`` (use ``/loopcfg --reset`` to clear
+  overrides back to gateway startup defaults);
 - explicit workflow prompts are available without changing ``/mode``:
   send ``fermilink research <prompt-or-file>`` or
   ``fermilink reproduce <prompt-or-file>`` as a normal chat message to run

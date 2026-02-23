@@ -23,6 +23,10 @@ from fermilink.config import resolve_runtime_root, resolve_workspaces_root
 
 SESSION_STORE_FILENAME = "chat_sessions.json"
 SESSION_SCHEMA_VERSION = 1
+DEFAULT_GATEWAY_MAX_ITERATIONS = 10
+DEFAULT_GATEWAY_WAIT_SECONDS = 1.0
+DEFAULT_GATEWAY_MAX_WAIT_SECONDS = 6000.0
+DEFAULT_GATEWAY_PID_STALL_SECONDS = 900.0
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 DOCUMENT_SUFFIXES = {".pdf"}
 CHECKLIST_ITEM_RE = re.compile(r"^\s*-\s*\[(?P<mark>[xX ])\]\s+(?P<item>.+?)\s*$")
@@ -64,6 +68,7 @@ GATEWAY_HELP_TEXT = (
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
     "/mode <loop|exec> - switch run mode for normal messages\n"
+    "/loopcfg - show/set loop max-iterations and max-wait-seconds\n"
     "/reply <summary|agent|both> - switch final-reply style\n"
     "/status - show gateway/chat run status\n"
     "/where - show active workspace\n"
@@ -111,6 +116,8 @@ class QueuedRunJob:
     mode: str
     workspace_id: str
     workspace_label: str
+    max_iterations: int
+    max_wait_seconds: float
     queued_at_utc: str
 
 
@@ -305,6 +312,48 @@ def _default_gateway_state() -> dict[str, Any]:
     }
 
 
+def _parse_positive_int(raw: object, *, minimum: int = 1) -> int | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw if raw >= minimum else None
+    if isinstance(raw, str) and raw.strip():
+        try:
+            value = int(raw.strip())
+        except ValueError:
+            return None
+        return value if value >= minimum else None
+    return None
+
+
+def _parse_non_negative_float(raw: object) -> float | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        value = float(raw)
+        return value if value >= 0 else None
+    if isinstance(raw, str) and raw.strip():
+        try:
+            value = float(raw.strip())
+        except ValueError:
+            return None
+        return value if value >= 0 else None
+    return None
+
+
+def _default_gateway_loop_config() -> GatewayLoopConfig:
+    return GatewayLoopConfig(
+        package_id=None,
+        sandbox=None,
+        codex_bin=None,
+        max_iterations=DEFAULT_GATEWAY_MAX_ITERATIONS,
+        wait_seconds=DEFAULT_GATEWAY_WAIT_SECONDS,
+        max_wait_seconds=DEFAULT_GATEWAY_MAX_WAIT_SECONDS,
+        pid_stall_seconds=DEFAULT_GATEWAY_PID_STALL_SECONDS,
+        init_git=True,
+    )
+
+
 def _normalize_workspace_record(raw: object) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
@@ -330,6 +379,8 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         "workspaces": [],
         "execution_mode": "exec",
         "reply_style": "agent",
+        "loop_max_iterations_override": None,
+        "loop_max_wait_seconds_override": None,
         "is_running": False,
         "pending_run_count": 0,
         "current_run_id": "",
@@ -374,6 +425,16 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
     reply_style = str(raw.get("reply_style") or "").strip().lower()
     if reply_style in SUPPORTED_REPLY_STYLES:
         payload["reply_style"] = reply_style
+    loop_max_iterations_override = _parse_positive_int(
+        raw.get("loop_max_iterations_override")
+    )
+    if loop_max_iterations_override is not None:
+        payload["loop_max_iterations_override"] = loop_max_iterations_override
+    loop_max_wait_seconds_override = _parse_non_negative_float(
+        raw.get("loop_max_wait_seconds_override")
+    )
+    if loop_max_wait_seconds_override is not None:
+        payload["loop_max_wait_seconds_override"] = loop_max_wait_seconds_override
 
     payload["is_running"] = bool(raw.get("is_running"))
     pending_raw = raw.get("pending_run_count")
@@ -655,6 +716,69 @@ def _effective_reply_style(chat_state: dict[str, Any]) -> str:
         style = "agent"
         chat_state["reply_style"] = style
     return style
+
+
+def _chat_loop_max_iterations_override(chat_state: dict[str, Any]) -> int | None:
+    value = _parse_positive_int(chat_state.get("loop_max_iterations_override"))
+    chat_state["loop_max_iterations_override"] = value
+    return value
+
+
+def _chat_loop_max_wait_seconds_override(chat_state: dict[str, Any]) -> float | None:
+    value = _parse_non_negative_float(chat_state.get("loop_max_wait_seconds_override"))
+    chat_state["loop_max_wait_seconds_override"] = value
+    return value
+
+
+def _effective_loop_config(
+    chat_state: dict[str, Any], *, base_loop_config: GatewayLoopConfig
+) -> GatewayLoopConfig:
+    max_iterations_override = _chat_loop_max_iterations_override(chat_state)
+    max_wait_seconds_override = _chat_loop_max_wait_seconds_override(chat_state)
+    max_iterations = (
+        max_iterations_override
+        if max_iterations_override is not None
+        else base_loop_config.max_iterations
+    )
+    max_wait_seconds = (
+        max_wait_seconds_override
+        if max_wait_seconds_override is not None
+        else base_loop_config.max_wait_seconds
+    )
+    return replace(
+        base_loop_config,
+        max_iterations=max_iterations,
+        max_wait_seconds=max_wait_seconds,
+    )
+
+
+def _format_loop_control_number(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return f"{float(value)}"
+
+
+def _build_loopcfg_message(
+    chat_state: dict[str, Any], *, base_loop_config: GatewayLoopConfig
+) -> str:
+    max_iterations_override = _chat_loop_max_iterations_override(chat_state)
+    max_wait_override = _chat_loop_max_wait_seconds_override(chat_state)
+    effective = _effective_loop_config(chat_state, base_loop_config=base_loop_config)
+    iterations_source = (
+        "chat override"
+        if max_iterations_override is not None
+        else "gateway default"
+    )
+    max_wait_source = (
+        "chat override" if max_wait_override is not None else "gateway default"
+    )
+    return (
+        "Current loop controls for normal `loop`/workflow runs:\n"
+        f"- max-iterations: {effective.max_iterations} ({iterations_source})\n"
+        f"- max-wait-seconds: {_format_loop_control_number(effective.max_wait_seconds)} "
+        f"({max_wait_source})\n"
+        "Usage: /loopcfg [--max-iterations N] [--max-wait-seconds S] [--reset]"
+    )
 
 
 def _workspace_by_id(
@@ -999,6 +1123,7 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
         "/new",
         "/use",
         "/mode",
+        "/loopcfg",
         "/reply",
         "/status",
         "/where",
@@ -1008,6 +1133,85 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
     }:
         return command, remainder.strip()
     return None, stripped
+
+
+def _parse_loopcfg_updates(
+    argument: str,
+) -> tuple[int | None, float | None, bool, str | None]:
+    tokens = [str(token) for token in str(argument or "").split() if str(token)]
+    max_iterations: int | None = None
+    max_wait_seconds: float | None = None
+    reset = False
+
+    idx = 0
+    while idx < len(tokens):
+        token = tokens[idx]
+
+        if token == "--reset":
+            reset = True
+            idx += 1
+            continue
+
+        flag = token
+        value_token: str | None = None
+        if "=" in token:
+            flag, _, value_token = token.partition("=")
+        else:
+            if flag in {"--max-iterations", "--max-wait-seconds"}:
+                idx += 1
+                if idx >= len(tokens):
+                    return (
+                        None,
+                        None,
+                        False,
+                        f"Missing value for {flag}.",
+                    )
+                value_token = tokens[idx]
+
+        if flag == "--max-iterations":
+            parsed = _parse_positive_int(value_token)
+            if parsed is None:
+                return (
+                    None,
+                    None,
+                    False,
+                    "--max-iterations must be an integer >= 1.",
+                )
+            max_iterations = parsed
+        elif flag == "--max-wait-seconds":
+            parsed_wait = _parse_non_negative_float(value_token)
+            if parsed_wait is None:
+                return (
+                    None,
+                    None,
+                    False,
+                    "--max-wait-seconds must be a number >= 0.",
+                )
+            max_wait_seconds = parsed_wait
+        else:
+            return (
+                None,
+                None,
+                False,
+                f"Unsupported option: {token}",
+            )
+        idx += 1
+
+    if reset and (max_iterations is not None or max_wait_seconds is not None):
+        return (
+            None,
+            None,
+            False,
+            "Cannot combine --reset with --max-iterations/--max-wait-seconds.",
+        )
+    if not reset and max_iterations is None and max_wait_seconds is None:
+        return (
+            None,
+            None,
+            False,
+            "No loop-control option provided.",
+        )
+    return max_iterations, max_wait_seconds, reset, None
 
 
 def _parse_gateway_workflow_prompt(text: str) -> tuple[str, str] | None:
@@ -1045,10 +1249,16 @@ def _build_loop_config(args: argparse.Namespace) -> GatewayLoopConfig:
         package_id=getattr(args, "package_id", None),
         sandbox=getattr(args, "sandbox", None),
         codex_bin=getattr(args, "codex_bin", None),
-        max_iterations=int(getattr(args, "max_iterations", 10)),
-        wait_seconds=float(getattr(args, "wait_seconds", 1.0)),
-        max_wait_seconds=float(getattr(args, "max_wait_seconds", 6000.0)),
-        pid_stall_seconds=float(getattr(args, "pid_stall_seconds", 900.0)),
+        max_iterations=int(
+            getattr(args, "max_iterations", DEFAULT_GATEWAY_MAX_ITERATIONS)
+        ),
+        wait_seconds=float(getattr(args, "wait_seconds", DEFAULT_GATEWAY_WAIT_SECONDS)),
+        max_wait_seconds=float(
+            getattr(args, "max_wait_seconds", DEFAULT_GATEWAY_MAX_WAIT_SECONDS)
+        ),
+        pid_stall_seconds=float(
+            getattr(args, "pid_stall_seconds", DEFAULT_GATEWAY_PID_STALL_SECONDS)
+        ),
         init_git=bool(getattr(args, "init_git", True)),
         hpc_profile=hpc_profile,
     )
@@ -1664,7 +1874,8 @@ def _build_run_summary_message(
     lines.append("")
     lines.append(
         "Commands: <code>/new</code>, <code>/use</code>, <code>/mode</code>, "
-        "<code>/reply</code>, <code>/where</code>, <code>/list</code>"
+        "<code>/loopcfg</code>, <code>/reply</code>, <code>/where</code>, "
+        "<code>/list</code>"
     )
     message = "\n".join(lines)
     if len(message) > 4096:
@@ -1764,8 +1975,9 @@ def _build_status_message(
 
     lines.append("")
     lines.append(
-        "Commands: <code>/mode</code>, <code>/reply</code>, <code>/new</code>, "
-        "<code>/use</code>, <code>/where</code>, <code>/list</code>"
+        "Commands: <code>/mode</code>, <code>/loopcfg</code>, <code>/reply</code>, "
+        "<code>/new</code>, <code>/use</code>, <code>/where</code>, "
+        "<code>/list</code>"
     )
     message = "\n".join(lines)
     if len(message) > 4096:
@@ -1887,9 +2099,14 @@ def _queue_telegram_run(
     chat_id: str,
     chat_key: str,
     state: dict[str, Any],
+    loop_config: GatewayLoopConfig | None = None,
 ) -> tuple[QueuedRunJob, str]:
     telegram = _telegram_state(state)
     chat_state = _ensure_chat_state(telegram, chat_key)
+    base_loop_config = loop_config or _default_gateway_loop_config()
+    effective_loop_config = _effective_loop_config(
+        chat_state, base_loop_config=base_loop_config
+    )
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
     _touch_workspace(workspace)
     mode, prompt = _resolve_prompt_mode_and_text(chat_state=chat_state, text=text)
@@ -1906,6 +2123,8 @@ def _queue_telegram_run(
         mode=mode,
         workspace_id=str(workspace["id"]),
         workspace_label=str(workspace["label"]),
+        max_iterations=effective_loop_config.max_iterations,
+        max_wait_seconds=effective_loop_config.max_wait_seconds,
         queued_at_utc=queued_at,
     )
 
@@ -1913,6 +2132,8 @@ def _queue_telegram_run(
         reply = (
             f"Queued request in workspace <code>{_html_escape(workspace['label'])}</code>.\n"
             f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
+            f"Loop controls: <code>--max-iterations={job.max_iterations}, "
+            f"--max-wait-seconds={_format_loop_control_number(job.max_wait_seconds)}</code>.\n"
             f"Queue position: <code>{queue_position}</code>.\n"
             "Use <code>/status</code> to monitor progress."
         )
@@ -1920,6 +2141,8 @@ def _queue_telegram_run(
         reply = (
             f"Request accepted in workspace <code>{_html_escape(workspace['label'])}</code>.\n"
             f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
+            f"Loop controls: <code>--max-iterations={job.max_iterations}, "
+            f"--max-wait-seconds={_format_loop_control_number(job.max_wait_seconds)}</code>.\n"
             "Run queued and starting shortly.\n"
             "Use <code>/status</code> to monitor progress."
         )
@@ -2020,6 +2243,34 @@ def _handle_telegram_text(
             "Normal messages will run with `fermilink exec`."
         )
 
+    if command == "/loopcfg":
+        if not argument:
+            return _build_loopcfg_message(chat_state, base_loop_config=loop_config)
+        max_iterations, max_wait_seconds, reset, error = _parse_loopcfg_updates(
+            argument
+        )
+        if error:
+            return (
+                f"{error}\n"
+                "Usage: /loopcfg [--max-iterations N] "
+                "[--max-wait-seconds S] [--reset]"
+            )
+        if reset:
+            chat_state["loop_max_iterations_override"] = None
+            chat_state["loop_max_wait_seconds_override"] = None
+            return (
+                "Loop controls reset to gateway defaults.\n"
+                f"{_build_loopcfg_message(chat_state, base_loop_config=loop_config)}"
+            )
+        if max_iterations is not None:
+            chat_state["loop_max_iterations_override"] = max_iterations
+        if max_wait_seconds is not None:
+            chat_state["loop_max_wait_seconds_override"] = max_wait_seconds
+        return (
+            "Loop controls updated for this chat.\n"
+            f"{_build_loopcfg_message(chat_state, base_loop_config=loop_config)}"
+        )
+
     if command == "/reply":
         current_style = _effective_reply_style(chat_state)
 
@@ -2065,13 +2316,16 @@ def _handle_telegram_text(
         chat_state=chat_state, text=text
     )
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
+    effective_loop_config = _effective_loop_config(
+        chat_state, base_loop_config=loop_config
+    )
     reply, _, _ = _run_prompt_for_workspace(
         chat_state=chat_state,
         workspace=workspace,
         prompt=run_prompt,
         requested_mode=requested_mode,
         workspaces_root=workspaces_root,
-        loop_config=loop_config,
+        loop_config=effective_loop_config,
         loop_runner=loop_runner,
         exec_runner=exec_runner,
         research_runner=research_runner,
@@ -2288,7 +2542,11 @@ def cmd_gateway(args: argparse.Namespace) -> int:
             reply_style = "agent"
             try:
                 _ensure_workspace_repo(repo_dir, loop_config.init_git)
-                run_loop_config = loop_config
+                run_loop_config = replace(
+                    loop_config,
+                    max_iterations=job.max_iterations,
+                    max_wait_seconds=job.max_wait_seconds,
+                )
                 if mode == "loop":
 
                     def _iteration_hook(iteration: int, max_iterations: int) -> None:
@@ -2304,7 +2562,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                             _save_gateway_state(session_store_path, state)
 
                     run_loop_config = replace(
-                        loop_config,
+                        run_loop_config,
                         loop_iteration_hook=_iteration_hook,
                     )
                 code, outcome = _run_prompt_with_mode(
@@ -2500,6 +2758,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                                 chat_id=chat_id,
                                 chat_key=chat_key,
                                 state=state,
+                                loop_config=loop_config,
                             )
                             _save_gateway_state(session_store_path, state)
                         run_queue.put(job)

@@ -614,6 +614,172 @@ def test_handle_telegram_text_mode_switches_between_loop_and_exec(
     assert exec_calls[0] == loop_calls[0]
 
 
+def test_handle_telegram_text_loopcfg_overrides_apply_without_restart(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+    applied_loop_controls: list[tuple[int, float]] = []
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Unified Memory\n\n"
+                "### Plan\n"
+                "- [x] Execute request\n\n"
+                "### Key results\n"
+                "- energy | value | -1.0 | test | projects/result.json\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_loop_runner(
+        _repo_dir: Path,
+        _prompt: str,
+        loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        applied_loop_controls.append(
+            (loop_config.max_iterations, loop_config.max_wait_seconds)
+        )
+        return 0, {"status": "done", "reason": "done_token"}
+
+    chat_id = "502"
+    chat_key = "telegram:502"
+    base_loop_config = gateway_commands.GatewayLoopConfig(
+        package_id=None,
+        sandbox=None,
+        codex_bin="codex",
+        max_iterations=4,
+        wait_seconds=0.0,
+        max_wait_seconds=20.0,
+        pid_stall_seconds=0.0,
+        init_git=True,
+    )
+
+    before = gateway_commands._handle_telegram_text(
+        text="/loopcfg",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    updated = gateway_commands._handle_telegram_text(
+        text="/loopcfg --max-iterations 7 --max-wait-seconds 45",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    invalid = gateway_commands._handle_telegram_text(
+        text="/loopcfg --max-iterations 0",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    gateway_commands._handle_telegram_text(
+        text="/mode loop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    gateway_commands._handle_telegram_text(
+        text="run iterative",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    reset = gateway_commands._handle_telegram_text(
+        text="/loopcfg --reset",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    gateway_commands._handle_telegram_text(
+        text="run iterative again",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=base_loop_config,
+        loop_runner=fake_loop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "max-iterations: 4 (gateway default)" in before
+    assert "max-wait-seconds: 20 (gateway default)" in before
+    assert "Loop controls updated for this chat." in updated
+    assert "max-iterations: 7 (chat override)" in updated
+    assert "max-wait-seconds: 45 (chat override)" in updated
+    assert "--max-iterations must be an integer >= 1." in invalid
+    assert "Loop controls reset to gateway defaults." in reset
+    assert applied_loop_controls == [(7, 45.0), (4, 20.0)]
+
+
+def test_queue_telegram_run_snapshots_loop_controls_per_job() -> None:
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_key = "telegram:906"
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    chat_state["loop_max_iterations_override"] = 5
+    chat_state["loop_max_wait_seconds_override"] = 30.0
+    base_loop_config = gateway_commands.GatewayLoopConfig(
+        package_id=None,
+        sandbox=None,
+        codex_bin="codex",
+        max_iterations=2,
+        wait_seconds=0.0,
+        max_wait_seconds=10.0,
+        pid_stall_seconds=0.0,
+        init_git=True,
+    )
+
+    first, _ = gateway_commands._queue_telegram_run(
+        text="first loop request",
+        chat_id="906",
+        chat_key=chat_key,
+        state=state,
+        loop_config=base_loop_config,
+    )
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    chat_state["loop_max_iterations_override"] = 9
+    chat_state["loop_max_wait_seconds_override"] = 90.0
+    second, _ = gateway_commands._queue_telegram_run(
+        text="second loop request",
+        chat_id="906",
+        chat_key=chat_key,
+        state=state,
+        loop_config=base_loop_config,
+    )
+
+    assert first.max_iterations == 5
+    assert first.max_wait_seconds == 30.0
+    assert second.max_iterations == 9
+    assert second.max_wait_seconds == 90.0
+
+
 def test_queue_telegram_run_detects_workflow_prompt_mode() -> None:
     state = gateway_commands._default_gateway_state()
     job, reply = gateway_commands._queue_telegram_run(
@@ -624,6 +790,8 @@ def test_queue_telegram_run_detects_workflow_prompt_mode() -> None:
     )
     assert job.mode == "research"
     assert job.prompt == "plan a cavity qed benchmark"
+    assert job.max_iterations == 10
+    assert job.max_wait_seconds == 6000.0
     assert "Execution mode: <code>research</code>." in reply
 
 
