@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import html
 import json
 import mimetypes
@@ -29,6 +30,11 @@ DEFAULT_GATEWAY_MAX_WAIT_SECONDS = 6000.0
 DEFAULT_GATEWAY_PID_STALL_SECONDS = 900.0
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 DOCUMENT_SUFFIXES = {".pdf"}
+WORKFLOW_LATEST_RUN_FILENAME = "latest_run.txt"
+WORKFLOW_REPORT_MARKDOWN_FILENAME = "report.md"
+WORKFLOW_REPORT_HTML_FILENAME = "report.embedded.html"
+WORKFLOW_REPORT_EMBED_MAX_IMAGES = 24
+WORKFLOW_REPORT_EMBED_MAX_TOTAL_BYTES = 16_000_000
 CHECKLIST_ITEM_RE = re.compile(r"^\s*-\s*\[(?P<mark>[xX ])\]\s+(?P<item>.+?)\s*$")
 KEY_RESULT_FIELD_RE = re.compile(
     r"^(result_id|metric|value|conditions|evidence_path)\s*:\s*(.*)$",
@@ -74,6 +80,7 @@ MARKDOWN_QUOTE_LINE_RE = re.compile(r"^\s*&gt;\s?(.+?)\s*$")
 MARKDOWN_BOLD_RE = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
 MARKDOWN_ITALIC_RE = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)")
 MARKDOWN_LINK_RE = re.compile(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)")
+MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]\n]*)\]\(([^)\n]+)\)")
 GATEWAY_HELP_TEXT = (
     "Commands:\n"
     "/new [name] - create and switch to a new workspace\n"
@@ -300,6 +307,10 @@ def _truncate_message(text: str, *, limit: int) -> str:
 
 def _html_escape(text: str) -> str:
     return html.escape(str(text), quote=False)
+
+
+def _html_attr_escape(text: str) -> str:
+    return html.escape(str(text), quote=True)
 
 
 def _strip_html_tags(text: str) -> str:
@@ -960,7 +971,7 @@ def _format_agent_markdown_inline(escaped_text: str) -> str:
     )
     content = MARKDOWN_LINK_RE.sub(
         lambda match: (
-            f'<a href="{_html_escape(match.group(2) or "")}">'
+            f'<a href="{_html_attr_escape(match.group(2) or "")}">'
             f"{match.group(1) or ''}</a>"
         ),
         content,
@@ -1948,6 +1959,13 @@ def _format_simulation_uncertainty_human(
     return lines
 
 
+def _display_repo_path(repo_dir: Path, path: Path) -> str:
+    try:
+        return path.relative_to(repo_dir).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def _collect_recent_artifacts(repo_dir: Path, *, max_items: int = 4) -> list[str]:
     roots = [repo_dir / "projects", repo_dir / "outputs"]
     files: list[tuple[float, Path]] = []
@@ -2050,6 +2068,319 @@ def _collect_recent_media(
         [path for _, path in images[:max_images]],
         [path for _, path in documents[:max_documents]],
     )
+
+
+def _is_external_link_target(raw_target: str) -> bool:
+    token = str(raw_target or "").strip()
+    if not token:
+        return False
+    lowered = token.lower()
+    if lowered.startswith("data:"):
+        return True
+    return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", token))
+
+
+def _parse_markdown_link_target(raw_target: str) -> str:
+    token = str(raw_target or "").strip()
+    if not token:
+        return ""
+    if token.startswith("<") and token.endswith(">"):
+        token = token[1:-1].strip()
+    if not token:
+        return ""
+    if " " in token:
+        token = token.split(" ", 1)[0].strip()
+    return token
+
+
+def _resolve_report_link_path(
+    *,
+    repo_dir: Path,
+    report_path: Path,
+    raw_target: str,
+) -> Path | None:
+    target = _parse_markdown_link_target(raw_target)
+    if not target or _is_external_link_target(target):
+        return None
+    normalized = target.split("#", 1)[0].split("?", 1)[0].strip()
+    if not normalized:
+        return None
+    source = Path(normalized)
+    candidates: list[Path] = []
+    if source.is_absolute():
+        candidates.append(source.resolve())
+    else:
+        candidates.append((report_path.parent / source).resolve())
+        repo_candidate = (repo_dir / source).resolve()
+        if repo_candidate not in candidates:
+            candidates.append(repo_candidate)
+
+    repo_root = repo_dir.resolve()
+    for candidate in candidates:
+        try:
+            candidate.relative_to(repo_root)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _safe_mtime(path: Path) -> float:
+    try:
+        return float(path.stat().st_mtime)
+    except OSError:
+        return -1.0
+
+
+def _resolve_workflow_report_markdown_path(
+    repo_dir: Path,
+    *,
+    mode: str,
+    run_started_epoch: float | None,
+) -> Path | None:
+    workflow_mode = str(mode or "").strip().lower()
+    if workflow_mode not in SUPPORTED_WORKFLOW_PROMPT_MODES:
+        return None
+
+    runs_root = repo_dir / "projects" / workflow_mode
+    if not runs_root.is_dir():
+        return None
+
+    candidates: list[Path] = []
+    latest_report: Path | None = None
+    latest_path = runs_root / WORKFLOW_LATEST_RUN_FILENAME
+    if latest_path.is_file():
+        try:
+            latest_run_id = latest_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            latest_run_id = ""
+        if latest_run_id:
+            latest_report = (
+                runs_root / latest_run_id / WORKFLOW_REPORT_MARKDOWN_FILENAME
+            ).resolve()
+            if latest_report.is_file():
+                candidates.append(latest_report)
+
+    try:
+        run_dirs = sorted(
+            path for path in runs_root.iterdir() if path.is_dir() and path.name != "."
+        )
+    except OSError:
+        run_dirs = []
+    for run_dir in run_dirs:
+        report_path = (run_dir / WORKFLOW_REPORT_MARKDOWN_FILENAME).resolve()
+        if report_path.is_file() and report_path not in candidates:
+            candidates.append(report_path)
+
+    if not candidates:
+        return None
+
+    if run_started_epoch is not None:
+        recent_candidates = [
+            path for path in candidates if _safe_mtime(path) >= (run_started_epoch - 5.0)
+        ]
+        if recent_candidates:
+            candidates = recent_candidates
+
+    if latest_report is not None and latest_report in candidates:
+        return latest_report
+
+    candidates.sort(key=_safe_mtime, reverse=True)
+    return candidates[0]
+
+
+def _render_workflow_report_markdown_html(
+    *,
+    markdown_text: str,
+    report_path: Path,
+    repo_dir: Path,
+) -> str:
+    placeholders: dict[str, str] = {}
+    embedded_image_count = 0
+    embedded_total_bytes = 0
+    omitted_image_count = 0
+
+    def _display_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(repo_dir))
+        except ValueError:
+            return str(path)
+
+    def _replace_image(match: re.Match[str]) -> str:
+        nonlocal embedded_image_count, embedded_total_bytes, omitted_image_count
+        alt_text = str(match.group(1) or "").strip()
+        raw_target = str(match.group(2) or "").strip()
+        target = _parse_markdown_link_target(raw_target)
+        token = f"@@TG_WORKFLOW_IMG_{len(placeholders)}@@"
+
+        caption = alt_text or target or "figure"
+        if not target:
+            placeholders[token] = (
+                "<p><i>Invalid image link in report markdown.</i></p>"
+            )
+            return token
+
+        resolved = _resolve_report_link_path(
+            repo_dir=repo_dir,
+            report_path=report_path,
+            raw_target=target,
+        )
+        if resolved is not None and resolved.suffix.lower() in IMAGE_SUFFIXES:
+            image_size = int(resolved.stat().st_size) if resolved.exists() else 0
+            can_embed = (
+                embedded_image_count < WORKFLOW_REPORT_EMBED_MAX_IMAGES
+                and image_size > 0
+                and (embedded_total_bytes + image_size)
+                <= WORKFLOW_REPORT_EMBED_MAX_TOTAL_BYTES
+            )
+            if can_embed:
+                try:
+                    payload = resolved.read_bytes()
+                except OSError:
+                    payload = b""
+                if payload:
+                    mime = mimetypes.guess_type(resolved.name)[0] or "image/png"
+                    data_uri = (
+                        f"data:{mime};base64,{base64.b64encode(payload).decode('ascii')}"
+                    )
+                    embedded_image_count += 1
+                    embedded_total_bytes += len(payload)
+                    placeholders[token] = (
+                        '<figure class="workflow-report-figure">'
+                        f'<img src="{_html_attr_escape(data_uri)}" '
+                        f'alt="{_html_attr_escape(caption)}" loading="lazy" />'
+                        f"<figcaption>{_html_escape(caption)}</figcaption>"
+                        "</figure>"
+                    )
+                    return token
+            omitted_image_count += 1
+            placeholders[token] = (
+                "<p><i>Figure omitted from embedded HTML due to size limits: "
+                f"<code>{_html_escape(_display_path(resolved))}</code></i></p>"
+            )
+            return token
+
+        if _is_external_link_target(target):
+            placeholders[token] = (
+                '<figure class="workflow-report-figure">'
+                f'<img src="{_html_attr_escape(target)}" '
+                f'alt="{_html_attr_escape(caption)}" loading="lazy" />'
+                f"<figcaption>{_html_escape(caption)}</figcaption>"
+                "</figure>"
+            )
+            return token
+
+        if resolved is not None:
+            placeholders[token] = (
+                "<p><i>Referenced figure is not an image file: "
+                f"<code>{_html_escape(_display_path(resolved))}</code></i></p>"
+            )
+            return token
+
+        placeholders[token] = (
+            "<p><i>Referenced figure not found: "
+            f"<code>{_html_escape(target)}</code></i></p>"
+        )
+        return token
+
+    markdown_with_tokens = MARKDOWN_IMAGE_RE.sub(_replace_image, str(markdown_text or ""))
+    rendered = _render_agent_markdown_html(markdown_with_tokens).strip()
+    if not rendered:
+        rendered = f"<pre>{_html_escape(str(markdown_text or ''))}</pre>"
+    for token, value in placeholders.items():
+        rendered = rendered.replace(token, value)
+    if omitted_image_count > 0:
+        rendered = (
+            f"{rendered}\n"
+            "<p><i>"
+            f"{omitted_image_count} figure(s) were omitted from embedding "
+            "because the report exceeded configured size limits."
+            "</i></p>"
+        )
+    return rendered
+
+
+def _build_workflow_report_html_document(
+    *,
+    markdown_text: str,
+    report_path: Path,
+    repo_dir: Path,
+    mode: str,
+) -> str:
+    mode_label = str(mode or "workflow").strip().lower() or "workflow"
+    report_rel = _display_repo_path(repo_dir, report_path)
+    body = _render_workflow_report_markdown_html(
+        markdown_text=markdown_text,
+        report_path=report_path,
+        repo_dir=repo_dir,
+    )
+    generated_local = _format_local_timestamp(_now_utc_iso())
+    title = f"FermiLink {mode_label} report"
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '  <meta charset="utf-8" />\n'
+        '  <meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+        f"  <title>{_html_escape(title)}</title>\n"
+        "  <style>\n"
+        "    :root { color-scheme: light; }\n"
+        "    body { margin: 0; background: #f5f7fa; color: #1e2430; "
+        "font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }\n"
+        "    .page { max-width: 960px; margin: 0 auto; padding: 28px 20px 56px; }\n"
+        "    .meta { margin-bottom: 18px; color: #4f5e73; font-size: 13px; }\n"
+        "    .report { background: #ffffff; border: 1px solid #dde4ee; "
+        "border-radius: 10px; padding: 22px; box-shadow: 0 8px 26px rgba(14, 30, 63, 0.07); }\n"
+        "    .report pre { overflow-x: auto; background: #f2f5f9; padding: 12px; border-radius: 8px; }\n"
+        "    .report code { background: #eef2f8; padding: 0.1em 0.35em; border-radius: 4px; }\n"
+        "    .workflow-report-figure { margin: 18px 0 20px; }\n"
+        "    .workflow-report-figure img { max-width: 100%; height: auto; display: block; "
+        "border: 1px solid #d5dde9; border-radius: 8px; }\n"
+        "    .workflow-report-figure figcaption { margin-top: 6px; color: #526178; font-size: 13px; }\n"
+        "  </style>\n"
+        "</head>\n"
+        "<body>\n"
+        '  <div class="page">\n'
+        f'    <div class="meta"><b>{_html_escape(title)}</b><br />'
+        f"Generated at {_html_escape(generated_local)}<br />"
+        f"Source: <code>{_html_escape(report_rel)}</code></div>\n"
+        f'    <article class="report">{body}</article>\n'
+        "  </div>\n"
+        "</body>\n"
+        "</html>\n"
+    )
+
+
+def _export_workflow_report_html(
+    repo_dir: Path,
+    *,
+    mode: str,
+    run_started_epoch: float | None,
+) -> tuple[Path | None, Path | None]:
+    report_path = _resolve_workflow_report_markdown_path(
+        repo_dir,
+        mode=mode,
+        run_started_epoch=run_started_epoch,
+    )
+    if report_path is None:
+        return None, None
+    try:
+        markdown_text = report_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None, report_path
+    html_payload = _build_workflow_report_html_document(
+        markdown_text=markdown_text,
+        report_path=report_path,
+        repo_dir=repo_dir,
+        mode=mode,
+    )
+    html_path = report_path.parent / WORKFLOW_REPORT_HTML_FILENAME
+    try:
+        html_path.write_text(html_payload, encoding="utf-8")
+    except OSError:
+        return None, report_path
+    return html_path, report_path
 
 
 def _build_run_summary_message(
@@ -2788,18 +3119,58 @@ def _send_run_media_reply(
     chat_id: str,
     workspace: dict[str, Any] | None,
     repo_dir: Path | None,
+    mode: str | None,
     run_started_epoch: float | None,
     on_error: Callable[[str], None],
 ) -> None:
     if workspace is None or repo_dir is None or not repo_dir.is_dir():
         return
+    run_mode = str(mode or "").strip().lower()
+    workspace_label = str(workspace.get("label") or "workspace")
+
+    if run_mode in SUPPORTED_WORKFLOW_PROMPT_MODES:
+        html_report, markdown_report = _export_workflow_report_html(
+            repo_dir,
+            mode=run_mode,
+            run_started_epoch=run_started_epoch,
+        )
+        if html_report is not None and html_report.is_file():
+            caption = (
+                f"{run_mode.title()} report with embedded figures "
+                f"from workspace {workspace_label}"
+            )
+            try:
+                client.send_document(
+                    chat_id=chat_id,
+                    file_path=html_report,
+                    caption=caption,
+                )
+                return
+            except Exception as exc:  # pragma: no cover - network errors
+                on_error(f"failed to send workflow HTML report {html_report}: {exc}")
+        if markdown_report is not None and markdown_report.is_file():
+            caption = (
+                f"{run_mode.title()} markdown report "
+                f"from workspace {workspace_label}"
+            )
+            try:
+                client.send_document(
+                    chat_id=chat_id,
+                    file_path=markdown_report,
+                    caption=caption,
+                )
+                return
+            except Exception as exc:  # pragma: no cover - network errors
+                on_error(
+                    f"failed to send workflow markdown report {markdown_report}: {exc}"
+                )
+
     images, documents = _collect_media_for_run_reply(
         repo_dir,
         run_started_epoch=run_started_epoch,
     )
     if not images and not documents:
         return
-    workspace_label = str(workspace.get("label") or "workspace")
     for index, image_path in enumerate(images):
         caption = None
         if index == 0:
@@ -3034,6 +3405,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     chat_id=job.chat_id,
                     workspace=workspace,
                     repo_dir=repo_dir,
+                    mode=mode,
                     run_started_epoch=run_started_epoch,
                     on_error=lambda msg: cli._print_tagged("gateway", msg, stderr=True),
                 )

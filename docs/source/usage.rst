@@ -142,6 +142,10 @@ Gateway behavior:
   matching the latest run id within their respective memory sections;
 - generated figures/documents are auto-attached back to Telegram when available
   so plots can be viewed directly on mobile clients;
+  for ``research``/``reproduce`` completions, gateway first sends a single
+  ``report.embedded.html`` artifact generated from the latest workflow
+  ``report.md`` with local figures embedded inline, reducing figure-by-figure
+  attachment spam on iPhone;
 - ``/mode <exec|loop|research|reproduce>`` switches normal-message execution
   per chat session between ``fermilink exec`` (single-turn mode, default),
   ``fermilink loop`` (multi-iteration autonomous mode), and workflow modes

@@ -1593,6 +1593,120 @@ def test_collect_media_for_run_reply_prefers_memory_and_recent_files(
     assert key_doc in docs
 
 
+def test_resolve_workflow_report_markdown_path_uses_latest_run_pointer(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    runs_root = repo_dir / "projects" / "research"
+    old_run = runs_root / "20260223-111111"
+    new_run = runs_root / "20260223-222222"
+    old_run.mkdir(parents=True, exist_ok=True)
+    new_run.mkdir(parents=True, exist_ok=True)
+    old_report = old_run / "report.md"
+    new_report = new_run / "report.md"
+    old_report.write_text("# old\n", encoding="utf-8")
+    new_report.write_text("# new\n", encoding="utf-8")
+    (runs_root / "latest_run.txt").write_text("20260223-222222\n", encoding="utf-8")
+
+    now = time.time()
+    import os
+
+    # Make old report newer to ensure latest_run pointer takes precedence.
+    os.utime(old_report, (now, now))
+    os.utime(new_report, (now - 90, now - 90))
+
+    selected = gateway_commands._resolve_workflow_report_markdown_path(
+        repo_dir,
+        mode="research",
+        run_started_epoch=None,
+    )
+    assert selected == new_report.resolve()
+
+
+def test_build_workflow_report_html_document_embeds_local_figures(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    run_dir = repo_dir / "projects" / "research" / "20260223-120000"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    figure = run_dir / "figure-1.png"
+    figure.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+    report_path = run_dir / "report.md"
+    report_path.write_text(
+        (
+            "# Final Report\n\n"
+            "This is the consolidated workflow report.\n\n"
+            "![Figure 1](figure-1.png)\n"
+        ),
+        encoding="utf-8",
+    )
+
+    payload = gateway_commands._build_workflow_report_html_document(
+        markdown_text=report_path.read_text(encoding="utf-8"),
+        report_path=report_path,
+        repo_dir=repo_dir,
+        mode="research",
+    )
+    assert "data:image/png;base64," in payload
+    assert "Figure 1" in payload
+    assert "FermiLink research report" in payload
+
+
+def test_send_run_media_reply_prefers_workflow_embedded_report_html(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    run_dir = repo_dir / "projects" / "reproduce" / "20260223-130000"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "projects" / "reproduce" / "latest_run.txt").write_text(
+        "20260223-130000\n",
+        encoding="utf-8",
+    )
+    (run_dir / "plot.png").write_bytes(b"\x89PNG\r\n\x1a\nplot")
+    (run_dir / "report.md").write_text(
+        "# Reproduce report\n\n![Main plot](plot.png)\n",
+        encoding="utf-8",
+    )
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.photos: list[tuple[Path, str | None]] = []
+            self.documents: list[tuple[Path, str | None]] = []
+
+        def send_photo(
+            self, *, chat_id: str, file_path: Path, caption: str | None = None
+        ) -> None:
+            del chat_id
+            self.photos.append((file_path, caption))
+
+        def send_document(
+            self, *, chat_id: str, file_path: Path, caption: str | None = None
+        ) -> None:
+            del chat_id
+            self.documents.append((file_path, caption))
+
+    fake_client = _FakeClient()
+    errors: list[str] = []
+    gateway_commands._send_run_media_reply(
+        client=fake_client,
+        chat_id="42",
+        workspace={"id": "w1", "label": "main"},
+        repo_dir=repo_dir,
+        mode="reproduce",
+        run_started_epoch=time.time() - 2.0,
+        on_error=errors.append,
+    )
+
+    assert errors == []
+    assert fake_client.photos == []
+    assert len(fake_client.documents) == 1
+    html_path, caption = fake_client.documents[0]
+    assert html_path.name == "report.embedded.html"
+    assert "embedded figures" in str(caption or "")
+    assert html_path.is_file()
+    assert "data:image/png;base64," in html_path.read_text(encoding="utf-8")
+
+
 def test_split_key_result_item_handles_labeled_values_with_pipe_markers() -> None:
     item = (
         "result_id: run2_ez | metric: final Ez spatial field | "
