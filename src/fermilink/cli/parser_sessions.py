@@ -62,6 +62,15 @@ def register_exec_loop_parsers(
         ),
     )
     exec_parser.add_argument(
+        "--hpc-profile",
+        default=None,
+        help=(
+            "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
+            "and `slurm_resource_policy`; when set, execution prompt context is "
+            "constrained to this HPC profile."
+        ),
+    )
+    exec_parser.add_argument(
         "--codex-bin",
         default=default_codex_bin,
         help=(
@@ -107,6 +116,15 @@ def register_exec_loop_parsers(
         help=(
             "Override sandbox mode for this iteration. "
             "When omitted, uses `fermilink agent` policy."
+        ),
+    )
+    loop_parser.add_argument(
+        "--hpc-profile",
+        default=None,
+        help=(
+            "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
+            "and `slurm_resource_policy`; when set, execution prompt context is "
+            "constrained to this HPC profile."
         ),
     )
     loop_parser.add_argument(

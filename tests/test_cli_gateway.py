@@ -97,9 +97,12 @@ def test_run_loop_in_workspace_forwards_iteration_hook(
     monkeypatch, tmp_path: Path
 ) -> None:
     captured_iterations: list[tuple[int, int]] = []
+    captured_hpc_profile: str | None = None
 
     class _FakeCli:
         def _cmd_loop(self, args: object) -> int:
+            nonlocal captured_hpc_profile
+            captured_hpc_profile = getattr(args, "hpc_profile", None)
             hook = getattr(args, "_fermilink_loop_iteration_hook", None)
             if callable(hook):
                 hook(2, 10)
@@ -122,6 +125,7 @@ def test_run_loop_in_workspace_forwards_iteration_hook(
         max_wait_seconds=60.0,
         pid_stall_seconds=5.0,
         init_git=True,
+        hpc_profile="scripts/hpc_profile_anvil.json",
         loop_iteration_hook=lambda iteration, maximum: captured_iterations.append(
             (iteration, maximum)
         ),
@@ -136,6 +140,7 @@ def test_run_loop_in_workspace_forwards_iteration_hook(
     assert isinstance(outcome, dict)
     assert outcome.get("status") == "done"
     assert captured_iterations == [(2, 10)]
+    assert captured_hpc_profile == "scripts/hpc_profile_anvil.json"
 
 
 def test_run_loop_in_workspace_captures_last_informative_reply(
@@ -194,6 +199,8 @@ def test_run_loop_in_workspace_captures_last_informative_reply(
 def test_run_exec_in_workspace_captures_last_message(
     monkeypatch, tmp_path: Path
 ) -> None:
+    captured_hpc_profile: str | None = None
+
     class _FakeCli:
         tempfile = tempfile
 
@@ -220,6 +227,8 @@ def test_run_exec_in_workspace_captures_last_message(
             return ["codex", "exec", prompt]
 
         def _cmd_exec(self, args: object) -> int:
+            nonlocal captured_hpc_profile
+            captured_hpc_profile = getattr(args, "hpc_profile", None)
             prompt = str(getattr(args, "prompt")[0])
             command = self.build_exec_command(
                 provider="codex",
@@ -244,7 +253,17 @@ def test_run_exec_in_workspace_captures_last_message(
     code, outcome = gateway_commands._run_exec_in_workspace(
         repo_dir,
         "single turn request",
-        _loop_config(),
+        gateway_commands.GatewayLoopConfig(
+            package_id=None,
+            sandbox=None,
+            codex_bin="codex",
+            max_iterations=2,
+            wait_seconds=0.0,
+            max_wait_seconds=10.0,
+            pid_stall_seconds=0.0,
+            init_git=True,
+            hpc_profile="scripts/hpc_profile_anvil.json",
+        ),
     )
 
     assert code == 0
@@ -252,6 +271,7 @@ def test_run_exec_in_workspace_captures_last_message(
     assert outcome.get("status") == "done"
     assert outcome.get("agent_reply_source") == "exec_last_message"
     assert outcome.get("agent_reply_text") == "Exact exec reply with final recommendation."
+    assert captured_hpc_profile == "scripts/hpc_profile_anvil.json"
 
 
 def test_run_research_in_workspace_forwards_hpc_profile(

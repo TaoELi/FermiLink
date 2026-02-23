@@ -453,6 +453,40 @@ def _format_slurm_issues(issues: list[tuple[str, str]]) -> str:
     return "; ".join(parts)
 
 
+def _build_hpc_execution_constraints_block(
+    *,
+    repo_dir: Path,
+    args: argparse.Namespace,
+) -> str:
+    cli = _cli()
+    hpc_context = cli._resolve_invocation_hpc_context(repo_dir=repo_dir, args=args)
+    if not isinstance(hpc_context, dict) or not bool(hpc_context.get("enabled")):
+        return ""
+    prompt_lines = cli._build_hpc_prompt_lines(hpc_context)
+    if not isinstance(prompt_lines, list) or not prompt_lines:
+        return ""
+    return "Execution target constraints:\n" + "\n".join(prompt_lines)
+
+
+def _assemble_prompt_with_optional_constraints(
+    *,
+    prompt_prefix: str,
+    request_marker: str,
+    user_prompt: str,
+    constraints_block: str,
+) -> str:
+    request_text = user_prompt.strip()
+    if constraints_block and prompt_prefix.endswith(request_marker):
+        base_prefix = prompt_prefix[: -len(request_marker)]
+        return (
+            f"{base_prefix}{constraints_block}\n\n"
+            f"{request_marker}{request_text}\n"
+        )
+    if constraints_block:
+        return f"{prompt_prefix}{constraints_block}\n\n{request_text}\n"
+    return f"{prompt_prefix}{request_text}\n"
+
+
 def cmd_chat(args: argparse.Namespace) -> int:
     """Run interactive chat mode.
 
@@ -622,6 +656,10 @@ def cmd_loop(args: argparse.Namespace) -> int:
     cli._ensure_exec_repo_ready(repo_dir, args)
 
     cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+    hpc_constraints_block = _build_hpc_execution_constraints_block(
+        repo_dir=repo_dir,
+        args=args,
+    )
 
     user_prompt, prompt_file = cli._resolve_exec_like_user_prompt(args)
     workflow_prompt_preamble = getattr(args, "workflow_prompt_preamble", None)
@@ -724,7 +762,12 @@ def cmd_loop(args: argparse.Namespace) -> int:
         ),
     )
 
-    prompt = f"{cli.LOOP_PROMPT_PREFIX}{user_prompt.strip()}\n"
+    prompt = _assemble_prompt_with_optional_constraints(
+        prompt_prefix=cli.LOOP_PROMPT_PREFIX,
+        request_marker="Original request:\n",
+        user_prompt=user_prompt,
+        constraints_block=hpc_constraints_block,
+    )
     try:
         for iteration in range(1, max_iterations + 1):
             iteration_hook = getattr(args, "_fermilink_loop_iteration_hook", None)
@@ -1050,13 +1093,22 @@ def cmd_exec(args: argparse.Namespace) -> int:
 
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
+    hpc_constraints_block = _build_hpc_execution_constraints_block(
+        repo_dir=repo_dir,
+        args=args,
+    )
     cli._ensure_loop_memory(
         repo_dir=repo_dir,
         user_prompt=user_prompt,
         prompt_file=prompt_file,
         overwrite=False,
     )
-    prompt = f"{cli.UNIFIED_MEMORY_PROMPT_PREFIX}{user_prompt.strip()}\n"
+    prompt = _assemble_prompt_with_optional_constraints(
+        prompt_prefix=cli.UNIFIED_MEMORY_PROMPT_PREFIX,
+        request_marker="Current request/context:\n",
+        user_prompt=user_prompt,
+        constraints_block=hpc_constraints_block,
+    )
 
     scipkg_root = cli.resolve_scipkg_root()
     runtime_policy = cli.resolve_agent_runtime_policy()

@@ -24,6 +24,7 @@ Use ``exec`` when you want web-like package routing in a local repository.
 
    # provide prompt from a file
    fermilink exec prompt.md
+   fermilink exec "run the benchmark on slurm" --hpc-profile scripts/hpc_profile_anvil.json
 
 What ``exec`` does:
 
@@ -38,6 +39,7 @@ Useful flags:
 
 - ``--package <id>`` pin package id.
 - ``--sandbox <mode>`` apply per-run sandbox override.
+- ``--hpc-profile <json>`` append workflow-style HPC execution constraints to the exec prompt.
 - ``--init-git`` initialize git repo non-interactively if missing.
 - ``--no-init-git`` fail when git repo is missing.
 
@@ -173,8 +175,9 @@ Useful flags:
 - loop forwarding flags such as ``--package``, ``--sandbox``,
   ``--max-iterations``, ``--wait-seconds``, ``--max-wait-seconds``,
   ``--pid-stall-seconds``.
-- ``--hpc-profile <json>`` forward an HPC profile to workflow prompts run
-  through gateway (``fermilink research ...`` / ``fermilink reproduce ...``).
+- ``--hpc-profile <json>`` forward an HPC profile to gateway-triggered
+  ``exec``/``loop`` runs and workflow prompts
+  (``fermilink research ...`` / ``fermilink reproduce ...``).
 
 Autonomous iterative loop
 -------------------------
@@ -188,6 +191,7 @@ Use ``loop`` for iterative autonomous work with persistent memory.
    fermilink loop --max-iterations 50 prompt.md
    fermilink loop --wait-seconds 30 --max-wait-seconds 300 prompt.md
    fermilink loop --pid-stall-seconds 900 prompt.md
+   fermilink loop --hpc-profile scripts/hpc_profile_anvil.json prompt.md
 
 Loop behavior:
 
@@ -211,6 +215,9 @@ Loop behavior:
   lookup, or terminated early;
 - emits a polling heartbeat roughly every 10 minutes during active waits,
   including UTC timestamp and currently tracked wait targets;
+- accepts optional ``--hpc-profile <json>`` to append the same
+  workflow-style HPC execution-target constraints used by
+  ``reproduce``/``research``;
 - keeps backward-compatible ``<wait_seconds>...</wait_seconds>`` wait hints when
   no pid/slurm wait tags are provided.
 

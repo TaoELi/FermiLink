@@ -238,6 +238,15 @@ def test_exec_parser_supports_package_pin_and_git_flags() -> None:
     assert args.package_id == "maxwelllink"
     assert args.init_git is True
     assert args.sandbox == "read-only"
+    assert args.hpc_profile is None
+
+
+def test_exec_parser_accepts_hpc_profile() -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        ["exec", "run test", "--hpc-profile", "scripts/hpc_profile_anvil.json"]
+    )
+    assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
 
 
 def test_exec_accepts_prompt_file(
@@ -281,6 +290,91 @@ def test_exec_accepts_prompt_file(
     assert code == 0
     assert "projects/memory.md" in str(captured["prompt"])
     assert "simulate one cavity" in str(captured["prompt"])
+
+
+def test_exec_hpc_profile_appends_execution_target_constraints(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "hpc_profile.json").write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=16 --ntasks-per-node=16",
+                "slurm_resource_policy": "Use moderate resources",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scipkg")
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "maxwelllink",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        cli,
+        "_run_exec_codex_prompt",
+        lambda **kwargs: captured.update(kwargs) or 0,
+    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    code = cli.main(["exec", "simulate one cavity", "--hpc-profile", "hpc_profile.json"])
+    assert code == 0
+    prompt = str(captured["prompt"])
+    assert "Execution target constraints:" in prompt
+    assert "execution_target: HPC SLURM." in prompt
+    assert "slurm_default_partition: `shared`." in prompt
+    assert "slurm_defaults: `--nodes=1 --ntasks=16 --ntasks-per-node=16`." in prompt
+    assert "slurm_resource_policy: Use moderate resources." in prompt
+    assert prompt.endswith("Current request/context:\nsimulate one cavity\n")
+    assert prompt.find("Execution target constraints:") < prompt.find(
+        "Current request/context:\n"
+    )
+
+
+def test_exec_hpc_profile_requires_lightweight_schema(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "legacy_profile.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cluster_name": "legacy",
+                "scheduler": "slurm",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    code = cli.main(["exec", "hello", "--hpc-profile", "legacy_profile.json"])
+    assert code == 2
+    assert "missing required `slurm_default_partition`" in capsys.readouterr().err
 
 
 def test_exec_rejects_pdf_prompt_file(

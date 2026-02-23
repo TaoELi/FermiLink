@@ -122,8 +122,9 @@ def register_gateway_parser(
         "--hpc-profile",
         default=None,
         help=(
-            "Optional JSON file forwarded to gateway-triggered workflow prompts "
-            "(`fermilink research ...` / `fermilink reproduce ...`)."
+            "Optional JSON file forwarded to gateway-triggered exec/loop/workflow "
+            "runs (`fermilink exec`, `fermilink loop`, "
+            "`fermilink research ...`, `fermilink reproduce ...`)."
         ),
     )
     init_git_group = gateway_parser.add_mutually_exclusive_group(required=False)
