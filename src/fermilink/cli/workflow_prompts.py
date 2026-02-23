@@ -256,7 +256,7 @@ WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
     "Improve transitions, narrative coherence, terminology consistency, and reader accessibility\n"
     "without changing factual conclusions beyond available evidence.\n"
     "Do not fabricate data; flag uncertain or missing support explicitly.\n"
-    "After your edits, also translate this markdown report into a LaTeX format suitable for submission to physcial review journals, ensuring all scientific content and clarity is preserved or enhanced in the translation.\n"
+    "After your edits, also translate this markdown report into a LaTeX format (revtex 4.1 preprint) suitable for submission to physcial review journals, ensuring all scientific content and clarity is preserved or enhanced in the translation.\n"
     "If latex is installed in this machine, also compile the LaTeX into a PDF and save it as an artifact, ensuring that all figures are correctly included and formatted according to journal standards.\n"
 
 )

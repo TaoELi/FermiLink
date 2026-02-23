@@ -145,7 +145,8 @@ Gateway behavior:
   for ``research``/``reproduce`` completions, gateway first sends a single
   ``report.embedded.html`` artifact generated from the latest workflow
   ``report.md`` with local figures embedded inline, reducing figure-by-figure
-  attachment spam on iPhone;
+  attachment spam on iPhone; when ``report.pdf`` exists beside that workflow
+  ``report.md``, gateway also sends the PDF report in the same completion reply;
 - ``/mode <exec|loop|research|reproduce>`` switches normal-message execution
   per chat session between ``fermilink exec`` (single-turn mode, default),
   ``fermilink loop`` (multi-iteration autonomous mode), and workflow modes

@@ -1634,7 +1634,9 @@ def test_build_workflow_report_html_document_embeds_local_figures(
     report_path = run_dir / "report.md"
     report_path.write_text(
         (
+            "<!-- FERMILINK_REPORT_STAGE:audited run_id=20260223-120000 -->\n\n"
             "# Final Report\n\n"
+            "**I. Scope**\n"
             "This is the consolidated workflow report.\n\n"
             "![Figure 1](figure-1.png)\n"
         ),
@@ -1650,6 +1652,66 @@ def test_build_workflow_report_html_document_embeds_local_figures(
     assert "data:image/png;base64," in payload
     assert "Figure 1" in payload
     assert "FermiLink research report" in payload
+    assert "FERMILINK_REPORT_STAGE" not in payload
+    assert "workflow-report-heading" in payload
+    assert "white-space: pre-line" in payload
+
+
+def test_send_run_media_reply_sends_workflow_pdf_when_available(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    run_dir = repo_dir / "projects" / "research" / "20260223-131000"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "projects" / "research" / "latest_run.txt").write_text(
+        "20260223-131000\n",
+        encoding="utf-8",
+    )
+    (run_dir / "plot.png").write_bytes(b"\x89PNG\r\n\x1a\nplot")
+    (run_dir / "report.md").write_text(
+        "# Research report\n\n![Main plot](plot.png)\n",
+        encoding="utf-8",
+    )
+    (run_dir / "report.pdf").write_bytes(b"%PDF-1.4\nfake\n")
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.photos: list[tuple[Path, str | None]] = []
+            self.documents: list[tuple[Path, str | None]] = []
+
+        def send_photo(
+            self, *, chat_id: str, file_path: Path, caption: str | None = None
+        ) -> None:
+            del chat_id
+            self.photos.append((file_path, caption))
+
+        def send_document(
+            self, *, chat_id: str, file_path: Path, caption: str | None = None
+        ) -> None:
+            del chat_id
+            self.documents.append((file_path, caption))
+
+    fake_client = _FakeClient()
+    errors: list[str] = []
+    gateway_commands._send_run_media_reply(
+        client=fake_client,
+        chat_id="42",
+        workspace={"id": "w1", "label": "main"},
+        repo_dir=repo_dir,
+        mode="research",
+        run_started_epoch=time.time() - 2.0,
+        on_error=errors.append,
+    )
+
+    assert errors == []
+    assert fake_client.photos == []
+    assert len(fake_client.documents) == 2
+    first_path, first_caption = fake_client.documents[0]
+    second_path, second_caption = fake_client.documents[1]
+    assert first_path.name == "report.embedded.html"
+    assert "embedded figures" in str(first_caption or "")
+    assert second_path.name == "report.pdf"
+    assert "PDF report" in str(second_caption or "")
 
 
 def test_send_run_media_reply_prefers_workflow_embedded_report_html(

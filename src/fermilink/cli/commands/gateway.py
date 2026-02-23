@@ -33,6 +33,7 @@ DOCUMENT_SUFFIXES = {".pdf"}
 WORKFLOW_LATEST_RUN_FILENAME = "latest_run.txt"
 WORKFLOW_REPORT_MARKDOWN_FILENAME = "report.md"
 WORKFLOW_REPORT_HTML_FILENAME = "report.embedded.html"
+WORKFLOW_REPORT_PDF_FILENAME = "report.pdf"
 WORKFLOW_REPORT_EMBED_MAX_IMAGES = 24
 WORKFLOW_REPORT_EMBED_MAX_TOTAL_BYTES = 16_000_000
 CHECKLIST_ITEM_RE = re.compile(r"^\s*-\s*\[(?P<mark>[xX ])\]\s+(?P<item>.+?)\s*$")
@@ -81,6 +82,11 @@ MARKDOWN_BOLD_RE = re.compile(r"\*\*(.+?)\*\*|__(.+?)__")
 MARKDOWN_ITALIC_RE = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)")
 MARKDOWN_LINK_RE = re.compile(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)")
 MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]\n]*)\]\(([^)\n]+)\)")
+WORKFLOW_REPORT_STAGE_MARKER_LINE_RE = re.compile(
+    r"^\s*<!--\s*FERMILINK_REPORT_STAGE:.*?-->\s*$",
+    re.IGNORECASE,
+)
+WORKFLOW_REPORT_BOLD_LINE_RE = re.compile(r"^\s*<b>(.+?)</b>\s*$", re.DOTALL)
 GATEWAY_HELP_TEXT = (
     "Commands:\n"
     "/new [name] - create and switch to a new workspace\n"
@@ -2196,6 +2202,46 @@ def _render_workflow_report_markdown_html(
     report_path: Path,
     repo_dir: Path,
 ) -> str:
+    def _strip_stage_markers(text: str) -> str:
+        normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+        if not normalized:
+            return ""
+        kept_lines = [
+            line
+            for line in normalized.split("\n")
+            if not WORKFLOW_REPORT_STAGE_MARKER_LINE_RE.match(line)
+        ]
+        return "\n".join(kept_lines)
+
+    def _promote_standalone_bold_lines(rendered_html: str) -> str:
+        heading_index = 0
+        promoted_lines: list[str] = []
+        for raw_line in str(rendered_html or "").splitlines():
+            line = str(raw_line or "")
+            match = WORKFLOW_REPORT_BOLD_LINE_RE.fullmatch(line.strip())
+            if match is None:
+                promoted_lines.append(line)
+                continue
+            heading_text = str(match.group(1) or "").strip()
+            if not heading_text:
+                promoted_lines.append(line)
+                continue
+            heading_index += 1
+            if heading_index == 1:
+                promoted_lines.append(
+                    '<h1 class="workflow-report-heading workflow-report-heading-1">'
+                    f"{heading_text}"
+                    "</h1>"
+                )
+            else:
+                promoted_lines.append(
+                    '<h2 class="workflow-report-heading workflow-report-heading-2">'
+                    f"{heading_text}"
+                    "</h2>"
+                )
+        return "\n".join(promoted_lines)
+
+    cleaned_markdown = _strip_stage_markers(markdown_text)
     placeholders: dict[str, str] = {}
     embedded_image_count = 0
     embedded_total_bytes = 0
@@ -2284,10 +2330,11 @@ def _render_workflow_report_markdown_html(
         )
         return token
 
-    markdown_with_tokens = MARKDOWN_IMAGE_RE.sub(_replace_image, str(markdown_text or ""))
+    markdown_with_tokens = MARKDOWN_IMAGE_RE.sub(_replace_image, cleaned_markdown)
     rendered = _render_agent_markdown_html(markdown_with_tokens).strip()
     if not rendered:
-        rendered = f"<pre>{_html_escape(str(markdown_text or ''))}</pre>"
+        rendered = f"<pre>{_html_escape(cleaned_markdown)}</pre>"
+    rendered = _promote_standalone_bold_lines(rendered)
     for token, value in placeholders.items():
         rendered = rendered.replace(token, value)
     if omitted_image_count > 0:
@@ -2331,10 +2378,16 @@ def _build_workflow_report_html_document(
         "    .page { max-width: 960px; margin: 0 auto; padding: 28px 20px 56px; }\n"
         "    .meta { margin-bottom: 18px; color: #4f5e73; font-size: 13px; }\n"
         "    .report { background: #ffffff; border: 1px solid #dde4ee; "
-        "border-radius: 10px; padding: 22px; box-shadow: 0 8px 26px rgba(14, 30, 63, 0.07); }\n"
+        "border-radius: 10px; padding: 22px; box-shadow: 0 8px 26px rgba(14, 30, 63, 0.07); "
+        "white-space: pre-line; }\n"
+        "    .report .workflow-report-heading { white-space: normal; margin: 1.3em 0 0.45em; "
+        "line-height: 1.28; color: #18202e; }\n"
+        "    .report .workflow-report-heading-1 { margin-top: 0; font-size: 1.45rem; }\n"
+        "    .report .workflow-report-heading-2 { font-size: 1.08rem; "
+        "border-top: 1px solid #e6ebf2; padding-top: 0.72em; }\n"
         "    .report pre { overflow-x: auto; background: #f2f5f9; padding: 12px; border-radius: 8px; }\n"
         "    .report code { background: #eef2f8; padding: 0.1em 0.35em; border-radius: 4px; }\n"
-        "    .workflow-report-figure { margin: 18px 0 20px; }\n"
+        "    .workflow-report-figure { margin: 18px 0 20px; white-space: normal; }\n"
         "    .workflow-report-figure img { max-width: 100%; height: auto; display: block; "
         "border: 1px solid #d5dde9; border-radius: 8px; }\n"
         "    .workflow-report-figure figcaption { margin-top: 6px; color: #526178; font-size: 13px; }\n"
@@ -2381,6 +2434,15 @@ def _export_workflow_report_html(
     except OSError:
         return None, report_path
     return html_path, report_path
+
+
+def _resolve_workflow_report_pdf_path(report_path: Path | None) -> Path | None:
+    if report_path is None:
+        return None
+    pdf_path = report_path.parent / WORKFLOW_REPORT_PDF_FILENAME
+    if pdf_path.is_file():
+        return pdf_path
+    return None
 
 
 def _build_run_summary_message(
@@ -3134,6 +3196,8 @@ def _send_run_media_reply(
             mode=run_mode,
             run_started_epoch=run_started_epoch,
         )
+        pdf_report = _resolve_workflow_report_pdf_path(markdown_report)
+        sent_workflow_report = False
         if html_report is not None and html_report.is_file():
             caption = (
                 f"{run_mode.title()} report with embedded figures "
@@ -3145,10 +3209,14 @@ def _send_run_media_reply(
                     file_path=html_report,
                     caption=caption,
                 )
-                return
+                sent_workflow_report = True
             except Exception as exc:  # pragma: no cover - network errors
                 on_error(f"failed to send workflow HTML report {html_report}: {exc}")
-        if markdown_report is not None and markdown_report.is_file():
+        if (
+            not sent_workflow_report
+            and markdown_report is not None
+            and markdown_report.is_file()
+        ):
             caption = (
                 f"{run_mode.title()} markdown report "
                 f"from workspace {workspace_label}"
@@ -3159,11 +3227,23 @@ def _send_run_media_reply(
                     file_path=markdown_report,
                     caption=caption,
                 )
-                return
+                sent_workflow_report = True
             except Exception as exc:  # pragma: no cover - network errors
                 on_error(
                     f"failed to send workflow markdown report {markdown_report}: {exc}"
                 )
+        if sent_workflow_report and pdf_report is not None and pdf_report.is_file():
+            caption = f"{run_mode.title()} PDF report from workspace {workspace_label}"
+            try:
+                client.send_document(
+                    chat_id=chat_id,
+                    file_path=pdf_report,
+                    caption=caption,
+                )
+            except Exception as exc:  # pragma: no cover - network errors
+                on_error(f"failed to send workflow PDF report {pdf_report}: {exc}")
+        if sent_workflow_report:
+            return
 
     images, documents = _collect_media_for_run_reply(
         repo_dir,
