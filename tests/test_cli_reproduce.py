@@ -849,9 +849,13 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     assert "Unified-memory requirements (apply in this stage):" in prompts[0]
     assert "Before acting, read `projects/memory.md`." in prompts[0]
     assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "### Parameter source mapping" in prompts[0]
+    assert "### Simulation uncertainty" in prompts[0]
     assert "Unified-memory requirements (apply in this stage):" in prompts[1]
     assert "Before acting, read `projects/memory.md`." in prompts[1]
     assert "After completing this stage, update `projects/memory.md`" in prompts[1]
+    assert "### Parameter source mapping" in prompts[1]
+    assert "### Simulation uncertainty" in prompts[1]
 
 
 def test_finalize_workflow_report_rejects_stale_generation_outputs(
@@ -1423,9 +1427,13 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
     assert "Unified-memory requirements (apply in this stage):" in prompts[0]
     assert "Before acting, read `projects/memory.md`." in prompts[0]
     assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "### Parameter source mapping" in prompts[0]
+    assert "### Simulation uncertainty" in prompts[0]
     assert "Unified-memory requirements (apply in this stage):" in prompts[1]
     assert "Before acting, read `projects/memory.md`." in prompts[1]
     assert "After completing this stage, update `projects/memory.md`" in prompts[1]
+    assert "### Parameter source mapping" in prompts[1]
+    assert "### Simulation uncertainty" in prompts[1]
     assert "Execution target constraints:" in prompts[0]
     assert "execution_target: HPC SLURM." in prompts[0]
     assert "slurm_default_partition: `shared`." in prompts[0]

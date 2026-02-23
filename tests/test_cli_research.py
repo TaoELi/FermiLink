@@ -124,9 +124,13 @@ def test_generate_research_plan_includes_unified_memory_stage_instructions(
     assert "Unified-memory requirements (apply in this stage):" in prompts[0]
     assert "Before acting, read `projects/memory.md`." in prompts[0]
     assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "### Parameter source mapping" in prompts[0]
+    assert "### Simulation uncertainty" in prompts[0]
     assert "Unified-memory requirements (apply in this stage):" in prompts[1]
     assert "Before acting, read `projects/memory.md`." in prompts[1]
     assert "After completing this stage, update `projects/memory.md`" in prompts[1]
+    assert "### Parameter source mapping" in prompts[1]
+    assert "### Simulation uncertainty" in prompts[1]
 
 
 def test_research_plan_only_writes_plan_without_running_loop(

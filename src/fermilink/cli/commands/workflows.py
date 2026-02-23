@@ -120,10 +120,13 @@ WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS = (
     "  - `## Short-Term Memory (Operational) -> ### Plan`\n"
     "  - `## Short-Term Memory (Operational) -> ### Progress log`\n"
     "- Update long-term sections only when there is durable information:\n"
-    "  - `### File map`\n"
-    "  - `### Simulation history`\n"
-    "  - `### Key results`\n"
-    "  - `### Suggested skills updates`\n"
+    "  - `### File map` for stable file/purpose mapping changes.\n"
+    "  - `### Simulation history` for run/job milestones and outcomes.\n"
+    "  - `### Key results` for validated, reproducible outcomes (include artifact paths).\n"
+    "  - `### Parameter source mapping` for simulation parameter/setting provenance.\n"
+    "  - `### Simulation uncertainty` for uncertainty, assumptions, and confidence gaps.\n"
+    "  - `### Suggested skills updates` for recurring failure patterns and concrete fixes.\n"
+    
 )
 
 USEFUL_SUFFIXES = {
@@ -2955,6 +2958,8 @@ UNIFIED_MEMORY_PROGRESS_HEADING = "### Progress log"
 UNIFIED_MEMORY_FILE_MAP_HEADING = "### File map"
 UNIFIED_MEMORY_SIM_HISTORY_HEADING = "### Simulation history"
 UNIFIED_MEMORY_KEY_RESULTS_HEADING = "### Key results"
+UNIFIED_MEMORY_PARAM_SOURCE_HEADING = "### Parameter source mapping"
+UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING = "### Simulation uncertainty"
 UNIFIED_MEMORY_SKILLS_UPDATES_HEADING = "### Suggested skills updates"
 
 UNIFIED_MEMORY_SHORT_TERM_BLOCK = (
@@ -2978,6 +2983,12 @@ UNIFIED_MEMORY_LONG_TERM_BLOCK = (
     "\n"
     f"{UNIFIED_MEMORY_KEY_RESULTS_HEADING}\n"
     "- (result_id | metric | value | conditions | evidence_path)\n"
+    "\n"
+    f"{UNIFIED_MEMORY_PARAM_SOURCE_HEADING}\n"
+    "- (run_id | parameter_or_setting | value | source | evidence_path | notes)\n"
+    "\n"
+    f"{UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING}\n"
+    "- (run_id | uncertainty_or_assumption | impact | mitigation_or_next_step | status)\n"
     "\n"
     f"{UNIFIED_MEMORY_SKILLS_UPDATES_HEADING}\n"
     "- (<package_id> | issue_pattern | proposed_skill_update | evidence | status)\n"
@@ -3104,6 +3115,20 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
                 upgraded,
                 f"{UNIFIED_MEMORY_KEY_RESULTS_HEADING}\n"
                 "- (result_id | metric | value | conditions | evidence_path)\n",
+            )
+        if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_PARAM_SOURCE_HEADING):
+            upgraded = _append_memory_block(
+                upgraded,
+                f"{UNIFIED_MEMORY_PARAM_SOURCE_HEADING}\n"
+                "- (run_id | parameter_or_setting | value | source | evidence_path | notes)\n",
+            )
+        if not _memory_heading_exists(
+            upgraded, UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING
+        ):
+            upgraded = _append_memory_block(
+                upgraded,
+                f"{UNIFIED_MEMORY_SIM_UNCERTAINTY_HEADING}\n"
+                "- (run_id | uncertainty_or_assumption | impact | mitigation_or_next_step | status)\n",
             )
         if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SKILLS_UPDATES_HEADING):
             upgraded = _append_memory_block(
@@ -3304,6 +3329,8 @@ def _summarize_archived_memory(path: Path, *, max_items: int = 3) -> list[str]:
             "(path | purpose | notes)",
             "(run_id | objective | status | artifacts | notes)",
             "(result_id | metric | value | conditions | evidence_path)",
+            "(run_id | parameter_or_setting | value | source | evidence_path | notes)",
+            "(run_id | uncertainty_or_assumption | impact | mitigation_or_next_step | status)",
             "(issue_pattern | proposed_skill_update | evidence | status)",
         }:
             continue

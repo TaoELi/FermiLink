@@ -85,6 +85,8 @@ def test_loop_reads_prompt_file_and_initializes_memory(
     assert "### File map" in memory
     assert "### Simulation history" in memory
     assert "### Key results" in memory
+    assert "### Parameter source mapping" in memory
+    assert "### Simulation uncertainty" in memory
     assert "### Suggested skills updates" in memory
 
     assert "projects/memory.md" in str(captured.get("prompt"))
@@ -1448,6 +1450,8 @@ def test_ensure_loop_memory_upgrades_legacy_schema(
     assert "- [ ] first step" in upgraded
     assert "### Progress log" in upgraded
     assert "## Long-Term Memory (Persistent)" in upgraded
+    assert "### Parameter source mapping" in upgraded
+    assert "### Simulation uncertainty" in upgraded
     assert "### Suggested skills updates" in upgraded
 
 

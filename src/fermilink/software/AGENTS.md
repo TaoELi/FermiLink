@@ -36,6 +36,8 @@ Detailed information of this scientific package can be seen in the README or REA
   - `### File map`
   - `### Simulation history`
   - `### Key results`
+  - `### Parameter source mapping`
+  - `### Simulation uncertainty`
   - `### Suggested skills updates`
 - `### Plan` and `### Progress log` are short-term memory and must stay concise/actionable.
 - Long-term sections should only store durable information (stable file roles, reproducible outcomes, recurring failure patterns, and concrete skill-improvement ideas).
@@ -58,6 +60,8 @@ Detailed information of this scientific package can be seen in the README or REA
 - NEVER modify any files outside `projects/` when simulations are involved in your workflow.
 
 - Tell the users in detail where you get the parameters/settings of your employed simulation, and if you are uncertain about some parts of the simulations.
+
+- After simulation turns, also persist concise records in `projects/memory.md` under `### Parameter source mapping` and `### Simulation uncertainty` so provenance and uncertainties remain visible in long-term memory.
 
 ## Simulations in Sandbox environment
 

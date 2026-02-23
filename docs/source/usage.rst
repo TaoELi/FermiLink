@@ -199,7 +199,8 @@ Loop behavior:
 - persists unified memory to ``projects/memory.md`` with:
   ``Short-Term Memory`` (``Plan``, ``Progress log``) and
   ``Long-Term Memory`` (``File map``, ``Simulation history``,
-  ``Key results``, ``Suggested skills updates``);
+  ``Key results``, ``Parameter source mapping``, ``Simulation uncertainty``,
+  ``Suggested skills updates``);
 - stops early when output includes ``<promise>DONE</promise>``;
 - supports job-based waiting via ``<pid_number>...</pid_number>`` (local
   processes) and ``<slurm_job_number>...</slurm_job_number>`` (HPC jobs) tags;
