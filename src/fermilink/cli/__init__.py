@@ -242,6 +242,9 @@ _stream_exec_process_output = exec_runtime._stream_exec_process_output
 _stream_exec_process_output_with_capture = (
     exec_runtime._stream_exec_process_output_with_capture
 )
+_swap_stop_requested_checker = exec_runtime._swap_stop_requested_checker
+_has_stop_requested_checker = exec_runtime._has_stop_requested_checker
+_is_stop_requested = exec_runtime._is_stop_requested
 _should_use_direct_terminal_stream = exec_runtime._should_use_direct_terminal_stream
 _run_exec_chat_turn = exec_runtime._run_exec_chat_turn
 _run_exec_codex_prompt = exec_runtime._run_exec_codex_prompt

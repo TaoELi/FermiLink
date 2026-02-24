@@ -338,6 +338,20 @@ def _extract_slurm_states(stdout: str) -> list[str]:
     return states
 
 
+def _extract_sacct_job_states(stdout: str) -> dict[str, list[str]]:
+    job_states: dict[str, list[str]] = {}
+    for line in str(stdout or "").splitlines():
+        parts = line.split("|")
+        if len(parts) < 2:
+            continue
+        job_token = str(parts[0]).strip()
+        state_token = _normalize_slurm_state_token(parts[1])
+        if not job_token or state_token is None:
+            continue
+        job_states.setdefault(job_token, []).append(state_token)
+    return job_states
+
+
 def _classify_slurm_states(states: list[str]) -> str | None:
     for state in states:
         if state in SLURM_FAILURE_STATES:
@@ -352,18 +366,24 @@ def _classify_slurm_states(states: list[str]) -> str | None:
 
 
 def _query_slurm_job_state(job_id: str) -> str:
+    requested_job_id = str(job_id).strip()
     sacct_bin = shutil.which("sacct")
     if sacct_bin:
         result = _run_slurm_query(
-            [sacct_bin, "-n", "-P", "-o", "State", "-j", str(job_id)]
+            [sacct_bin, "-n", "-P", "-o", "JobID,State", "-j", requested_job_id]
         )
         if result is not None and result.returncode == 0:
-            state = _classify_slurm_states(_extract_slurm_states(result.stdout))
-            if state is not None:
-                return state
+            job_states = _extract_sacct_job_states(result.stdout)
+            requested_states = job_states.get(requested_job_id)
+            if requested_states:
+                state = _classify_slurm_states(requested_states)
+                if state is not None:
+                    return state
     squeue_bin = shutil.which("squeue")
     if squeue_bin:
-        result = _run_slurm_query([squeue_bin, "-h", "-j", str(job_id), "-o", "%T"])
+        result = _run_slurm_query(
+            [squeue_bin, "-h", "-j", requested_job_id, "-o", "%T"]
+        )
         if result is not None and result.returncode == 0:
             state = _classify_slurm_states(_extract_slurm_states(result.stdout))
             if state is not None:
@@ -649,6 +669,21 @@ def cmd_loop(args: argparse.Namespace) -> int:
             },
         )
 
+    def _stop_requested() -> bool:
+        return bool(cli._is_stop_requested())
+
+    def _stop_requested_notice() -> int:
+        _record_loop_outcome(
+            status="stopped_by_user",
+            reason="gateway_stop_command",
+        )
+        cli._print_tagged(
+            "loop",
+            "stop requested by gateway command; terminating current run.",
+            stderr=True,
+        )
+        return 130
+
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
 
@@ -767,6 +802,8 @@ def cmd_loop(args: argparse.Namespace) -> int:
     )
     try:
         for iteration in range(1, max_iterations + 1):
+            if _stop_requested():
+                return _stop_requested_notice()
             iteration_hook = getattr(args, "_fermilink_loop_iteration_hook", None)
             if callable(iteration_hook):
                 try:
@@ -783,6 +820,9 @@ def cmd_loop(args: argparse.Namespace) -> int:
                 provider=provider,
                 sandbox_policy=sandbox_policy,
             )
+
+            if bool(run_result.get("stopped_by_user")) or _stop_requested():
+                return _stop_requested_notice()
 
             assistant_text = str(run_result.get("assistant_text") or "")
             done = any(
@@ -901,6 +941,8 @@ def cmd_loop(args: argparse.Namespace) -> int:
                         pid_issue_caused_early_continue = False
                         slurm_issue_caused_early_continue = False
                         while alive or pending_slurm_jobs:
+                            if _stop_requested():
+                                return _stop_requested_notice()
                             now_monotonic = time.monotonic()
                             elapsed = now_monotonic - started
                             remaining = max_wait_seconds - elapsed
@@ -940,7 +982,16 @@ def cmd_loop(args: argparse.Namespace) -> int:
                                 break
                             sleep_seconds = min(poll_interval, remaining)
                             if sleep_seconds > 0:
-                                time.sleep(sleep_seconds)
+                                if cli._has_stop_requested_checker():
+                                    slept = 0.0
+                                    while slept < sleep_seconds:
+                                        if _stop_requested():
+                                            return _stop_requested_notice()
+                                        chunk = min(0.25, sleep_seconds - slept)
+                                        time.sleep(chunk)
+                                        slept += chunk
+                                else:
+                                    time.sleep(sleep_seconds)
                             now_monotonic = time.monotonic()
                             alive, pid_monitors, pid_issues = _refresh_pid_monitors(
                                 pid_numbers,
@@ -1062,7 +1113,16 @@ def cmd_loop(args: argparse.Namespace) -> int:
                                 f"(source: {wait_source})"
                             ),
                         )
-                    time.sleep(effective_wait)
+                    if cli._has_stop_requested_checker():
+                        slept = 0.0
+                        while slept < effective_wait:
+                            if _stop_requested():
+                                return _stop_requested_notice()
+                            chunk = min(0.25, effective_wait - slept)
+                            time.sleep(chunk)
+                            slept += chunk
+                    else:
+                        time.sleep(effective_wait)
     finally:
         cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
 

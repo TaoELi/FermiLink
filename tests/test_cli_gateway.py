@@ -921,6 +921,93 @@ def test_queue_telegram_run_snapshots_loop_controls_per_job() -> None:
     assert second.max_wait_seconds == 90.0
 
 
+def test_stop_command_clears_pending_and_increments_run_generation(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    chat_id = "914"
+    chat_key = "telegram:914"
+    workspaces_root = tmp_path / "workspaces"
+    loop_config = _loop_config()
+
+    first_job, _ = gateway_commands._queue_telegram_run(
+        text="first request",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        loop_config=loop_config,
+    )
+    second_job, _ = gateway_commands._queue_telegram_run(
+        text="second request",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        loop_config=loop_config,
+    )
+
+    telegram = gateway_commands._telegram_state(state)
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    gateway_commands._mark_chat_job_running(chat_state, first_job)
+    assert chat_state["is_running"] is True
+    assert chat_state["pending_run_count"] == 1
+    assert first_job.run_generation == 0
+    assert second_job.run_generation == 0
+
+    reply = gateway_commands._handle_telegram_text(
+        text="/stop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+    )
+
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    assert "Stop requested for the current run." in reply
+    assert chat_state["pending_run_count"] == 0
+    assert chat_state["is_running"] is True
+    assert chat_state["run_generation"] == 1
+
+
+def test_stop_command_moves_subsequent_jobs_to_new_generation(tmp_path: Path) -> None:
+    state = gateway_commands._default_gateway_state()
+    chat_id = "915"
+    chat_key = "telegram:915"
+    workspaces_root = tmp_path / "workspaces"
+    loop_config = _loop_config()
+
+    first_job, _ = gateway_commands._queue_telegram_run(
+        text="baseline request",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        loop_config=loop_config,
+    )
+    stop_reply = gateway_commands._handle_telegram_text(
+        text="/stop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+    )
+    second_job, _ = gateway_commands._queue_telegram_run(
+        text="fresh request",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        loop_config=loop_config,
+    )
+
+    telegram = gateway_commands._telegram_state(state)
+    chat_state = gateway_commands._ensure_chat_state(telegram, chat_key)
+    assert "Queued runs for this chat were cleared." in stop_reply
+    assert first_job.run_generation == 0
+    assert second_job.run_generation == 1
+    assert chat_state["pending_run_count"] == 1
+    assert chat_state["run_generation"] == 1
+
+
 def test_queue_telegram_run_detects_workflow_prompt_mode() -> None:
     state = gateway_commands._default_gateway_state()
     job, reply = gateway_commands._queue_telegram_run(

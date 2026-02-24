@@ -113,7 +113,7 @@ Step-by-step setup (iPhone + computer):
 6. From iPhone Telegram, open the chat with your bot and test commands:
    ``/help``, then a normal simulation request, then ``/mode exec``,
    ``/mode loop``, ``/loopcfg --max-iterations 20 --max-wait-seconds 1800``,
-   ``/reply agent``, ``/reply summary``, ``/status``,
+   ``/reply agent``, ``/reply summary``, ``/stop``, ``/status``,
    ``fermilink research <idea.md-or-inline>``,
    ``fermilink reproduce <paper.md-or-inline>``,
    ``/new test2``, ``/use main``, ``/where``, and ``/list``.
@@ -151,6 +151,8 @@ Gateway behavior:
   per chat session between ``fermilink exec`` (single-turn mode, default),
   ``fermilink loop`` (multi-iteration autonomous mode), and workflow modes
   ``fermilink research`` / ``fermilink reproduce``;
+- ``/stop`` stops the current active run for this chat and clears queued
+  runs for this chat, so you can send a new request immediately;
 - ``/loopcfg`` shows current per-chat loop controls and supports runtime
   updates from Telegram without gateway restart:
   ``/loopcfg --max-iterations <N>`` and
@@ -233,6 +235,10 @@ Loop behavior:
   unqueryable (instead of pending), and uses repeated-unqueryable detection to
   avoid long false waits when jobs were never submitted, vanished from queue
   lookup, or terminated early;
+- uses job-id-aware ``sacct`` parsing (``JobID,State``) and evaluates the
+  exact requested job row first; when no exact row is present, falls back to
+  ``squeue`` to avoid false non-success classification from mixed child-step
+  states;
 - emits a polling heartbeat roughly every 10 minutes during active waits,
   including UTC timestamp and currently tracked wait targets;
 - accepts optional ``--hpc-profile <json>`` to append the same

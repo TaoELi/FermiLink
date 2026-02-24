@@ -1229,7 +1229,7 @@ def test_query_slurm_job_state_returns_unknown_for_sacct_error_output(
     assert session_commands._query_slurm_job_state("12345") == "UNKNOWN"
 
 
-def test_query_slurm_job_state_prefers_failure_over_active_and_completed(
+def test_query_slurm_job_state_uses_requested_sacct_job_row_first(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -1243,12 +1243,12 @@ def test_query_slurm_job_state_prefers_failure_over_active_and_completed(
         lambda command: subprocess.CompletedProcess(
             command,
             0,
-            stdout="RUNNING\nCANCELLED by 1000\nCOMPLETED\n",
+            stdout="12345|RUNNING\n12345.batch|CANCELLED by 1000\n12345.extern|COMPLETED\n",
             stderr="",
         ),
     )
 
-    assert session_commands._query_slurm_job_state("12345") == "CANCELLED"
+    assert session_commands._query_slurm_job_state("12345") == "RUNNING"
 
 
 def test_query_slurm_job_state_prefers_active_over_completed(
@@ -1265,10 +1265,43 @@ def test_query_slurm_job_state_prefers_active_over_completed(
         lambda command: subprocess.CompletedProcess(
             command,
             0,
-            stdout="COMPLETED\nRUNNING\n",
+            stdout="12345|COMPLETED\n12345|RUNNING\n",
             stderr="",
         ),
     )
+
+    assert session_commands._query_slurm_job_state("12345") == "RUNNING"
+
+
+def test_query_slurm_job_state_falls_back_to_squeue_when_sacct_has_no_exact_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        session_commands.shutil,
+        "which",
+        lambda binary: (
+            "/usr/bin/sacct"
+            if binary == "sacct"
+            else "/usr/bin/squeue" if binary == "squeue" else None
+        ),
+    )
+
+    def fake_run_slurm_query(command: list[str]):
+        if command[0].endswith("sacct"):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="12345.batch|CANCELLED by 1000\n",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="RUNNING\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(session_commands, "_run_slurm_query", fake_run_slurm_query)
 
     assert session_commands._query_slurm_job_state("12345") == "RUNNING"
 

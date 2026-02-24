@@ -92,6 +92,7 @@ GATEWAY_HELP_TEXT = (
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
     "/mode <exec|loop|research|reproduce> - switch run mode for normal messages\n"
+    "/stop - stop current run and clear queued runs for this chat\n"
     "/loopcfg - show/set loop max-iterations and max-wait-seconds\n"
     "/reply <summary|agent|both> - switch final-reply style\n"
     "/status - show gateway/chat run status\n"
@@ -145,6 +146,7 @@ class QueuedRunJob:
     max_iterations: int
     max_wait_seconds: float
     queued_at_utc: str
+    run_generation: int
 
 
 class _TelegramApiClient:
@@ -409,6 +411,7 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         "workspaces": [],
         "execution_mode": "exec",
         "reply_style": "agent",
+        "run_generation": 0,
         "loop_max_iterations_override": None,
         "loop_max_wait_seconds_override": None,
         "is_running": False,
@@ -465,6 +468,17 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
     )
     if loop_max_wait_seconds_override is not None:
         payload["loop_max_wait_seconds_override"] = loop_max_wait_seconds_override
+
+    run_generation_raw = raw.get("run_generation")
+    if isinstance(run_generation_raw, int) and run_generation_raw >= 0:
+        payload["run_generation"] = run_generation_raw
+    elif isinstance(run_generation_raw, str) and run_generation_raw.strip():
+        try:
+            parsed_run_generation = int(run_generation_raw.strip())
+        except ValueError:
+            parsed_run_generation = -1
+        if parsed_run_generation >= 0:
+            payload["run_generation"] = parsed_run_generation
 
     payload["is_running"] = bool(raw.get("is_running"))
     pending_raw = raw.get("pending_run_count")
@@ -757,6 +771,22 @@ def _chat_loop_max_iterations_override(chat_state: dict[str, Any]) -> int | None
 def _chat_loop_max_wait_seconds_override(chat_state: dict[str, Any]) -> float | None:
     value = _parse_non_negative_float(chat_state.get("loop_max_wait_seconds_override"))
     chat_state["loop_max_wait_seconds_override"] = value
+    return value
+
+
+def _chat_run_generation(chat_state: dict[str, Any]) -> int:
+    raw_value = chat_state.get("run_generation")
+    value = 0
+    if isinstance(raw_value, int):
+        value = raw_value
+    elif isinstance(raw_value, str) and raw_value.strip():
+        try:
+            value = int(raw_value.strip())
+        except ValueError:
+            value = 0
+    if value < 0:
+        value = 0
+    chat_state["run_generation"] = value
     return value
 
 
@@ -1151,6 +1181,7 @@ def _parse_gateway_command(text: str) -> tuple[str | None, str]:
         "/new",
         "/use",
         "/mode",
+        "/stop",
         "/loopcfg",
         "/reply",
         "/status",
@@ -1359,6 +1390,9 @@ def _run_loop_in_workspace(
         os.chdir(previous_cwd)
     outcome_raw = getattr(loop_args, "_fermilink_loop_outcome", None)
     outcome = dict(outcome_raw) if isinstance(outcome_raw, dict) else {}
+    if int(code) == 130 and not str(outcome.get("status") or "").strip():
+        outcome["status"] = "stopped_by_user"
+        outcome["reason"] = "gateway_stop_command"
     outcome.update(_derive_loop_agent_reply_payload(captured_assistant_turns))
     return int(code), outcome
 
@@ -1447,6 +1481,12 @@ def _run_exec_in_workspace(
             "reason": "exec_completed",
             **agent_reply_payload,
         }
+    if int(code) == 130:
+        return int(code), {
+            "status": "stopped_by_user",
+            "reason": "gateway_stop_command",
+            **agent_reply_payload,
+        }
     return int(code), {
         "status": "provider_failure",
         "reason": f"provider_exit_code_{int(code)}",
@@ -1502,6 +1542,11 @@ def _run_workflow_in_workspace(
         return int(code), {
             "status": "done",
             "reason": f"{workflow}_completed",
+        }
+    if int(code) == 130 and bool(cli._is_stop_requested()):
+        return int(code), {
+            "status": "stopped_by_user",
+            "reason": "gateway_stop_command",
         }
     return int(code), {
         "status": "provider_failure",
@@ -2466,7 +2511,9 @@ def _build_run_summary_message(
         f"Execution mode: <code>{_html_escape(effective_mode)}</code>.",
     ]
     if effective_mode == "loop":
-        if code == 0 and status in {"", "done"}:
+        if status == "stopped_by_user":
+            lines.append("The run was stopped by /stop before completion.")
+        elif code == 0 and status in {"", "done"}:
             lines.append("The requested simulation workflow finished successfully.")
         elif status == "incomplete_max_iterations":
             lines.append(
@@ -2482,7 +2529,9 @@ def _build_run_summary_message(
         else:
             lines.append(f"The run exited with status code {code}.")
     elif effective_mode == "exec":
-        if code == 0:
+        if status == "stopped_by_user":
+            lines.append("The execution was stopped by /stop before completion.")
+        elif code == 0:
             lines.append("Single-turn execution finished successfully.")
         elif isinstance(provider_exit_code, int):
             lines.append(
@@ -2496,7 +2545,9 @@ def _build_run_summary_message(
             if effective_mode == "research"
             else "Reproduce workflow"
         )
-        if code == 0 and status in {"", "done"}:
+        if status == "stopped_by_user":
+            lines.append(f"{workflow_label} was stopped by /stop before completion.")
+        elif code == 0 and status in {"", "done"}:
             lines.append(f"{workflow_label} orchestration finished successfully.")
         elif isinstance(provider_exit_code, int):
             lines.append(
@@ -2619,8 +2670,8 @@ def _build_run_summary_message(
     lines.append("")
     lines.append(
         "Commands: <code>/new</code>, <code>/use</code>, <code>/mode</code>, "
-        "<code>/loopcfg</code>, <code>/reply</code>, <code>/where</code>, "
-        "<code>/list</code>"
+        "<code>/stop</code>, <code>/loopcfg</code>, <code>/reply</code>, "
+        "<code>/where</code>, <code>/list</code>"
     )
     message = "\n".join(lines)
     if len(message) > 4096:
@@ -2730,9 +2781,9 @@ def _build_status_message(
 
     lines.append("")
     lines.append(
-        "Commands: <code>/mode</code>, <code>/loopcfg</code>, <code>/reply</code>, "
-        "<code>/new</code>, <code>/use</code>, <code>/where</code>, "
-        "<code>/list</code>"
+        "Commands: <code>/mode</code>, <code>/stop</code>, "
+        "<code>/loopcfg</code>, <code>/reply</code>, <code>/new</code>, "
+        "<code>/use</code>, <code>/where</code>, <code>/list</code>"
     )
     message = "\n".join(lines)
     if len(message) > 4096:
@@ -2757,6 +2808,15 @@ def _derive_run_outcome(
     status = str((outcome or {}).get("status") or "").strip() or (
         "done" if int(code) == 0 else "provider_failure"
     )
+    if status == "stopped_by_user":
+        reason = str((outcome or {}).get("reason") or "").strip() or "gateway_stop_command"
+        provider_exit_code_raw = (outcome or {}).get("provider_exit_code")
+        provider_exit_code = (
+            int(provider_exit_code_raw)
+            if isinstance(provider_exit_code_raw, int)
+            else None
+        )
+        return status, reason, provider_exit_code
     reason = str((outcome or {}).get("reason") or "").strip() or (
         "completed" if int(code) == 0 else f"provider_exit_code_{int(code)}"
     )
@@ -2865,6 +2925,7 @@ def _queue_telegram_run(
     workspace = _ensure_active_workspace(chat_state, chat_id=chat_id)
     _touch_workspace(workspace)
     mode, prompt = _resolve_prompt_mode_and_text(chat_state=chat_state, text=text)
+    run_generation = _chat_run_generation(chat_state)
     pending_raw = chat_state.get("pending_run_count")
     pending_count = max(0, int(pending_raw)) if isinstance(pending_raw, int) else 0
     chat_state["pending_run_count"] = pending_count + 1
@@ -2881,6 +2942,7 @@ def _queue_telegram_run(
         max_iterations=effective_loop_config.max_iterations,
         max_wait_seconds=effective_loop_config.max_wait_seconds,
         queued_at_utc=queued_at,
+        run_generation=run_generation,
     )
 
     if bool(chat_state.get("is_running")) or pending_count > 0:
@@ -3007,6 +3069,27 @@ def _handle_telegram_text(
         return (
             "Execution mode set to reproduce.\n"
             "Normal messages will run with `fermilink reproduce`."
+        )
+
+    if command == "/stop":
+        if argument:
+            return "Usage: /stop"
+        pending_raw = chat_state.get("pending_run_count")
+        pending_count = max(0, int(pending_raw)) if isinstance(pending_raw, int) else 0
+        is_running = bool(chat_state.get("is_running"))
+        if not is_running and pending_count <= 0:
+            return "No active or queued run to stop for this chat."
+        chat_state["run_generation"] = _chat_run_generation(chat_state) + 1
+        chat_state["pending_run_count"] = 0
+        if is_running:
+            return (
+                "Stop requested for the current run.\n"
+                "Queued runs for this chat were cleared.\n"
+                "You can send a new request now."
+            )
+        return (
+            "Queued runs for this chat were cleared.\n"
+            "You can send a new request now."
         )
 
     if command == "/loopcfg":
@@ -3342,6 +3425,21 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                 run_queue.task_done()
                 return
 
+            with state_lock:
+                telegram_local = _telegram_state(state)
+                chat_state = _ensure_chat_state(telegram_local, job.chat_key)
+                current_generation = _chat_run_generation(chat_state)
+                if int(job.run_generation) != int(current_generation):
+                    pending_raw = chat_state.get("pending_run_count")
+                    pending_count = (
+                        max(0, int(pending_raw)) if isinstance(pending_raw, int) else 0
+                    )
+                    if pending_count > 0:
+                        chat_state["pending_run_count"] = pending_count - 1
+                    _save_gateway_state(session_store_path, state)
+                    run_queue.task_done()
+                    continue
+
             mode = job.mode if job.mode in SUPPORTED_GATEWAY_RUN_MODES else "loop"
             workspace: dict[str, Any] = {
                 "id": job.workspace_id,
@@ -3364,6 +3462,18 @@ def cmd_gateway(args: argparse.Namespace) -> int:
             summary = ""
             final_reply = ""
             reply_style = "agent"
+            outcome_status = ""
+
+            def _job_stop_requested() -> bool:
+                with state_lock:
+                    telegram_local = _telegram_state(state)
+                    chat_state_local = _ensure_chat_state(telegram_local, job.chat_key)
+                    current_generation = _chat_run_generation(chat_state_local)
+                return int(current_generation) != int(job.run_generation)
+
+            previous_stop_checker = cli._swap_stop_requested_checker(
+                _job_stop_requested
+            )
             try:
                 _ensure_workspace_repo(repo_dir, loop_config.init_git)
                 run_loop_config = replace(
@@ -3417,7 +3527,13 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     loop_runner=None,
                     exec_runner=None,
                 )
+                if _job_stop_requested():
+                    normalized_outcome = dict(outcome) if isinstance(outcome, dict) else {}
+                    normalized_outcome["status"] = "stopped_by_user"
+                    normalized_outcome["reason"] = "gateway_stop_command"
+                    outcome = normalized_outcome
                 status, reason, provider_exit_code = _derive_run_outcome(code, outcome)
+                outcome_status = status
                 with state_lock:
                     telegram_local = _telegram_state(state)
                     chat_state = _ensure_chat_state(telegram_local, job.chat_key)
@@ -3450,6 +3566,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     f"queued run failed for {job.chat_key}: {exc}",
                     stderr=True,
                 )
+                outcome_status = "provider_failure"
                 with state_lock:
                     telegram_local = _telegram_state(state)
                     chat_state = _ensure_chat_state(telegram_local, job.chat_key)
@@ -3464,6 +3581,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     _save_gateway_state(session_store_path, state)
                 summary = f"Gateway error: {exc}"
                 final_reply = summary
+            finally:
+                cli._swap_stop_requested_checker(previous_stop_checker)
 
             if final_reply:
                 try:
@@ -3479,16 +3598,19 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                         stderr=True,
                     )
 
-            with send_lock:
-                _send_run_media_reply(
-                    client=client,
-                    chat_id=job.chat_id,
-                    workspace=workspace,
-                    repo_dir=repo_dir,
-                    mode=mode,
-                    run_started_epoch=run_started_epoch,
-                    on_error=lambda msg: cli._print_tagged("gateway", msg, stderr=True),
-                )
+            if outcome_status != "stopped_by_user":
+                with send_lock:
+                    _send_run_media_reply(
+                        client=client,
+                        chat_id=job.chat_id,
+                        workspace=workspace,
+                        repo_dir=repo_dir,
+                        mode=mode,
+                        run_started_epoch=run_started_epoch,
+                        on_error=lambda msg: cli._print_tagged(
+                            "gateway", msg, stderr=True
+                        ),
+                    )
             run_queue.task_done()
 
     worker_thread = threading.Thread(
