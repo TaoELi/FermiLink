@@ -28,6 +28,9 @@ DEFAULT_GATEWAY_MAX_ITERATIONS = 10
 DEFAULT_GATEWAY_WAIT_SECONDS = 1.0
 DEFAULT_GATEWAY_MAX_WAIT_SECONDS = 6000.0
 DEFAULT_GATEWAY_PID_STALL_SECONDS = 900.0
+TELEGRAM_UPLOADS_DIRNAME = "telegram_uploads"
+TELEGRAM_UPLOAD_MAX_NAME_CHARS = 120
+TELEGRAM_UPLOAD_CONTEXT_MAX_FILES = 8
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 DOCUMENT_SUFFIXES = {".pdf"}
 WORKFLOW_LATEST_RUN_FILENAME = "latest_run.txt"
@@ -101,7 +104,10 @@ GATEWAY_HELP_TEXT = (
     "/help - show commands\n\n"
     "Workflow prompts:\n"
     "fermilink research <prompt-or-file> - run research workflow\n"
-    "fermilink reproduce <prompt-or-file> - run reproduce workflow"
+    "fermilink reproduce <prompt-or-file> - run reproduce workflow\n\n"
+    "File uploads:\n"
+    "send Telegram document/photo to save under repo/telegram_uploads/\n"
+    "caption text (optional) is treated as the run message"
 )
 
 
@@ -149,6 +155,12 @@ class QueuedRunJob:
     run_generation: int
 
 
+@dataclass(frozen=True)
+class TelegramInboundFile:
+    file_id: str
+    suggested_name: str
+
+
 class _TelegramApiClient:
     """Thin Telegram Bot API wrapper using long polling."""
 
@@ -156,6 +168,7 @@ class _TelegramApiClient:
         timeout = httpx.Timeout(connect=15.0, read=75.0, write=15.0, pool=15.0)
         self._client = httpx.Client(timeout=timeout)
         self._base_url = f"https://api.telegram.org/bot{token}"
+        self._file_base_url = f"https://api.telegram.org/file/bot{token}"
 
     def close(self) -> None:
         self._client.close()
@@ -271,6 +284,35 @@ class _TelegramApiClient:
         if not isinstance(result, dict) or result.get("ok") is not True:
             raise RuntimeError(f"Telegram sendDocument failed: {result!r}")
 
+    def get_file_path(self, *, file_id: str) -> str:
+        token = str(file_id or "").strip()
+        if not token:
+            raise RuntimeError("Telegram getFile requires non-empty file_id.")
+        response = self._client.get(
+            f"{self._base_url}/getFile", params={"file_id": token}
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            raise RuntimeError(f"Telegram getFile failed: {payload!r}")
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError(f"Telegram getFile missing result: {payload!r}")
+        file_path = str(result.get("file_path") or "").strip()
+        if not file_path:
+            raise RuntimeError(f"Telegram getFile missing file_path: {payload!r}")
+        return file_path
+
+    def download_file(self, *, file_path: str, target_path: Path) -> None:
+        source = str(file_path or "").strip().lstrip("/")
+        if not source:
+            raise RuntimeError("Telegram file download requires non-empty file_path.")
+        url = f"{self._file_base_url}/{source}"
+        response = self._client.get(url)
+        response.raise_for_status()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_bytes(response.content)
+
 
 def _cli():
     from fermilink import cli
@@ -323,6 +365,177 @@ def _html_attr_escape(text: str) -> str:
 
 def _strip_html_tags(text: str) -> str:
     return re.sub(r"<[^>]+>", "", str(text))
+
+
+def _sanitize_telegram_upload_name(raw_name: str, *, fallback: str) -> str:
+    candidate = Path(str(raw_name or "").strip()).name
+    if not candidate:
+        candidate = str(fallback or "").strip() or "upload"
+    candidate = re.sub(r"[^A-Za-z0-9._-]+", "_", candidate)
+    candidate = candidate.lstrip(".").strip(" _-")
+    if not candidate:
+        candidate = str(fallback or "").strip() or "upload"
+    if len(candidate) <= TELEGRAM_UPLOAD_MAX_NAME_CHARS:
+        return candidate
+    suffix = Path(candidate).suffix
+    stem = Path(candidate).stem
+    if suffix and len(suffix) < TELEGRAM_UPLOAD_MAX_NAME_CHARS:
+        max_stem = TELEGRAM_UPLOAD_MAX_NAME_CHARS - len(suffix)
+        return f"{stem[:max_stem]}{suffix}"
+    return candidate[:TELEGRAM_UPLOAD_MAX_NAME_CHARS]
+
+
+def _next_available_upload_path(upload_dir: Path, file_name: str) -> Path:
+    safe_name = _sanitize_telegram_upload_name(file_name, fallback="upload")
+    candidate = upload_dir / safe_name
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    for idx in range(2, 10000):
+        numbered = upload_dir / f"{stem}-{idx}{suffix}"
+        if not numbered.exists():
+            return numbered
+    raise RuntimeError("Unable to reserve upload filename after many attempts.")
+
+
+def _extract_telegram_inbound_files(message: dict[str, Any]) -> list[TelegramInboundFile]:
+    files: list[TelegramInboundFile] = []
+
+    document = message.get("document")
+    if isinstance(document, dict):
+        document_file_id = str(document.get("file_id") or "").strip()
+        if document_file_id:
+            document_name = str(document.get("file_name") or "").strip() or "document"
+            files.append(
+                TelegramInboundFile(
+                    file_id=document_file_id,
+                    suggested_name=document_name,
+                )
+            )
+
+    best_photo: dict[str, Any] | None = None
+    best_photo_size = -1
+    photo_payload = message.get("photo")
+    if isinstance(photo_payload, list):
+        for item in photo_payload:
+            if not isinstance(item, dict):
+                continue
+            photo_file_id = str(item.get("file_id") or "").strip()
+            if not photo_file_id:
+                continue
+            size_raw = item.get("file_size")
+            size = size_raw if isinstance(size_raw, int) else -1
+            if size >= best_photo_size:
+                best_photo = item
+                best_photo_size = size
+    if isinstance(best_photo, dict):
+        photo_file_id = str(best_photo.get("file_id") or "").strip()
+        if photo_file_id:
+            files.append(
+                TelegramInboundFile(file_id=photo_file_id, suggested_name="photo.jpg")
+            )
+
+    return files
+
+
+def _resolve_repo_relative_display_path(repo_dir: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_dir.resolve()).as_posix()
+    except Exception:
+        return path.name
+
+
+def _download_telegram_inbound_files(
+    *,
+    client: _TelegramApiClient,
+    repo_dir: Path,
+    inbound_files: list[TelegramInboundFile],
+) -> tuple[list[Path], list[str]]:
+    uploads_dir = repo_dir / TELEGRAM_UPLOADS_DIRNAME
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths: list[Path] = []
+    warnings: list[str] = []
+    seen_file_ids: set[str] = set()
+    for index, inbound in enumerate(inbound_files, start=1):
+        file_id = str(inbound.file_id or "").strip()
+        if not file_id or file_id in seen_file_ids:
+            continue
+        seen_file_ids.add(file_id)
+        fallback_name = f"upload-{index}"
+        safe_name = _sanitize_telegram_upload_name(
+            inbound.suggested_name, fallback=fallback_name
+        )
+        try:
+            telegram_file_path = client.get_file_path(file_id=file_id)
+            if not Path(safe_name).suffix:
+                suffix = Path(str(telegram_file_path)).suffix.lower()
+                if re.fullmatch(r"\.[a-z0-9]{1,12}", suffix or ""):
+                    safe_name = f"{safe_name}{suffix}"
+            target_path = _next_available_upload_path(uploads_dir, safe_name)
+            client.download_file(file_path=telegram_file_path, target_path=target_path)
+            saved_paths.append(target_path.resolve())
+        except Exception as exc:
+            warnings.append(f"{safe_name}: {exc}")
+    return saved_paths, warnings
+
+
+def _append_uploaded_files_context_to_prompt(
+    *,
+    prompt: str,
+    repo_dir: Path,
+    uploaded_paths: list[Path],
+) -> str:
+    base = str(prompt or "").strip()
+    if not base:
+        return base
+    if not uploaded_paths:
+        return base
+    lines = [base, "", "Uploaded files are available in the workspace repo:"]
+    for path in uploaded_paths[:TELEGRAM_UPLOAD_CONTEXT_MAX_FILES]:
+        rel = _resolve_repo_relative_display_path(repo_dir, path)
+        lines.append(f"- {rel}")
+    if len(uploaded_paths) > TELEGRAM_UPLOAD_CONTEXT_MAX_FILES:
+        lines.append(f"- ... and {len(uploaded_paths) - TELEGRAM_UPLOAD_CONTEXT_MAX_FILES} more")
+    lines.append("Use these local paths directly if needed.")
+    return "\n".join(lines).strip()
+
+
+def _build_upload_notice_message(
+    *,
+    workspace: dict[str, Any] | None,
+    repo_dir: Path | None,
+    uploaded_paths: list[Path],
+    upload_warnings: list[str],
+) -> str:
+    if not uploaded_paths and not upload_warnings:
+        return ""
+
+    workspace_label = str((workspace or {}).get("label") or "workspace")
+    lines: list[str] = []
+    if uploaded_paths:
+        count = len(uploaded_paths)
+        noun = "file" if count == 1 else "files"
+        lines.append(
+            f"Uploaded {count} {noun} to workspace <code>{_html_escape(workspace_label)}</code>."
+        )
+        for path in uploaded_paths[:TELEGRAM_UPLOAD_CONTEXT_MAX_FILES]:
+            rel = (
+                _resolve_repo_relative_display_path(repo_dir, path)
+                if repo_dir is not None
+                else path.name
+            )
+            lines.append(f"• <code>{_html_escape(rel)}</code>")
+        if len(uploaded_paths) > TELEGRAM_UPLOAD_CONTEXT_MAX_FILES:
+            lines.append(
+                f"• ... and {len(uploaded_paths) - TELEGRAM_UPLOAD_CONTEXT_MAX_FILES} more"
+            )
+    if upload_warnings:
+        lines.append("<b>Upload warning(s)</b>:")
+        for warning in upload_warnings[:4]:
+            lines.append(f"• {_html_escape(_truncate_message(warning, limit=240))}")
+    return "\n".join(lines).strip()
 
 
 def _resolve_session_store_path(raw: str | None) -> Path:
@@ -3665,7 +3878,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
 
                 chat_info = message.get("chat")
                 sender_info = message.get("from")
-                text = message.get("text")
+                raw_text = message.get("text")
+                raw_caption = message.get("caption")
                 if not isinstance(chat_info, dict):
                     with state_lock:
                         _save_gateway_state(session_store_path, state)
@@ -3707,21 +3921,89 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                         )
                     continue
 
-                if not isinstance(text, str) or not text.strip():
+                inbound_files = _extract_telegram_inbound_files(message)
+                uploaded_paths: list[Path] = []
+                upload_warnings: list[str] = []
+                upload_workspace: dict[str, Any] | None = None
+                upload_repo_dir: Path | None = None
+                upload_notice = ""
+                if inbound_files:
+                    with state_lock:
+                        telegram_local = _telegram_state(state)
+                        chat_state_upload = _ensure_chat_state(telegram_local, chat_key)
+                        upload_workspace = _ensure_active_workspace(
+                            chat_state_upload, chat_id=chat_id
+                        )
+                        _touch_workspace(upload_workspace)
+                        upload_repo_dir = (
+                            workspaces_root / str(upload_workspace["id"]) / "repo"
+                        )
+                        _save_gateway_state(session_store_path, state)
+                    try:
+                        _ensure_workspace_repo(upload_repo_dir, loop_config.init_git)
+                        uploaded_paths, upload_warnings = _download_telegram_inbound_files(
+                            client=client,
+                            repo_dir=upload_repo_dir,
+                            inbound_files=inbound_files,
+                        )
+                    except Exception as exc:
+                        upload_warnings.append(f"workspace file download failed: {exc}")
+                    upload_notice = _build_upload_notice_message(
+                        workspace=upload_workspace,
+                        repo_dir=upload_repo_dir,
+                        uploaded_paths=uploaded_paths,
+                        upload_warnings=upload_warnings,
+                    )
+
+                incoming_text = ""
+                if isinstance(raw_text, str) and raw_text.strip():
+                    incoming_text = raw_text.strip()
+                elif isinstance(raw_caption, str) and raw_caption.strip():
+                    incoming_text = raw_caption.strip()
+
+                command: str | None = None
+                dispatch_text = incoming_text
+                if incoming_text:
+                    command, _ = _parse_gateway_command(incoming_text)
+                if (
+                    dispatch_text
+                    and command is None
+                    and uploaded_paths
+                    and upload_repo_dir is not None
+                ):
+                    dispatch_text = _append_uploaded_files_context_to_prompt(
+                        prompt=dispatch_text,
+                        repo_dir=upload_repo_dir,
+                        uploaded_paths=uploaded_paths,
+                    )
+
+                if not dispatch_text:
                     with state_lock:
                         _save_gateway_state(session_store_path, state)
+                    if upload_notice:
+                        try:
+                            _send_message_safe(
+                                chat_id=chat_id,
+                                text=upload_notice,
+                                parse_mode="HTML",
+                            )
+                        except Exception as exc:  # pragma: no cover - network errors
+                            cli._print_tagged(
+                                "gateway",
+                                f"failed to send upload notice to {chat_key}: {exc}",
+                                stderr=True,
+                            )
                     continue
 
                 cli._print_tagged(
                     "gateway",
-                    f"received message for {chat_key}: {text[:120]!r}",
+                    f"received message for {chat_key}: {incoming_text[:120]!r}",
                 )
-                command, _ = _parse_gateway_command(text)
                 if command is None:
                     try:
                         with state_lock:
                             job, reply = _queue_telegram_run(
-                                text=text,
+                                text=dispatch_text,
                                 chat_id=chat_id,
                                 chat_key=chat_key,
                                 state=state,
@@ -3740,7 +4022,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     try:
                         with state_lock:
                             reply = _handle_telegram_text(
-                                text=text,
+                                text=dispatch_text,
                                 chat_id=chat_id,
                                 chat_key=chat_key,
                                 state=state,
@@ -3756,6 +4038,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                         )
                         reply = f"Gateway error: {exc}"
 
+                if upload_notice:
+                    reply = f"{upload_notice}\n\n{reply}" if reply else upload_notice
                 if not reply:
                     continue
                 try:

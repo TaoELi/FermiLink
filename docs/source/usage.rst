@@ -133,6 +133,11 @@ Gateway behavior:
   ``$FERMILINK_WORKSPACES_ROOT/<workspace_id>/repo``;
 - normal messages run in the active workspace so follow-up requests reuse
   ``projects/memory.md`` history;
+- inbound Telegram ``document``/``photo`` uploads are downloaded into the active
+  workspace repo under ``telegram_uploads/`` so the agent can read local files;
+  when an upload includes caption text, that caption is treated as the run
+  message and the prompt automatically includes uploaded file paths; when upload
+  has no text/caption, gateway sends upload confirmation only;
 - run replies are rendered as a human-friendly summary from memory sections
   (completed plan items + key findings + parameter provenance + uncertainty notes),
   instead of raw status payloads;

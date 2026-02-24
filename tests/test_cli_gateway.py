@@ -1,4 +1,5 @@
 from __future__ import annotations
+import argparse
 import tempfile
 import time
 from pathlib import Path
@@ -58,6 +59,184 @@ def test_gateway_parser_supports_loop_forwarding_flags() -> None:
     assert args.pid_stall_seconds == 11.0
     assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
     assert args.init_git is False
+
+
+def test_extract_telegram_inbound_files_supports_document_and_photo() -> None:
+    message = {
+        "document": {
+            "file_id": "doc-1",
+            "file_name": "input_data.json",
+        },
+        "photo": [
+            {"file_id": "photo-small", "file_size": 10},
+            {"file_id": "photo-large", "file_size": 200},
+        ],
+    }
+    files = gateway_commands._extract_telegram_inbound_files(message)
+    assert [item.file_id for item in files] == ["doc-1", "photo-large"]
+    assert files[0].suggested_name == "input_data.json"
+    assert files[1].suggested_name == "photo.jpg"
+
+
+def test_download_telegram_inbound_files_saves_under_repo_uploads(tmp_path: Path) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    class _FakeClient:
+        def get_file_path(self, *, file_id: str) -> str:
+            if file_id == "doc-1":
+                return "documents/upload-A.txt"
+            if file_id == "img-1":
+                return "photos/img-1.jpeg"
+            raise AssertionError(f"unexpected file id: {file_id}")
+
+        def download_file(self, *, file_path: str, target_path: Path) -> None:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text(f"downloaded:{file_path}", encoding="utf-8")
+
+    inbound = [
+        gateway_commands.TelegramInboundFile(
+            file_id="doc-1", suggested_name="../../input?.txt"
+        ),
+        gateway_commands.TelegramInboundFile(
+            file_id="doc-1", suggested_name="duplicate.txt"
+        ),
+        gateway_commands.TelegramInboundFile(file_id="img-1", suggested_name="image"),
+    ]
+    saved, warnings = gateway_commands._download_telegram_inbound_files(
+        client=_FakeClient(),
+        repo_dir=repo_dir,
+        inbound_files=inbound,
+    )
+
+    assert warnings == []
+    assert len(saved) == 2
+    relative_paths = [path.relative_to(repo_dir).as_posix() for path in saved]
+    assert relative_paths[0].startswith("telegram_uploads/")
+    assert relative_paths[1].startswith("telegram_uploads/")
+    assert "input_.txt" in relative_paths[0]
+    assert relative_paths[1].endswith(".jpeg")
+    assert saved[0].read_text(encoding="utf-8") == "downloaded:documents/upload-A.txt"
+    assert saved[1].read_text(encoding="utf-8") == "downloaded:photos/img-1.jpeg"
+
+
+def test_append_uploaded_files_context_to_prompt_uses_repo_relative_paths(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    upload_dir = repo_dir / "telegram_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    doc_path = (upload_dir / "paper.pdf").resolve()
+    img_path = (upload_dir / "figure.png").resolve()
+    doc_path.write_text("pdf", encoding="utf-8")
+    img_path.write_text("png", encoding="utf-8")
+
+    prompt = gateway_commands._append_uploaded_files_context_to_prompt(
+        prompt="analyze the attached results",
+        repo_dir=repo_dir,
+        uploaded_paths=[doc_path, img_path],
+    )
+
+    assert "analyze the attached results" in prompt
+    assert "Uploaded files are available in the workspace repo:" in prompt
+    assert "- telegram_uploads/paper.pdf" in prompt
+    assert "- telegram_uploads/figure.png" in prompt
+
+
+def test_cmd_gateway_uploads_document_without_text_and_replies_with_saved_path(
+    monkeypatch, tmp_path: Path
+) -> None:
+    workspaces_root = tmp_path / "workspaces"
+    session_store = tmp_path / "chat_sessions.json"
+    sent_messages: list[tuple[str, str, str | None]] = []
+
+    class _FakeCli:
+        def _print_tagged(self, *_args, **_kwargs) -> None:
+            return None
+
+    class _FakeClient:
+        def __init__(self, *, token: str) -> None:
+            assert token == "token-123"
+            self._poll_count = 0
+
+        def close(self) -> None:
+            return None
+
+        def get_updates(
+            self, *, offset: int, timeout_seconds: int
+        ) -> list[dict[str, object]]:
+            del offset, timeout_seconds
+            self._poll_count += 1
+            if self._poll_count == 1:
+                return [
+                    {
+                        "update_id": 101,
+                        "message": {
+                            "chat": {"id": 42},
+                            "from": {"id": 42},
+                            "document": {
+                                "file_id": "doc-42",
+                                "file_name": "../../experiment.csv",
+                            },
+                        },
+                    }
+                ]
+            raise KeyboardInterrupt()
+
+        def send_message(
+            self, *, chat_id: str, text: str, parse_mode: str | None = None
+        ) -> None:
+            sent_messages.append((chat_id, text, parse_mode))
+
+        def get_file_path(self, *, file_id: str) -> str:
+            assert file_id == "doc-42"
+            return "documents/experiment.csv"
+
+        def download_file(self, *, file_path: str, target_path: Path) -> None:
+            assert file_path == "documents/experiment.csv"
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text("wavelength,intensity\n500,1.0\n", encoding="utf-8")
+
+    def _fake_ensure_workspace_repo(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / ".git").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(gateway_commands, "_cli", lambda: _FakeCli())
+    monkeypatch.setattr(gateway_commands, "_TelegramApiClient", _FakeClient)
+    monkeypatch.setattr(
+        gateway_commands, "resolve_workspaces_root", lambda: workspaces_root
+    )
+    monkeypatch.setattr(
+        gateway_commands, "_ensure_workspace_repo", _fake_ensure_workspace_repo
+    )
+
+    args = argparse.Namespace(
+        telegram_token="token-123",
+        allow_from=["42"],
+        poll_timeout_seconds=1,
+        session_store=str(session_store),
+        package_id=None,
+        sandbox=None,
+        codex_bin="codex",
+        max_iterations=2,
+        wait_seconds=0.0,
+        max_wait_seconds=10.0,
+        pid_stall_seconds=0.0,
+        hpc_profile=None,
+        init_git=True,
+    )
+    code = gateway_commands.cmd_gateway(args)
+    assert code == 0
+
+    uploaded_matches = list(
+        workspaces_root.glob("telegram-*/repo/telegram_uploads/experiment.csv")
+    )
+    assert len(uploaded_matches) == 1
+    assert uploaded_matches[0].read_text(encoding="utf-8") == "wavelength,intensity\n500,1.0\n"
+    assert sent_messages
+    assert any("Uploaded 1 file to workspace" in text for _, text, _ in sent_messages)
+    assert any(
+        "telegram_uploads/experiment.csv" in text for _, text, _ in sent_messages
+    )
 
 
 def test_gateway_state_round_trip_preserves_active_workspace(tmp_path: Path) -> None:
