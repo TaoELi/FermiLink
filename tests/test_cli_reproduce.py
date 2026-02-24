@@ -906,6 +906,7 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
     assert "Unified-memory requirements (apply in this stage):" in prompts[0]
     assert "Before acting, read `projects/memory.md`." in prompts[0]
     assert "After completing this stage, update `projects/memory.md`" in prompts[0]
+    assert "Task memory archive directory" not in prompts[0]
     assert "### Parameter source mapping" in prompts[0]
     assert "### Simulation uncertainty" in prompts[0]
     assert "Unified-memory requirements (apply in this stage):" in prompts[1]

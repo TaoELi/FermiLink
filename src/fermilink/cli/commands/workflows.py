@@ -19,7 +19,6 @@ from fermilink.cli.workflow_prompts import (
     LOOP_PID_TOKEN_RE,
     LOOP_SLURM_JOB_TOKEN_RE,
     LOOP_WAIT_TOKEN_RE,
-    REPRODUCE_ARCHIVE_DIRNAME,
     REPRODUCE_AUDITOR_PROMPT_PREFIX,
     REPRODUCE_LOGS_DIRNAME,
     REPRODUCE_PLAN_FILENAME,
@@ -4568,7 +4567,6 @@ def _finalize_workflow_report(
         "Use these artifacts:\n"
         f"- Plan JSON: {_display_path(plan_path)}\n"
         f"- Task prompt directory: {_display_path(run_dir / REPRODUCE_PROMPTS_DIRNAME)}\n"
-        f"- Task memory archive directory: {_display_path(run_dir / REPRODUCE_ARCHIVE_DIRNAME)}\n"
         f"- Existing run logs directory: {_display_path(run_dir / REPRODUCE_LOGS_DIRNAME)}\n"
         "\n"
         "Execution target constraints:\n"

@@ -256,7 +256,7 @@ publication-scale requests.
    fermilink reproduce paper.tex --hpc-profile scripts/hpc_profile_anvil.json
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
-``plan.json``, ``state.json``, prompts, logs, archive, summaries, and
+``plan.json``, ``state.json``, prompts, logs, summaries, and
 ``report.md``).
 The finalized ``report.md`` is generated as an APS Physical Review A style
 Markdown manuscript (background/theory/results/conclusion plus reproducibility
