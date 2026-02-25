@@ -227,6 +227,8 @@ Loop behavior:
   ``Long-Term Memory`` (``File map``, ``Simulation history``,
   ``Key results``, ``Parameter source mapping``, ``Simulation uncertainty``,
   ``Suggested skills updates``);
+- canonicalizes malformed duplicated memory headers automatically so repeated
+  ``Short-Term Memory``/``Long-Term Memory`` blocks collapse to one active pair;
 - stops early when output includes ``<promise>DONE</promise>``;
 - supports job-based waiting via ``<pid_number>...</pid_number>`` (local
   processes) and ``<slurm_job_number>...</slurm_job_number>`` (HPC jobs) tags;
@@ -276,6 +278,8 @@ readability while preserving evidence-grounded claims.
 Planner/auditor and final summary/audit stages follow the same unified-memory
 contract as loop tasks: read/update ``projects/memory.md`` with concise
 short-term progress and relevant long-term durable outcomes.
+At workflow entry (except ``--report-only``), ``reproduce`` resets only the
+short-term memory section while preserving long-term memory content.
 After successful report finalization, four orchestration scripts are generated
 at run root:
 
@@ -336,6 +340,8 @@ Markdown manuscript format, and the summary-audit stage improves scientific
 writing flow and readability without inventing unsupported results.
 Planner/auditor and final summary/audit stages also read/update
 ``projects/memory.md`` under the unified-memory contract.
+Like ``reproduce``, ``research`` resets only short-term memory at workflow
+entry (except ``--report-only``) and preserves long-term memory.
 ``research`` also always executes planned simulation work (no dry-run mode).
 Like ``reproduce``, ``research`` defaults to local execution and accepts
 ``--hpc-profile <json>`` to enforce an HPC SLURM target profile using the same

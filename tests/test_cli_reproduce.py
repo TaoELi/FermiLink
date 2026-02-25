@@ -207,6 +207,73 @@ def test_reproduce_plan_only_uses_simulation_mode_and_persists_state(
     assert "dry_run" not in state
 
 
+def test_reproduce_plan_only_resets_short_term_memory_and_preserves_long_term(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    memory_path = workflow_commands._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt="initial request",
+        prompt_file=None,
+        overwrite=False,
+    )
+    customized = memory_path.read_text(encoding="utf-8")
+    customized = customized.replace(
+        "- [ ] (fill in a small checklist plan)",
+        "- [x] stale short-term item",
+    ).replace(
+        "- initialized",
+        "- stale short-term progress",
+    )
+    customized = customized.replace(
+        "- (result_id | metric | value | conditions | evidence_path)\n",
+        "- (result_id | metric | value | conditions | evidence_path)\n"
+        "- run-42 | metric | 3.14 | baseline | artifacts/result.txt\n",
+    )
+    memory_path.write_text(customized, encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    code = cli.main(["reproduce", "paper.md", "--plan-only"])
+    assert code == 0
+
+    updated = memory_path.read_text(encoding="utf-8")
+    assert updated.count("## Short-Term Memory (Operational)") == 1
+    assert updated.count("## Long-Term Memory (Persistent)") == 1
+    assert "- [ ] (fill in a small checklist plan)" in updated
+    assert "- initialized" in updated
+    assert "- [x] stale short-term item" not in updated
+    assert "- stale short-term progress" not in updated
+    assert "- run-42 | metric | 3.14 | baseline | artifacts/result.txt" in updated
+
+
 def test_reproduce_executes_tasks_with_retries(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

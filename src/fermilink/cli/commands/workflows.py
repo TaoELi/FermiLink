@@ -137,6 +137,7 @@ WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS = (
     "- After completing this stage, update `projects/memory.md` with concise entries:\n"
     "  - `## Short-Term Memory (Operational) -> ### Plan`\n"
     "  - `## Short-Term Memory (Operational) -> ### Progress log`\n"
+    "- Do not create duplicate memory section headings; update existing sections in place.\n"
     "- Update long-term sections only when there is durable information:\n"
     "  - `### File map` for stable file/purpose mapping changes.\n"
     "  - `### Simulation history` for run/job milestones and outcomes.\n"
@@ -3020,7 +3021,7 @@ UNIFIED_MEMORY_LONG_TERM_BLOCK = (
 
 
 def _memory_heading_exists(content: str, heading: str) -> bool:
-    return bool(re.search(rf"(?m)^\\s*{re.escape(heading)}\\s*$", content))
+    return bool(re.search(rf"(?m)^\s*{re.escape(heading)}\s*$", content))
 
 
 def _append_memory_block(content: str, block: str) -> str:
@@ -3028,6 +3029,108 @@ def _append_memory_block(content: str, block: str) -> str:
     if normalized:
         normalized += "\n\n"
     return normalized + block.rstrip() + "\n"
+
+
+def _iter_unified_memory_sections(
+    content: str,
+    *,
+    heading: str,
+) -> list[tuple[int, int, str]]:
+    heading_re = re.compile(rf"(?m)^\s*{re.escape(heading)}\s*$")
+    next_same_level_re = re.compile(r"(?m)^##\s+.+$")
+    sections: list[tuple[int, int, str]] = []
+    for match in heading_re.finditer(content):
+        next_match = next_same_level_re.search(content, match.end())
+        end = next_match.start() if next_match is not None else len(content)
+        sections.append((match.start(), end, content[match.start() : end]))
+    return sections
+
+
+UNIFIED_MEMORY_LONG_TERM_PLACEHOLDERS = {
+    "(path | purpose | notes)",
+    "(run_id | objective | status | artifacts | notes)",
+    "(result_id | metric | value | conditions | evidence_path)",
+    "(run_id | parameter_or_setting | value | source | evidence_path | notes)",
+    "(run_id | uncertainty_or_assumption | impact | mitigation_or_next_step | status)",
+    "(<package_id> | issue_pattern | proposed_skill_update | evidence | status)",
+}
+
+
+def _score_long_term_block(block: str) -> tuple[int, int, int]:
+    informative_bullets = 0
+    nonempty_lines = 0
+    for raw_line in block.splitlines()[1:]:
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        nonempty_lines += 1
+        if not stripped.startswith("- "):
+            continue
+        item = stripped[2:].strip()
+        lowered = item.lower()
+        if not item:
+            continue
+        if lowered in UNIFIED_MEMORY_LONG_TERM_PLACEHOLDERS:
+            continue
+        informative_bullets += 1
+    return informative_bullets, nonempty_lines, len(block.strip())
+
+
+def _canonicalize_unified_memory_sections(content: str) -> str:
+    short_sections = _iter_unified_memory_sections(
+        content, heading=UNIFIED_MEMORY_SHORT_TERM_HEADING
+    )
+    long_sections = _iter_unified_memory_sections(
+        content, heading=UNIFIED_MEMORY_LONG_TERM_HEADING
+    )
+    if len(short_sections) <= 1 and len(long_sections) <= 1:
+        return content
+
+    chosen_short = (
+        short_sections[-1][2].rstrip()
+        if short_sections
+        else UNIFIED_MEMORY_SHORT_TERM_BLOCK.rstrip()
+    )
+    if long_sections:
+        scored_candidates = [
+            (_score_long_term_block(section_text), idx, section_text.rstrip())
+            for idx, (_, _, section_text) in enumerate(long_sections)
+        ]
+        scored_candidates.sort(key=lambda item: (item[0], item[1]))
+        chosen_long = scored_candidates[-1][2]
+    else:
+        chosen_long = UNIFIED_MEMORY_LONG_TERM_BLOCK.rstrip()
+
+    spans = sorted(
+        (start, end) for start, end, _ in [*short_sections, *long_sections]
+    )
+    merged_spans: list[list[int]] = []
+    for start, end in spans:
+        if not merged_spans or start > merged_spans[-1][1]:
+            merged_spans.append([start, end])
+            continue
+        merged_spans[-1][1] = max(merged_spans[-1][1], end)
+
+    insert_at = merged_spans[0][0]
+    prefix = content[:insert_at].rstrip()
+
+    cursor = insert_at
+    suffix_parts: list[str] = []
+    for start, end in merged_spans:
+        if start > cursor:
+            suffix_parts.append(content[cursor:start])
+        cursor = max(cursor, end)
+    suffix_parts.append(content[cursor:])
+    suffix = "".join(suffix_parts).strip()
+
+    canonical_memory = f"{chosen_short}\n\n{chosen_long}"
+    parts: list[str] = []
+    if prefix:
+        parts.append(prefix)
+    parts.append(canonical_memory)
+    if suffix:
+        parts.append(suffix)
+    return "\n\n".join(parts).rstrip() + "\n"
 
 
 def _normalize_workflow_context_lines(
@@ -3082,17 +3185,17 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
             f"Failed to read loop memory file for schema upgrade: {memory_path}: {exc}"
         ) from exc
 
-    upgraded = content
+    upgraded = _canonicalize_unified_memory_sections(content)
     if not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING):
         # Backward compatibility: migrate legacy top-level sections when present.
         upgraded = re.sub(
-            r"(?m)^##\\s+Plan\\s*$",
+            r"(?m)^##\s+Plan\s*$",
             f"{UNIFIED_MEMORY_SHORT_TERM_HEADING}\n\n{UNIFIED_MEMORY_PLAN_HEADING}",
             upgraded,
             count=1,
         )
         upgraded = re.sub(
-            r"(?m)^##\\s+Progress\\s+log\\s*$",
+            r"(?m)^##\s+Progress\s+log\s*$",
             UNIFIED_MEMORY_PROGRESS_HEADING,
             upgraded,
             count=1,
@@ -3101,7 +3204,7 @@ def _upgrade_loop_memory_schema(memory_path: Path) -> None:
             upgraded, UNIFIED_MEMORY_PLAN_HEADING
         ) and not _memory_heading_exists(upgraded, UNIFIED_MEMORY_SHORT_TERM_HEADING):
             upgraded = re.sub(
-                rf"(?m)^\\s*{re.escape(UNIFIED_MEMORY_PLAN_HEADING)}\\s*$",
+                rf"(?m)^\s*{re.escape(UNIFIED_MEMORY_PLAN_HEADING)}\s*$",
                 f"{UNIFIED_MEMORY_SHORT_TERM_HEADING}\n\n{UNIFIED_MEMORY_PLAN_HEADING}",
                 upgraded,
                 count=1,
@@ -4893,12 +4996,6 @@ def cmd_plan_workflow(
     cli._ensure_exec_repo_ready(repo_dir, args)
 
     user_prompt, prompt_file = cli._resolve_exec_like_user_prompt(args)
-    cli._ensure_loop_memory(
-        repo_dir=repo_dir,
-        user_prompt=user_prompt,
-        prompt_file=prompt_file,
-        overwrite=False,
-    )
     source_description = prompt_file or "inline prompt"
     plan_only = bool(getattr(args, "plan_only", False))
     report_only = bool(getattr(args, "report_only", False))
@@ -4907,6 +5004,23 @@ def cmd_plan_workflow(
         raise cli.PackageError("Cannot combine --plan-only and --report-only.")
     if report_only and skip_report:
         raise cli.PackageError("Cannot combine --report-only and --skip-report.")
+    if report_only:
+        cli._ensure_loop_memory(
+            repo_dir=repo_dir,
+            user_prompt=user_prompt,
+            prompt_file=prompt_file,
+            overwrite=False,
+        )
+    else:
+        cli._reset_loop_short_term_memory(
+            repo_dir=repo_dir,
+            user_prompt=user_prompt,
+            prompt_file=prompt_file,
+            workflow_context_lines=[
+                f"- workflow: {workflow_name}",
+                "- stage: workflow_entry",
+            ],
+        )
 
     task_max_runs_raw = getattr(args, "task_max_runs", 5)
     try:

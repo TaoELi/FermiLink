@@ -1563,3 +1563,81 @@ def test_reset_loop_short_term_memory_upserts_workflow_context_when_memory_exist
     assert "- plan_json: projects/reproduce/run-001/plan.json" in updated
     assert "- state_json: projects/reproduce/run-001/state.json" in updated
     assert "## Original request\ninitial request" in updated
+
+
+def test_ensure_loop_memory_repeated_calls_do_not_duplicate_memory_sections(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt="first",
+        prompt_file=None,
+        overwrite=False,
+    )
+    cli._ensure_loop_memory(
+        repo_dir=repo_dir,
+        user_prompt="second",
+        prompt_file=None,
+        overwrite=False,
+    )
+
+    memory = (repo_dir / "projects" / "memory.md").read_text(encoding="utf-8")
+    assert memory.count("## Short-Term Memory (Operational)") == 1
+    assert memory.count("## Long-Term Memory (Persistent)") == 1
+
+
+def test_reset_loop_short_term_memory_canonicalizes_duplicate_blocks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    memory_path = projects_dir / "memory.md"
+    memory_path.write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "- schema_version: 1\n\n"
+            "## Original request\nlegacy request\n\n"
+            "## Short-Term Memory (Operational)\n\n"
+            "### Plan\n"
+            "- [x] stale checklist item\n\n"
+            "### Progress log\n"
+            "- stale progress entry\n\n"
+            "## Long-Term Memory (Persistent)\n\n"
+            "### Key results\n"
+            "- keep-this-result | metric | 1.0 | baseline | artifacts/keep.txt\n\n"
+            "## Short-Term Memory (Operational)\n\n"
+            "### Plan\n"
+            "- [ ] stale second checklist\n\n"
+            "### Progress log\n"
+            "- stale second progress\n\n"
+            "## Long-Term Memory (Persistent)\n\n"
+            "### Key results\n"
+            "- (result_id | metric | value | conditions | evidence_path)\n"
+        ),
+        encoding="utf-8",
+    )
+
+    workflow_commands._reset_loop_short_term_memory(
+        repo_dir=repo_dir,
+        user_prompt="next run",
+        prompt_file=None,
+        workflow_context_lines=["- workflow: research"],
+    )
+
+    updated = memory_path.read_text(encoding="utf-8")
+    assert updated.count("## Short-Term Memory (Operational)") == 1
+    assert updated.count("## Long-Term Memory (Persistent)") == 1
+    assert "- [ ] (fill in a small checklist plan)" in updated
+    assert "- initialized" in updated
+    assert "- [x] stale checklist item" not in updated
+    assert "- stale progress entry" not in updated
+    assert (
+        "- keep-this-result | metric | 1.0 | baseline | artifacts/keep.txt" in updated
+    )
