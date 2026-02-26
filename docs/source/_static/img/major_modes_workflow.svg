@@ -93,6 +93,9 @@
       .iGray { fill: #eef2f7; }
       .iDark { fill: #2b3a55; }
       .iWhite { fill: #ffffff; }
+      .iTermGreen { stroke: #63e89f; }
+      .iTermMint { stroke: #86f7b9; }
+      .iLoopBold { stroke-width: 2.8; }
     </style>
 
     <symbol id="icon-user" viewBox="0 0 48 48">
@@ -109,8 +112,9 @@
 
     <symbol id="icon-terminal" viewBox="0 0 48 48">
       <rect x="8" y="10" width="32" height="24" rx="6" class="iDark iStroke"/>
-      <path d="M14 20 L20 24 L14 28" class="iStroke" fill="none" stroke="#ffffff"/>
-      <path d="M22 28 H34" class="iStroke" fill="none" stroke="#ffffff"/>
+      <rect x="11" y="13" width="26" height="18" rx="3.5" fill="#213850"/>
+      <path d="M14 17 L21 21 L14 25" class="iStroke iTermMint" fill="none"/>
+      <path d="M22 25 H30" class="iStroke iTermMint" fill="none"/>
       <rect x="18" y="36" width="12" height="3" rx="1.5" class="iGray iStroke"/>
     </symbol>
 
@@ -132,12 +136,12 @@
 
     <symbol id="icon-output" viewBox="0 0 48 48">
       <rect x="12" y="10" width="22" height="28" rx="4" class="iGray iStroke"/>
-      <path d="M18 18h12M18 24h12M18 30h12" class="iStroke" fill="none"/>
+      <path d="M17 18h12M17 24h12M17 30h12" class="iStroke" fill="none"/>
     </symbol>
 
     <symbol id="icon-poll" viewBox="0 0 48 48">
       <rect x="12" y="10" width="20" height="26" rx="4" class="iGray iStroke"/>
-      <path d="M16 18h12M16 24h10M16 30h8" class="iStroke" fill="none"/>
+      <path d="M16 18h12M16 24h12M16 30h12" class="iStroke" fill="none"/>
       <circle cx="34" cy="30" r="6" class="iBlue iStroke"/>
       <path d="M38 34l6 6" class="iStroke" fill="none"/>
     </symbol>
@@ -151,18 +155,19 @@
     </symbol>
 
     <symbol id="icon-loop" viewBox="0 0 48 48">
-      <path d="M14 24 A10 10 0 0 1 30 16" class="iStroke" fill="none"/>
-      <path d="M30 12 L36 16 L30 20" class="iStroke" fill="none"/>
-      <path d="M34 24 A10 10 0 0 1 18 32" class="iStroke" fill="none"/>
-      <path d="M18 28 L12 32 L18 36" class="iStroke" fill="none"/>
+      <path d="M14 24 A10 10 0 0 1 30 16" class="iStroke iLoopBold" fill="none"/>
+      <path d="M30 12 L36 16 L30 20" class="iStroke iLoopBold" fill="none"/>
+      <path d="M34 24 A10 10 0 0 1 18 32" class="iStroke iLoopBold" fill="none"/>
+      <path d="M18 28 L12 32 L18 36" class="iStroke iLoopBold" fill="none"/>
     </symbol>
 
     <symbol id="icon-summary" viewBox="0 0 48 48">
-      <rect x="12" y="10" width="24" height="28" rx="5" class="iGray iStroke"/>
-      <path d="M18 18h12M18 24h14M18 30h10" class="iStroke" fill="none"/>
-      <path d="M28 34l6 0" class="iStroke" fill="none"/>
-      <path d="M32 31l4 3-4 3" class="iStroke" fill="none"/>
-      <path d="M14 14h8" class="iPurple iStroke"/>
+      <rect x="10" y="8" width="22" height="30" rx="4" class="iGray iStroke"/>
+      <path d="M15 14h12" class="iPurple iStroke"/>
+      <path d="M15 20h12M15 26h12M15 32h10" class="iStroke" fill="none"/>
+      <circle cx="33" cy="30" r="7" class="iBlue iStroke"/>
+      <path d="M30 30l2 2 4-5" class="iGreen iStroke"/>
+      <path d="M38 35l5 5" class="iStroke" fill="none"/>
     </symbol>
 
     <symbol id="icon-flag" viewBox="0 0 48 48">
@@ -233,7 +238,7 @@
   <polygon points="780,608 897,680 780,752 663,680" class="decision"/>
   <text x="780" y="670" text-anchor="middle" class="nodeTxt">Goal reached?</text>
   <text x="780" y="694" text-anchor="middle" class="small">Yes / No</text>
-  <use href="#icon-flag" x="762" y="702" width="36" height="36" opacity="0.95"/>
+  <use href="#icon-flag" x="766" y="702" width="36" height="36" opacity="0.95"/>
 
   <rect x="625" y="792" width="310" height="72" class="node nodeWarm"/>
   <use href="#icon-output" x="642" y="807" width="42" height="42"/>
