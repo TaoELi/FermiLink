@@ -190,6 +190,8 @@ def _build_builtin_packages_page(payload: dict[str, object]) -> str:
 
     rows.sort(key=lambda row: row[0].lower())
     lines = [
+        ":orphan:",
+        "",
         "Built-in Supported Scientific Packages",
         "======================================",
         "",

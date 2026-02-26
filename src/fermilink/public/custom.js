@@ -180,8 +180,8 @@
         detail: "Selects the most relevant scientific package for each request.",
       },
       {
-        title: "Skill and documentation grounding",
-        detail: "Grounds responses in package docs and verified agent skills.",
+        title: "Skill and source grounding",
+        detail: "Grounds responses in package source code tree and skills.",
       },
       {
         title: "Scientific accuracy and reproducibility",
@@ -641,7 +641,7 @@
           subtitle.setAttribute(LOGIN_SUBTITLE_ATTR, "true");
           subtitle.className = "cl-login-subtitle";
           subtitle.textContent =
-            "A journey for experiencing automated scientific simulations.";
+            "A journey for experiencing autonomous scientific simulations.";
           formShell.insertBefore(subtitle, formShell.firstChild);
         }
       }

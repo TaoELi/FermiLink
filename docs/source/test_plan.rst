@@ -1,5 +1,13 @@
+:orphan:
+
 Test Plan
 =========
+
+.. note::
+
+   This content is consolidated into :doc:`contributing` under
+   ``Integrated test plan``. This standalone page is kept for
+   backward-compatible links.
 
 This plan validates runtime policy control, provider wiring, and no-regression
 behavior across CLI, runner, and web paths.

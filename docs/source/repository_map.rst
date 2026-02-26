@@ -1,5 +1,13 @@
+:orphan:
+
 Repository Map
 ==============
+
+.. note::
+
+   This content is consolidated into :doc:`architecture` under
+   ``Integrated repository map``. This standalone page is kept for
+   backward-compatible links.
 
 This quick map helps new contributors find where behavior lives.
 

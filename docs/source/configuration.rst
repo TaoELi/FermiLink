@@ -1,5 +1,5 @@
-Configuration
-=============
+Advanced Configuration
+======================
 
 This page summarizes the highest-impact settings for reliable local and shared
 FermiLink deployments.

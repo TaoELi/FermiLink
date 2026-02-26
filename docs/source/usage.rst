@@ -1,8 +1,9 @@
-Usage Guide
-===========
+Command Line Tools
+==================
 
-This page focuses on practical command flows. For policy and architecture
-details, see :doc:`configuration` and :doc:`architecture`.
+This page focuses on practical command flows for the FermiLink CLI family.
+For policy and architecture details, see :doc:`configuration` and
+:doc:`architecture`.
 
 Service lifecycle
 -----------------
@@ -68,6 +69,8 @@ Useful flags:
 - ``--sandbox <mode>`` enforce sandbox mode for this session.
 - ``--init-git`` initialize git repo if missing.
 - ``--no-init-git`` fail if git repo is missing.
+
+.. _usage-cli-telegram:
 
 Telegram gateway (iPhone chat)
 ------------------------------

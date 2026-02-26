@@ -22,27 +22,18 @@ Users can enjoy autonomous scientific computing at any time, any place.
 
    introduction
    installation
-   usage
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Usage Guide
+
+   Usage Guide <usage_guide>
 
 .. toctree::
    :maxdepth: 1
-   :caption: Platform Operations
+   :caption: Advanced Topics
 
-   scientific_packages
-   built_in_scientific_packages
-   configuration
+   Advanced Configuration <configuration>
    architecture
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Engineering
-
    contributing
-   test_plan
-   repository_map
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Reference
-
-   API reference <api/modules>
+   API Reference <api/modules>
