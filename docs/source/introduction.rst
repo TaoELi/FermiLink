@@ -35,16 +35,14 @@ Three major autonomous workflows
    :align: center
    :width: 95%
 
-   Three major FermiLink workflows: ``exec`` for single-run tasks, ``loop`` for
-   iterative autonomous work involving long SLURM or PID jobs, and ``research``/``reproduce`` for paper-scale
-   calculations.
 
-- ``exec``: one prompt, one run, fast turn-around in the current repo.
+Three major FermiLink workflows are supported in FermiLink:
+
+- ``exec``: one prompt, one run, suitable for short computing.
 - ``loop``: autonomous iteration with memory updates, job-aware waiting
   (local PID and HPC SLURM jobs), and long-running task support.
 - ``research`` / ``reproduce``: planner + auditor + task-loop workflows for
-  idea-to-results and paper-reproduction workflows, with structured run
-  artifacts and report finalization.
+  idea-to-results and paper-reproduction workflows, suitable for simulations at scale of a research paper.
 
 
 Package management workflow
@@ -55,11 +53,12 @@ Package management workflow
    :align: center
    :width: 95%
 
-This workflow lets you keep domain knowledge close to your execution runtime:
+FermiLink uses **Agent Skills** to compress knowledge for agent reasoning. It has a built-in **Curated Computational Packages** channel 
+which stores the full source-code tree + **Agent Skills** containing the entry-level tutorials and the file map of this source-code tree. This GitHub channel
+now supports more than 150 scientific packages across multiple domains.
 
-1. Add package knowledge base through curated install or local compile/recompile.
-2. Keep package metadata and router rules in deterministic storage.
-3. Reuse the same package context across all jobs in FermiLink.
+Users can also easily use the command line tools in FermiLink to add their own local packages. Additionally, users can add pipelines in research papers, database, or unpublished screts 
+as additional **Agent Skills** for one specific package. Then, this package knowledge base is used across all jobs in FermiLink.
 
 How to choose your starting point
 ---------------------------------
