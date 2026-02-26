@@ -6,13 +6,12 @@ FermiLink
    :align: center
    :scale: 18
 
-**FermiLink** is a unified AI execution layer for scientific workflows.
-It combines a web UI, CLI automation modes, and package-aware runtime routing
-so one prompt can run against the right scientific package context.
+**FermiLink** is a unified AI agent framework for autonomous scientific computing in laptops, workstations, and HPC clusters.
+It supports a set of powerful **command line tools** for efficient calculations at different scopes, ranging from simple tutorial-level calculations (``fermilink exec``),
+reproducing a figure of a scientific paper involving long-term calculations (``fermilink loop``), to independent research at the scale of a whole research paper (``fermilink reproduce/research``).
 
-This documentation is written for both operators and advanced users who want
-predictable runtime behavior across ``web``, ``exec``, ``chat``, and autonomous
-workflow modes.
+It ships with the built-in support of many popular scientific packages (``fermilink install``), and users can easily compile their local scientific packages, research pipelines described in 
+papers, or group-owned screts to the knowledge database of **FermiLink** locally (``fermilink compile/recompile``) for efficient agent-induced scientific simulations.
 
 Where to start
 --------------
@@ -34,6 +33,7 @@ Where to start
    :caption: Platform Operations
 
    scientific_packages
+   built_in_scientific_packages
    configuration
    architecture
 

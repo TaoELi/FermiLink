@@ -14,6 +14,12 @@ Common workflow
    fermilink overlay maxwelllink --entry skills --entry docs --entry src
    fermilink dependencies maxwelllink --package meep
 
+Built-in package catalog
+------------------------
+
+For the live list of built-in curated packages (``package_id``, title, and repo),
+see :doc:`built_in_scientific_packages`.
+
 Storage model
 -------------
 
@@ -86,7 +92,7 @@ Typical compile path:
 8. Pass 2 enriches compact high-signal playbooks in plan-priority skills.
 9. Pass 3 audits/fixes path consistency and source-link quality.
 10. Validate required files, links, source entry points, playbook sections, and
-   plan-target coverage.
+    plan-target coverage.
 11. Write ``skills/.compile_report.json``, update compile memory history, and install
     the package (validation findings are reported by default).
 12. Ensure ``skills/.gitignore`` ignores ``.evidence/`` so compile-only evidence stays local.
