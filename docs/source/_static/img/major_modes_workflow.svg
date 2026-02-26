@@ -1,73 +1,248 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1560" height="980" viewBox="0 0 1560 980" role="img" aria-labelledby="title desc">
   <title id="title">Three Major FermiLink Autonomous Workflows</title>
   <desc id="desc">Three-column flowchart for exec, loop, and research or reproduce workflows with package selection and loop decision logic.</desc>
+
   <defs>
-    <style>
-      .col { fill: #f9fbfe; stroke: #c8d5e6; stroke-width: 2; rx: 20; }
-      .headExec { fill: #edf6ff; stroke: #5d8fbe; stroke-width: 2; rx: 12; }
-      .headLoop { fill: #fff8ea; stroke: #bf8d3e; stroke-width: 2; rx: 12; }
-      .headRR { fill: #f3f1ff; stroke: #7a66b7; stroke-width: 2; rx: 12; }
-      .headTxt { font: 700 22px Helvetica, Arial, sans-serif; fill: #19314f; }
-      .node { fill: #ffffff; stroke: #5f7fa3; stroke-width: 2.2; rx: 12; }
-      .nodeLoop { fill: #fff8ea; }
-      .nodeExec { fill: #fdeaea; }
-      .nodeTxt { font: 600 18px Helvetica, Arial, sans-serif; fill: #18324f; }
-      .cmd { font: italic 600 18px "Courier New", Courier, monospace; fill: #6b7280; }
-      .small { font: 500 14px Helvetica, Arial, sans-serif; fill: #3f556f; }
-      .decision { fill: #ffffff; stroke: #a57522; stroke-width: 2.4; }
-      .arr { stroke: #325a87; stroke-width: 2.8; fill: none; marker-end: url(#arrow); }
-      .arrSkip { stroke: #325a87; stroke-width: 2.8; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
-      .arrLoop { stroke: #a57522; stroke-width: 2.8; fill: none; marker-end: url(#arrowLoop); }
-      .yn { font: 600 15px Helvetica, Arial, sans-serif; fill: #2d4f78; }
-    </style>
+    <!-- Soft gradients -->
+    <linearGradient id="gradCol" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fbfdff"/>
+      <stop offset="100%" stop-color="#f2f7ff"/>
+    </linearGradient>
+
+    <linearGradient id="gradExec" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#e7f2ff"/>
+      <stop offset="100%" stop-color="#f6fbff"/>
+    </linearGradient>
+
+    <linearGradient id="gradLoop" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fff1d7"/>
+      <stop offset="100%" stop-color="#fffaf0"/>
+    </linearGradient>
+
+    <linearGradient id="gradRR" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ede9ff"/>
+      <stop offset="100%" stop-color="#faf8ff"/>
+    </linearGradient>
+
+    <linearGradient id="gradNode" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f6f9ff"/>
+    </linearGradient>
+
+    <linearGradient id="gradNodeWarm" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#fff7ea"/>
+    </linearGradient>
+
+    <linearGradient id="gradNodePurple" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f5f3ff"/>
+    </linearGradient>
+
+    <!-- Hand-drawn paper texture (subtle) -->
+    <filter id="paper" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 0.06 0" result="noiseAlpha"/>
+      <feBlend in="SourceGraphic" in2="noiseAlpha" mode="multiply"/>
+    </filter>
+
+    <!-- Soft drop shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="3" flood-color="#1f2a37" flood-opacity="0.18"/>
+    </filter>
+
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
       <path d="M0,0 L10,4 L0,8 Z" fill="#325a87"/>
     </marker>
     <marker id="arrowLoop" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
       <path d="M0,0 L10,4 L0,8 Z" fill="#a57522"/>
     </marker>
+
+    <!-- Cartoon icon symbols (simple vector, thick outline + pastel fill) -->
+    <style>
+      .col { fill: url(#gradCol); stroke: #c8d5e6; stroke-width: 2; rx: 20; filter: url(#paper); }
+      .headExec { fill: url(#gradExec); stroke: #5d8fbe; stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .headLoop { fill: url(#gradLoop); stroke: #bf8d3e; stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .headRR { fill: url(#gradRR); stroke: #7a66b7; stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .headTxt { font: 800 22px Helvetica, Arial, sans-serif; fill: #19314f; letter-spacing: 0.2px; }
+      .node { fill: url(#gradNode); stroke: #5f7fa3; stroke-width: 2.2; rx: 14; filter: url(#shadow); }
+      .nodeWarm { fill: url(#gradNodeWarm); }
+      .nodePurple { fill: url(#gradNodePurple); stroke: #7a66b7; }
+      .nodeExec { fill: #fff1f1; stroke: #c56a6a; }
+      .nodeTxt { font: 700 18px Helvetica, Arial, sans-serif; fill: #18324f; }
+      .cmd { font: italic 700 18px "Courier New", Courier, monospace; fill: #4b5563; }
+      .small { font: 500 14px Helvetica, Arial, sans-serif; fill: #3f556f; }
+      .decision { fill: #ffffff; stroke: #a57522; stroke-width: 2.4; filter: url(#shadow); }
+      .arr { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrSkip { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .arrLoop { stroke: #a57522; stroke-width: 3; fill: none; marker-end: url(#arrowLoop); }
+      .yn { font: 700 15px Helvetica, Arial, sans-serif; fill: #2d4f78; }
+
+      /* Icon palette */
+      .iStroke { stroke: #253246; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .iBlue { fill: #cfe8ff; }
+      .iBlue2 { fill: #9dd2ff; }
+      .iGreen { fill: #c9f2d8; }
+      .iYellow { fill: #ffe4a8; }
+      .iOrange { fill: #ffc7a6; }
+      .iPurple { fill: #dfd7ff; }
+      .iGray { fill: #eef2f7; }
+      .iDark { fill: #2b3a55; }
+      .iWhite { fill: #ffffff; }
+    </style>
+
+    <symbol id="icon-user" viewBox="0 0 48 48">
+      <circle cx="24" cy="16" r="10" class="iYellow iStroke"/>
+      <path d="M10 42c2-10 26-10 28 0" class="iBlue iStroke"/>
+      <path d="M14 41c2-7 18-7 20 0" class="iBlue2 iStroke"/>
+    </symbol>
+
+    <symbol id="icon-package" viewBox="0 0 48 48">
+      <path d="M10 18 L24 10 L38 18 L24 26 Z" class="iYellow iStroke"/>
+      <path d="M10 18 L10 34 L24 42 L24 26 Z" class="iOrange iStroke"/>
+      <path d="M38 18 L38 34 L24 42 L24 26 Z" class="iYellow iStroke"/>
+      <path d="M24 10 L24 26" class="iStroke" fill="none"/>
+      <path d="M16 20 L24 24 L32 20" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-terminal" viewBox="0 0 48 48">
+      <rect x="8" y="10" width="32" height="24" rx="6" class="iDark iStroke"/>
+      <path d="M14 20 L20 24 L14 28" class="iStroke" fill="none" stroke="#ffffff"/>
+      <path d="M22 28 H34" class="iStroke" fill="none" stroke="#ffffff"/>
+      <rect x="18" y="36" width="12" height="3" rx="1.5" class="iGray iStroke"/>
+    </symbol>
+
+    <symbol id="icon-routing" viewBox="0 0 48 48">
+      <circle cx="14" cy="18" r="5" class="iBlue iStroke"/>
+      <circle cx="34" cy="16" r="5" class="iPurple iStroke"/>
+      <circle cx="26" cy="34" r="5" class="iGreen iStroke"/>
+      <path d="M18 18 L29 16" class="iStroke" fill="none"/>
+      <path d="M16 22 L24 30" class="iStroke" fill="none"/>
+      <path d="M32 20 L28 29" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-memory" viewBox="0 0 48 48">
+      <path d="M15 16c0-6 18-6 18 0v16c0 6-18 6-18 0z" class="iBlue iStroke"/>
+      <path d="M15 22h18" class="iStroke" fill="none"/>
+      <path d="M15 28h18" class="iStroke" fill="none"/>
+      <path d="M22 10c2-3 8-3 10 0" class="iPurple iStroke"/>
+    </symbol>
+
+    <symbol id="icon-output" viewBox="0 0 48 48">
+      <rect x="12" y="10" width="22" height="28" rx="4" class="iGray iStroke"/>
+      <path d="M18 18h10M18 24h12M18 30h8" class="iStroke" fill="none"/>
+      <path d="M30 24l6 0" class="iStroke" fill="none"/>
+      <path d="M34 21l4 3-4 3" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-poll" viewBox="0 0 48 48">
+      <rect x="12" y="10" width="20" height="26" rx="4" class="iGray iStroke"/>
+      <path d="M16 18h12M16 24h10M16 30h8" class="iStroke" fill="none"/>
+      <circle cx="34" cy="30" r="6" class="iBlue iStroke"/>
+      <path d="M38 34l6 6" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-plan" viewBox="0 0 48 48">
+      <rect x="12" y="10" width="24" height="28" rx="5" class="iGray iStroke"/>
+      <path d="M18 16h12M18 22h14M18 28h10" class="iStroke" fill="none"/>
+      <path d="M16 18l2 2 4-5" class="iGreen iStroke"/>
+      <path d="M16 24l2 2 4-5" class="iGreen iStroke"/>
+      <path d="M16 30l2 2 4-5" class="iGreen iStroke"/>
+    </symbol>
+
+    <symbol id="icon-loop" viewBox="0 0 48 48">
+      <path d="M14 24a10 10 0 0 1 17-7" class="iStroke" fill="none"/>
+      <path d="M31 17h-6" class="iStroke" fill="none"/>
+      <path d="M34 24a10 10 0 0 1-17 7" class="iStroke" fill="none"/>
+      <path d="M17 31h6" class="iStroke" fill="none"/>
+      <path d="M31 12l6 6-6 6" class="iStroke" fill="none"/>
+      <path d="M17 36l-6-6 6-6" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-summary" viewBox="0 0 48 48">
+      <rect x="12" y="10" width="24" height="28" rx="5" class="iGray iStroke"/>
+      <path d="M18 18h12M18 24h14M18 30h10" class="iStroke" fill="none"/>
+      <path d="M28 34l6 0" class="iStroke" fill="none"/>
+      <path d="M32 31l4 3-4 3" class="iStroke" fill="none"/>
+      <path d="M14 14h8" class="iPurple iStroke"/>
+    </symbol>
+
+    <symbol id="icon-flag" viewBox="0 0 48 48">
+      <path d="M14 40V10" class="iStroke" fill="none"/>
+      <path d="M14 12h18l-3 6 3 6H14" class="iOrange iStroke"/>
+      <path d="M14 12h18l-3 6 3 6H14" class="iStroke" fill="none"/>
+    </symbol>
+
   </defs>
 
+  <!-- Columns -->
   <rect x="40" y="40" width="460" height="876" class="col"/>
   <rect x="550" y="40" width="460" height="860" class="col"/>
   <rect x="1060" y="40" width="460" height="858" class="col"/>
 
+  <!-- Headers -->
   <rect x="60" y="60" width="420" height="64" class="headExec"/>
-  <text x="270" y="101" text-anchor="middle" class="headTxt">Exec Mode</text>
+  <use href="#icon-terminal" x="78" y="74" width="40" height="40"/>
+  <text x="282" y="101" text-anchor="middle" class="headTxt">Exec Mode</text>
 
   <rect x="570" y="60" width="420" height="64" class="headLoop"/>
-  <text x="780" y="101" text-anchor="middle" class="headTxt">Loop Mode</text>
+  <use href="#icon-loop" x="588" y="74" width="40" height="40"/>
+  <text x="792" y="101" text-anchor="middle" class="headTxt">Loop Mode</text>
 
   <rect x="1080" y="60" width="420" height="64" class="headRR"/>
-  <text x="1290" y="101" text-anchor="middle" class="headTxt">Research / Reproduce Mode</text>
+  <use href="#icon-plan" x="1098" y="74" width="40" height="40"/>
+  <text x="1302" y="101" text-anchor="middle" class="headTxt">Research / Reproduce Mode</text>
 
+  <!-- EXEC column nodes -->
   <rect x="115" y="160" width="310" height="72" class="node"/>
+  <use href="#icon-user" x="132" y="175" width="42" height="42"/>
   <text x="270" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+
   <rect x="115" y="272" width="310" height="72" class="node"/>
+  <use href="#icon-package" x="132" y="287" width="42" height="42"/>
   <text x="270" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
+
   <rect x="115" y="384" width="310" height="72" class="node nodeExec"/>
+  <use href="#icon-terminal" x="132" y="399" width="42" height="42"/>
   <text x="270" y="428" text-anchor="middle" class="cmd">fermilink exec</text>
+
   <rect x="115" y="496" width="310" height="72" class="node"/>
+  <use href="#icon-output" x="132" y="511" width="42" height="42"/>
   <text x="270" y="540" text-anchor="middle" class="nodeTxt">Output</text>
+
   <path d="M270 232 L270 272" class="arr"/>
   <path d="M270 344 L270 384" class="arr"/>
   <path d="M270 456 L270 496" class="arr"/>
 
-  <rect x="625" y="160" width="310" height="72" class="node"/>
+  <!-- LOOP column nodes -->
+  <rect x="625" y="160" width="310" height="72" class="node nodeWarm"/>
+  <use href="#icon-user" x="642" y="175" width="42" height="42"/>
   <text x="780" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
-  <rect x="625" y="272" width="310" height="72" class="node"/>
+
+  <rect x="625" y="272" width="310" height="72" class="node nodeWarm"/>
+  <use href="#icon-package" x="642" y="287" width="42" height="42"/>
   <text x="780" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
+
   <rect x="625" y="384" width="310" height="72" class="node nodeExec"/>
+  <use href="#icon-terminal" x="642" y="399" width="42" height="42"/>
   <text x="780" y="428" text-anchor="middle" class="cmd">fermilink exec</text>
-  <rect x="625" y="496" width="310" height="72" class="node"/>
+
+  <rect x="625" y="496" width="310" height="72" class="node nodeWarm"/>
+  <use href="#icon-poll" x="642" y="511" width="42" height="42"/>
   <text x="780" y="532" text-anchor="middle" class="nodeTxt">PID / SLURM Polling</text>
   <text x="780" y="552" text-anchor="middle" class="small">wait for submitted jobs / max time</text>
 
   <polygon points="780,608 897,680 780,752 663,680" class="decision"/>
   <text x="780" y="670" text-anchor="middle" class="nodeTxt">Goal reached?</text>
   <text x="780" y="694" text-anchor="middle" class="small">Yes / No</text>
+  <use href="#icon-flag" x="752" y="708" width="36" height="36" opacity="0.95"/>
 
-  <rect x="625" y="792" width="310" height="72" class="node"/>
+  <rect x="625" y="792" width="310" height="72" class="node nodeWarm"/>
+  <use href="#icon-output" x="642" y="807" width="42" height="42"/>
   <text x="780" y="836" text-anchor="middle" class="nodeTxt">Output</text>
 
   <path d="M780 232 L780 272" class="arr"/>
@@ -75,22 +250,35 @@
   <path d="M780 456 L780 496" class="arr"/>
   <path d="M780 568 L780 608" class="arr"/>
   <path d="M780 752 L780 792" class="arr"/>
-  <text x="798" y="776" class="yn">Yes</text>
 
+  <text x="798" y="776" class="yn">Yes</text>
   <path d="M663 680 L584 680 L584 420 L625 420" class="arrLoop"/>
   <text x="610" y="664" class="yn">No</text>
 
-  <rect x="1135" y="160" width="310" height="72" class="node"/>
+  <!-- RESEARCH / REPRODUCE column nodes -->
+  <rect x="1135" y="160" width="310" height="72" class="node nodePurple"/>
+  <use href="#icon-user" x="1152" y="175" width="42" height="42"/>
   <text x="1290" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
-  <rect x="1135" y="272" width="310" height="72" class="node"/>
+
+  <rect x="1135" y="272" width="310" height="72" class="node nodePurple"/>
+  <use href="#icon-package" x="1152" y="287" width="42" height="42"/>
   <text x="1290" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
-  <rect x="1135" y="384" width="310" height="72" class="node"/>
-  <text x="1290" y="428" text-anchor="middle" class="nodeTxt">Plan / Audit Multiple Tasks</text>
-  <rect x="1135" y="496" width="310" height="72" class="node nodeLoop"/>
+
+  <rect x="1135" y="384" width="310" height="72" class="node nodePurple"/>
+  <use href="#icon-plan" x="1152" y="399" width="42" height="42"/>
+  <text x="1290" y="418" text-anchor="middle" class="nodeTxt">Plan / Audit</text>
+  <text x="1290" y="442" text-anchor="middle" class="small">multiple tasks</text>
+
+  <rect x="1135" y="496" width="310" height="72" class="node nodeWarm"/>
+  <use href="#icon-loop" x="1152" y="511" width="42" height="42"/>
   <text x="1290" y="540" text-anchor="middle" class="nodeTxt">Task 1 Loop Mode</text>
-  <rect x="1135" y="678" width="310" height="72" class="node nodeLoop"/>
+
+  <rect x="1135" y="678" width="310" height="72" class="node nodeWarm"/>
+  <use href="#icon-loop" x="1152" y="693" width="42" height="42"/>
   <text x="1290" y="722" text-anchor="middle" class="nodeTxt">Task N Loop Mode</text>
-  <rect x="1135" y="790" width="310" height="72" class="node"/>
+
+  <rect x="1135" y="790" width="310" height="72" class="node nodePurple"/>
+  <use href="#icon-summary" x="1152" y="805" width="42" height="42"/>
   <text x="1290" y="834" text-anchor="middle" class="nodeTxt">Summary / Audit</text>
 
   <path d="M1290 232 L1290 272" class="arr"/>
@@ -98,4 +286,11 @@
   <path d="M1290 456 L1290 496" class="arr"/>
   <path d="M1290 568 L1290 678" class="arrSkip"/>
   <path d="M1290 750 L1290 790" class="arr"/>
+
+  <!-- Small legend-like footer (optional, subtle) -->
+  <g opacity="0.9">
+    <rect x="70" y="880" width="410" height="28" rx="10" fill="#ffffff" stroke="#d2deee" stroke-width="1.5" filter="url(#shadow)"/>
+    <use href="#icon-routing" x="88" y="885" width="22" height="22"/>
+    <text x="120" y="900" class="small">Shared logic: routing policy + unified memory (exec / loop / research)</text>
+  </g>
 </svg>
