@@ -93,9 +93,12 @@
       .iGray { fill: #eef2f7; }
       .iDark { fill: #2b3a55; }
       .iWhite { fill: #ffffff; }
+      .iTeleBlue { fill: #98d8ff; }
       .iTermGreen { stroke: #63e89f; }
       .iTermMint { stroke: #86f7b9; }
       .iLoopBold { stroke-width: 2.8; }
+      .iTick { stroke: #2f9d58; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .legendTxt { font: 700 18px Helvetica, Arial, sans-serif; fill: #2f4b69; }
     </style>
 
     <symbol id="icon-user" viewBox="0 0 48 48">
@@ -170,6 +173,35 @@
       <path d="M38 35l5 5" class="iStroke" fill="none"/>
     </symbol>
 
+    <symbol id="icon-brain" viewBox="0 0 48 48">
+      <path d="M24 11c2-2 4-3 7-3 5 0 9 4 9 9 0 2-1 4-2 6 1 1 2 3 2 5 0 5-4 9-9 9-2 0-5-1-7-3-2 2-5 3-7 3-5 0-9-4-9-9 0-2 1-4 2-5-1-2-2-4-2-6 0-5 4-9 9-9 3 0 5 1 7 3z" class="iPurple iStroke"/>
+      <path d="M24 12v24M18 17c2 1 4 3 4 5M30 17c-2 1-4 3-4 5M18 30c2-1 4-2 6-2M30 30c-2-1-4-2-6-2" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-yes" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="12" class="iGreen iStroke"/>
+      <path d="M18 24l4 4 8-9" class="iTick"/>
+    </symbol>
+
+    <symbol id="icon-web" viewBox="0 0 48 48">
+      <rect x="8" y="9" width="32" height="22" rx="4" class="iBlue iStroke"/>
+      <rect x="12" y="13" width="24" height="14" rx="2.2" class="iWhite iStroke"/>
+      <path d="M12 17h24" class="iStroke" fill="none"/>
+      <circle cx="16" cy="15" r="1.2" class="iOrange iStroke"/>
+      <circle cx="19.5" cy="15" r="1.2" class="iYellow iStroke"/>
+      <circle cx="24" cy="22" r="3.6" class="iBlue2 iStroke"/>
+      <path d="M20.8 22h6.4M24 18.6v6.8" class="iStroke" fill="none"/>
+      <rect x="18" y="34" width="12" height="3" rx="1.5" class="iGray iStroke"/>
+    </symbol>
+
+    <symbol id="icon-phone-telegram" viewBox="0 0 48 48">
+      <rect x="14" y="8" width="20" height="32" rx="4.5" class="iGray iStroke"/>
+      <rect x="17" y="12" width="14" height="20" rx="2.5" class="iWhite iStroke"/>
+      <circle cx="24" cy="36" r="1.6" class="iDark"/>
+      <circle cx="24" cy="22" r="5.5" class="iTeleBlue iStroke"/>
+      <path d="M20 22l8-3-3.5 8-1.6-2.1-2.9 2 .7-3.1z" class="iWhite iStroke"/>
+    </symbol>
+
     <symbol id="icon-flag" viewBox="0 0 48 48">
       <path d="M14 40V10" class="iStroke" fill="none"/>
       <path d="M14 12h18l-3 6 3 6H14" class="iOrange iStroke"/>
@@ -179,7 +211,7 @@
   </defs>
 
   <!-- Columns -->
-  <rect x="40" y="40" width="460" height="876" class="col"/>
+  <rect x="40" y="40" width="460" height="860" class="col"/>
   <rect x="550" y="40" width="460" height="860" class="col"/>
   <rect x="1060" y="40" width="460" height="858" class="col"/>
 
@@ -286,10 +318,14 @@
   <path d="M1290 568 L1290 678" class="arrSkip"/>
   <path d="M1290 750 L1290 790" class="arr"/>
 
-  <!-- Small legend-like footer (optional, subtle) -->
-  <g opacity="0.9">
-    <rect x="70" y="880" width="410" height="28" rx="10" fill="#ffffff" stroke="#d2deee" stroke-width="1.5" filter="url(#shadow)"/>
-    <use href="#icon-routing" x="88" y="885" width="22" height="22"/>
-    <text x="120" y="900" class="small">Shared logic: routing policy + unified memory (exec / loop / research)</text>
+  <!-- Centered footer legend -->
+  <g opacity="0.95">
+    <rect x="470" y="904" width="620" height="58" rx="16" fill="#ffffff" stroke="#d2deee" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="534" y="940" class="legendTxt">Unified memory</text>
+    <use href="#icon-brain" x="676" y="918" width="30" height="30"/>
+    <text x="748" y="940" class="legendTxt">Web UI</text>
+    <use href="#icon-web" x="829" y="918" width="30" height="30"/>
+    <text x="902" y="940" class="legendTxt">Chatting Apps</text>
+    <use href="#icon-phone-telegram" x="1032" y="918" width="30" height="30"/>
   </g>
 </svg>
