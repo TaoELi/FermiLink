@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="600" viewBox="0 0 1320 600" role="img" aria-labelledby="title desc">
+  <title id="title">FermiLink Major Workflows</title>
+  <desc id="desc">Three major workflows in FermiLink: exec, loop, and research or reproduce.</desc>
+  <defs>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #0f2338; }
+      .shared { fill: #eef5ff; stroke: #1f4f8a; stroke-width: 2; rx: 12; }
+      .exec { fill: #f2fbf4; stroke: #2f7a40; stroke-width: 2; rx: 12; }
+      .loop { fill: #fff8eb; stroke: #946200; stroke-width: 2; rx: 12; }
+      .flow { fill: #f8f2ff; stroke: #6d3ea3; stroke-width: 2; rx: 12; }
+      .txt { font: 600 17px Arial, sans-serif; fill: #13253b; }
+      .sub { font: 500 14px Arial, sans-serif; fill: #33455d; }
+      .arr { stroke: #355882; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arr2 { stroke: #7a4bb0; stroke-width: 3; fill: none; marker-end: url(#arrow2); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#355882"/>
+    </marker>
+    <marker id="arrow2" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#7a4bb0"/>
+    </marker>
+  </defs>
+
+  <text x="660" y="42" text-anchor="middle" class="title">Three Major FermiLink Workflows</text>
+
+  <rect x="70" y="90" width="260" height="110" class="shared"/>
+  <text x="200" y="130" text-anchor="middle" class="txt">User Prompt</text>
+  <text x="200" y="156" text-anchor="middle" class="sub">text / file / idea / paper</text>
+  <text x="200" y="178" text-anchor="middle" class="sub">local or remote chat</text>
+
+  <rect x="390" y="80" width="280" height="130" class="shared"/>
+  <text x="530" y="122" text-anchor="middle" class="txt">Shared Runtime Layer</text>
+  <text x="530" y="148" text-anchor="middle" class="sub">routing + overlay + policy</text>
+  <text x="530" y="170" text-anchor="middle" class="sub">unified memory + streaming</text>
+  <text x="530" y="192" text-anchor="middle" class="sub">artifact tracking</text>
+
+  <rect x="760" y="80" width="170" height="130" class="exec"/>
+  <text x="845" y="122" text-anchor="middle" class="txt">exec</text>
+  <text x="845" y="148" text-anchor="middle" class="sub">single run</text>
+  <text x="845" y="170" text-anchor="middle" class="sub">fast iteration</text>
+  <text x="845" y="192" text-anchor="middle" class="sub">current repo</text>
+
+  <rect x="970" y="80" width="170" height="130" class="loop"/>
+  <text x="1055" y="122" text-anchor="middle" class="txt">loop</text>
+  <text x="1055" y="148" text-anchor="middle" class="sub">multi-iteration</text>
+  <text x="1055" y="170" text-anchor="middle" class="sub">PID/SLURM waits</text>
+  <text x="1055" y="192" text-anchor="middle" class="sub">long runs</text>
+
+  <rect x="1180" y="80" width="120" height="130" class="flow"/>
+  <text x="1240" y="122" text-anchor="middle" class="txt">research</text>
+  <text x="1240" y="148" text-anchor="middle" class="sub">and</text>
+  <text x="1240" y="170" text-anchor="middle" class="sub">reproduce</text>
+  <text x="1240" y="192" text-anchor="middle" class="sub">workflow</text>
+
+  <rect x="760" y="280" width="540" height="220" class="flow"/>
+  <text x="1030" y="322" text-anchor="middle" class="txt">Planner → Auditor → Task Loops</text>
+  <text x="1030" y="350" text-anchor="middle" class="sub">task-wise execution with memory continuity</text>
+  <text x="1030" y="374" text-anchor="middle" class="sub">optional HPC profile constraints and SLURM-aware runs</text>
+  <text x="1030" y="398" text-anchor="middle" class="sub">summary + audit finalization</text>
+  <text x="1030" y="422" text-anchor="middle" class="sub">report.md + run scripts + artifacts</text>
+  <text x="1030" y="446" text-anchor="middle" class="sub">supports report-only finalization from saved context</text>
+
+  <path d="M330 145 L390 145" class="arr"/>
+  <path d="M670 145 L760 145" class="arr"/>
+  <path d="M930 145 L970 145" class="arr"/>
+  <path d="M1140 145 L1180 145" class="arr"/>
+  <path d="M1240 210 L1240 280" class="arr2"/>
+</svg>

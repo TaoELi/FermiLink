@@ -1,46 +1,77 @@
 Introduction
 ============
 
-**FermiLink** is a unified Codex + Chainlit platform for scientific simulation
-workflows. It keeps package routing, workspace overlay, and runtime policy
-consistent across web and CLI execution.
+**FermiLink** is a unified AI agent framework for autonomous scientific
+computing on **laptops**, **workstations**, **HPC clusters**, and **cellphones**.
+It combines scientific package management, reliable execution workflows, and
+multiple interaction surfaces (web UI, command line, and chatting apps) in one
+consistent system.
 
-Why FermiLink
--------------
+What makes FermiLink practical
+------------------------------
 
-Many scientific-agent systems fail at consistency: web behavior and CLI behavior
-diverge, package context drifts, and outputs become hard to reproduce.
-FermiLink addresses this with a shared execution model:
+Many scientific-agent systems break when you switch computation tools or scale up task
+complexity. FermiLink is designed to avoid that drift:
 
-- one package-selection stack for web and terminal modes;
-- one workspace overlay model with manifest tracking;
-- one policy plane for provider and sandbox behavior.
+- **one package-selection layer** across web and terminal runs supporting a wide range of scientific packages;
+- **one unified memory model** (``projects/memory.md``) for iterative and
+  long-running work in the same workspace;
+- **one runtime policy plane** (provider and sandbox) shared by web, CLI, and
+  chatting apps;
+- **three distinct workflows** for computational tasks at different scales.
 
-Core execution modes
---------------------
 
-- ``web``: ``fermilink start`` launches runner + Chainlit UI.
-- ``exec``: ``fermilink exec`` runs one prompt in the current repository.
-- ``chat``: ``fermilink chat`` runs interactive multi-turn terminal sessions.
-- ``loop``: autonomous iterative runs with persistent memory.
-- ``reproduce``: planner + auditor + task-loop orchestration for paper workflows.
-- ``research``: planner + auditor + task-loop orchestration from an idea prompt.
+You can start quickly with built-in scientific packages
+(``fermilink install``), and you can also turn your own local projects or paper
+pipelines into reusable package knowledge with
+``fermilink compile`` / ``fermilink recompile``.
 
-What stays consistent across modes
-----------------------------------
 
-- Package routing from rules + session state.
-- Overlay into a repo workspace with ownership manifest.
-- Runtime policy resolution (provider + sandbox).
-- Structured streaming of execution output.
+Three major autonomous workflows
+--------------------------------
 
-How a prompt is executed
-------------------------
+.. figure:: _static/img/major_modes_workflow.svg
+   :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
+   :align: center
+   :width: 95%
 
-1. Resolve package intent from request and session state.
-2. Provision or reuse workspace repo for the active session.
-3. Overlay selected package entries and dependency links.
-4. Execute provider CLI with resolved runtime policy.
-5. Stream outputs and artifacts back to UI or terminal.
+   Three major FermiLink workflows: ``exec`` for single-run tasks, ``loop`` for
+   iterative autonomous work involving long SLURM or PID jobs, and ``research``/``reproduce`` for paper-scale
+   calculations.
+
+- ``exec``: one prompt, one run, fast turn-around in the current repo.
+- ``loop``: autonomous iteration with memory updates, job-aware waiting
+  (local PID and HPC SLURM jobs), and long-running task support.
+- ``research`` / ``reproduce``: planner + auditor + task-loop workflows for
+  idea-to-results and paper-reproduction workflows, with structured run
+  artifacts and report finalization.
+
+
+Package management workflow
+---------------------------
+
+.. figure:: _static/img/package_management_workflow.svg
+   :alt: FermiLink package management workflow.
+   :align: center
+   :width: 95%
+
+   Package management in FermiLink: install curated packages or compile/recompile
+   local projects, then route the most suitable scientific package as the background knowledge for agent reasoning at each run.
+
+This workflow lets you keep domain knowledge close to your execution runtime:
+
+1. Add package knowledge through curated install or local compile/recompile.
+2. Keep package metadata, router rules, and overlays in deterministic storage.
+3. Reuse the same package context across all jobs in FermiLink.
+
+How to choose your starting point
+---------------------------------
+
+1. Use ``fermilink exec`` when you need a direct result quickly.
+2. Use ``fermilink loop`` when a task needs iterative refinement or long simulation waits.
+3. Use ``fermilink reproduce`` or ``fermilink research`` when you need
+   publication-scale workflows.
+4. Use ``fermilink compile`` / ``fermilink recompile`` when your package
+   knowledge should be created and reusable.
 
 See :doc:`architecture` for the full runtime flow and contracts.
