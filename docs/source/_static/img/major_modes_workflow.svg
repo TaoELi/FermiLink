@@ -1,68 +1,99 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="600" viewBox="0 0 1320 600" role="img" aria-labelledby="title desc">
-  <title id="title">FermiLink Major Workflows</title>
-  <desc id="desc">Three major workflows in FermiLink: exec, loop, and research or reproduce.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="980" viewBox="0 0 1560 980" role="img" aria-labelledby="title desc">
+  <title id="title">Three Major FermiLink Autonomous Workflows</title>
+  <desc id="desc">Three-column flowchart for exec, loop, and research or reproduce workflows with package selection and loop decision logic.</desc>
   <defs>
     <style>
-      .title { font: 700 28px Arial, sans-serif; fill: #0f2338; }
-      .shared { fill: #eef5ff; stroke: #1f4f8a; stroke-width: 2; rx: 12; }
-      .exec { fill: #f2fbf4; stroke: #2f7a40; stroke-width: 2; rx: 12; }
-      .loop { fill: #fff8eb; stroke: #946200; stroke-width: 2; rx: 12; }
-      .flow { fill: #f8f2ff; stroke: #6d3ea3; stroke-width: 2; rx: 12; }
-      .txt { font: 600 17px Arial, sans-serif; fill: #13253b; }
-      .sub { font: 500 14px Arial, sans-serif; fill: #33455d; }
-      .arr { stroke: #355882; stroke-width: 3; fill: none; marker-end: url(#arrow); }
-      .arr2 { stroke: #7a4bb0; stroke-width: 3; fill: none; marker-end: url(#arrow2); }
+      .col { fill: #f9fbfe; stroke: #c8d5e6; stroke-width: 2; rx: 20; }
+      .headExec { fill: #edf6ff; stroke: #5d8fbe; stroke-width: 2; rx: 12; }
+      .headLoop { fill: #fff8ea; stroke: #bf8d3e; stroke-width: 2; rx: 12; }
+      .headRR { fill: #f3f1ff; stroke: #7a66b7; stroke-width: 2; rx: 12; }
+      .headTxt { font: 700 22px Helvetica, Arial, sans-serif; fill: #19314f; }
+      .node { fill: #ffffff; stroke: #5f7fa3; stroke-width: 2.2; rx: 12; }
+      .nodeTxt { font: 600 18px Helvetica, Arial, sans-serif; fill: #18324f; }
+      .cmd { font: italic 600 18px "Courier New", Courier, monospace; fill: #6b7280; }
+      .small { font: 500 14px Helvetica, Arial, sans-serif; fill: #3f556f; }
+      .decision { fill: #ffffff; stroke: #a57522; stroke-width: 2.4; }
+      .arr { stroke: #325a87; stroke-width: 2.8; fill: none; marker-end: url(#arrow); }
+      .arrSkip { stroke: #325a87; stroke-width: 2.8; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .arrLoop { stroke: #a57522; stroke-width: 2.8; fill: none; marker-end: url(#arrowLoop); }
+      .yn { font: 600 15px Helvetica, Arial, sans-serif; fill: #2d4f78; }
     </style>
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#355882"/>
+      <path d="M0,0 L10,4 L0,8 Z" fill="#325a87"/>
     </marker>
-    <marker id="arrow2" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#7a4bb0"/>
+    <marker id="arrowLoop" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#a57522"/>
     </marker>
   </defs>
 
-  <text x="660" y="42" text-anchor="middle" class="title">Three Major FermiLink Workflows</text>
+  <rect x="40" y="40" width="460" height="876" class="col"/>
+  <rect x="550" y="40" width="460" height="860" class="col"/>
+  <rect x="1060" y="40" width="460" height="858" class="col"/>
 
-  <rect x="70" y="90" width="260" height="110" class="shared"/>
-  <text x="200" y="130" text-anchor="middle" class="txt">User Prompt</text>
-  <text x="200" y="156" text-anchor="middle" class="sub">text / file / idea / paper</text>
-  <text x="200" y="178" text-anchor="middle" class="sub">local or remote chat</text>
+  <rect x="60" y="60" width="420" height="64" class="headExec"/>
+  <text x="270" y="101" text-anchor="middle" class="headTxt">Exec Mode</text>
 
-  <rect x="390" y="80" width="280" height="130" class="shared"/>
-  <text x="530" y="122" text-anchor="middle" class="txt">Shared Runtime Layer</text>
-  <text x="530" y="148" text-anchor="middle" class="sub">routing + overlay + policy</text>
-  <text x="530" y="170" text-anchor="middle" class="sub">unified memory + streaming</text>
-  <text x="530" y="192" text-anchor="middle" class="sub">artifact tracking</text>
+  <rect x="570" y="60" width="420" height="64" class="headLoop"/>
+  <text x="780" y="101" text-anchor="middle" class="headTxt">Loop Mode</text>
 
-  <rect x="760" y="80" width="170" height="130" class="exec"/>
-  <text x="845" y="122" text-anchor="middle" class="txt">exec</text>
-  <text x="845" y="148" text-anchor="middle" class="sub">single run</text>
-  <text x="845" y="170" text-anchor="middle" class="sub">fast iteration</text>
-  <text x="845" y="192" text-anchor="middle" class="sub">current repo</text>
+  <rect x="1080" y="60" width="420" height="64" class="headRR"/>
+  <text x="1290" y="101" text-anchor="middle" class="headTxt">Research / Reproduce Mode</text>
 
-  <rect x="970" y="80" width="170" height="130" class="loop"/>
-  <text x="1055" y="122" text-anchor="middle" class="txt">loop</text>
-  <text x="1055" y="148" text-anchor="middle" class="sub">multi-iteration</text>
-  <text x="1055" y="170" text-anchor="middle" class="sub">PID/SLURM waits</text>
-  <text x="1055" y="192" text-anchor="middle" class="sub">long runs</text>
+  <rect x="115" y="160" width="310" height="72" class="node"/>
+  <text x="270" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+  <rect x="115" y="272" width="310" height="72" class="node"/>
+  <text x="270" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
+  <rect x="115" y="384" width="310" height="72" class="node"/>
+  <text x="270" y="428" text-anchor="middle" class="cmd">fermilink exec</text>
+  <rect x="115" y="496" width="310" height="72" class="node"/>
+  <text x="270" y="540" text-anchor="middle" class="nodeTxt">Output</text>
+  <path d="M270 232 L270 272" class="arr"/>
+  <path d="M270 344 L270 384" class="arr"/>
+  <path d="M270 456 L270 496" class="arr"/>
 
-  <rect x="1180" y="80" width="120" height="130" class="flow"/>
-  <text x="1240" y="122" text-anchor="middle" class="txt">research</text>
-  <text x="1240" y="148" text-anchor="middle" class="sub">and</text>
-  <text x="1240" y="170" text-anchor="middle" class="sub">reproduce</text>
-  <text x="1240" y="192" text-anchor="middle" class="sub">workflow</text>
+  <rect x="625" y="160" width="310" height="72" class="node"/>
+  <text x="780" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+  <rect x="625" y="272" width="310" height="72" class="node"/>
+  <text x="780" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
+  <rect x="625" y="384" width="310" height="72" class="node"/>
+  <text x="780" y="428" text-anchor="middle" class="cmd">fermilink exec</text>
+  <rect x="625" y="496" width="310" height="72" class="node"/>
+  <text x="780" y="532" text-anchor="middle" class="nodeTxt">PID / SLURM Polling</text>
+  <text x="780" y="552" text-anchor="middle" class="small">wait for submitted jobs / max time</text>
 
-  <rect x="760" y="280" width="540" height="220" class="flow"/>
-  <text x="1030" y="322" text-anchor="middle" class="txt">Planner → Auditor → Task Loops</text>
-  <text x="1030" y="350" text-anchor="middle" class="sub">task-wise execution with memory continuity</text>
-  <text x="1030" y="374" text-anchor="middle" class="sub">optional HPC profile constraints and SLURM-aware runs</text>
-  <text x="1030" y="398" text-anchor="middle" class="sub">summary + audit finalization</text>
-  <text x="1030" y="422" text-anchor="middle" class="sub">report.md + run scripts + artifacts</text>
-  <text x="1030" y="446" text-anchor="middle" class="sub">supports report-only finalization from saved context</text>
+  <polygon points="780,608 897,680 780,752 663,680" class="decision"/>
+  <text x="780" y="670" text-anchor="middle" class="nodeTxt">Goal reached?</text>
+  <text x="780" y="694" text-anchor="middle" class="small">Yes / No</text>
 
-  <path d="M330 145 L390 145" class="arr"/>
-  <path d="M670 145 L760 145" class="arr"/>
-  <path d="M930 145 L970 145" class="arr"/>
-  <path d="M1140 145 L1180 145" class="arr"/>
-  <path d="M1240 210 L1240 280" class="arr2"/>
+  <rect x="625" y="792" width="310" height="72" class="node"/>
+  <text x="780" y="836" text-anchor="middle" class="nodeTxt">Output</text>
+
+  <path d="M780 232 L780 272" class="arr"/>
+  <path d="M780 344 L780 384" class="arr"/>
+  <path d="M780 456 L780 496" class="arr"/>
+  <path d="M780 568 L780 608" class="arr"/>
+  <path d="M780 752 L780 792" class="arr"/>
+  <text x="798" y="776" class="yn">Yes</text>
+
+  <path d="M663 680 L584 680 L584 420 L625 420" class="arrLoop"/>
+  <text x="610" y="664" class="yn">No</text>
+
+  <rect x="1135" y="160" width="310" height="72" class="node"/>
+  <text x="1290" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+  <rect x="1135" y="272" width="310" height="72" class="node"/>
+  <text x="1290" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
+  <rect x="1135" y="384" width="310" height="72" class="node"/>
+  <text x="1290" y="428" text-anchor="middle" class="nodeTxt">Plan / Audit Multiple Tasks</text>
+  <rect x="1135" y="496" width="310" height="72" class="node"/>
+  <text x="1290" y="540" text-anchor="middle" class="nodeTxt">Task 1 Loop Mode</text>
+  <rect x="1135" y="678" width="310" height="72" class="node"/>
+  <text x="1290" y="722" text-anchor="middle" class="nodeTxt">Task N Loop Mode</text>
+  <rect x="1135" y="790" width="310" height="72" class="node"/>
+  <text x="1290" y="834" text-anchor="middle" class="nodeTxt">Summary / Audit</text>
+
+  <path d="M1290 232 L1290 272" class="arr"/>
+  <path d="M1290 344 L1290 384" class="arr"/>
+  <path d="M1290 456 L1290 496" class="arr"/>
+  <path d="M1290 568 L1290 678" class="arrSkip"/>
+  <path d="M1290 750 L1290 790" class="arr"/>
 </svg>
