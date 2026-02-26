@@ -1756,7 +1756,13 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     """
     cli = _cli()
     package_id = cli.normalize_package_id(args.package_id)
-    project_root = cli._resolve_project_path(args.project_path)
+    managed_project_root: Path | None = None
+    raw_project_path = getattr(args, "project_path", None)
+    if isinstance(raw_project_path, str) and raw_project_path.strip():
+        project_root = cli._resolve_project_path(raw_project_path)
+    else:
+        managed_project_root = cli.resolve_scipkg_root()
+        project_root = (managed_project_root / "packages" / package_id).resolve()
     if not project_root.exists() or not project_root.is_dir():
         raise cli.PackageError(f"Recompile path is not a directory: {project_root}")
     git_repo_initialized = cli._ensure_compile_repo_ready(project_root)
@@ -1769,7 +1775,10 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     install_off = bool(getattr(args, "install_off", False)) or memory_mode_enabled
     scipkg_root: Path | None = None
     if not install_off:
-        scipkg_root = cli.resolve_scipkg_root()
+        if managed_project_root is not None:
+            scipkg_root = managed_project_root
+        else:
+            scipkg_root = cli.resolve_scipkg_root()
 
     resolved_memory_path: Path | None = None
     resolved_doc_path: Path | None = None

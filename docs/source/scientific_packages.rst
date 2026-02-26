@@ -67,6 +67,8 @@ Compile local project into a package
      --max-skills 30 \
      --core-skill-count 6
 
+``<path>`` is required (use explicit ``.`` for current directory).
+
 Compile uses a three-pass Codex workflow plus deterministic generation and
 validation around ``sci-skills-generator`` to create/refine package
 ``skills/`` and then installs into scientific package storage.
@@ -103,8 +105,14 @@ Recompile existing skills during package development
 
 Use ``recompile`` when a package already has ``skills/`` and you want to refresh
 link consistency and source coverage after code changes (for example after PRs).
+When ``<path>`` is omitted, FermiLink defaults to the managed installed package
+path ``<scientific_packages_root>/packages/<package_id>``. Use explicit ``.`` to
+target the current directory.
 
 .. code-block:: bash
+
+   fermilink recompile <package_id> \
+     --core-skill-count 6
 
    fermilink recompile <package_id> <path> \
      --core-skill-count 6
@@ -112,6 +120,11 @@ link consistency and source coverage after code changes (for example after PRs).
 Paper-focused recompile (manuscript + supplementary data):
 
 .. code-block:: bash
+
+   fermilink recompile <package_id> \
+     --doc ./paper/manuscript.tex \
+     --data-dir ./paper/supplementary \
+     --comment "focus on the cavity spectra and validation workflow"
 
    fermilink recompile <package_id> <path> \
      --doc ./paper/manuscript.tex \
@@ -121,6 +134,9 @@ Paper-focused recompile (manuscript + supplementary data):
 Memory-focused recompile planning (extract from one memory file or a directory tree):
 
 .. code-block:: bash
+
+   fermilink recompile <package_id> \
+     --memory ./projects/memory.md
 
    fermilink recompile <package_id> <path> \
      --memory ./projects/memory.md

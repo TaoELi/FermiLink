@@ -931,14 +931,17 @@ def install_from_local_path(
         raise PackageError(f"Local source path is invalid: {source}")
 
     target_dir = packages_root(scipkg_root) / normalized_id
+    same_source_target = target_dir.exists() and source == target_dir.resolve()
     if target_dir.exists():
         if not force:
             raise PackageError(
                 f"Target package directory already exists: {target_dir}. Use --force to download again."
             )
-        shutil.rmtree(target_dir)
+        if not same_source_target:
+            shutil.rmtree(target_dir)
 
-    shutil.copytree(source, target_dir)
+    if not same_source_target:
+        shutil.copytree(source, target_dir)
 
     return register_package(
         scipkg_root,

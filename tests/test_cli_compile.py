@@ -87,6 +87,13 @@ def test_compile_rejects_existing_package_id(
     assert "already exists" in err
 
 
+def test_compile_requires_project_path(capsys) -> None:
+    code = cli.main(["compile", "newpkg"])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "the following arguments are required: project_path" in err
+
+
 def test_compile_install_off_skips_registry_and_install(
     monkeypatch, tmp_path: Path
 ) -> None:

@@ -359,8 +359,13 @@ plan-and-apply append-only skill refresh flow.
 
 .. code-block:: bash
 
+   fermilink recompile <package_id> --memory ./projects/memory.md
    fermilink recompile <package_id> <path> --memory ./projects/memory.md
    fermilink recompile <package_id> <path> --memory ./projects
+
+When ``<path>`` is omitted, recompile targets the managed installed package path
+``<scientific_packages_root>/packages/<package_id>``. Use explicit ``.`` to
+target the current directory.
 
 When ``--memory`` points to a directory, FermiLink recursively scans all
 ``memory.md`` files, extracts ``### Suggested skills updates`` entries for the

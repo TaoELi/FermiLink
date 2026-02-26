@@ -168,6 +168,185 @@ def test_recompile_requires_existing_skills_folder(
     assert "requires an existing skills/ folder" in err
 
 
+def test_recompile_without_project_path_uses_managed_package_path(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    project_root = scipkg_root / "packages" / "newpkg"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(
+        cli,
+        "load_registry",
+        lambda _root: {"packages": {}, "active_package": "newpkg"},
+    )
+    monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_recompile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence"},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 7,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+
+    install_calls: list[dict[str, object]] = []
+
+    def fake_install(
+        root: Path,
+        package_id: str,
+        *,
+        local_path: Path,
+        title: str | None = None,
+        activate: bool = False,
+        force: bool = False,
+    ) -> dict[str, object]:
+        install_calls.append(
+            {
+                "root": root,
+                "package_id": package_id,
+                "local_path": local_path,
+                "title": title,
+                "activate": activate,
+                "force": force,
+            }
+        )
+        return {"id": package_id}
+
+    monkeypatch.setattr(cli, "install_from_local_path", fake_install)
+
+    payloads: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
+
+    code = cli.main(["recompile", "newpkg", "--json"])
+
+    assert code == 0
+    assert len(install_calls) == 1
+    assert install_calls[0]["root"] == scipkg_root
+    assert install_calls[0]["package_id"] == "newpkg"
+    assert install_calls[0]["local_path"] == project_root
+    assert payloads
+    assert payloads[0].get("project_root") == str(project_root)
+
+
+def test_recompile_explicit_dot_uses_current_directory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "project"
+    project_root.mkdir(parents=True, exist_ok=True)
+    _make_existing_skills(project_root)
+    tool_source = tmp_path / "tool-source"
+    _make_tool_source(tool_source)
+    scipkg_root = tmp_path / "scientific_packages"
+
+    monkeypatch.chdir(project_root)
+    monkeypatch.setattr(cli, "_resolve_compile_tool_source", lambda: tool_source)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(
+        cli,
+        "load_registry",
+        lambda _root: {"packages": {}, "active_package": "newpkg"},
+    )
+    monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
+    monkeypatch.setattr(
+        cli,
+        "_run_codex_compile_pass",
+        lambda *_a, **_k: {
+            "pass": 1,
+            "status": "ok",
+            "return_code": 0,
+            "assistant_text": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_compile_profile",
+        lambda *_a, **_k: _default_profile(),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_recompile_evidence_bundle",
+        lambda *_a, **_k: {"evidence_dir": "skills/.evidence"},
+    )
+    monkeypatch.setattr(
+        cli,
+        "_validate_compiled_skills",
+        lambda *_a, **_k: {
+            "ok": True,
+            "errors": [],
+            "warnings": [],
+            "source_links_total": 9,
+        },
+    )
+    monkeypatch.setattr(
+        cli, "_write_compile_report", lambda *_a, **_k: "skills/.compile_report.json"
+    )
+
+    install_calls: list[dict[str, object]] = []
+
+    def fake_install(
+        root: Path,
+        package_id: str,
+        *,
+        local_path: Path,
+        title: str | None = None,
+        activate: bool = False,
+        force: bool = False,
+    ) -> dict[str, object]:
+        install_calls.append(
+            {
+                "root": root,
+                "package_id": package_id,
+                "local_path": local_path,
+                "title": title,
+                "activate": activate,
+                "force": force,
+            }
+        )
+        return {"id": package_id}
+
+    monkeypatch.setattr(cli, "install_from_local_path", fake_install)
+
+    code = cli.main(["recompile", "newpkg", ".", "--json"])
+
+    assert code == 0
+    assert len(install_calls) == 1
+    assert install_calls[0]["root"] == scipkg_root
+    assert install_calls[0]["package_id"] == "newpkg"
+    assert install_calls[0]["local_path"] == project_root
+
+
 def test_recompile_install_off_skips_registry_and_install(
     monkeypatch, tmp_path: Path
 ) -> None:

@@ -62,3 +62,24 @@ def test_dependencies_require_installed_packages(tmp_path: Path) -> None:
 
     with pytest.raises(PackageNotFoundError):
         set_package_dependency_ids(scipkg_root, "maxwelllink", ["not-installed"])
+
+
+def test_install_from_local_path_force_allows_source_equal_target(
+    tmp_path: Path,
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    source = scipkg_root / "packages" / "ase"
+    _make_local_package(source)
+
+    meta = install_from_local_path(
+        scipkg_root,
+        "ase",
+        local_path=source,
+        activate=False,
+        force=True,
+    )
+
+    registry = load_registry(scipkg_root)
+    assert meta["id"] == "ase"
+    assert (source / "skills" / "README.md").is_file()
+    assert registry["packages"]["ase"]["installed_path"] == str(source.resolve())

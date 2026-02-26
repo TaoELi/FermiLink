@@ -115,9 +115,7 @@ def register_package_install_compile_parsers(
     compile_parser.add_argument("package_id", help="Target package id to register.")
     compile_parser.add_argument(
         "project_path",
-        nargs="?",
-        default=".",
-        help="Project root path to compile (default: current directory).",
+        help="Project root path to compile.",
     )
     compile_parser.add_argument(
         "--title",
@@ -193,8 +191,11 @@ def register_package_install_compile_parsers(
     recompile_parser.add_argument(
         "project_path",
         nargs="?",
-        default=".",
-        help="Project root path to recompile (default: current directory).",
+        default=None,
+        help=(
+            "Project root path to recompile. When omitted, defaults to installed "
+            "package path under scientific packages storage."
+        ),
     )
     recompile_parser.add_argument(
         "--memory",
