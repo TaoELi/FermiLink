@@ -1,73 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="620" viewBox="0 0 1560 620" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1560" height="700" viewBox="0 0 1560 700" role="img" aria-labelledby="title desc">
   <title id="title">FermiLink Package Management Workflow</title>
-  <desc id="desc">Install curated packages or compile local projects, then route package context into workspace overlay and all execution surfaces.</desc>
+  <desc id="desc">Compact package workflow with one outer frame: upstream packages feed curated packages, then local package knowledge base, package selection, and execution surfaces, with local compile and paper pipelines feeding the local knowledge base.</desc>
   <defs>
     <style>
-      .title { font: 700 34px Helvetica, Arial, sans-serif; fill: #10243d; }
-      .subtitle { font: 500 17px Helvetica, Arial, sans-serif; fill: #405774; }
-      .lane { fill: #f9fbfe; stroke: #c8d5e6; stroke-width: 2; rx: 16; }
+      .frame { fill: #f9fbfe; stroke: #c8d5e6; stroke-width: 2.4; rx: 24; }
       .boxA { fill: #edf6ff; stroke: #5d8fbe; stroke-width: 2.2; rx: 12; }
+      .boxUp { fill: #eef1f4; stroke: #7d8694; stroke-width: 2.2; rx: 12; }
       .boxB { fill: #f2f9f2; stroke: #5b8c61; stroke-width: 2.2; rx: 12; }
       .boxC { fill: #fff8ea; stroke: #bf8d3e; stroke-width: 2.2; rx: 12; }
       .boxD { fill: #f3f1ff; stroke: #7a66b7; stroke-width: 2.2; rx: 12; }
-      .txt { font: 600 19px Helvetica, Arial, sans-serif; fill: #19314f; }
-      .sub { font: 500 14px Helvetica, Arial, sans-serif; fill: #405774; }
-      .arr { stroke: #325a87; stroke-width: 2.8; fill: none; marker-end: url(#arrow); }
+      .boxFeedTop { fill: #eaf3ff; stroke: #5d8fbe; stroke-width: 2.2; rx: 12; }
+      .boxFeedBottom { fill: #fff1e6; stroke: #bf8d3e; stroke-width: 2.2; rx: 12; }
+      .txt { font: 600 20px Helvetica, Arial, sans-serif; fill: #19314f; }
+      .sub { font: 500 15px Helvetica, Arial, sans-serif; fill: #405774; }
+      .small { font: 500 14px Helvetica, Arial, sans-serif; fill: #4b5f78; }
+      .cmd { font: italic 600 16px "Courier New", Courier, monospace; fill: #5f6b7a; }
+      .arr { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrFeed { stroke: #8d6a2d; stroke-width: 3; fill: none; marker-end: url(#arrowFeed); }
     </style>
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
       <path d="M0,0 L10,4 L0,8 Z" fill="#325a87"/>
     </marker>
+    <marker id="arrowFeed" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 Z" fill="#8d6a2d"/>
+    </marker>
   </defs>
 
-  <text x="780" y="48" text-anchor="middle" class="title">FermiLink Package Management Workflow</text>
-  <text x="780" y="78" text-anchor="middle" class="subtitle">Build reusable package knowledge, then deliver deterministic context to every run</text>
+  <rect x="40" y="40" width="1480" height="620" class="frame"/>
 
-  <rect x="40" y="110" width="360" height="470" class="lane"/>
-  <rect x="430" y="110" width="390" height="470" class="lane"/>
-  <rect x="850" y="110" width="300" height="470" class="lane"/>
-  <rect x="1180" y="110" width="340" height="470" class="lane"/>
+  <rect x="100" y="90" width="300" height="120" class="boxUp"/>
+  <text x="250" y="136" text-anchor="middle" class="txt">Upstream Open-Source</text>
+  <text x="250" y="164" text-anchor="middle" class="txt">Computational Packages</text>
+  <text x="250" y="192" text-anchor="middle" class="cmd">fermilink auto-compile</text>
 
-  <rect x="75" y="176" width="290" height="120" class="boxA"/>
-  <text x="220" y="218" text-anchor="middle" class="txt">Curated Package Install</text>
-  <text x="220" y="244" text-anchor="middle" class="sub">fermilink install / activate</text>
-  <text x="220" y="266" text-anchor="middle" class="sub">built-in package channels</text>
+  <rect x="100" y="270" width="300" height="140" class="boxFeedTop"/>
+  <text x="250" y="316" text-anchor="middle" class="txt">Curated Computational</text>
+  <text x="250" y="344" text-anchor="middle" class="txt">Packages (&gt; 150)</text>
+  <text x="250" y="372" text-anchor="middle" class="sub">
+    <tspan font-weight="700">GitHub</tspan>
+    <tspan> Channel: </tspan>
+    <tspan font-style="italic">skilled-scipkg</tspan>
+  </text>
+  <text x="250" y="396" text-anchor="middle" class="cmd">fermilink install</text>
 
-  <rect x="75" y="340" width="290" height="160" class="boxB"/>
-  <text x="220" y="382" text-anchor="middle" class="txt">Local Package Configuration</text>
-  <text x="220" y="408" text-anchor="middle" class="sub">fermilink compile &lt;id&gt; &lt;path&gt;</text>
-  <text x="220" y="430" text-anchor="middle" class="sub">fermilink recompile &lt;id&gt; [path]</text>
-  <text x="220" y="452" text-anchor="middle" class="sub">standard / paper / memory</text>
+  <rect x="460" y="270" width="320" height="140" class="boxC"/>
+  <text x="620" y="326" text-anchor="middle" class="txt">Local Package</text>
+  <text x="620" y="354" text-anchor="middle" class="txt">Knowledge Base</text>
+  <text x="620" y="380" text-anchor="middle" class="small">source code tree + agent skills</text>
 
-  <rect x="485" y="248" width="280" height="194" class="boxC"/>
-  <text x="625" y="290" text-anchor="middle" class="txt">Package Registry</text>
-  <text x="625" y="316" text-anchor="middle" class="txt">+ Router Rules</text>
-  <text x="625" y="346" text-anchor="middle" class="sub">scientific_packages/registry.json</text>
-  <text x="625" y="368" text-anchor="middle" class="sub">scientific_packages/router_rules.json</text>
-  <text x="625" y="390" text-anchor="middle" class="sub">metadata + dependencies</text>
-  <text x="625" y="412" text-anchor="middle" class="sub">active package context</text>
+  <rect x="840" y="270" width="250" height="140" class="boxD"/>
+  <text x="965" y="326" text-anchor="middle" class="txt">Package Selection</text>
+  <text x="965" y="354" text-anchor="middle" class="sub">package router rules</text>
 
-  <rect x="890" y="176" width="220" height="120" class="boxD"/>
-  <text x="1000" y="218" text-anchor="middle" class="txt">Package Selection</text>
-  <text x="1000" y="244" text-anchor="middle" class="sub">rules + session state</text>
-  <text x="1000" y="266" text-anchor="middle" class="sub">optional second guess</text>
+  <rect x="1150" y="270" width="300" height="140" class="boxFeedBottom"/>
+  <text x="1300" y="326" text-anchor="middle" class="txt">Execution Surfaces</text>
+  <text x="1300" y="354" text-anchor="middle" class="sub">exec/loop/research/reproduce</text>
 
-  <rect x="890" y="338" width="220" height="138" class="boxD"/>
-  <text x="1000" y="380" text-anchor="middle" class="txt">Workspace Overlay</text>
-  <text x="1000" y="406" text-anchor="middle" class="sub">repo + dependencies</text>
-  <text x="1000" y="428" text-anchor="middle" class="sub">manifest tracking</text>
-  <text x="1000" y="450" text-anchor="middle" class="sub">deterministic reuse</text>
+  <rect x="460" y="90" width="320" height="120" class="boxFeedTop"/>
+  <text x="620" y="138" text-anchor="middle" class="txt">Local Package Configuration</text>
+  <text x="620" y="166" text-anchor="middle" class="cmd">fermilink compile</text>
 
-  <rect x="1225" y="248" width="250" height="194" class="boxA"/>
-  <text x="1350" y="292" text-anchor="middle" class="txt">Execution Surfaces</text>
-  <text x="1350" y="322" text-anchor="middle" class="sub">web / exec / chat / loop</text>
-  <text x="1350" y="344" text-anchor="middle" class="sub">research / reproduce</text>
-  <text x="1350" y="366" text-anchor="middle" class="sub">same package context</text>
-  <text x="1350" y="388" text-anchor="middle" class="sub">same runtime policy plane</text>
+  <rect x="460" y="470" width="320" height="120" class="boxFeedTop"/>
+  <text x="620" y="516" text-anchor="middle" class="txt">Pipelines in Papers /</text>
+  <text x="620" y="544" text-anchor="middle" class="txt">Unpublished Screts</text>
+  <text x="620" y="572" text-anchor="middle" class="cmd">fermilink recompile --doc</text>
 
-  <path d="M365 236 L485 292" class="arr"/>
-  <path d="M365 420 L485 390" class="arr"/>
-  <path d="M765 312 L890 236" class="arr"/>
-  <path d="M765 392 L890 408" class="arr"/>
-  <path d="M1110 236 L1225 292" class="arr"/>
-  <path d="M1110 408 L1225 390" class="arr"/>
+  <path d="M250 210 L250 270" class="arr"/>
+  <path d="M400 340 L460 340" class="arr"/>
+  <path d="M780 340 L840 340" class="arr"/>
+  <path d="M1090 340 L1150 340" class="arr"/>
+
+  <path d="M620 210 L620 270" class="arrFeed"/>
+  <path d="M620 470 L620 410" class="arrFeed"/>
 </svg>

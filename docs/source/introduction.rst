@@ -14,7 +14,7 @@ Many scientific-agent systems break when you switch computation tools or scale u
 complexity. FermiLink is designed to avoid that drift:
 
 - **one package-selection layer** across web and terminal runs supporting a wide range of scientific packages;
-- **one unified memory model** (``projects/memory.md``) for iterative and
+- **one unified short-term/long-term memory model** (``projects/memory.md``) for iterative and
   long-running work in the same workspace;
 - **one runtime policy plane** (provider and sandbox) shared by web, CLI, and
   chatting apps;
@@ -55,13 +55,10 @@ Package management workflow
    :align: center
    :width: 95%
 
-   Package management in FermiLink: install curated packages or compile/recompile
-   local projects, then route the most suitable scientific package as the background knowledge for agent reasoning at each run.
-
 This workflow lets you keep domain knowledge close to your execution runtime:
 
-1. Add package knowledge through curated install or local compile/recompile.
-2. Keep package metadata, router rules, and overlays in deterministic storage.
+1. Add package knowledge base through curated install or local compile/recompile.
+2. Keep package metadata and router rules in deterministic storage.
 3. Reuse the same package context across all jobs in FermiLink.
 
 How to choose your starting point
