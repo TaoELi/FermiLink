@@ -13,12 +13,8 @@ reproducing a figure of a scientific paper involving long-term calculations (``f
 It ships with the built-in support of many popular scientific packages (``fermilink install``), and users can easily compile their local scientific packages, research pipelines described in 
 papers, or group-owned screts to the knowledge database of **FermiLink** locally (``fermilink compile/recompile``) for efficient agent-induced scientific simulations.
 
-Where to start
---------------
-
-- New operator: read :doc:`installation`, then :doc:`configuration`.
-- Daily user: read :doc:`usage` and :doc:`scientific_packages`.
-- Contributor: read :doc:`contributing` and :doc:`test_plan`.
+Apart from the command line tools, it contains a user-friendly **web UI** interface (for ChatGPT-like experience) and also supports the remote control using **chatting apps** (for OpenClaw-like experience).
+Users can enjoy autonomous scientific computing at any time, any place.
 
 .. toctree::
    :maxdepth: 1
