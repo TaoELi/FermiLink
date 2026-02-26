@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="docs/source/overview.rst"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
 </p>
 
@@ -31,6 +32,8 @@ fermilink research goal.md
 fermilink start
 
 # 3.3. Start the gateway for supporting Chatbots via Telegram
+export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-botfather>"
+export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-userinfobot>"
 fermilink gateway
 ```
 
