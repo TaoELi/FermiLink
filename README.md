@@ -3,51 +3,43 @@
 </p>
 
 <p align="center">
-  <a href="docs/source/overview.rst">
-    <img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge">
-  </a>
+  <a href="docs/source/overview.rst"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
 </p>
 
-# FermiLink: Unified AI Agent for Scientific Simulations
+# FermiLink: AI Agent for Autonomous Scientific Simulations
 
-**FermiLink** is a unified AI agent for automated scientific simulations. It can be used as both a **web service** and also a **command-line tool**, accommodating a wide range of scientific packages and machines. **FermiLink** utilizes a **three-layer progressive disclosure** mechansim to efficiently performing computational tasks.
+**FermiLink** is a unified agent framework for autonomous scientific simulations. It can be used in personal laptops, HPC clusters, or cellphones. Apart from providing a set of powerful **command-line tools**, **FermiLink** also supports a **web UI** for ChatGPT-like experience plus **chatting bots** in Telegram for OpenClaw-like experience. 
 
-In each round of conversation, depending on the user's prompt, **FermiLink** (i) automatically loads the most suitable scientific package as the background knowledge. Then, it uses the (ii) built-in **Agent Skills** for that scientific package as the starting point to reason until reaching to the (iii) every corner of the source code tree of this package. It's unique features include:
+With [an official package channel](https://github.com/skilled-scipkg), **FermiLink** has built-in support for more than 65 scientific packages. Additionally, users can easily use the command-line tools in **FermiLink** to create knowledge database for arbitrary scientific packages, publications, or secret simulation receipes locally. 
 
-- Unified support for a wide range of scientific packages;
-- User-friendly web UI frontend and command-line tool;
-- Concurrent support of multiple users.
-
-It has built-in support for many scientific packages, including psi4, lammps, qutip, meep, ase, maxwelllink. Users can also easily add their custom scientific package in this workflow.
+After receiving the user's request, **FermiLink** utilizes a **four-layer progressive disclosure** mechansim to efficiently perform multidomain computational tasks. Specially designed for modern HPC simulations, it can run a set of computational tasks for days or even weeks in HPC clusters without human interference.
 
 ## Quick Start
 
 ```bash
-# 1) Install
+# 1. Install
 pip install .
 
-# 2) Authenticate Codex
-codex login
+# 2. Install at least one scientific package as the knowledge database
+fermilink install meep
 
-# 3) Install at least one scientific package as background knowledge
-fermilink install maxwelllink --activate
-# or install multiple at once (cannot combine with --activate):
-# fermilink install ase meep qutip
-# fermilink activate ase
+# 3.1. Use command-line tool to do autonomous scientific research
+fermilink research goal.md
 
-# 4) Start web service for ChatGPT-like experience
+# 3.2. Start web UI service for ChatGPT-like experience
 fermilink start
 
-# 5) (Optional) Configure agent runtime policy
-fermilink agent codex --sandbox
-# or: fermilink agent --bypass-sandbox
+# 3.3. Start the gateway for supporting Chatbots via Telegram
+fermilink gateway
 ```
-
-## Web service
-
-The official web service for **FermiLink** is: [https://glogg.physics.udel.edu](https://glogg.physics.udel.edu). For security reasons, MPI parallel computing, SLRUM jobs, and network communications are **disabled** in this web service.
 
 ## Documentation
 
-- [FermiLink Documentation](docs/source/overview.rst)
+Visit the [documentation](docs/source/overview.rst) for installation details, tutorials, and API reference.
+
+## Citation
+
+If you find **FermiLink** helpful for your research, please cite the following reference:
+
+- TEL Research Group. *A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. [arXiv:tbd](https://arxiv.org/abs/tbd) (2026).
