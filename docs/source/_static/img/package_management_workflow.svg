@@ -1,75 +1,243 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1560" height="700" viewBox="0 0 1560 700" role="img" aria-labelledby="title desc">
   <title id="title">FermiLink Package Management Workflow</title>
-  <desc id="desc">Compact package workflow with one outer frame: upstream packages feed curated packages, then local package knowledge base, package selection, and execution surfaces, with local compile and paper pipelines feeding the local knowledge base.</desc>
+  <desc id="desc">Publication-quality package workflow: upstream OSS packages flow into curated packages, then local package knowledge base, package selection, and execution surfaces, with local compile and doc-driven recompile pipelines feeding the local knowledge base.</desc>
+
   <defs>
-    <style>
-      .frame { fill: #f9fbfe; stroke: #c8d5e6; stroke-width: 2.4; rx: 24; }
-      .boxA { fill: #edf6ff; stroke: #5d8fbe; stroke-width: 2.2; rx: 12; }
-      .boxUp { fill: #eef1f4; stroke: #7d8694; stroke-width: 2.2; rx: 12; }
-      .boxB { fill: #f2f9f2; stroke: #5b8c61; stroke-width: 2.2; rx: 12; }
-      .boxC { fill: #fff8ea; stroke: #bf8d3e; stroke-width: 2.2; rx: 12; }
-      .boxD { fill: #f3f1ff; stroke: #7a66b7; stroke-width: 2.2; rx: 12; }
-      .boxFeedTop { fill: #eaf3ff; stroke: #5d8fbe; stroke-width: 2.2; rx: 12; }
-      .boxFeedBottom { fill: #fff1e6; stroke: #bf8d3e; stroke-width: 2.2; rx: 12; }
-      .txt { font: 600 20px Helvetica, Arial, sans-serif; fill: #19314f; }
-      .sub { font: 500 15px Helvetica, Arial, sans-serif; fill: #405774; }
-      .small { font: 500 14px Helvetica, Arial, sans-serif; fill: #4b5f78; }
-      .cmd { font: italic 600 16px "Courier New", Courier, monospace; fill: #5f6b7a; }
-      .arr { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); }
-      .arrFeed { stroke: #8d6a2d; stroke-width: 3; fill: none; marker-end: url(#arrowFeed); }
-    </style>
+    <!-- Soft gradients (matched to the reference SVG vibe) -->
+    <linearGradient id="gradCol" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fbfdff"/>
+      <stop offset="100%" stop-color="#f2f7ff"/>
+    </linearGradient>
+
+    <linearGradient id="gradExec" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#e7f2ff"/>
+      <stop offset="100%" stop-color="#f6fbff"/>
+    </linearGradient>
+
+    <linearGradient id="gradNode" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f6f9ff"/>
+    </linearGradient>
+
+    <linearGradient id="gradNodeWarm" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#fff7ea"/>
+    </linearGradient>
+
+    <linearGradient id="gradNodePurple" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f5f3ff"/>
+    </linearGradient>
+
+    <linearGradient id="gradNodeGray" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+
+    <!-- Subtle paper texture -->
+    <filter id="paper" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="noise"/>
+      <feColorMatrix in="noise" type="matrix" values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 0.06 0" result="noiseAlpha"/>
+      <feBlend in="SourceGraphic" in2="noiseAlpha" mode="multiply"/>
+    </filter>
+
+    <!-- Soft drop shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="3" flood-color="#1f2a37" flood-opacity="0.18"/>
+    </filter>
+
+    <!-- Arrows -->
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
       <path d="M0,0 L10,4 L0,8 Z" fill="#325a87"/>
     </marker>
     <marker id="arrowFeed" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#8d6a2d"/>
+      <path d="M0,0 L10,4 L0,8 Z" fill="#a57522"/>
     </marker>
+
+    <!-- Typography + node styling -->
+    <style>
+      /* Frame */
+      .frame { fill: url(#gradCol); stroke: #c8d5e6; stroke-width: 2.2; filter: url(#paper); }
+
+      /* Nodes */
+      .node { fill: url(#gradNode); stroke: #5f7fa3; stroke-width: 2.2; filter: url(#shadow); }
+      .nodeBlue { fill: url(#gradExec); stroke: #5d8fbe; }
+      .nodeWarm { fill: url(#gradNodeWarm); stroke: #bf8d3e; }
+      .nodePurple { fill: url(#gradNodePurple); stroke: #7a66b7; }
+      .nodeGray { fill: url(#gradNodeGray); stroke: #7d8694; }
+
+      /* Text */
+      .txt { font: 800 20.67px Helvetica, Arial, sans-serif; fill: #18324f; }
+      .sub { font: 600 16.67px Helvetica, Arial, sans-serif; fill: #3f556f; }
+      .small { font: 500 15.2px Helvetica, Arial, sans-serif; fill: #3f556f; }
+      .cmd { font: italic 700 17.2px "Courier New", Courier, monospace; fill: #4b5563; }
+
+      /* Arrows */
+      .arr { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrFeed { stroke: #a57522; stroke-width: 3; fill: none; marker-end: url(#arrowFeed); }
+
+      /* Icon palette */
+      .iStroke { stroke: #253246; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .iBlue { fill: #cfe8ff; }
+      .iBlue2 { fill: #9dd2ff; }
+      .iGreen { fill: #c9f2d8; }
+      .iYellow { fill: #ffe4a8; }
+      .iOrange { fill: #ffc7a6; }
+      .iPurple { fill: #dfd7ff; }
+      .iGray { fill: #eef2f7; }
+      .iDark { fill: #2b3a55; }
+      .iWhite { fill: #ffffff; }
+      .iTeleBlue { fill: #98d8ff; }
+      .iTermMint { stroke: #86f7b9; }
+      .iTick { stroke: #2f9d58; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    </style>
+
+    <!-- Reused icons (subset from your reference SVG) -->
+    <symbol id="icon-package" viewBox="0 0 48 48">
+      <path d="M24 8 L38 16 L24 24 L10 16 Z" class="iYellow iStroke"/>
+      <path d="M10 16 L10 32 L24 40 L24 24 Z" class="iOrange iStroke"/>
+      <path d="M38 16 L38 32 L24 40 L24 24 Z" class="iYellow iStroke"/>
+    </symbol>
+
+    <symbol id="icon-terminal" viewBox="0 0 48 48">
+      <rect x="8" y="10" width="32" height="24" rx="6" class="iDark iStroke"/>
+      <rect x="11" y="13" width="26" height="18" rx="3.5" fill="#213850"/>
+      <path d="M14 17 L21 21 L14 25" class="iStroke iTermMint" fill="none"/>
+      <path d="M22 25 H30" class="iStroke iTermMint" fill="none"/>
+      <rect x="18" y="36" width="12" height="3" rx="1.5" class="iGray iStroke"/>
+    </symbol>
+
+    <symbol id="icon-routing" viewBox="0 0 48 48">
+      <circle cx="14" cy="18" r="5" class="iBlue iStroke"/>
+      <circle cx="34" cy="16" r="5" class="iPurple iStroke"/>
+      <circle cx="26" cy="34" r="5" class="iGreen iStroke"/>
+      <path d="M18 18 L29 16" class="iStroke" fill="none"/>
+      <path d="M16 22 L24 30" class="iStroke" fill="none"/>
+      <path d="M32 20 L28 29" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-memory" viewBox="0 0 48 48">
+      <path d="M15 16c0-6 18-6 18 0v16c0 6-18 6-18 0z" class="iBlue iStroke"/>
+      <path d="M15 22h18" class="iStroke" fill="none"/>
+      <path d="M15 28h18" class="iStroke" fill="none"/>
+      <path d="M22 10c2-3 8-3 10 0" class="iPurple iStroke"/>
+    </symbol>
+
+    <symbol id="icon-summary" viewBox="0 0 48 48">
+      <rect x="10" y="8" width="22" height="30" rx="4" class="iGray iStroke"/>
+      <path d="M15 14h12" class="iPurple iStroke"/>
+      <path d="M15 20h12M15 26h12M15 32h10" class="iStroke" fill="none"/>
+      <circle cx="33" cy="30" r="7" class="iBlue iStroke"/>
+      <path d="M30 30l2 2 4-5" class="iTick"/>
+      <path d="M38 35l5 5" class="iStroke" fill="none"/>
+    </symbol>
+
+    <symbol id="icon-plan" viewBox="0 0 48 48">
+      <rect x="12" y="10" width="24" height="28" rx="5" class="iGray iStroke"/>
+      <path d="M22 16h10M22 24h10M22 32h10" class="iStroke" fill="none"/>
+      <path d="M16 16l2 2 4-5" class="iGreen iStroke"/>
+      <path d="M16 24l2 2 4-5" class="iGreen iStroke"/>
+      <path d="M16 32l2 2 4-5" class="iGreen iStroke"/>
+    </symbol>
+
+    <symbol id="icon-web" viewBox="0 0 48 48">
+      <rect x="8" y="9" width="32" height="22" rx="4" class="iBlue iStroke"/>
+      <rect x="12" y="13" width="24" height="14" rx="2.2" class="iWhite iStroke"/>
+      <path d="M12 17h24" class="iStroke" fill="none"/>
+      <circle cx="16" cy="15" r="1.2" class="iOrange iStroke"/>
+      <circle cx="19.5" cy="15" r="1.2" class="iYellow iStroke"/>
+      <circle cx="24" cy="22" r="3.6" class="iBlue2 iStroke"/>
+      <path d="M20.8 22h6.4M24 18.6v6.8" class="iStroke" fill="none"/>
+      <rect x="18" y="34" width="12" height="3" rx="1.5" class="iGray iStroke"/>
+    </symbol>
+
+    <symbol id="icon-phone-telegram" viewBox="0 0 48 48">
+      <rect x="14" y="8" width="20" height="32" rx="4.5" class="iGray iStroke"/>
+      <rect x="17" y="12" width="14" height="20" rx="2.5" class="iWhite iStroke"/>
+      <circle cx="24" cy="36" r="1.6" class="iDark"/>
+      <circle cx="24" cy="22" r="5.5" class="iTeleBlue iStroke"/>
+      <path d="M20 22l8-3-3.5 8-1.6-2.1-2.9 2 .7-3.1z" class="iWhite iStroke"/>
+    </symbol>
   </defs>
 
-  <rect x="50" y="40" width="1450" height="600" class="frame"/>
+  <!-- Outside frame (extended to fully contain the rightmost boxes) -->
+  <rect x="30" y="40" width="1520" height="620" rx="26" class="frame"/>
 
-  <rect x="100" y="90" width="300" height="120" class="boxUp"/>
-  <text x="250" y="136" text-anchor="middle" class="txt">Upstream Open-Source</text>
-  <text x="250" y="164" text-anchor="middle" class="txt">Computational Packages</text>
-  <text x="250" y="192" text-anchor="middle" class="cmd">fermilink auto-compile</text>
+  <!-- Left stack: Upstream -> Curated -->
+  <rect x="110" y="110" width="350" height="140" rx="16" class="node nodeGray"/>
+  <use href="#icon-web" x="130" y="138" width="44" height="44"/>
+  <text x="188" y="150" class="txt" text-anchor="start">Upstream Open-Source</text>
+  <text x="188" y="176" class="txt" text-anchor="start">Computational</text>
+  <text x="188" y="202" class="txt" text-anchor="start">Packages</text>
+  <text x="188" y="228" class="cmd" text-anchor="start">fermilink auto-compile</text>
 
-  <rect x="100" y="270" width="300" height="140" class="boxFeedTop"/>
-  <text x="250" y="316" text-anchor="middle" class="txt">Curated Computational</text>
-  <text x="250" y="344" text-anchor="middle" class="txt">Packages (&gt; 150)</text>
-  <text x="250" y="372" text-anchor="middle" class="sub">
-    <tspan font-weight="700">GitHub</tspan>
-    <tspan> Channel: </tspan>
-    <tspan font-style="italic">skilled-scipkg</tspan>
-  </text>
-  <text x="250" y="396" text-anchor="middle" class="cmd">fermilink install</text>
+  <rect x="110" y="280" width="350" height="170" rx="16" class="node nodeBlue"/>
+  <use href="#icon-package" x="130" y="310" width="44" height="44"/>
+  <text x="188" y="320" class="txt" text-anchor="start">Curated Computational</text>
+  <text x="188" y="346" class="txt" text-anchor="start">Packages (150+)</text>
+  <text x="188" y="372" class="sub" text-anchor="start">GitHub channel:</text>
+  <text x="188" y="394" class="sub" text-anchor="start" font-style="italic">skilled-scipkg</text>
+  <text x="188" y="422" class="cmd" text-anchor="start">fermilink install</text>
 
-  <rect x="460" y="270" width="320" height="140" class="boxC"/>
-  <text x="620" y="326" text-anchor="middle" class="txt">Local Package</text>
-  <text x="620" y="354" text-anchor="middle" class="txt">Knowledge Base</text>
-  <text x="620" y="380" text-anchor="middle" class="small">source code tree + agent skills</text>
+  <!-- Center: Local config (top), Local KB (middle), Papers pipeline (bottom) -->
+  <rect x="490" y="110" width="350" height="140" rx="16" class="node nodeBlue"/>
+  <use href="#icon-plan" x="510" y="138" width="44" height="44"/>
+  <text x="568" y="150" class="txt" text-anchor="start">Local Package</text>
+  <text x="568" y="176" class="txt" text-anchor="start">Configuration</text>
+  <text x="568" y="202" class="small" text-anchor="start">build flags • env • site config</text>
+  <text x="568" y="228" class="cmd" text-anchor="start">fermilink compile</text>
 
-  <rect x="840" y="270" width="250" height="140" class="boxD"/>
-  <text x="965" y="326" text-anchor="middle" class="txt">Package Selection</text>
-  <text x="965" y="354" text-anchor="middle" class="sub">package router rules</text>
+  <rect x="490" y="280" width="350" height="170" rx="16" class="node nodePurple"/>
+  <use href="#icon-memory" x="510" y="310" width="44" height="44"/>
+  <text x="568" y="320" class="txt" text-anchor="start">Local Package</text>
+  <text x="568" y="346" class="txt" text-anchor="start">Knowledge Base</text>
+  <text x="568" y="372" class="small" text-anchor="start">source tree • builds • docs</text>
+  <text x="568" y="394" class="small" text-anchor="start">package metadata • agent skills</text>
 
-  <rect x="1150" y="270" width="300" height="140" class="boxFeedBottom"/>
-  <text x="1300" y="326" text-anchor="middle" class="txt">Execution Surfaces</text>
-  <text x="1300" y="354" text-anchor="middle" class="sub">exec/loop/research/reproduce</text>
+  <rect x="490" y="480" width="350" height="140" rx="16" class="node nodeWarm"/>
+  <use href="#icon-summary" x="510" y="508" width="44" height="44"/>
+  <text x="568" y="520" class="txt" text-anchor="start">Pipelines in Papers</text>
+  <text x="568" y="546" class="txt" text-anchor="start">Unpublished Secrets</text>
+  <text x="568" y="572" class="small" text-anchor="start">doc-driven rebuild + capture</text>
+  <text x="568" y="598" class="cmd" text-anchor="start">fermilink recompile --doc</text>
 
-  <rect x="460" y="90" width="320" height="120" class="boxFeedTop"/>
-  <text x="620" y="138" text-anchor="middle" class="txt">Local Package Configuration</text>
-  <text x="620" y="166" text-anchor="middle" class="cmd">fermilink compile</text>
+  <!-- Right: Selection -> Execution surfaces -->
+  <rect x="880" y="280" width="320" height="170" rx="16" class="node"/>
+  <use href="#icon-routing" x="900" y="310" width="44" height="44"/>
+  <text x="952" y="328" class="txt" text-anchor="start">Package Selection</text>
+  <text x="952" y="354" class="sub" text-anchor="start">router rules</text>
+  <text x="952" y="376" class="sub" text-anchor="start">constraints • preferences</text>
+  <text x="952" y="400" class="small" text-anchor="start">capabilities → best-fit pkg</text>
 
-  <rect x="460" y="470" width="320" height="120" class="boxFeedTop"/>
-  <text x="620" y="516" text-anchor="middle" class="txt">Pipelines in Papers /</text>
-  <text x="620" y="544" text-anchor="middle" class="txt">Unpublished Screts</text>
-  <text x="620" y="572" text-anchor="middle" class="cmd">fermilink recompile --doc</text>
+  <rect x="1220" y="280" width="320" height="170" rx="16" class="node nodeWarm"/>
+  <use href="#icon-terminal" x="1240" y="310" width="44" height="44"/>
+  <text x="1290" y="320" class="txt" text-anchor="start">Execution Surfaces</text>
+  <text x="1290" y="346" class="sub" text-anchor="start">exec • loop • research</text>
+  <text x="1290" y="368" class="sub" text-anchor="start">• reproduce</text>
+  <text x="1290" y="392" class="small" text-anchor="start">CLI + Web UI + Chat apps</text>
 
-  <path d="M250 210 L250 270" class="arr"/>
-  <path d="M400 340 L460 340" class="arr"/>
-  <path d="M780 340 L840 340" class="arr"/>
-  <path d="M1090 340 L1150 340" class="arr"/>
+  <!-- Small surface icons (kept well inside the box) -->
+  <use href="#icon-terminal" x="1290" y="408" width="26" height="26" opacity="0.95"/>
+  <use href="#icon-web" x="1324" y="408" width="26" height="26" opacity="0.95"/>
+  <use href="#icon-phone-telegram" x="1358" y="408" width="26" height="26" opacity="0.95"/>
 
-  <path d="M620 210 L620 270" class="arrFeed"/>
-  <path d="M620 470 L620 410" class="arrFeed"/>
+  <!-- Main flow arrows -->
+  <!-- Upstream -> Curated -->
+  <path d="M285 250 L285 280" class="arr"/>
+  <!-- Curated -> KB -->
+  <path d="M460 365 L490 365" class="arr"/>
+  <!-- KB -> Selection -->
+  <path d="M840 365 L880 365" class="arr"/>
+  <!-- Selection -> Execution -->
+  <path d="M1200 365 L1220 365" class="arr"/>
+
+  <!-- Feed arrows into Local KB -->
+  <!-- Local config -> KB -->
+  <path d="M665 250 L665 280" class="arrFeed"/>
+  <!-- Papers pipeline -> KB (upward feed) -->
+  <path d="M665 480 L665 450" class="arrFeed"/>
 </svg>
