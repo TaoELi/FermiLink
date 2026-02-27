@@ -148,11 +148,9 @@
       <rect x="8" y="9" width="32" height="22" rx="4" class="iBlue iStroke"/>
       <rect x="12" y="13" width="24" height="14" rx="2.2" class="iWhite iStroke"/>
       <path d="M12 17h24" class="iStroke" fill="none"/>
-      <circle cx="16" cy="15" r="1.2" class="iOrange iStroke"/>
-      <circle cx="19.5" cy="15" r="1.2" class="iYellow iStroke"/>
-      <circle cx="24" cy="22" r="3.6" class="iBlue2 iStroke"/>
-      <path d="M20.8 22h6.4M24 18.6v6.8" class="iStroke" fill="none"/>
-      <rect x="18" y="34" width="12" height="3" rx="1.5" class="iGray iStroke"/>
+      <circle cx="20" cy="22" r="2" class="iYellow iStroke"/>
+      <circle cx="28" cy="22" r="2" class="iYellow iStroke"/>
+      <rect x="18" y="32" width="12" height="4" rx="1.5" class="iGray iStroke"/>
     </symbol>
 
     <symbol id="icon-phone-telegram" viewBox="0 0 48 48">
@@ -164,72 +162,77 @@
     </symbol>
   </defs>
 
-  <!-- Outside frame (extended to fully contain the rightmost boxes) -->
+  <!-- Outside frame -->
   <rect x="30" y="40" width="1520" height="620" rx="26" class="frame"/>
 
   <!-- Left stack: Upstream -> Curated -->
-  <rect x="110" y="110" width="350" height="140" rx="16" class="node nodeGray"/>
-  <use href="#icon-web" x="130" y="138" width="44" height="44"/>
-  <text x="188" y="150" class="txt" text-anchor="start">Upstream Open-Source</text>
-  <text x="188" y="176" class="txt" text-anchor="start">Computational</text>
-  <text x="188" y="202" class="txt" text-anchor="start">Packages</text>
-  <text x="188" y="228" class="cmd" text-anchor="start">fermilink auto-compile</text>
+  <rect x="95" y="95" width="360" height="140" rx="16" class="node nodeGray"/>
+  <use href="#icon-web" x="115" y="115" width="38" height="38"/>
+  <text x="295" y="136" class="txt" text-anchor="middle">Upstream Open-Source</text>
+  <text x="295" y="162" class="txt" text-anchor="middle">Computational Packages</text>
+  <text x="295" y="210" class="cmd" text-anchor="middle">fermilink auto-compile</text>
 
-  <rect x="110" y="280" width="350" height="170" rx="16" class="node nodeBlue"/>
-  <use href="#icon-package" x="130" y="310" width="44" height="44"/>
-  <text x="188" y="320" class="txt" text-anchor="start">Curated Computational</text>
-  <text x="188" y="346" class="txt" text-anchor="start">Packages (150+)</text>
-  <text x="188" y="372" class="sub" text-anchor="start">GitHub channel:</text>
-  <text x="188" y="394" class="sub" text-anchor="start" font-style="italic">skilled-scipkg</text>
-  <text x="188" y="422" class="cmd" text-anchor="start">fermilink install</text>
+  <rect x="95" y="295" width="360" height="150" rx="16" class="node nodeBlue"/>
+  <use href="#icon-package" x="115" y="316" width="38" height="38"/>
+  <text x="295" y="336" class="txt" text-anchor="middle">Curated Computational</text>
+  <text x="295" y="362" class="txt" text-anchor="middle">Packages (150+)</text>
+  <text x="295" y="388" class="sub" text-anchor="middle">GitHub channel:</text>
+  <text x="295" y="410" class="sub" text-anchor="middle" font-style="italic">skilled-scipkg</text>
+  <text x="295" y="434" class="cmd" text-anchor="middle">fermilink install</text>
 
   <!-- Center: Local config (top), Local KB (middle), Papers pipeline (bottom) -->
-  <rect x="490" y="110" width="350" height="140" rx="16" class="node nodeBlue"/>
-  <use href="#icon-plan" x="510" y="138" width="44" height="44"/>
-  <text x="568" y="150" class="txt" text-anchor="start">Local Closed-Source</text>
-  <text x="568" y="176" class="txt" text-anchor="start">Packages</text>
-  <text x="568" y="200" class="small" text-anchor="start">agent skills for file map & tutorials</text>
-  <text x="568" y="228" class="cmd" text-anchor="start">fermilink compile</text>
+  <rect x="515" y="95" width="360" height="140" rx="16" class="node nodeBlue"/>
+  <use href="#icon-plan" x="535" y="115" width="38" height="38"/>
+  <text x="715" y="136" class="txt" text-anchor="middle">Local Closed-Source</text>
+  <text x="715" y="162" class="txt" text-anchor="middle">Packages</text>
+  <text x="715" y="188" class="small" text-anchor="middle">agent skills for file map</text>
+  <text x="715" y="208" class="small" text-anchor="middle">and tutorials</text>
+  <text x="715" y="228" class="cmd" text-anchor="middle">fermilink compile</text>
 
-  <rect x="490" y="280" width="350" height="170" rx="16" class="node nodePurple"/>
-  <use href="#icon-memory" x="510" y="310" width="44" height="44"/>
-  <text x="568" y="320" class="txt" text-anchor="start">Local Package</text>
-  <text x="568" y="346" class="txt" text-anchor="start">Knowledge Base</text>
-  <text x="568" y="372" class="small" text-anchor="start">source code tree + agent skills</text>
+  <rect x="515" y="295" width="360" height="150" rx="16" class="node nodePurple"/>
+  <use href="#icon-memory" x="535" y="316" width="38" height="38"/>
+  <text x="715" y="338" class="txt" text-anchor="middle">Local Package</text>
+  <text x="715" y="364" class="txt" text-anchor="middle">Knowledge Base</text>
+  <text x="715" y="396" class="small" text-anchor="middle">source code tree + agent skills</text>
 
-  <rect x="490" y="480" width="350" height="140" rx="16" class="node nodeWarm"/>
-  <use href="#icon-summary" x="510" y="508" width="44" height="44"/>
-  <text x="568" y="520" class="txt" text-anchor="start">Pipelines in Papers &</text>
-  <text x="568" y="546" class="txt" text-anchor="start">Unpublished Secrets</text>
-  <text x="568" y="572" class="small" text-anchor="start">customized agent skills for pipelines</text>
-  <text x="568" y="598" class="cmd" text-anchor="start">fermilink recompile --doc</text>
+  <rect x="515" y="505" width="360" height="140" rx="16" class="node nodeWarm"/>
+  <use href="#icon-summary" x="535" y="525" width="38" height="38"/>
+  <text x="715" y="546" class="txt" text-anchor="middle">Pipelines in Papers &amp;</text>
+  <text x="715" y="572" class="txt" text-anchor="middle">Unpublished Secrets</text>
+  <text x="715" y="598" class="small" text-anchor="middle">customized agent skills for pipelines</text>
+  <text x="715" y="628" class="cmd" text-anchor="middle">fermilink recompile --doc</text>
 
   <!-- Right: Selection -> Execution surfaces -->
-  <rect x="880" y="280" width="320" height="170" rx="16" class="node"/>
-  <use href="#icon-routing" x="900" y="310" width="44" height="44"/>
-  <text x="952" y="328" class="txt" text-anchor="start">Package Selection</text>
-  <text x="952" y="354" class="sub" text-anchor="start">router rules</text>
-  <text x="952" y="400" class="small" text-anchor="start">prompt → best-fit package</text>
+  <rect x="955" y="295" width="260" height="150" rx="16" class="node"/>
+  <use href="#icon-routing" x="973" y="316" width="38" height="38"/>
+  <text x="1105" y="334" class="txt" text-anchor="middle">Package Selection</text>
+  <text x="1105" y="362" class="sub" text-anchor="middle">router rules</text>
+  <text x="1105" y="388" class="small" text-anchor="middle">prompt → best-fit</text>
+  <text x="1105" y="410" class="small" text-anchor="middle">package</text>
 
-  <rect x="1220" y="280" width="320" height="170" rx="16" class="node nodeWarm"/>
-  <use href="#icon-terminal" x="1240" y="310" width="44" height="44"/>
-  <text x="1290" y="320" class="txt" text-anchor="start">Execution Surfaces</text>
-  <text x="1290" y="346" class="sub" text-anchor="start">exec • loop • chat </text>
-  <text x="1290" y="368" class="sub" text-anchor="start">• research • reproduce</text>
+  <rect x="1295" y="295" width="235" height="150" rx="16" class="node nodeWarm"/>
+  <use href="#icon-terminal" x="1312" y="316" width="34" height="34"/>
+  <text x="1422" y="332" class="txt" text-anchor="middle">Execution</text>
+  <text x="1422" y="356" class="txt" text-anchor="middle">Surfaces</text>
+  <text x="1422" y="382" class="sub" text-anchor="middle">exec • loop • chat</text>
+  <text x="1422" y="404" class="sub" text-anchor="middle">research • reproduce</text>
+  <use href="#icon-terminal" x="1388" y="410" width="22" height="22" opacity="0.95"/>
+  <use href="#icon-web" x="1411" y="410" width="22" height="22" opacity="0.95"/>
+  <use href="#icon-phone-telegram" x="1434" y="410" width="22" height="22" opacity="0.95"/>
 
   <!-- Main flow arrows -->
   <!-- Upstream -> Curated -->
-  <path d="M285 250 L285 280" class="arr"/>
+  <path d="M275 235 L275 295" class="arr"/>
   <!-- Curated -> KB -->
-  <path d="M460 365 L490 365" class="arr"/>
+  <path d="M455 370 L515 370" class="arr"/>
   <!-- KB -> Selection -->
-  <path d="M840 365 L880 365" class="arr"/>
+  <path d="M875 370 L955 370" class="arr"/>
   <!-- Selection -> Execution -->
-  <path d="M1200 365 L1220 365" class="arr"/>
+  <path d="M1215 370 L1295 370" class="arr"/>
 
   <!-- Feed arrows into Local KB -->
   <!-- Local config -> KB -->
-  <path d="M665 250 L665 280" class="arrFeed"/>
+  <path d="M695 235 L695 295" class="arrFeed"/>
   <!-- Papers pipeline -> KB (upward feed) -->
-  <path d="M665 480 L665 450" class="arrFeed"/>
+  <path d="M695 505 L695 445" class="arrFeed"/>
 </svg>
