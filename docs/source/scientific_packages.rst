@@ -349,6 +349,29 @@ Runner resolves package by:
 3. ``FERMILINK_SCIPKG_ACTIVE`` environment override.
 4. Registry ``active_package``.
 
+
+Advanced Usage: Automated package onboarding
+---------------------------------------------
+
+Use ``auto-compile`` to onboard scientific repositories at scale:
+
+.. code-block:: bash
+
+   fermilink auto-compile qutip https://github.com/qutip/qutip \
+     --fermilink-repo /absolute/path/to/FermiLink_development \
+     --organization your-org
+
+Batch mode:
+
+.. code-block:: bash
+
+   fermilink auto-compile \
+     --spec-file ./packages.json \
+     --fermilink-repo /absolute/path/to/FermiLink_development
+
+This workflow automates repo fork/clone, conditional ``skills/`` compilation,
+metadata drafting, and validated append/update of curated-channel indices.
+
 Practical guidance
 ------------------
 

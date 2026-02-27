@@ -2,22 +2,14 @@ Command Line Tools
 ==================
 
 This page focuses on practical command flows for the FermiLink CLI family.
-For policy and architecture details, see :doc:`configuration` and
+For runtime policy and architecture details, see :doc:`configuration` and
 :doc:`architecture`.
 
-Service lifecycle
------------------
+One-shot execution in the current repo
+--------------------------------------
 
-.. code-block:: bash
-
-   fermilink start
-   fermilink status
-   fermilink stop
-
-One-shot execution in current repo
-----------------------------------
-
-Use ``exec`` when you want web-like package routing in a local repository.
+Use ``exec`` when you want one prompt, and one run followed by package routing in
+your current working directory.
 
 .. code-block:: bash
 
@@ -25,29 +17,30 @@ Use ``exec`` when you want web-like package routing in a local repository.
 
    # provide prompt from a file
    fermilink exec prompt.md
+
+   # run with an HPC profile appended to the prompt context
    fermilink exec "run the benchmark on slurm" --hpc-profile scripts/hpc_profile_anvil.json
 
 What ``exec`` does:
 
-- routes prompts to the best installed package (keyword router + second guess);
-- overlays selected package files into current repository;
+- routes the prompt to the best installed package (keyword router + optional agent second-guess);
+- overlays the selected package files into the current repository;
 - syncs baseline ``AGENTS.md`` workspace instructions;
 - initializes/upgrades shared memory at ``projects/memory.md``;
-- avoids seeding web-only ``public/`` assets into your repo;
 - runs provider execution and streams output.
 
 Useful flags:
 
-- ``--package <id>`` pin package id.
-- ``--sandbox <mode>`` apply per-run sandbox override.
-- ``--hpc-profile <json>`` append workflow-style HPC execution constraints to the exec prompt.
-- ``--init-git`` initialize git repo non-interactively if missing.
-- ``--no-init-git`` fail when git repo is missing.
+- ``--package <id>``: pin a package id (skip routing).
+- ``--sandbox <mode>``: apply a per-run sandbox override.
+- ``--hpc-profile <json>``: append workflow-style HPC constraints to the prompt.
+- ``--init-git``: initialize a git repo non-interactively if missing.
+- ``--no-init-git``: fail if a git repo is missing.
 
 Interactive terminal chat
 -------------------------
 
-Use ``chat`` for multi-turn conversation in terminal while keeping package
+Use ``chat`` for multi-turn conversation in the terminal while keeping package
 selection and overlay behavior aligned with web mode.
 
 .. code-block:: bash
@@ -57,274 +50,79 @@ selection and overlay behavior aligned with web mode.
 Per turn, ``chat``:
 
 - rebuilds transcript-style prompt context;
-- re-runs package routing and can switch package when needed;
-- overlays package content into current repository;
+- re-runs package routing and may switch packages when needed;
+- overlays package content into the current repository;
 - initializes/upgrades shared memory at ``projects/memory.md``;
 - streams provider stdout/stderr live;
-- appends assistant reply to session history.
+- appends the assistant reply to session history.
 
 Useful flags:
 
-- ``--package <id>`` pin package for whole session.
-- ``--sandbox <mode>`` enforce sandbox mode for this session.
-- ``--init-git`` initialize git repo if missing.
-- ``--no-init-git`` fail if git repo is missing.
-
-.. _usage-cli-telegram:
-
-Telegram gateway (iPhone chat)
-------------------------------
-
-Use ``gateway`` to bind Telegram chat sessions to sticky workspace repos and
-run each message through ``fermilink exec`` by default (switch to ``loop`` via
-``/mode loop`` when needed). Workflow prompts are also supported by sending
-``fermilink research ...`` or ``fermilink reproduce ...`` as normal chat
-messages.
-
-.. code-block:: bash
-
-   export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<bot-token>"
-   export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="123456789"
-   fermilink gateway
-
-Step-by-step setup (iPhone + computer):
-
-1. Create a Telegram bot on iPhone:
-   open ``@BotFather`` in Telegram, run ``/newbot``, and copy the bot token.
-2. Find your numeric Telegram user id on iPhone:
-   message ``@get_telegram_id_smppcenter_bot`` and copy the ``Id`` value.
-3. Run the local FermiLink code on your computer:
-
-   .. code-block:: bash
-
-      cd /Users/taoli/Documents/Github/FermiLink_development
-      pip install .
-
-4. Export gateway variables on the computer or add it to ``.bashrc/zshrc``:
-
-   .. code-block:: bash
-
-      export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-botfather>"
-      export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-userinfobot>"
-
-5. Start the gateway:
-
-   .. code-block:: bash
-
-      fermilink gateway
-
-6. From iPhone Telegram, open the chat with your bot and test commands:
-   ``/help``, then a normal simulation request, then ``/mode exec``,
-   ``/mode loop``, ``/loopcfg --max-iterations 20 --max-wait-seconds 1800``,
-   ``/reply agent``, ``/reply summary``, ``/stop``, ``/status``,
-   ``fermilink research <idea.md-or-inline>``,
-   ``fermilink reproduce <paper.md-or-inline>``,
-   ``/new test2``, ``/use main``, ``/where``, and ``/list``.
-7. Verify mapping/runtime state on computer:
-
-   .. code-block:: bash
-
-      cat ~/.fermilink/runtime/chat_sessions.json
-      ls ~/.fermilink/workspaces
-
-If you receive ``Access denied.``, the allowlist id/username does not match the
-sender account. Update ``FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM`` and restart.
-
-Gateway behavior:
-
-- each Telegram chat gets one active workspace under
-  ``$FERMILINK_WORKSPACES_ROOT/<workspace_id>/repo``;
-- normal messages run in the active workspace so follow-up requests reuse
-  ``projects/memory.md`` history;
-- inbound Telegram ``document``/``photo`` uploads are downloaded into the active
-  workspace repo under ``telegram_uploads/`` so the agent can read local files;
-  when an upload includes caption text, that caption is treated as the run
-  message and the prompt automatically includes uploaded file paths; when upload
-  has no text/caption, gateway sends upload confirmation only;
-- run replies are rendered as a human-friendly summary from memory sections
-  (completed plan items + key findings + parameter provenance + uncertainty notes),
-  instead of raw status payloads;
-  key findings show only the last `### Key results` entry from memory so
-  completion messages reflect the newest recorded simulation result;
-  parameter provenance and uncertainty sections similarly show only entries
-  matching the latest run id within their respective memory sections;
-- generated figures/documents are auto-attached back to Telegram when available
-  so plots can be viewed directly on mobile clients;
-  for ``research``/``reproduce`` completions, gateway first sends a single
-  ``report.embedded.html`` artifact generated from the latest workflow
-  ``report.md`` with local figures embedded inline, reducing figure-by-figure
-  attachment spam on iPhone; when ``report.pdf`` exists beside that workflow
-  ``report.md``, gateway also sends the PDF report in the same completion reply;
-- ``/mode <exec|loop|research|reproduce>`` switches normal-message execution
-  per chat session between ``fermilink exec`` (single-turn mode, default),
-  ``fermilink loop`` (multi-iteration autonomous mode), and workflow modes
-  ``fermilink research`` / ``fermilink reproduce``;
-- ``/stop`` stops the current active run for this chat and clears queued
-  runs for this chat, so you can send a new request immediately;
-- ``/loopcfg`` shows current per-chat loop controls and supports runtime
-  updates from Telegram without gateway restart:
-  ``/loopcfg --max-iterations <N>`` and
-  ``/loopcfg --max-wait-seconds <S>`` (use ``/loopcfg --reset`` to clear
-  overrides back to gateway startup defaults);
-- explicit workflow prompts are also available without changing ``/mode``:
-  send ``fermilink research <prompt-or-file>`` or
-  ``fermilink reproduce <prompt-or-file>`` as a normal chat message to run
-  workflow orchestration in the active workspace;
-- ``/reply <summary|agent|both>`` controls final completion replies:
-  ``agent`` (default) sends exact agent text only (falling back to summary when
-  exact text is unavailable),
-  ``summary`` keeps the memory-based summary only,
-  and ``both`` sends exact agent text followed by the summary;
-  agent replies preserve common markdown formatting (headings, lists, inline
-  code, fenced code blocks, and links) when displayed in Telegram/iPhone;
-- ``/status`` returns a quick health snapshot for the current chat (gateway
-  online response timestamp in local machine timezone, current mode, active
-  workspace label, latest progress from the last ``### Progress log`` entry
-  (with local-time timestamp formatting when the entry starts with a UTC ISO
-  timestamp), live agent state ``idle/queued/running``, and when running:
-  compact current-run details (including current prompt preview);
-  running loop mode displays live iteration progress as ``loop i/max`` when
-  available; running workflow task mode displays
-  ``<research|reproduce> task n/n_max loop m/m_max`` with both task progress
-  and in-task loop progress;
-  when running, ``Last Run`` is omitted to keep replies concise;
-- ``/new [name]`` creates and switches to a new workspace;
-- ``/use <name-or-id>`` switches back to an existing workspace;
-- ``/where`` prints the active workspace and ``/list`` shows all chat
-  workspaces;
-- for run messages, Telegram immediately sends a queued/accepted ack, then
-  sends only final completion updates when the run finishes (no token
-  streaming during execution).
-
-Useful flags:
-
-- ``--telegram-token <token>`` set bot token from CLI instead of env.
-- ``--allow-from <id-or-username>`` sender allowlist (repeatable).
-- ``--session-store <path>`` custom persistent chat-session store JSON path.
-- loop forwarding flags such as ``--package``, ``--sandbox``,
-  ``--max-iterations``, ``--wait-seconds``, ``--max-wait-seconds``,
-  ``--pid-stall-seconds``.
-- ``--hpc-profile <json>`` forward an HPC profile to gateway-triggered
-  ``exec``/``loop`` runs and workflow prompts
-  (``fermilink research ...`` / ``fermilink reproduce ...``).
+- ``--package <id>``: pin a package for the whole session.
+- ``--sandbox <mode>``: enforce sandbox mode for this session.
+- ``--init-git`` / ``--no-init-git``: same behavior as ``exec``.
 
 Autonomous iterative loop
 -------------------------
 
-Use ``loop`` for iterative autonomous work with persistent memory.
+Use ``loop`` for iterative autonomous work with persistent memory and job-aware
+waiting.
 
 .. code-block:: bash
 
    fermilink loop prompt.md
    fermilink loop "refactor router and add tests"
+
+   # cap iterations
    fermilink loop --max-iterations 50 prompt.md
+
+   # explicit wait hints (when no PID/SLURM wait tags are emitted)
    fermilink loop --wait-seconds 30 --max-wait-seconds 300 prompt.md
+
+   # detect PID stalls during long waits
    fermilink loop --pid-stall-seconds 900 prompt.md
+
+   # append an HPC target profile to the loop prompt context
    fermilink loop --hpc-profile scripts/hpc_profile_anvil.json prompt.md
 
 Loop behavior:
 
-- defaults to iterative execution until done token or iteration cap;
-- persists unified memory to ``projects/memory.md`` with:
-  ``Short-Term Memory`` (``Plan``, ``Progress log``) and
-  ``Long-Term Memory`` (``File map``, ``Simulation history``,
-  ``Key results``, ``Parameter source mapping``, ``Simulation uncertainty``,
-  ``Suggested skills updates``);
-- canonicalizes malformed duplicated memory headers automatically so repeated
-  ``Short-Term Memory``/``Long-Term Memory`` blocks collapse to one active pair;
+- iterates until done token or iteration cap;
+- persists unified memory to ``projects/memory.md`` (short-term plan/progress + long-term durable outcomes);
 - stops early when output includes ``<promise>DONE</promise>``;
-- supports job-based waiting via ``<pid_number>...</pid_number>`` (local
-  processes) and ``<slurm_job_number>...</slurm_job_number>`` (HPC jobs) tags;
-  when present, loop polls those jobs until completion or until
-  ``--max-wait-seconds`` is reached;
-- detects local pid failures/stalls and repeated unqueryable slurm-job states
-  during polling, then immediately advances to the next iteration for
-  debug/resubmit handoff (pid stall detection controlled by
-  ``--pid-stall-seconds``; set ``0`` to disable);
-- treats slurm command failures or unparsable/error state output as
-  unqueryable (instead of pending), and uses repeated-unqueryable detection to
-  avoid long false waits when jobs were never submitted, vanished from queue
-  lookup, or terminated early;
-- uses job-id-aware ``sacct`` parsing (``JobID,State``) and evaluates the
-  exact requested job row first; when no exact row is present, falls back to
-  ``squeue`` to avoid false non-success classification from mixed child-step
-  states;
-- emits a polling heartbeat roughly every 10 minutes during active waits,
-  including UTC timestamp and currently tracked wait targets;
-- accepts optional ``--hpc-profile <json>`` to append the same
-  workflow-style HPC execution-target constraints used by
-  ``reproduce``/``research``;
-- keeps backward-compatible ``<wait_seconds>...</wait_seconds>`` wait hints when
-  no pid/slurm wait tags are provided.
+- supports job-aware waiting via ``<pid_number>...</pid_number>`` and
+  ``<slurm_job_number>...</slurm_job_number>`` tags and polls until completion
+  (bounded by ``--max-wait-seconds``).
 
 Reproduce workflows
 -------------------
 
 Use ``reproduce`` to orchestrate planner + auditor + multi-task loop runs for
-publication-scale requests.
+publication-scale reproduction requests.
 
 .. code-block:: bash
 
    fermilink reproduce paper.tex
-   fermilink reproduce "reproduce Figures 1-4 from this paper ..."
+   fermilink reproduce "reproduce Figures 1-4 from this paper arXiv:..."
    fermilink reproduce paper.tex --plan-only
    fermilink reproduce paper.tex --report-only
    fermilink reproduce paper.tex --hpc-profile scripts/hpc_profile_anvil.json
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
-``plan.json``, ``state.json``, prompts, logs, summaries, and
-``report.md``).
-The finalized ``report.md`` is generated as an APS Physical Review A style
-Markdown manuscript (background/theory/results/conclusion plus reproducibility
-notes), and the summary-audit stage polishes language flow for publication-like
-readability while preserving evidence-grounded claims.
-Planner/auditor and final summary/audit stages follow the same unified-memory
-contract as loop tasks: read/update ``projects/memory.md`` with concise
-short-term progress and relevant long-term durable outcomes.
-At workflow entry (except ``--report-only``), ``reproduce`` resets only the
-short-term memory section while preserving long-term memory content.
-After successful report finalization, four orchestration scripts are generated
-at run root:
+``plan.json``, ``state.json``, prompts, logs, and ``report.md``).
 
-- ``00_run_all.sh``: per-task orchestration that runs simulation, then
-  post-processing, then plotting for each task in order; when stage scripts
-  emit SLURM job ids, it waits for successful completion before advancing to
-  downstream stages or the next task;
+Notes:
 
-- ``01_run_simulations.sh``: executes all task-level simulation scripts while
-  continuing across per-task failures;
-- ``02_run_postprocess.sh``: executes all task-level post-processing scripts
-  with the same failure-tolerant behavior;
-- ``03_run_plots.sh``: executes all task-level plotting scripts with the same
-  failure-tolerant behavior.
-Stage drivers propagate inter-stage job dependencies via run-scoped map files:
-
-- ``simulation_job_ids.tsv``: task-to-job-id mapping emitted by
-  ``01_run_simulations.sh`` from ``FERMILINK_FINAL_JOB_ID=<job_id>`` markers;
-- ``postprocess_job_ids.tsv``: task-to-job-id mapping emitted by
-  ``02_run_postprocess.sh`` and used to gate plotting jobs;
-- ``plot_job_ids.tsv``: task-to-job-id mapping emitted by ``03_run_plots.sh``.
-When task scripts use ``sbatch``, they should emit
-``FERMILINK_FINAL_JOB_ID=<job_id>`` and, for post-processing/plot stages,
-consume optional ``FERMILINK_UPSTREAM_JOB_ID`` to submit dependent jobs with
-``--dependency=afterok:<job_id>``.
-In HPC mode, workflow report finalization retries script/report generation with
-explicit validator feedback when SLURM contract checks fail (up to a bounded
-attempt limit). Validation diagnostics are written to
-``hpc_contract_errors.json`` under the run directory.
-``reproduce`` always executes planned simulation work (no dry-run scaffold mode).
-By default, workflow execution target is local-machine mode (no SLURM). Use
-``--hpc-profile <json>`` to run planning/task execution/report generation under
-an explicit SLURM machine profile. The profile JSON uses a lightweight schema
-with three required string keys: ``slurm_default_partition``,
-``slurm_defaults``, and ``slurm_resource_policy`` (see
-``scripts/hpc_profile_anvil.json``).
+- At workflow entry (except ``--report-only``), ``reproduce`` resets only the
+  short-term memory section while preserving long-term memory content.
+- The workflow generates orchestration scripts (for example ``00_run_all.sh``)
+  under the run directory to support reruns and staged execution.
+- Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
 
 Research workflows
 ------------------
 
-Use ``research`` when starting from an idea prompt instead of an existing
-paper.
+Use ``research`` when starting from an idea prompt instead of an existing paper.
 
 .. code-block:: bash
 
@@ -335,30 +133,22 @@ paper.
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
 ``report.md``) and support resume from edited plan state.
-When ``--report-only`` is used, ``research`` skips planning/task-loop execution
-and runs only the final summary + summary-audit report finalization from the
-saved run context.
-The finalized ``report.md`` follows the same APS Physical Review A style
-Markdown manuscript format, and the summary-audit stage improves scientific
-writing flow and readability without inventing unsupported results.
-Planner/auditor and final summary/audit stages also read/update
-``projects/memory.md`` under the unified-memory contract.
-Like ``reproduce``, ``research`` resets only short-term memory at workflow
-entry (except ``--report-only``) and preserves long-term memory.
-``research`` also always executes planned simulation work (no dry-run mode).
-Like ``reproduce``, ``research`` defaults to local execution and accepts
-``--hpc-profile <json>`` to enforce an HPC SLURM target profile using the same
-three-key JSON schema.
-The same four orchestration scripts (``00_run_all.sh`` plus
-``01_run_simulations.sh`` / ``02_run_postprocess.sh`` / ``03_run_plots.sh``)
-are also generated under
-``projects/research/<run-id>/``.
+
+Notes:
+
+- Like ``reproduce``, ``research`` resets only short-term memory at workflow
+  entry (except ``--report-only``) and preserves long-term memory.
+- ``--report-only`` skips planning/task execution and runs only report
+  finalization from the saved run context.
+- Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
 
 Memory-driven recompile planning
 --------------------------------
 
-Use ``recompile --memory`` to convert unified-memory suggestions into an
-plan-and-apply append-only skill refresh flow.
+During calculations, agents will write down key findings for improving the usage of 
+the packages in ``projects/memory.md``.  Use ``recompile --memory`` to **convert unified-memory suggestions**
+in the workspace to a **permanent skill patch** to the package knowledge base, so all simulations 
+will learn from the simulations in this workspace.
 
 .. code-block:: bash
 
@@ -368,45 +158,18 @@ plan-and-apply append-only skill refresh flow.
 
 When ``<path>`` is omitted, recompile targets the managed installed package path
 ``<scientific_packages_root>/packages/<package_id>``. Use explicit ``.`` to
-target the current directory.
+target a different package directory.
 
-When ``--memory`` points to a directory, FermiLink recursively scans all
-``memory.md`` files, extracts ``### Suggested skills updates`` entries for the
-requested package id, classifies machine-specific issues into
-``skills/user-specific-settings/SKILL.md`` targets, writes plan JSON to
-``skills/.evidence/memory_update_plan.json``, and appends accepted updates into
-target ``skills/*/SKILL.md`` files. This mode cannot be combined with ``--doc``,
-``--data-dir``, or ``--comment``.
+When ``--memory`` points to a directory, FermiLink scans all ``memory.md``
+files, extracts ``### Suggested skills updates`` entries for the requested
+package id, writes a plan JSON, and appends accepted updates into
+``skills/*/SKILL.md`` targets.
 
-Automated package onboarding
-----------------------------
+See also
+--------
 
-Use ``auto-compile`` to onboard scientific repositories at scale:
-
-.. code-block:: bash
-
-   fermilink auto-compile qutip https://github.com/qutip/qutip \
-     --fermilink-repo /absolute/path/to/FermiLink_development \
-     --organization your-org
-
-Batch mode:
-
-.. code-block:: bash
-
-   fermilink auto-compile \
-     --spec-file ./packages.json \
-     --fermilink-repo /absolute/path/to/FermiLink_development
-
-This workflow automates GitHub fork/clone, conditional ``skills/`` compilation,
-push to your fork, Codex-driven metadata drafting, and validated append/update
-of curated channel plus router family hints data. Omit ``--organization`` to
-target your authenticated personal ``gh`` account.
-
-Web package controls
---------------------
-
-In Chainlit, manage package state with ``/package`` commands:
-
-- list installed packages;
-- pin a package for a session;
-- toggle automatic routing behavior.
+- :doc:`installation` for initial setup (Codex auth, first package install).
+- :doc:`configuration` for runtime variables and provider/sandbox policy.
+- :doc:`architecture` for the request flow and streaming contracts.
+- :doc:`scientific_packages` for install/compile/recompile workflows.
+- :doc:`usage` for the full Telegram reference (see :ref:`usage-cli-telegram`).

@@ -2,60 +2,119 @@ Web UI
 ======
 
 Use the web interface for ChatGPT-style interaction while preserving the same
-routing, overlay, and policy behavior used by CLI modes.
+package routing  and runtime agent policy behavior as the CLI modes.
 
-In Web UI mode, each message is executed inside a session workspace repo under
-``$FERMILINK_WORKSPACES_ROOT/<session_id>/repo``. That workspace contains the
-same on-disk artifacts you would see from CLI runs (for example
-``projects/memory.md`` and ``outputs/``).
+In Web UI mode, each chat message runs inside a session workspace repo under::
 
-Quick start
------------
+  $FERMILINK_WORKSPACES_ROOT/<session_id>/repo
+
+The default ``$FERMILINK_WORKSPACES_ROOT`` path is ``~/.fermilink/``.
+
+
+Fast path (recommended)
+-----------------------
+
+If you have already completed :doc:`installation`, this is the only workflow you
+need to get the Web UI running.
 
 .. code-block:: bash
 
-   # Install at least one scientific package for routing (once).
-   fermilink install meep --activate
-
-   # Start runner + Web UI.
    fermilink start
 
-Then open ``http://localhost:7860``, sign up / sign in, and run:
+Then open ``http://localhost:7860``, sign up / sign in, and type in:
 
 .. code-block:: text
 
    /package list
 
-Start and stop services
------------------------
+to check the locally installed packages for FermiLink. If you see installed packages in the list, you are ready to chat.
+
+What ``fermilink start`` launches
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``fermilink start`` launches two local processes:
+
+- **runner**: FastAPI execution backend (default: ``http://127.0.0.1:8000``)
+- **web**: Chainlit Web UI (default: ``http://127.0.0.1:7860``)
+
+Service logs are written under ``$FERMILINK_RUNTIME_ROOT/logs/``.
+
+Start, stop, and check status
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # start the local runner + web UI
+   fermilink start
+
+   # check status
+   fermilink status
+
+   # restart services
+   fermilink restart
+
+   # stop services
+   fermilink stop
+
+
+Where your work lives
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Each chat thread is backed by one workspace repo:
+
+- ``projects/memory.md``: unified short-term/long-term memory used across turns
+- ``projects/``: recommended place for research folders and reports
+
+To find recent workspaces on disk:
+
+.. code-block:: bash
+
+   FERMILINK_WORKSPACES_ROOT=$HOME/.fermilink/workspaces
+   ls -t "$FERMILINK_WORKSPACES_ROOT" | head
+
+Then inspect one session:
+
+.. code-block:: bash
+
+   ls "$FERMILINK_WORKSPACES_ROOT/<session_id>/repo"
+
+Troubleshooting (common first-run issues)
+-----------------------------------------
+
+- **Web UI shows no packages**:
+  install at least one package and activate it::
+
+    fermilink install <package_id> --activate
+
+- **Runner fails with a provider error**:
+  ensure ``codex`` is on ``PATH`` and authenticated (``codex login``), then
+  restart::
+
+    codex login
+    fermilink restart
+
+- **Ports already in use**:
+  stop the conflicting process, or override the commands (see below).
+
+Advanced: override ports/hosts (optional)
+-----------------------------------------
+
+To override host/port without editing code, set command overrides:
+
+.. code-block:: bash
+
+   export FERMILINK_RUNNER_CMD="uvicorn fermilink.runner.app:app --host 127.0.0.1 --port 8000"
+   export FERMILINK_WEB_CMD="chainlit run src/fermilink/web/app.py --host 127.0.0.1 --port 7860"
+
+Then start normally:
 
 .. code-block:: bash
 
    fermilink start
-   fermilink status
-   fermilink restart
-   fermilink stop
 
-By default:
 
-- ``runner`` (execution backend): ``http://127.0.0.1:8000``
-- ``web`` (Chainlit UI): ``http://127.0.0.1:7860``
-
-Service logs are written under ``$FERMILINK_RUNTIME_ROOT/logs/``.
-
-Manual startup (optional)
--------------------------
-
-Use this when you want runner and Chainlit processes managed separately.
-
-.. code-block:: bash
-
-   uvicorn fermilink.runner.app:app --host 127.0.0.1 --port 8000
-   export FERMILINK_RUNNER_URL=http://127.0.0.1:8000
-   chainlit run src/fermilink/web/app.py --host 127.0.0.1 --port 7860
-
-Accounts and signup
--------------------
+Advanced: accounts and signup
+-----------------------------
 
 The Web UI uses password authentication (sqlite-backed local user store).
 
@@ -67,7 +126,7 @@ Common controls:
 - ``FERMILINK_AUTH_MAX_USERS``: cap the number of accounts (``0`` means unlimited)
 - ``FERMILINK_AUTH_MIN_PASSWORD_LEN``: minimum password length (default: 8)
 
-To keep sessions stable across restarts, set a persistent secret:
+To keep sessions stable across restarts, optionally set a persistent secret:
 
 .. code-block:: bash
 
@@ -97,57 +156,8 @@ Notes:
 - Manual ``/package use ...`` pins always take precedence until you clear them.
 - If you see "no packages", install one with ``fermilink install <id> --activate``.
 
-Where your work lives
----------------------
-
-Each chat thread is backed by one workspace repo:
-
-- ``projects/memory.md``: unified short-term/long-term memory used across turns
-- ``outputs/``: recommended default place for scripts, plots, and results
-- ``projects/``: recommended place for multi-day research folders and reports
-
-To find recent workspaces on disk:
-
-.. code-block:: bash
-
-   ls -t "$FERMILINK_WORKSPACES_ROOT" | head
-
-Then inspect:
-
-.. code-block:: bash
-
-   ls "$FERMILINK_WORKSPACES_ROOT/<session_id>/repo"
-
-Artifacts and transparency
---------------------------
-
-Artifacts referenced in assistant output are auto-attached when they live under
-common prefixes (for example ``outputs/`` and ``projects/``). Images are shown
-inline; multiple files may be zipped when needed.
-
-For a deterministic post-run disclosure (tool calls, commands, and file
-changes), enable the optional transparency report:
-
-.. code-block:: bash
-
-   export FERMILINK_CHAINLIT_TRANSPARENCY_ENABLED=true
-
-Web UI validation checklist
----------------------------
-
-1. Open ``http://localhost:7860`` and sign up / sign in.
-2. Run ``/package list`` to verify package visibility.
-3. Send one prompt and confirm outputs/artifacts are returned.
-4. If transparency is enabled, confirm the ``Transparency`` report appears.
-
-Troubleshooting
----------------
-
-- Runner fails to start: ensure ``codex`` is on ``PATH`` and authenticated.
-- Web UI cannot reach runner in manual mode: verify ``FERMILINK_RUNNER_URL``.
-- ``/package list`` is empty: install packages and confirm ``FERMILINK_SCIPKG_ROOT``.
-
-See also:
+See also
+--------
 
 - :doc:`installation` for full setup.
 - :doc:`configuration` for runtime variables.

@@ -120,12 +120,20 @@
       <path d="M32 20 L28 29" class="iStroke" fill="none"/>
     </symbol>
 
-    <symbol id="icon-memory" viewBox="0 0 48 48">
-      <path d="M15 16c0-6 18-6 18 0v16c0 6-18 6-18 0z" class="iBlue iStroke"/>
-      <path d="M15 22h18" class="iStroke" fill="none"/>
-      <path d="M15 28h18" class="iStroke" fill="none"/>
-      <path d="M22 10c2-3 8-3 10 0" class="iPurple iStroke"/>
-    </symbol>
+<symbol id="icon-memory" viewBox="0 0 48 48">
+  <!-- Local tray / base (local-only) -->
+  <path d="M12 36h24c2.2 0 4 1.8 4 4v2H8v-2c0-2.2 1.8-4 4-4z" class="iGray iStroke"/>
+
+  <!-- Knowledge base (DB cylinder stack) -->
+  <path d="M14 14c0-3.2 20-3.2 20 0v16c0 3.2-20 3.2-20 0z" class="iBlue iStroke"/>
+
+  <!-- Package overlay (centered within the cylinder) -->
+  <g transform="translate(0 -1.75)">
+    <path d="M24 17 L30 20.5 L24 24 L18 20.5 Z" class="iYellow iStroke"/>
+    <path d="M18 20.5 L18 27 L24 30.5 L24 24 Z" class="iOrange iStroke"/>
+    <path d="M30 20.5 L30 27 L24 30.5 L24 24 Z" class="iYellow iStroke"/>
+  </g>
+</symbol>
 
     <symbol id="icon-summary" viewBox="0 0 48 48">
       <rect x="10" y="8" width="22" height="30" rx="4" class="iGray iStroke"/>
@@ -136,30 +144,62 @@
       <path d="M38 35l5 5" class="iStroke" fill="none"/>
     </symbol>
 
-    <symbol id="icon-plan" viewBox="0 0 48 48">
-      <rect x="12" y="10" width="24" height="28" rx="5" class="iGray iStroke"/>
-      <path d="M22 16h10M22 24h10M22 32h10" class="iStroke" fill="none"/>
-      <path d="M16 16l2 2 4-5" class="iGreen iStroke"/>
-      <path d="M16 24l2 2 4-5" class="iGreen iStroke"/>
-      <path d="M16 32l2 2 4-5" class="iGreen iStroke"/>
+<symbol id="icon-plan" viewBox="0 0 48 48">
+  <!-- Local tray / device base -->
+  <path d="M12 34h24c2.2 0 4 1.8 4 4v2H8v-2c0-2.2 1.8-4 4-4z" class="iGray iStroke"/>
+
+  <!-- Package (distinct from icon-package: rounded, front-facing) -->
+  <rect x="14" y="12" width="20" height="18" rx="3.2" class="iYellow iStroke"/>
+  <!-- Box lid seam -->
+  <path d="M14 18h20" class="iStroke" fill="none"/>
+  <!-- Center tape -->
+  <path d="M24 12v18" class="iOrange iStroke" fill="none"/>
+</symbol>
+
+    <symbol id="icon-github" viewBox="0 0 16 16">
+  <path class="iDark" fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
     </symbol>
 
-    <symbol id="icon-web" viewBox="0 0 48 48">
-      <rect x="8" y="9" width="32" height="22" rx="4" class="iBlue iStroke"/>
-      <rect x="12" y="13" width="24" height="14" rx="2.2" class="iWhite iStroke"/>
-      <path d="M12 17h24" class="iStroke" fill="none"/>
-      <circle cx="20" cy="22" r="2" class="iYellow iStroke"/>
-      <circle cx="28" cy="22" r="2" class="iYellow iStroke"/>
-      <rect x="18" y="32" width="12" height="4" rx="1.5" class="iGray iStroke"/>
-    </symbol>
+<symbol id="icon-web" viewBox="0 0 48 48">
+  <!-- Monitor bezel (more realistic: thicker frame) -->
+  <rect x="7" y="8" width="34" height="24" rx="5" class="iGray iStroke"/>
+  <!-- Inner bezel inset -->
+  <rect x="9.5" y="10.5" width="29" height="19" rx="3.2" class="iBlue iStroke"/>
 
-    <symbol id="icon-phone-telegram" viewBox="0 0 48 48">
-      <rect x="14" y="8" width="20" height="32" rx="4.5" class="iGray iStroke"/>
-      <rect x="17" y="12" width="14" height="20" rx="2.5" class="iWhite iStroke"/>
-      <circle cx="24" cy="36" r="1.6" class="iDark"/>
-      <circle cx="24" cy="22" r="5.5" class="iTeleBlue iStroke"/>
-      <path d="M20 22l8-3-3.5 8-1.6-2.1-2.9 2 .7-3.1z" class="iWhite iStroke"/>
-    </symbol>
+  <!-- Screen surface -->
+  <rect x="11" y="12" width="26" height="16" rx="2.6" class="iWhite iStroke"/>
+
+  <!-- Small webcam/camera dot -->
+  <circle cx="24" cy="11.2" r="0.8" class="iDark"/>
+
+  <!-- Atomic symbol in deep cyan (three elongated orbits) -->
+  <g fill="none" stroke="#00A6B2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="24" cy="20" rx="7.2" ry="3.1"/>
+    <ellipse cx="24" cy="20" rx="7.2" ry="3.1" transform="rotate(60 24 20)"/>
+    <ellipse cx="24" cy="20" rx="7.2" ry="3.1" transform="rotate(120 24 20)"/>
+    <circle cx="24" cy="20" r="1.2" fill="#00A6B2" stroke="none"/>
+  </g>
+
+  <!-- Stand (neck) -->
+  <path d="M22 32h4v4.2c0 1-0.8 1.8-1.8 1.8h-0.4c-1 0-1.8-0.8-1.8-1.8V32z" class="iGray iStroke"/>
+
+  <!-- Base/foot -->
+  <path d="M16 40c0-1.6 1.3-2.9 2.9-2.9h10.2c1.6 0 2.9 1.3 2.9 2.9v0.2H16z" class="iGray iStroke"/>
+</symbol>
+
+<symbol id="icon-phone-telegram" viewBox="0 0 48 48">
+  <rect x="14" y="8" width="20" height="32" rx="4.5" class="iGray iStroke"/>
+  <rect x="17" y="12" width="14" height="20" rx="2.5" class="iWhite iStroke"/>
+  <circle cx="24" cy="36" r="1.6" class="iDark"/>
+
+  <!-- Telegram badge -->
+  <circle cx="24" cy="22" r="5.5" class="iTeleBlue iStroke"/>
+
+  <!-- Telegram paper plane (shrunk to fit fully inside the badge) -->
+<g transform="matrix(0.25 0 0 0.25 19.6 18.2)">
+  <path class="iWhite" d="M29.919 6.163l-4.225 19.925c-0.319 1.406-1.15 1.756-2.331 1.094l-6.438-4.744-3.106 2.988c-0.344 0.344-0.631 0.631-1.294 0.631l0.463-6.556 11.931-10.781c0.519-0.462-0.113-0.719-0.806-0.256l-14.75 9.288-6.35-1.988c-1.381-0.431-1.406-1.381 0.288-2.044l24.837-9.569c1.15-0.431 2.156 0.256 1.781 2.013z"/>
+</g>
+</symbol>
   </defs>
 
   <!-- Outside frame -->
@@ -167,13 +207,13 @@
 
   <!-- Left stack: Upstream -> Curated -->
   <rect x="95" y="95" width="360" height="140" rx="16" class="node nodeGray"/>
-  <use href="#icon-web" x="115" y="115" width="38" height="38"/>
+  <use href="#icon-github" x="115" y="115" width="38" height="38"/>
   <text x="295" y="136" class="txt" text-anchor="middle">Upstream Open-Source</text>
   <text x="295" y="162" class="txt" text-anchor="middle">Computational Packages</text>
   <text x="295" y="210" class="cmd" text-anchor="middle">fermilink auto-compile</text>
 
   <rect x="95" y="295" width="360" height="150" rx="16" class="node nodeBlue"/>
-  <use href="#icon-package" x="115" y="316" width="38" height="38"/>
+  <use href="#icon-package" x="115" y="311" width="50" height="50"/>
   <text x="295" y="336" class="txt" text-anchor="middle">Curated Computational</text>
   <text x="295" y="362" class="txt" text-anchor="middle">Packages (150+)</text>
   <text x="295" y="388" class="sub" text-anchor="middle">GitHub channel:</text>
@@ -182,21 +222,21 @@
 
   <!-- Center: Local config (top), Local KB (middle), Papers pipeline (bottom) -->
   <rect x="515" y="95" width="360" height="140" rx="16" class="node nodeBlue"/>
-  <use href="#icon-plan" x="535" y="115" width="38" height="38"/>
+  <use href="#icon-plan" x="535" y="110" width="50" height="50"/>
   <text x="715" y="136" class="txt" text-anchor="middle">Local Closed-Source</text>
-  <text x="715" y="162" class="txt" text-anchor="middle">Packages</text>
+  <text x="715" y="162" class="txt" text-anchor="middle">or Custom Packages</text>
   <text x="715" y="188" class="small" text-anchor="middle">agent skills for file map</text>
   <text x="715" y="208" class="small" text-anchor="middle">and tutorials</text>
   <text x="715" y="228" class="cmd" text-anchor="middle">fermilink compile</text>
 
   <rect x="515" y="295" width="360" height="150" rx="16" class="node nodePurple"/>
-  <use href="#icon-memory" x="535" y="316" width="38" height="38"/>
+  <use href="#icon-memory" x="535" y="311" width="50" height="50"/>
   <text x="715" y="338" class="txt" text-anchor="middle">Local Package</text>
   <text x="715" y="364" class="txt" text-anchor="middle">Knowledge Base</text>
   <text x="715" y="396" class="small" text-anchor="middle">source code tree + agent skills</text>
 
   <rect x="515" y="505" width="360" height="140" rx="16" class="node nodeWarm"/>
-  <use href="#icon-summary" x="535" y="525" width="38" height="38"/>
+  <use href="#icon-summary" x="535" y="520" width="50" height="50"/>
   <text x="715" y="546" class="txt" text-anchor="middle">Pipelines in Papers &amp;</text>
   <text x="715" y="572" class="txt" text-anchor="middle">Unpublished Secrets</text>
   <text x="715" y="598" class="small" text-anchor="middle">customized agent skills for pipelines</text>
@@ -204,21 +244,21 @@
 
   <!-- Right: Selection -> Execution surfaces -->
   <rect x="955" y="295" width="260" height="150" rx="16" class="node"/>
-  <use href="#icon-routing" x="973" y="316" width="38" height="38"/>
+  <use href="#icon-routing" x="965" y="311" width="50" height="50"/>
   <text x="1105" y="334" class="txt" text-anchor="middle">Package Selection</text>
   <text x="1105" y="362" class="sub" text-anchor="middle">router rules</text>
-  <text x="1105" y="388" class="small" text-anchor="middle">prompt → best-fit</text>
-  <text x="1105" y="410" class="small" text-anchor="middle">package</text>
+  <text x="1105" y="388" class="small" text-anchor="middle">prompt → best-fit package</text>
+  <text x="1105" y="410" class="small" text-anchor="middle">knowledge base</text>
 
   <rect x="1295" y="295" width="235" height="150" rx="16" class="node nodeWarm"/>
-  <use href="#icon-terminal" x="1312" y="316" width="34" height="34"/>
+  <use href="#icon-terminal" x="1310" y="309" width="50" height="50"/>
   <text x="1422" y="332" class="txt" text-anchor="middle">Execution</text>
   <text x="1422" y="356" class="txt" text-anchor="middle">Surfaces</text>
-  <text x="1422" y="382" class="sub" text-anchor="middle">exec • loop • chat</text>
-  <text x="1422" y="404" class="sub" text-anchor="middle">research • reproduce</text>
-  <use href="#icon-terminal" x="1388" y="410" width="22" height="22" opacity="0.95"/>
-  <use href="#icon-web" x="1411" y="410" width="22" height="22" opacity="0.95"/>
-  <use href="#icon-phone-telegram" x="1434" y="410" width="22" height="22" opacity="0.95"/>
+  <text x="1422" y="374" class="sub" text-anchor="middle">exec • loop • chat</text>
+  <text x="1422" y="392" class="sub" text-anchor="middle">research • reproduce</text>
+  <use href="#icon-terminal" x="1358" y="401" width="38" height="38" opacity="0.95"/>
+  <use href="#icon-web" x="1403" y="401" width="38" height="38" opacity="0.95"/>
+  <use href="#icon-phone-telegram" x="1448" y="401" width="38" height="38" opacity="0.95"/>
 
   <!-- Main flow arrows -->
   <!-- Upstream -> Curated -->

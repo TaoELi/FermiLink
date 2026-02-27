@@ -32,8 +32,8 @@ fermilink research goal.md
 fermilink start
 
 # 3.3. Start the gateway for supporting Chatbots via Telegram
-export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-botfather>"
-export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-userinfobot>"
+export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
+export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 fermilink gateway
 ```
 
