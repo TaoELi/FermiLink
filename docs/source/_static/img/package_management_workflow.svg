@@ -186,23 +186,22 @@
   <!-- Center: Local config (top), Local KB (middle), Papers pipeline (bottom) -->
   <rect x="490" y="110" width="350" height="140" rx="16" class="node nodeBlue"/>
   <use href="#icon-plan" x="510" y="138" width="44" height="44"/>
-  <text x="568" y="150" class="txt" text-anchor="start">Local Package</text>
-  <text x="568" y="176" class="txt" text-anchor="start">Configuration</text>
-  <text x="568" y="202" class="small" text-anchor="start">build flags • env • site config</text>
+  <text x="568" y="150" class="txt" text-anchor="start">Local Closed-Source</text>
+  <text x="568" y="176" class="txt" text-anchor="start">Packages</text>
+  <text x="568" y="200" class="small" text-anchor="start">agent skills for file map & tutorials</text>
   <text x="568" y="228" class="cmd" text-anchor="start">fermilink compile</text>
 
   <rect x="490" y="280" width="350" height="170" rx="16" class="node nodePurple"/>
   <use href="#icon-memory" x="510" y="310" width="44" height="44"/>
   <text x="568" y="320" class="txt" text-anchor="start">Local Package</text>
   <text x="568" y="346" class="txt" text-anchor="start">Knowledge Base</text>
-  <text x="568" y="372" class="small" text-anchor="start">source tree • builds • docs</text>
-  <text x="568" y="394" class="small" text-anchor="start">package metadata • agent skills</text>
+  <text x="568" y="372" class="small" text-anchor="start">source code tree + agent skills</text>
 
   <rect x="490" y="480" width="350" height="140" rx="16" class="node nodeWarm"/>
   <use href="#icon-summary" x="510" y="508" width="44" height="44"/>
-  <text x="568" y="520" class="txt" text-anchor="start">Pipelines in Papers</text>
+  <text x="568" y="520" class="txt" text-anchor="start">Pipelines in Papers &</text>
   <text x="568" y="546" class="txt" text-anchor="start">Unpublished Secrets</text>
-  <text x="568" y="572" class="small" text-anchor="start">doc-driven rebuild + capture</text>
+  <text x="568" y="572" class="small" text-anchor="start">customized agent skills for pipelines</text>
   <text x="568" y="598" class="cmd" text-anchor="start">fermilink recompile --doc</text>
 
   <!-- Right: Selection -> Execution surfaces -->
@@ -210,20 +209,13 @@
   <use href="#icon-routing" x="900" y="310" width="44" height="44"/>
   <text x="952" y="328" class="txt" text-anchor="start">Package Selection</text>
   <text x="952" y="354" class="sub" text-anchor="start">router rules</text>
-  <text x="952" y="376" class="sub" text-anchor="start">constraints • preferences</text>
-  <text x="952" y="400" class="small" text-anchor="start">capabilities → best-fit pkg</text>
+  <text x="952" y="400" class="small" text-anchor="start">prompt → best-fit package</text>
 
   <rect x="1220" y="280" width="320" height="170" rx="16" class="node nodeWarm"/>
   <use href="#icon-terminal" x="1240" y="310" width="44" height="44"/>
   <text x="1290" y="320" class="txt" text-anchor="start">Execution Surfaces</text>
-  <text x="1290" y="346" class="sub" text-anchor="start">exec • loop • research</text>
-  <text x="1290" y="368" class="sub" text-anchor="start">• reproduce</text>
-  <text x="1290" y="392" class="small" text-anchor="start">CLI + Web UI + Chat apps</text>
-
-  <!-- Small surface icons (kept well inside the box) -->
-  <use href="#icon-terminal" x="1290" y="408" width="26" height="26" opacity="0.95"/>
-  <use href="#icon-web" x="1324" y="408" width="26" height="26" opacity="0.95"/>
-  <use href="#icon-phone-telegram" x="1358" y="408" width="26" height="26" opacity="0.95"/>
+  <text x="1290" y="346" class="sub" text-anchor="start">exec • loop • chat </text>
+  <text x="1290" y="368" class="sub" text-anchor="start">• research • reproduce</text>
 
   <!-- Main flow arrows -->
   <!-- Upstream -> Curated -->

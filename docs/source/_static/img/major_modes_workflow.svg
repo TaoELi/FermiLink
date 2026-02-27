@@ -326,7 +326,7 @@
     <use href="#icon-brain" x="676" y="918" width="30" height="30"/>
     <text x="748" y="940" class="legendTxt">Web UI</text>
     <use href="#icon-web" x="829" y="918" width="30" height="30"/>
-    <text x="888" y="940" class="legendTxt">Chatting Apps</text>
-    <use href="#icon-phone-telegram" x="1032" y="918" width="30" height="30"/>
+    <text x="910" y="940" class="legendTxt">Chat Apps</text>
+    <use href="#icon-phone-telegram" x="1020" y="918" width="30" height="30"/>
   </g>
 </svg>
