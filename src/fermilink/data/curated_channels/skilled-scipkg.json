@@ -610,10 +610,10 @@
     },
     {
       "package_id": "fdtdbath-meep",
-      "title": "Modified Meep FDTD Electromagnetics Simulator for FDTD-Bath approach",
+      "title": "Modified Meep FDTD Electromagnetics Simulator for FDTD-Bath approach of condensed-phase polaritonics",
       "description": "The modified Meep code with standard meep functions + fdtd-bath implementation for condensed-phase polaritonics",
-      "upstream_repo_url": "https://github.com/TaoELi/meep",
-      "homepage_url": "https://github.com/TaoELi/meep",
+      "upstream_repo_url": "https://github.com/TaoELi/fdtdbath-meep",
+      "homepage_url": "https://github.com/TaoELi/fdtdbath-meep",
       "zip_url": "https://github.com/skilled-scipkg/fdtdbath-meep/archive/refs/heads/master.zip",
       "default_version": "branch-head",
       "versions": [
