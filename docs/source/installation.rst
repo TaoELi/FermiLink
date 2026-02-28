@@ -48,6 +48,10 @@ FermiLink assumes a standard local developer environment:
 - Node.js + ``npm`` (to install the Codex CLI) or ``homebrew`` installed for Mac
 - Codex CLI (``codex``) on ``PATH`` 
 
+.. note::
+
+   For HPC users without sudo access, you need to install Node.js and ``npm`` locally first.
+
 Install Codex CLI 
 ~~~~~~~~~~~~~~~~~~~~~
 

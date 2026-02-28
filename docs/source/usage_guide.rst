@@ -21,8 +21,8 @@ For a list of the supported built-in scientific packages, check
    List of Built-in Scientific Packages <built_in_scientific_packages>
 
 
-General usage tips:
----------------------
+General usage tips
+~~~~~~~~~~~~~~~~~~~~~~~
 
 - :doc:`usage_web_ui`: If you want a more user-friendly interface for quick experiments or demos in research or teaching. 
 
