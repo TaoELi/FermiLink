@@ -397,7 +397,12 @@ def main(argv: list[str] | None = None) -> int:
         Process exit code (`0` on success).
     """
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        if isinstance(exc.code, int):
+            return exc.code
+        return 1
 
     try:
         return args.func(args)
