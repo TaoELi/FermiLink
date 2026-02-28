@@ -734,7 +734,7 @@ def test_compile_inherits_provider_from_runtime_policy(
     assert all(call["provider_bin"] == "gemini-bin" for call in pass_calls)
 
 
-def test_compile_errors_for_unimplemented_runtime_provider(
+def test_compile_errors_when_runtime_provider_binary_missing(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     project_root = tmp_path / "project"
@@ -764,8 +764,8 @@ def test_compile_errors_for_unimplemented_runtime_provider(
     code = cli.main(["compile", "newpkg", str(project_root)])
     assert code == 2
     err = capsys.readouterr().err
-    assert "not implemented yet" in err
-    assert "fermilink agent codex" in err
+    assert "CLI not found" in err
+    assert "FERMILINK_GEMINI_BIN" in err
     assert not (project_root / "sci-skills-generator").exists()
 
 

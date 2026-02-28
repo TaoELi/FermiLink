@@ -18,7 +18,8 @@ Core package (``src/fermilink``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``agent_runtime.py``: persisted runtime provider/sandbox/model/reasoning-effort policy.
-- ``providers.py``: provider binary resolution and command assembly.
+- ``agents/``: provider-agent base contract, per-provider adapters, and provider registry.
+- ``providers.py``: stable provider wrappers that delegate binary resolution and command assembly to the agent registry.
 - ``config.py``: runtime path resolution.
 - ``services.py``: runner/web process lifecycle helpers.
 - ``router_rules.py``: package router rule synchronization.

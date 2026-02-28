@@ -140,7 +140,7 @@ def test_chat_enforces_sandbox_override_for_session(
             provider="codex",
             sandbox_policy="bypass",
             sandbox_mode="workspace-write",
-            model="gpt-5.3-codex-xhigh",
+            model="gpt-5.3-codex",
         ),
     )
     monkeypatch.setattr(
@@ -191,7 +191,7 @@ def test_chat_enforces_sandbox_override_for_session(
     assert code == 0
     assert captured["sandbox_policy"] == "enforce"
     assert captured["sandbox"] == "read-only"
-    assert captured["model"] == "gpt-5.3-codex-xhigh"
+    assert captured["model"] == "gpt-5.3-codex"
     assert "projects/memory.md" in str(captured.get("prompt"))
 
 

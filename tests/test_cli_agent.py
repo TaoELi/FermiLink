@@ -48,6 +48,18 @@ def test_agent_updates_provider_and_sandbox_policy(
     assert persisted["sandbox_policy"] == "bypass"
 
 
+def test_agent_accepts_deepseek_provider(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+
+    code = cli.main(["agent", "deepseek", "--json"])
+    assert code == 0
+    payload = _parse_stdout_json(capsys)
+    assert payload["provider"] == "deepseek"
+
+
 def test_agent_enables_sandbox_without_changing_mode(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
@@ -70,10 +82,10 @@ def test_agent_sets_and_clears_model_override(
     monkeypatch.setenv("FERMILINK_HOME", str(home))
 
     assert (
-        cli.main(["agent", "--model", "gpt-5.3-codex-xhigh", "--json"]) == 0
+        cli.main(["agent", "--model", "gpt-5.3-codex", "--json"]) == 0
     )
     payload = _parse_stdout_json(capsys)
-    assert payload["model"] == "gpt-5.3-codex-xhigh"
+    assert payload["model"] == "gpt-5.3-codex"
 
     assert cli.main(["agent", "--clear-model", "--json"]) == 0
     cleared = _parse_stdout_json(capsys)

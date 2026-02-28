@@ -206,7 +206,8 @@ Use ``fermilink agent`` to set global runtime defaults used by
 .. code-block:: bash
 
    fermilink agent --json
-   fermilink agent --model gpt-5.3-codex-xhigh
+   fermilink agent codex
+   fermilink agent --model gpt-5.3-codex
    fermilink agent --reasoning-effort high
    fermilink agent --clear-model
    fermilink agent --clear-reasoning-effort

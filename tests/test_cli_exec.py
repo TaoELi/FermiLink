@@ -31,7 +31,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
             provider="codex",
             sandbox_policy="enforce",
             sandbox_mode="workspace-write",
-            model="gpt-5.3-codex-xhigh",
+            model="gpt-5.3-codex",
             reasoning_effort="high",
         ),
     )
@@ -74,7 +74,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
     assert "projects/memory.md" in str(calls["prompt"])
     assert "simulate a cavity" in str(calls["prompt"])
     assert calls["sandbox"] == "workspace-write"
-    assert calls["model"] == "gpt-5.3-codex-xhigh"
+    assert calls["model"] == "gpt-5.3-codex"
     assert calls["reasoning_effort"] == "high"
     memory_path = repo_dir / "projects" / "memory.md"
     assert memory_path.is_file()
@@ -477,7 +477,7 @@ def test_run_exec_codex_prompt_includes_model_override(
         prompt="hello",
         sandbox="read-only",
         codex_bin="codex",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         reasoning_effort="high",
     )
     assert code == 0
@@ -489,7 +489,7 @@ def test_run_exec_codex_prompt_includes_model_override(
         "--sandbox",
         "read-only",
         "--model",
-        "gpt-5.3-codex-xhigh",
+        "gpt-5.3-codex",
         "--config",
         'model_reasoning_effort="high"',
         "--color",

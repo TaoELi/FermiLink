@@ -131,7 +131,7 @@ However, some scientific simulations might require access to external files, net
    fermilink agent codex
 
    # override provider default model globally (exec/web/chat/loop/research/reproduce)
-   fermilink agent --model gpt-5.3-codex-xhigh
+   fermilink agent --model gpt-5.3-codex
 
    # clear model override and return to provider default model selection
    fermilink agent --clear-model

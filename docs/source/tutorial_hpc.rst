@@ -62,7 +62,7 @@ FermiLink runs agents through the Codex CLI. Install it once and login:
 If ``codex`` is not found after install, ensure your local ``npm`` bin directory
 is on ``PATH``.
 
-Within the ``codex`` terminal, choose the default model (e.g., gpt-5.3-codex-xhigh) you want to use for FermiLink.
+Within the ``codex`` terminal, choose the default model (e.g., gpt-5.3-codex) you want to use for FermiLink.
 
 
 Step 3. Install FermiLink
@@ -130,12 +130,12 @@ MPI workflows may need to bypass it. Check and set the policy if needed:
    If you bypass the sandbox, **never** run as root. Use a dedicated non-root
    account and keep regular backups of your data.
 
-   
+
 If you need to force one model for all FermiLink runs, set a global override:
 
 .. code-block:: bash
 
-   fermilink agent --model gpt-5.3-codex-xhigh
+   fermilink agent --model gpt-5.3-codex
 
 Clear it later to return to Codex default model selection:
 

@@ -150,7 +150,7 @@ def test_default_service_specs_propagates_agent_runtime_policy(
         provider="gemini",
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         reasoning_effort="xhigh",
     )
     specs = default_service_specs(web_app_path=tmp_path / "web" / "app.py")
@@ -158,8 +158,8 @@ def test_default_service_specs_propagates_agent_runtime_policy(
     assert specs["runner"].env["FERMILINK_AGENT_PROVIDER"] == "gemini"
     assert specs["runner"].env["FERMILINK_AGENT_SANDBOX_POLICY"] == "bypass"
     assert specs["runner"].env["FERMILINK_AGENT_SANDBOX_MODE"] == "workspace-write"
-    assert specs["runner"].env["FERMILINK_AGENT_MODEL"] == "gpt-5.3-codex-xhigh"
+    assert specs["runner"].env["FERMILINK_AGENT_MODEL"] == "gpt-5.3-codex"
     assert specs["runner"].env["FERMILINK_AGENT_REASONING_EFFORT"] == "xhigh"
     assert specs["web"].env["FERMILINK_AGENT_PROVIDER"] == "gemini"
-    assert specs["web"].env["FERMILINK_AGENT_MODEL"] == "gpt-5.3-codex-xhigh"
+    assert specs["web"].env["FERMILINK_AGENT_MODEL"] == "gpt-5.3-codex"
     assert specs["web"].env["FERMILINK_AGENT_REASONING_EFFORT"] == "xhigh"

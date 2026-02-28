@@ -12,7 +12,7 @@ def test_resolve_run_policy_honors_bypass_policy(monkeypatch) -> None:
             provider="codex",
             sandbox_policy="bypass",
             sandbox_mode="workspace-write",
-            model="gpt-5.3-codex-xhigh",
+            model="gpt-5.3-codex",
             reasoning_effort="high",
         ),
     )
@@ -25,7 +25,7 @@ def test_resolve_run_policy_honors_bypass_policy(monkeypatch) -> None:
     assert provider == "codex"
     assert sandbox_policy == "bypass"
     assert sandbox_mode is None
-    assert model == "gpt-5.3-codex-xhigh"
+    assert model == "gpt-5.3-codex"
     assert reasoning_effort == "high"
 
 

@@ -1,27 +1,17 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from fermilink.agent_runtime import (
     DEFAULT_PROVIDER,
     DEFAULT_SANDBOX_POLICY,
-    normalize_provider,
-    normalize_reasoning_effort,
-    normalize_sandbox_policy,
 )
+from fermilink.agents import get_default_agent_registry
 
 
-PROVIDER_BIN_ENV = {
-    "codex": "FERMILINK_CODEX_BIN",
-    "claude": "FERMILINK_CLAUDE_BIN",
-    "gemini": "FERMILINK_GEMINI_BIN",
-}
-PROVIDER_BIN_DEFAULT = {
-    "codex": "codex",
-    "claude": "claude",
-    "gemini": "gemini",
-}
+_AGENT_REGISTRY = get_default_agent_registry()
+PROVIDER_BIN_ENV = _AGENT_REGISTRY.provider_bin_env_map()
+PROVIDER_BIN_DEFAULT = _AGENT_REGISTRY.provider_bin_default_map()
 
 
 def provider_bin_env_key(provider: str) -> str:
@@ -31,15 +21,15 @@ def provider_bin_env_key(provider: str) -> str:
     Parameters
     ----------
     provider : str
-        Provider identifier (for example `codex`, `claude`, or `gemini`).
+        Provider identifier (for example `codex`, `claude`, `gemini`, or
+        `deepseek`).
 
     Returns
     -------
     str
         Environment variable key for provider binary overrides.
     """
-    normalized = normalize_provider(provider)
-    return PROVIDER_BIN_ENV[normalized]
+    return _AGENT_REGISTRY.get(provider).bin_env_key
 
 
 def resolve_provider_binary(
@@ -53,7 +43,8 @@ def resolve_provider_binary(
     Parameters
     ----------
     provider : str
-        Provider identifier (for example `codex`, `claude`, or `gemini`).
+        Provider identifier (for example `codex`, `claude`, `gemini`, or
+        `deepseek`).
     codex_bin : str | None
         Optional override for the Codex executable when provider is `codex`.
 
@@ -62,15 +53,7 @@ def resolve_provider_binary(
     str
         Resolved executable name/path for the provider.
     """
-    normalized = normalize_provider(provider)
-    if normalized == "codex" and isinstance(codex_bin, str) and codex_bin.strip():
-        return codex_bin.strip()
-
-    env_key = PROVIDER_BIN_ENV[normalized]
-    default_bin = PROVIDER_BIN_DEFAULT[normalized]
-    raw = os.getenv(env_key, default_bin)
-    cleaned = raw.strip() if isinstance(raw, str) else ""
-    return cleaned or default_bin
+    return _AGENT_REGISTRY.get(provider).resolve_binary(codex_bin=codex_bin)
 
 
 def build_exec_command(
@@ -91,7 +74,8 @@ def build_exec_command(
     Parameters
     ----------
     provider : str
-        Provider identifier (for example `codex`, `claude`, or `gemini`).
+        Provider identifier (for example `codex`, `claude`, `gemini`, or
+        `deepseek`).
     provider_bin : str
         Executable or command name used to run the provider.
     repo_dir : Path
@@ -115,40 +99,13 @@ def build_exec_command(
     list[str]
         Argument vector ready to execute via `subprocess`.
     """
-    normalized_provider = normalize_provider(provider)
-    normalized_policy = normalize_sandbox_policy(sandbox_policy)
-
-    if normalized_provider != "codex":
-        raise NotImplementedError(
-            f"Provider '{normalized_provider}' is not implemented yet."
-        )
-
-    cmd = [provider_bin, "exec"]
-    if json_output:
-        cmd.append("--json")
-    cmd.extend(["--cd", str(Path(repo_dir))])
-
-    if normalized_policy == "bypass":
-        cmd.append("--dangerously-bypass-approvals-and-sandbox")
-
-    if (
-        normalized_policy == "enforce"
-        and isinstance(sandbox_mode, str)
-        and sandbox_mode.strip()
-    ):
-        mode = sandbox_mode.strip()
-        cmd.extend(["--sandbox", mode])
-        if mode == "workspace-write":
-            cmd.append("--full-auto")
-
-    if isinstance(model, str) and model.strip():
-        cmd.extend(["--model", model.strip()])
-
-    normalized_effort = normalize_reasoning_effort(reasoning_effort)
-    if isinstance(normalized_effort, str) and normalized_effort:
-        cmd.extend(
-            ["--config", f'model_reasoning_effort="{normalized_effort}"']
-        )
-
-    cmd.append(prompt)
-    return cmd
+    return _AGENT_REGISTRY.get(provider).build_exec_command(
+        provider_bin=provider_bin,
+        repo_dir=repo_dir,
+        prompt=prompt,
+        sandbox_policy=sandbox_policy,
+        sandbox_mode=sandbox_mode,
+        model=model,
+        reasoning_effort=reasoning_effort,
+        json_output=json_output,
+    )

@@ -17,7 +17,7 @@ DEFAULT_PROVIDER = "codex"
 DEFAULT_SANDBOX_POLICY = "enforce"
 DEFAULT_SANDBOX_MODE = "workspace-write"
 
-SUPPORTED_PROVIDERS = ("codex", "claude", "gemini")
+SUPPORTED_PROVIDERS = ("codex", "claude", "gemini", "deepseek")
 SUPPORTED_SANDBOX_POLICIES = ("enforce", "bypass")
 SUPPORTED_REASONING_EFFORTS = ("low", "medium", "high", "xhigh")
 
@@ -279,7 +279,8 @@ def resolve_agent_runtime_policy(
     Parameters
     ----------
     provider : str | None
-        Provider identifier (for example `codex`, `claude`, or `gemini`).
+        Provider identifier (for example `codex`, `claude`, `gemini`, or
+        `deepseek`).
     sandbox_policy : str | None
         Sandbox policy override (`enforce` or `bypass`).
     sandbox_mode : str | None
@@ -376,7 +377,8 @@ def save_agent_runtime_policy(
     Parameters
     ----------
     provider : str | None
-        Provider identifier (for example `codex`, `claude`, or `gemini`).
+        Provider identifier (for example `codex`, `claude`, `gemini`, or
+        `deepseek`).
     sandbox_policy : str | None
         Sandbox policy override (`enforce` or `bypass`).
     sandbox_mode : str | None

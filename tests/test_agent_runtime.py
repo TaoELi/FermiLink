@@ -17,7 +17,7 @@ def test_save_and_load_agent_runtime_policy(tmp_path: Path) -> None:
         provider="claude",
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         reasoning_effort="high",
         config_path=config_path,
     )
@@ -25,7 +25,7 @@ def test_save_and_load_agent_runtime_policy(tmp_path: Path) -> None:
         provider="claude",
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         reasoning_effort="high",
     )
 
@@ -72,7 +72,7 @@ def test_resolve_policy_prefers_function_overrides(tmp_path: Path) -> None:
         provider="claude",
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         reasoning_effort="high",
         env={
             "FERMILINK_AGENT_PROVIDER": "gemini",
@@ -86,7 +86,7 @@ def test_resolve_policy_prefers_function_overrides(tmp_path: Path) -> None:
     assert resolved.provider == "claude"
     assert resolved.sandbox_policy == "bypass"
     assert resolved.sandbox_mode == "workspace-write"
-    assert resolved.model == "gpt-5.3-codex-xhigh"
+    assert resolved.model == "gpt-5.3-codex"
     assert resolved.reasoning_effort == "high"
 
 
@@ -96,7 +96,7 @@ def test_save_policy_can_clear_model_override(tmp_path: Path) -> None:
         provider="codex",
         sandbox_policy="enforce",
         sandbox_mode="workspace-write",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         reasoning_effort="xhigh",
         config_path=config_path,
     )

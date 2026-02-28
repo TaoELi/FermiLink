@@ -26,7 +26,7 @@ Set policy via CLI:
    fermilink agent --sandbox
    fermilink agent --bypass-sandbox
    fermilink agent codex
-   fermilink agent --model gpt-5.3-codex-xhigh
+   fermilink agent --model gpt-5.3-codex
    fermilink agent --clear-model
    fermilink agent --reasoning-effort high
    fermilink agent --clear-reasoning-effort

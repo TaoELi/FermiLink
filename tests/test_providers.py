@@ -58,7 +58,7 @@ def test_build_exec_command_codex_with_model_override(tmp_path: Path) -> None:
         prompt="hello",
         sandbox_policy="enforce",
         sandbox_mode="read-only",
-        model="gpt-5.3-codex-xhigh",
+        model="gpt-5.3-codex",
         json_output=True,
     )
     assert cmd == [
@@ -70,7 +70,7 @@ def test_build_exec_command_codex_with_model_override(tmp_path: Path) -> None:
         "--sandbox",
         "read-only",
         "--model",
-        "gpt-5.3-codex-xhigh",
+        "gpt-5.3-codex",
         "hello",
     ]
 
@@ -102,11 +102,85 @@ def test_build_exec_command_codex_with_reasoning_effort_override(
     ]
 
 
-def test_build_exec_command_provider_not_implemented(tmp_path: Path) -> None:
-    with pytest.raises(NotImplementedError):
+def test_build_exec_command_gemini_with_translated_reasoning(tmp_path: Path) -> None:
+    cmd = build_exec_command(
+        provider="gemini",
+        provider_bin="gemini",
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="read-only",
+        reasoning_effort="xhigh",
+        json_output=True,
+    )
+    assert cmd == [
+        "gemini",
+        "exec",
+        "--json",
+        "--cd",
+        str(Path(tmp_path)),
+        "--sandbox",
+        "read-only",
+        "--config",
+        'model_reasoning_effort="high"',
+        "hello",
+    ]
+
+
+def test_build_exec_command_claude_bypass_sandbox(tmp_path: Path) -> None:
+    cmd = build_exec_command(
+        provider="claude",
+        provider_bin="claude",
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="bypass",
+        sandbox_mode="workspace-write",
+        json_output=False,
+    )
+    assert cmd == [
+        "claude",
+        "exec",
+        "--cd",
+        str(Path(tmp_path)),
+        "--dangerously-bypass-approvals-and-sandbox",
+        "hello",
+    ]
+
+
+def test_build_exec_command_deepseek_model_and_reasoning(tmp_path: Path) -> None:
+    cmd = build_exec_command(
+        provider="deepseek",
+        provider_bin="deepseek",
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="workspace-write",
+        model="deepseek-chat",
+        reasoning_effort="high",
+        json_output=True,
+    )
+    assert cmd == [
+        "deepseek",
+        "exec",
+        "--json",
+        "--cd",
+        str(Path(tmp_path)),
+        "--sandbox",
+        "workspace-write",
+        "--full-auto",
+        "--model",
+        "deepseek-chat",
+        "--config",
+        'model_reasoning_effort="high"',
+        "hello",
+    ]
+
+
+def test_build_exec_command_rejects_unknown_provider(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
         build_exec_command(
-            provider="gemini",
-            provider_bin="gemini",
+            provider="unknown",
+            provider_bin="unknown",
             repo_dir=tmp_path,
             prompt="hello",
             sandbox_policy="enforce",
