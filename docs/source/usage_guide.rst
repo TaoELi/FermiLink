@@ -18,7 +18,7 @@ For a list of the supported built-in scientific packages, check
 .. toctree::
    :maxdepth: 1
 
-   Built-in Scientific Packages <built_in_scientific_packages>
+   List of Built-in Scientific Packages <built_in_scientific_packages>
 
 
 General usage tips:
