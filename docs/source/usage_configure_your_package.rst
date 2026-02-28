@@ -1,86 +1,47 @@
-Configure Your Package
-======================
+``compile``: Configure Your Package
+===================================
 
-This page introduces practical ``fermilink compile`` and
-``fermilink recompile`` techniques for building and refreshing package skills.
+Apart from using the built-in curated scientific packages, you can also configure your own local package for FermiLink. This is particularly useful when you have custom or closed-source code that you want to integrate with FermiLink in your local machines.
 
-Choose the right command
-------------------------
+Quick ``compile`` flow
+-----------------------
 
-- Use ``compile`` when onboarding a new local project into FermiLink package
-  storage.
-- Use ``recompile`` when a package already has ``skills/`` and you want to
-  refresh skills after code/doc updates.
-
-Quick compile flow
-------------------
-
-``compile`` requires an explicit path argument.
+``fermilink compile`` provides a quick way to onboard your local package into FermiLink. It generates the necessary **Agent Skills** for your package and installs it into the **local** scientific package storage. This allows you to use your package in FermiLink agent runs just like the built-in packages.
 
 .. code-block:: bash
 
-   fermilink compile <package_id> <path> \
+   fermilink compile <package_id> <path/to/source/code/tree> \
      --max-skills 30 \
      --core-skill-count 6
 
 Common path choices:
 
-- ``<path>`` as ``.`` for current directory.
+- ``<path/to/source/code/tree>`` as ``.`` for current directory.
 - Absolute path for external local projects.
 
 Useful compile flags:
 
+- ``--max-skills``: cap generated skill count including index skill (default 30).
+- ``--core-skill-count``: number of topic skills to enrich with high-signal playbooks (default 6).
 - ``--docs-only`` for docs-first generation when source trees are unavailable.
 - ``--strict-compile-validation`` to fail when validation findings exist.
-- ``--install-off`` to refresh local outputs only (skip install/registry update).
-- ``--keep-compile-artifacts`` to keep temporary generator artifacts.
+- ``--install-off`` to refresh ``skills/`` in the local path only, which is useful for iterative skill development without installing the package to local FermiLink storage.
+- ``--keep-compile-artifacts`` to keep temporary ``sci-skills-generator/`` folder after compile.
 
-Quick recompile flow
---------------------
 
-When ``<path>`` is omitted, recompile defaults to the managed installed package
-path ``<scientific_packages_root>/packages/<package_id>``.
+A **suggested advanced workflow** for configuring your local package:
 
 .. code-block:: bash
 
-   fermilink recompile <package_id> --core-skill-count 6
-   fermilink recompile <package_id> <path> --core-skill-count 6
+    # 1. compile with --install-off 
+    fermilink compile <package_id> <path/to/source/code/tree> --install-off
+    # 2. (optional) inspect and modify the generated skills in <path/to/source/code/tree>/skills/ 
 
-Use explicit ``.`` when you want to recompile the current directory instead of
-the managed installed package path.
-
-Advanced recompile modes
-------------------------
-
-Paper-focused recompile:
-
-.. code-block:: bash
-
-   fermilink recompile <package_id> <path> \
-     --doc ./paper/manuscript.tex \
-     --data-dir ./paper/supplementary \
-     --comment "focus on the cavity spectra and validation workflow"
-
-Memory-focused recompile planning:
-
-.. code-block:: bash
-
-   fermilink recompile <package_id> <path> --memory ./projects/memory.md
-   fermilink recompile <package_id> <path> --memory ./projects
-
-``--memory`` mode plans and applies append-only skill updates and does not
-install package files.
-
-Technique checklist
--------------------
-
-1. Start with ``compile`` for initial onboarding.
-2. Use ``recompile`` after meaningful package changes.
-3. Keep ``--strict-compile-validation`` enabled in CI or release workflows.
-4. Use ``--install-off`` for local iteration and dry runs.
-5. Keep ``skills/.evidence/`` local-only (managed via ``skills/.gitignore``).
+    # 3. install the modified package to local FermiLink storage
+    fermilink install mypkg --local-path <path/to/source/code/tree> --activate
 
 See also:
 
-- :doc:`scientific_packages` for full compile/recompile lifecycle details.
+- :doc:`usage_advanced_configuration` for adding package skills using publised paper or group secrets.
+- :doc:`scientific_packages` for curated channel install.
 - :doc:`usage` for broader command-line workflows.

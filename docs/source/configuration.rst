@@ -4,20 +4,8 @@ Advanced Configuration
 This page summarizes the highest-impact settings for reliable local and shared
 FermiLink deployments.
 
-Quick-start baseline
---------------------
-
-Set these first for predictable behavior:
-
-.. code-block:: bash
-
-   export FERMILINK_HOME=./.fermilink
-   export FERMILINK_CHAINLIT_APP_ROOT=./.fermilink
-   export FERMILINK_RUNNER_URL=http://127.0.0.1:8000
-   export FERMILINK_CODEX_AUTH_MODE=login
-
-Agent runtime policy precedence
--------------------------------
+Agent runtime policy 
+------------------------
 
 FermiLink resolves provider and sandbox behavior in this order:
 
@@ -105,8 +93,6 @@ Gateway controls
      - unset
      - Optional comma/space-separated sender allowlist (ids/usernames).
 
-To get a numeric Telegram user id for ``FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM``,
-message ``@userinfobot`` on Telegram and copy the returned ``Id`` value.
 
 Core runtime paths (when not overridden)
 ----------------------------------------
@@ -128,5 +114,3 @@ Runner exposes:
 - ``GET /ops/concurrency.prom``
 - ``GET /ops/admission``
 
-When ``FERMILINK_RUNNER_METRICS_TOKEN`` is set, send it as
-``X-Runner-Metrics-Token``.

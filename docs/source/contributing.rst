@@ -1,12 +1,12 @@
 Contributing
 ============
 
-FermiLink contributions should preserve consistency across ``web``, ``exec``,
-and ``chat`` paths, since these modes share core routing and policy behavior.
-This page also consolidates the core regression test plan.
+When contributing to FermiLink, follow the guidelines below:
 
 Development setup
 -----------------
+
+First, we need to set up the development environment. Run:
 
 .. code-block:: bash
 
@@ -14,89 +14,28 @@ Development setup
    cd FermiLink/
    pip install -e ".[dev,docs]"
 
-Quality gates
--------------
+Documentation
+~~~~~~~~~~~~~~~
+
+After code contribution, write documentation in ``docs/source/`` and update the table of contents in ``docs/source/index.rst`` if necessary.
+
+The documentation website can be built locally with (at the repo root):
 
 .. code-block:: bash
 
+   make doc html
+
+Unit tests
+~~~~~~~~~~~~~~
+
+Before a pull request, make sure to run the quality gates and unit tests below.
+
+.. code-block:: bash
+
+   # code quality and style checks
    make lint
+   make pretty
+   # unit tests need to be passed
    pytest -q
 
-Documentation workflow
-----------------------
 
-.. code-block:: bash
-
-   make doc
-   make html
-
-Contribution guidelines
------------------------
-
-- Extend existing modules rather than duplicating behavior.
-- Keep failure modes explicit and deterministic.
-- Add or update tests for every behavior change.
-- Update docs when command/runtime behavior changes.
-- Keep package routing and overlay semantics aligned across modes.
-
-Integrated test plan
---------------------
-
-This plan validates runtime policy control, provider wiring, and no-regression
-behavior across CLI, runner, and web paths.
-
-Core regression commands
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-Focused suites:
-
-.. code-block:: bash
-
-   pytest -q \
-     tests/test_agent_runtime.py \
-     tests/test_providers.py \
-     tests/test_cli_agent.py \
-     tests/test_cli_chat.py \
-     tests/test_runner_policy.py \
-     tests/test_services.py \
-     tests/test_cli_exec.py
-
-Full regression:
-
-.. code-block:: bash
-
-   pytest -q
-
-Behavioral checks
-^^^^^^^^^^^^^^^^^
-
-Policy controls:
-
-1. ``fermilink agent --json``
-2. ``fermilink agent --bypass-sandbox --json``
-3. ``fermilink agent --sandbox --json``
-4. ``fermilink agent codex --json``
-
-Expected:
-
-- policy persists between commands;
-- sandbox policy toggles correctly;
-- sandbox mode remains stable unless explicitly changed.
-
-Exec/chat checks:
-
-- verify bypass behavior and per-run/session sandbox overrides;
-- verify package selection output and overlay cleanup;
-- verify ``exec`` and ``chat`` do not seed web ``public/`` assets into arbitrary repos.
-
-Runner/web propagation checks:
-
-1. ``fermilink agent --sandbox``
-2. ``fermilink start``
-3. Run one web prompt and inspect runner ``meta`` payload.
-
-Expected ``meta.agent`` fields:
-
-- ``provider``
-- ``sandbox_policy``
-- ``sandbox_mode``

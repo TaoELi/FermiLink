@@ -1,101 +1,81 @@
-Advanced Local Configuration
-============================
+``recompile``: Reusable Research Pipelines and Memory
+=======================================================
 
-This page describes practical patterns for configuring FermiLink with
-local-only assets such as private datasets, paper pipelines, and group
-configuration repositories.
+Here we introduce ``fermilink recompile``, a powerful command for refreshing package agent skills and knowledge based on paper pipelines or memory-driven suggestions. This command is designed to help users keep their package knowledge base up-to-date and relevant to their research and simulations.
 
-When to use this page
----------------------
+When to use ``recompile``
+-------------------------
 
 Use this guide when you need any of the following:
 
-- Keep data and operational files on your own machine or lab servers.
-- Compile local pipeline knowledge from paper/project repositories.
-- Reference sensitive settings without exposing raw secrets in prompts.
+- Refresh package skills after code or documentation updates.
+- Enrich the **local** package knowledge base with new insights or pipelines from **published papers** or **unpublished research**.
+- Convert unified-memory suggestions from workspace runs into permanent skill patches for the package knowledge base.
 
-Local root setup
-----------------
+.. note::
+   
+   - Use ``compile`` when onboarding a new local package (with no ``skills/`` directory) into FermiLink package storage.
 
-Pin runtime roots before running services or session commands:
+   - Use ``recompile`` when a package already has ``skills/`` and you want to refresh skills due to various reasons.
 
-.. code-block:: bash
 
-   export FERMILINK_HOME=./.fermilink
-   export FERMILINK_CHAINLIT_APP_ROOT=./.fermilink
-   export FERMILINK_RUNNER_URL=http://127.0.0.1:8000
+Update skills with significantly modified source code or documentation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This keeps package store, workspaces, and runtime state under one local
-directory tree that you can back up or move as needed.
-
-Bring paper pipelines into local package knowledge
---------------------------------------------------
-
-For repositories that include paper methods, scripts, and supplementary files:
+In this case, run one of the following commands:
 
 .. code-block:: bash
 
-   fermilink recompile <package_id> <path-to-project> \
+   fermilink recompile <package_id> --core-skill-count 6
+   fermilink recompile <package_id> <path/to/source/code> --core-skill-count 6
+
+When ``<path/to/source/code>`` is omitted, recompile works on the installed package
+path at FermiLink local storage ``~/.fermilink/scientific_packages/packages/<package_id>``.
+
+When ``<path/to/source/code>`` is given, recompile targets the provided path instead of the installed package path, and then further installs the updated package into FermiLink local storage. This allows users to maintain a local copy of the package for development and testing before installing it to FermiLink storage.
+
+
+Convert research pipelines from published papers or unpublished secrets into package knowledge
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In this situation, run the following commands:
+
+.. code-block:: bash
+
+   fermilink recompile <package_id> \
      --doc ./paper/manuscript.tex \
      --data-dir ./paper/supplementary \
-     --comment "focus on simulation + validation steps"
+     --comment "focus on the cavity spectra and validation workflow"
 
-Use ``--doc`` and ``--data-dir`` to anchor generated skills to your manuscript
-and local assets while keeping the workflow private to your own environment.
+Here, ``--data-dir`` and ``--comment`` are optional but highly recommended.
 
-Organize local data and outputs
--------------------------------
-
-FermiLink writes runtime artifacts under your configured roots:
-
-- ``$FERMILINK_HOME/scientific_packages``
-- ``$FERMILINK_HOME/workspaces``
-- ``$FERMILINK_HOME/runtime``
-
-Recommended practice:
-
-1. Keep large immutable datasets outside workspace repos and reference them by
-   stable absolute paths.
-2. Use workspace-local folders (for example ``projects/`` and ``outputs/``) for
-   run outputs and intermediate artifacts.
-3. Version-control only reproducible scripts/config files, not large binaries
-   or generated result files.
-
-Handle private configuration and secrets safely
------------------------------------------------
-
-- Prefer environment variables for credentials and tokens.
-- Keep secret files in private directories outside public repositories.
-- Do not place raw secrets directly in ``skills/`` markdown content.
-- Add local config files to ``.gitignore`` in package/project repositories.
+- ``--doc`` can be a research paper manuscript or even a simplified markdown file briefly describing the research pipeline.
+- ``--data-dir`` is the directory containing **unstructured** supplementary data files, which can be a few input files or even the whole data directory of a research paper. Agent will automatically search and rank these files for relevance to the workflow.
+- ``--comment`` is a free-form text to specify the focus or scope of the generated skills, which is particularly useful when the manuscript covers multiple workflows or systems and users want only one or a subset of them. 
 
 
-Memory-driven recompile planning
---------------------------------
+Convert unified-memory suggestions into permanent skill patches
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-During calculations, agents will write down key findings for improving the usage of 
-the packages in ``projects/memory.md``.  Use ``recompile --memory`` to **convert unified-memory suggestions**
-in the workspace to a **permanent skill patch** to the package knowledge base, so all simulations 
-will learn from the simulations in this workspace.
+During FermiLink simulations, agents will write down key findings for improving the usage of the packages in ``projects/memory.md`` within one workspace. 
+
+Use ``recompile --memory`` to **convert unified-memory suggestions** in the workspace to a **permanent skill patch** to the package knowledge base, so all simulations will learn from the simulations in this workspace.
 
 .. code-block:: bash
 
-   fermilink recompile <package_id> --memory ./projects/memory.md
-   fermilink recompile <package_id> <path> --memory ./projects/memory.md
-   fermilink recompile <package_id> <path> --memory ./projects
+   fermilink recompile <package_id> \
+     --memory ./projects/memory.md
 
-When ``<path>`` is omitted, recompile targets the managed installed package path
-``<scientific_packages_root>/packages/<package_id>``. Use explicit ``.`` to
-target a different package directory.
+   fermilink recompile <package_id> \
+     --memory ./projects
 
-When ``--memory`` points to a directory, FermiLink scans all ``memory.md``
-files, extracts ``### Suggested skills updates`` entries for the requested
-package id, writes a plan JSON, and appends accepted updates into
-``skills/*/SKILL.md`` targets.
+If ``./projects`` is provided, FermiLink will recursively scan all ``memory.md`` files under this directory and extract all entries with the header format of ``### Suggested skills updates`` matching this package. 
+
+
 
 See also
 --------
 
-- :doc:`usage_configure_your_package` for compile/recompile workflows.
-- :doc:`scientific_packages` for package lifecycle and overlay behavior.
+- :doc:`usage_configure_your_package` for compile workflows and local package install details.
+- :doc:`scientific_packages` for curated channel install.
 - :doc:`configuration` for full runtime environment-variable reference.

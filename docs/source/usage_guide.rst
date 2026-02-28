@@ -9,9 +9,9 @@ We **strongly suggest** starting with the :doc:`usage` section below, which is t
    Command Line Tools <usage>
    Web UI <usage_web_ui>
    Chat Apps <usage_chatting_apps>
-   Built-in Scientific Package Management <scientific_packages>
+   Built-In Scientific Package Management <scientific_packages>
    Configure Your Package <usage_configure_your_package>
-   Advanced Local Configuration <usage_advanced_configuration>
+   Reusable Research Pipelines and Memory <usage_advanced_configuration>
 
 For a list of the supported built-in scientific packages, check
 
