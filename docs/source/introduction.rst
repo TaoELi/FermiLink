@@ -3,9 +3,8 @@ Introduction
 
 **FermiLink** is a unified AI agent framework for autonomous scientific
 computing on **laptops**, **workstations**, **HPC clusters**, and **cellphones**.
-It combines scientific package management, reliable execution workflows, and
-multiple interaction surfaces (web UI, command line, and chat apps) in one
-consistent system.
+It combines scientific package management, workflows at different scales, and
+multiple interaction intefaces in one consistent system.
 
 What makes FermiLink practical
 ------------------------------
@@ -13,9 +12,8 @@ What makes FermiLink practical
 Many scientific-agent systems break when you switch computation tools or scale up task
 complexity. FermiLink is designed to avoid that drift:
 
-- **one package-selection layer** across web and terminal runs supporting a wide range of scientific packages;
-- **one unified short-term/long-term memory model** (``projects/memory.md``) for iterative and
-  long-running work in the same workspace;
+- **one uniform package-selection layer** automatically routes requests to the most suitable installed scientific packages;
+- **one unified short-term/long-term memory model** for iterative and long-running work in the same workspace;
 - **three distinct workflows** for computational tasks at different scales.
 
 
@@ -36,10 +34,9 @@ Three major autonomous workflows
 
 Three major FermiLink workflows are supported in FermiLink:
 
-- ``exec``: one prompt, one run, suitable for short computing.
-- ``loop``: autonomous iteration with memory updates, job-aware waiting
-  (local PID and HPC SLURM jobs), and long-running task support.
-- ``research`` / ``reproduce``: planner + auditor + task-loop workflows for
+- ``exec``: one prompt, one agent run; suitable for short computing (< 30 minutes).
+- ``loop``: autonomous iteration with memory updates, local PID and SLURM job polling, and long-running task support.
+- ``research`` / ``reproduce``: planner + task-loop workflows for
   idea-to-results and paper-reproduction workflows, suitable for simulations at scale of a research paper.
 
 
@@ -53,7 +50,7 @@ Package management workflow
 
 FermiLink uses **Agent Skills** to compress knowledge for agent reasoning. It has a built-in **Curated Computational Packages** channel 
 which stores the full source-code tree + **Agent Skills** containing the entry-level tutorials and the informative file map of this source-code tree. This design allows AI agents
-to **efficiently locate and access the most relavent documentation, tutorials, and source code functions** in the source code tree. Common pitfalls for using the package are also highlighted in **Agent Skills**. 
+to **efficiently locate and access the most relavent documentation, tutorials, and source code functions** in the source code tree **for reasoning**. Common pitfalls for using the package are also highlighted in **Agent Skills**. 
 This GitHub channel now supports more than 150 scientific packages across multiple domains.
 
 Users can also easily use the command line tools in FermiLink to add their own local packages. Additionally, users can add pipelines in research papers, database, or unpublished secrets 

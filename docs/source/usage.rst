@@ -3,8 +3,13 @@ Command Line Tools
 
 The most powerful way to use FermiLink is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. The CLI supports multiple modes of operation, including one-shot execution, interactive chat, autonomous loops, and reproduction/research workflows. Below is a comprehensive reference for using the CLI effectively.
 
-One-shot execution in the current repo
---------------------------------------
+.. figure:: _static/img/major_modes_workflow.svg
+   :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
+   :align: center
+   :width: 95%
+
+``exec``: One-shot execution in the current repo
+----------------------------------------------
 
 Use ``exec`` when you want one prompt & one run followed by package routing in
 your current working directory. This is the most fundamental way to use FermiLink and is suitable for calculations within 30 minutes.
@@ -39,7 +44,7 @@ Useful flags:
 HPC default settings
 ~~~~~~~~~~~~~~~~~~~~~~
 
-If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration.
+If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink exec/loop/research/reproduce``, FermiLink will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration.
 
 A sample HPC profile (``hpc_profile.json``) looks like this:
 
@@ -51,11 +56,10 @@ A sample HPC profile (``hpc_profile.json``) looks like this:
       "slurm_resource_policy": "Use serial/single-node defaults unless the method explicitly requires MPI or multi-node scaling"
    }
 
-Interactive terminal chat
--------------------------
+``chat``:  Interactive terminal chat
+--------------------------------------
 
-Use ``chat`` for multi-turn conversation in the terminal while keeping package
-selection and overlay behavior aligned with web mode.
+Use ``chat`` for multi-turn conversation in the terminal, which is similar to the web UI mode (less user-friendly but with more information available).
 
 .. code-block:: bash
 
@@ -63,7 +67,6 @@ selection and overlay behavior aligned with web mode.
 
 Per turn, ``chat``:
 
-- rebuilds transcript-style prompt context;
 - re-runs package routing and may switch packages when needed;
 - overlays package content into the current repository;
 - initializes/upgrades shared memory at ``projects/memory.md``;
@@ -76,8 +79,12 @@ Useful flags:
 - ``--sandbox <mode>``: enforce sandbox mode for this session.
 - ``--init-git`` / ``--no-init-git``: same behavior as ``exec``.
 
-Autonomous iterative loop
--------------------------
+.. note:: 
+
+   The chat mode does not support ``--hpc-profile`` flag, so it will run all tasks locally if the user does not specify HPC requirements. For HPC runs, it is recommended to use the ``exec`` or ``loop`` modes with the appropriate HPC profile.
+
+``loop``: Autonomous iterative loop
+------------------------------------
 
 Use ``loop`` for iterative autonomous work with persistent memory and job-aware
 waiting.
@@ -87,17 +94,11 @@ waiting.
    fermilink loop prompt.md
    fermilink loop "refactor router and add tests"
 
-   # cap iterations
-   fermilink loop --max-iterations 50 prompt.md
-
-   # explicit wait hints (when no PID/SLURM wait tags are emitted)
-   fermilink loop --wait-seconds 30 --max-wait-seconds 300 prompt.md
-
-   # detect PID stalls during long waits
-   fermilink loop --pid-stall-seconds 900 prompt.md
+   # cap iterations and max wait time for PID/SLURM job polling
+   fermilink loop --max-iterations 10 --max-wait-seconds 3600  prompt.md
 
    # append an HPC target profile to the loop prompt context
-   fermilink loop --hpc-profile scripts/hpc_profile_anvil.json prompt.md
+   fermilink loop --hpc-profile hpc_profile.json prompt.md
 
 Loop behavior:
 
@@ -108,19 +109,21 @@ Loop behavior:
   ``<slurm_job_number>...</slurm_job_number>`` tags and polls until completion
   (bounded by ``--max-wait-seconds``).
 
-Reproduce workflows
--------------------
+``reproduce``: Reproduce workflows
+-----------------------------------
 
-Use ``reproduce`` to orchestrate planner + auditor + multi-task loop runs for
+Use ``reproduce`` to orchestrate planner/auditor + multi-task loop runs + summary/auditor for
 publication-scale reproduction requests.
 
 .. code-block:: bash
 
    fermilink reproduce paper.tex
    fermilink reproduce "reproduce Figures 1-4 from this paper arXiv:..."
+   # provide the plan for review without execution, user can modify the generated plan before execution
    fermilink reproduce paper.tex --plan-only
+   # provide the report for review only without planning and execution
    fermilink reproduce paper.tex --report-only
-   fermilink reproduce paper.tex --hpc-profile scripts/hpc_profile_anvil.json
+   fermilink reproduce paper.tex --hpc-profile hpc_profile.json
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
 ``plan.json``, ``state.json``, prompts, logs, and ``report.md``).
@@ -133,8 +136,27 @@ Notes:
   under the run directory to support reruns and staged execution.
 - Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
 
-Research workflows
-------------------
+.. note:: 
+   
+   Because FermiLink supports a unified memory model across worflows, users can start with
+
+   .. code-block:: bash
+      
+      fermilink reproduce paper.tex --plan-only
+   
+   to generate a plan at ``projects/reproduce/<run-id>/plan.json``. Users can then modify the plan accordingly and run the full workflow with 
+
+   .. code-block:: bash
+      
+      fermilink reproduce paper.tex
+   
+   The second one will **automatically skip the planning stage and start execution with the modified plan.** This allows users to have more control over the workflow and make adjustments before running any simulations.
+
+   Note that **if a different prompt or file is provided in the second command, it will trigger a new planning stage.**
+
+
+``research``: Research workflows
+---------------------------------
 
 Use ``research`` when starting from an idea prompt instead of an existing paper.
 
@@ -143,10 +165,10 @@ Use ``research`` when starting from an idea prompt instead of an existing paper.
    fermilink research "Design and validate a cavity QED protocol"
    fermilink research idea.md --plan-only
    fermilink research idea.md --report-only
-   fermilink research idea.md --hpc-profile scripts/hpc_profile_anvil.json
+   fermilink research idea.md --hpc-profile hpc_profile.json
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
-``report.md``) and support resume from edited plan state.
+``report.md`` and ``report.pdf`` if latex is available).
 
 Notes:
 
@@ -156,28 +178,25 @@ Notes:
   finalization from the saved run context.
 - Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
 
-Memory-driven recompile planning
---------------------------------
+.. note:: 
+   
+   Because FermiLink supports a unified memory model across worflows, users can start with
 
-During calculations, agents will write down key findings for improving the usage of 
-the packages in ``projects/memory.md``.  Use ``recompile --memory`` to **convert unified-memory suggestions**
-in the workspace to a **permanent skill patch** to the package knowledge base, so all simulations 
-will learn from the simulations in this workspace.
+   .. code-block:: bash
+      
+      fermilink research idea.md --plan-only
+   
+   to generate a plan at ``projects/research/<run-id>/plan.json``. Users can then modify the plan accordingly and run the full workflow with 
 
-.. code-block:: bash
+   .. code-block:: bash
+      
+      fermilink research idea.md
+   
+   The second one will **automatically skip the planning stage and start execution with the modified plan.** This allows users to have more control over the workflow and make adjustments before running any simulations.
 
-   fermilink recompile <package_id> --memory ./projects/memory.md
-   fermilink recompile <package_id> <path> --memory ./projects/memory.md
-   fermilink recompile <package_id> <path> --memory ./projects
+   Note that **if a different prompt or file is provided in the second command, it will trigger a new planning stage.**
 
-When ``<path>`` is omitted, recompile targets the managed installed package path
-``<scientific_packages_root>/packages/<package_id>``. Use explicit ``.`` to
-target a different package directory.
 
-When ``--memory`` points to a directory, FermiLink scans all ``memory.md``
-files, extracts ``### Suggested skills updates`` entries for the requested
-package id, writes a plan JSON, and appends accepted updates into
-``skills/*/SKILL.md`` targets.
 
 See also
 --------

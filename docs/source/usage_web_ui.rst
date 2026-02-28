@@ -103,6 +103,30 @@ Troubleshooting (common first-run issues)
 - **Ports already in use**:
   stop the conflicting process, or override the commands (see below).
 
+Package selection inside the UI
+-------------------------------
+
+FermiLink routes each message to an installed package (keyword router + optional
+second-guess preflight). You can also pin a package for the current chat.
+
+Use ``/package help`` in the UI for the built-in command list. The most common
+commands are:
+
+.. code-block:: text
+
+   /package list
+   /package current
+   /package use meep
+   /package auto on
+   /package auto off
+   /package clear
+
+Notes:
+
+- Auto routing is per-chat; it can switch packages between turns when enabled.
+- Manual ``/package use ...`` pins always take precedence until you clear them.
+- If you see "no packages", install one with ``fermilink install <id> --activate``.
+
 Advanced: override ports/hosts (optional)
 -----------------------------------------
 
@@ -139,29 +163,11 @@ To keep sessions stable across restarts, optionally set a persistent secret:
 
    export FERMILINK_CHAINLIT_AUTH_SECRET="<random-secret>"
 
-Package selection inside the UI
--------------------------------
+Advanced: Host this web UI for your team or class
+--------------------------------------------------
 
-FermiLink routes each message to an installed package (keyword router + optional
-second-guess preflight). You can also pin a package for the current chat.
+We have tested that this Web service can be hosted on a server and accessed remotely with a proper IP adress or domain name. This might be useful for teaching purposes or team collaboration.
 
-Use ``/package help`` in the UI for the built-in command list. The most common
-commands are:
-
-.. code-block:: text
-
-   /package list
-   /package current
-   /package use meep
-   /package auto on
-   /package auto off
-   /package clear
-
-Notes:
-
-- Auto routing is per-chat; it can switch packages between turns when enabled.
-- Manual ``/package use ...`` pins always take precedence until you clear them.
-- If you see "no packages", install one with ``fermilink install <id> --activate``.
 
 See also
 --------

@@ -1,7 +1,7 @@
-Scientific Package Management
-=============================
+Built-In Scientific Package Management
+======================================
 
-FermiLink package management controls which scientific context is available
+FermiLink package management controls which scientific knowledge base is available
 at execution time and how that context is overlaid into workspaces.
 
 Common workflow

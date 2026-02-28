@@ -26,7 +26,7 @@ pip install .
 fermilink install meep
 
 # 3.1. Use command-line tool to do autonomous scientific research
-fermilink research goal.md
+fermilink exec/loop/reproduce/research goal.md
 
 # 3.2. Start web UI service for ChatGPT-like experience
 fermilink start
@@ -40,6 +40,15 @@ fermilink gateway
 ## Documentation
 
 Visit the [documentation](docs/source/overview.rst) for installation details, tutorials, and API reference.
+
+## Build documentation
+
+User can build the documentation website for FermiLink locally with the following commands:
+
+```bash
+   pip install ".[docs]"
+   make doc html
+```
 
 ## Citation
 

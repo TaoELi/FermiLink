@@ -35,7 +35,7 @@ Configure in working machines
    export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
    # optional: restrict which Telegram accounts can talk to the bot
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
-   fermilink gateway --max-wait-seconds 6000 --max-iterations 10
+   fermilink gateway --max-wait-seconds 6000 --max-iterations 10 --hpc-profile hpc_profile.json
 
 By default, the gateway mode will wait for up to 6000 seconds (100 minutes) for waiting the PID/SLRUM jobs, and allow up to 10 iterations in each loop mode. You can adjust these parameters as needed. For example,
 for simulations involving long-running HPC jobs, you may want to increase the max wait time and iteration caps.
@@ -51,7 +51,7 @@ You can also set the above variables in your shell profile (e.g., ``~/.bashrc``)
 HPC default settings
 ~~~~~~~~~~~~~~~~~~~~~~
 
-If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration.
+If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration (if the user does not require to run SLURM jobs).
 
 A sample HPC profile (``hpc_profile.json``) looks like this:
 
@@ -110,8 +110,8 @@ Practical starting pattern:
 1. Start in ``exec`` mode (default) for quick one-turn runs.
 2. Switch to ``loop`` mode when you need autonomous iteration and waiting for
    local PID or HPC SLURM jobs.
-3. Use ``research`` / ``reproduce`` when you want a planner + auditor workflow
-   that produces a final report artifact at a research paper scale.
+3. Use ``research`` / ``reproduce`` when you want a workflow
+   that produces a final report artifact at a research paper scale, which is great if you need to sleep or travel while the agent is working.
 
 Where your work lives
 ~~~~~~~~~~~~~~~~~~~~~

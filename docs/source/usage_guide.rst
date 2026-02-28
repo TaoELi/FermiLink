@@ -1,9 +1,6 @@
 Usage Guide
 ===========
 
-This section organizes runtime usage by interaction interface. Start with the
-interface you use most, then move into detailed command references.
-
 We **strongly suggest** starting with the :doc:`usage` section below, which is the most powerful and flexible way to use FermiLink. The CLI provides direct access to all features and is the primary interface for advanced users. It supports multiple modes of operation, including one-shot execution, interactive chat, autonomous loops, and reproduction and research workflows.
 
 .. toctree::

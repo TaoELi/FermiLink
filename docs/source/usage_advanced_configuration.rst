@@ -69,6 +69,30 @@ Handle private configuration and secrets safely
 - Do not place raw secrets directly in ``skills/`` markdown content.
 - Add local config files to ``.gitignore`` in package/project repositories.
 
+
+Memory-driven recompile planning
+--------------------------------
+
+During calculations, agents will write down key findings for improving the usage of 
+the packages in ``projects/memory.md``.  Use ``recompile --memory`` to **convert unified-memory suggestions**
+in the workspace to a **permanent skill patch** to the package knowledge base, so all simulations 
+will learn from the simulations in this workspace.
+
+.. code-block:: bash
+
+   fermilink recompile <package_id> --memory ./projects/memory.md
+   fermilink recompile <package_id> <path> --memory ./projects/memory.md
+   fermilink recompile <package_id> <path> --memory ./projects
+
+When ``<path>`` is omitted, recompile targets the managed installed package path
+``<scientific_packages_root>/packages/<package_id>``. Use explicit ``.`` to
+target a different package directory.
+
+When ``--memory`` points to a directory, FermiLink scans all ``memory.md``
+files, extracts ``### Suggested skills updates`` entries for the requested
+package id, writes a plan JSON, and appends accepted updates into
+``skills/*/SKILL.md`` targets.
+
 See also
 --------
 
