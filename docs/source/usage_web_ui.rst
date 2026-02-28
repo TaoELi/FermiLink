@@ -1,14 +1,7 @@
 Web UI
 ======
 
-Use the web interface for ChatGPT-style interaction while preserving the same
-package routing  and runtime agent policy behavior as the CLI modes.
-
-In Web UI mode, each chat message runs inside a session workspace repo under::
-
-  $FERMILINK_WORKSPACES_ROOT/<session_id>/repo
-
-The default ``$FERMILINK_WORKSPACES_ROOT`` path is ``~/.fermilink/``.
+Use the web interface for ChatGPT-style interaction in your local environment. The Web UI is built with Chainlit and provides a user-friendly interface for chatting with your installed FermiLink packages.
 
 
 Fast path (recommended)
@@ -27,7 +20,13 @@ Then open ``http://localhost:7860``, sign up / sign in, and type in:
 
    /package list
 
-to check the locally installed packages for FermiLink. If you see installed packages in the list, you are ready to chat.
+to check the locally installed packages for FermiLink. If you see installed packages in the list, you are ready to chat. If you did not install any packages yet, install one with:
+
+.. code-block:: bash
+
+   fermilink avail <package_id>
+   fermilink install <package_id> --activate
+
 
 What ``fermilink start`` launches
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -39,8 +38,10 @@ What ``fermilink start`` launches
 
 Service logs are written under ``$FERMILINK_RUNTIME_ROOT/logs/``.
 
-Start, stop, and check status
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Start, stop, and check web UI status
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you need to stop or restart the services, use the following commands:
 
 .. code-block:: bash
 
@@ -60,10 +61,16 @@ Start, stop, and check status
 Where your work lives
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Each chat thread is backed by one workspace repo:
+In Web UI mode, each chat message runs inside a session workspace repo under::
+
+  $FERMILINK_WORKSPACES_ROOT/<session_id>/repo
+
+The default ``$FERMILINK_WORKSPACES_ROOT`` path is ``~/.fermilink/``.
+
+Inside each chat thread, you can find:
 
 - ``projects/memory.md``: unified short-term/long-term memory used across turns
-- ``projects/``: recommended place for research folders and reports
+- ``projects/``: place for simulation folders and reports
 
 To find recent workspaces on disk:
 
@@ -116,7 +123,7 @@ Then start normally:
 Advanced: accounts and signup
 -----------------------------
 
-The Web UI uses password authentication (sqlite-backed local user store).
+The Web UI uses password authentication and supports multiple accounts. You can manage accounts with the following commands:
 
 Common controls:
 

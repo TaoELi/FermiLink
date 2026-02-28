@@ -80,7 +80,7 @@ Built-in Supported Scientific Packages
      - exoplanet Bayesian Exoplanet Inference Toolkit
      - `skilled-scipkg/exoplanet <https://github.com/skilled-scipkg/exoplanet>`_
    * - ``fdtdbath-meep``
-     - Modified Meep FDTD Electromagnetics Simulator for FDTD-Bath approach
+     - Modified Meep FDTD Electromagnetics Simulator for FDTD-Bath approach of condensed-phase polaritonics
      - `skilled-scipkg/fdtdbath-meep <https://github.com/skilled-scipkg/fdtdbath-meep>`_
    * - ``gromacs``
      - GROMACS Molecular Dynamics

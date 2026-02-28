@@ -52,20 +52,21 @@ Package management workflow
    :width: 95%
 
 FermiLink uses **Agent Skills** to compress knowledge for agent reasoning. It has a built-in **Curated Computational Packages** channel 
-which stores the full source-code tree + **Agent Skills** containing the entry-level tutorials and the file map of this source-code tree. This GitHub channel
-now supports more than 150 scientific packages across multiple domains.
+which stores the full source-code tree + **Agent Skills** containing the entry-level tutorials and the informative file map of this source-code tree. This design allows AI agents
+to **efficiently locate and access the most relavent documentation, tutorials, and source code functions** in the source code tree. Common pitfalls for using the package are also highlighted in **Agent Skills**. 
+This GitHub channel now supports more than 150 scientific packages across multiple domains.
 
-Users can also easily use the command line tools in FermiLink to add their own local packages. Additionally, users can add pipelines in research papers, database, or unpublished screts 
-as additional **Agent Skills** for one specific package. This package knowledge base is used across all jobs in FermiLink.
+Users can also easily use the command line tools in FermiLink to add their own local packages. Additionally, users can add pipelines in research papers, database, or unpublished secrets 
+as additional **Agent Skills** for one specific package. This package knowledge base, onced installed, is used across all jobs in FermiLink globally.
 
 How to choose your starting point
 ---------------------------------
 
 1. Use ``fermilink exec`` when you need a direct result quickly.
-2. Use ``fermilink loop`` when a task needs iterative refinement or long simulation waits.
+2. Use ``fermilink loop`` when a task needs iterative refinement or long simulation waits (say, > 30 minutes).
 3. Use ``fermilink reproduce`` or ``fermilink research`` when you need
    publication-scale workflows.
 4. Use ``fermilink compile`` / ``fermilink recompile`` when your package
-   knowledge should be created and reusable.
+   knowledge base should be created and updated.
 
 See :doc:`architecture` for the full runtime flow and contracts.

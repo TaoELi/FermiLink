@@ -1,14 +1,14 @@
 Chat Apps
 =========
 
-FermiLink supports remote control via chat apps through the Telegram gateway.
+FermiLink supports remote control via chat apps through the **Telegram gateway**.
 This gives you an "agent in your pocket" workflow: you chat on your phone, but
 the actual computation happens on the machine running ``fermilink gateway``
 (your laptop/workstation/HPC).
 
-Unlike the Web UI (which streams per-turn runs), the gateway is optimized for
+Unlike the Web UI (which streams the chain of thoughts), the gateway is optimized for
 remote control: it acks queued requests quickly and sends a final completion
-message (plus files/figures) when a run finishes. It never bothers users with internal thinking.
+message (plus files/figures) when a run finishes. It never actively bothers users with internal thinking.
 
 Step-by-Step Setup
 -----------------------
@@ -16,22 +16,57 @@ Step-by-Step Setup
 If you have already completed :doc:`installation`, this is the only workflow you
 need to get the Telegram bot working.
 
-1. Open your Telegram app, search for ``@BotFather``, and type in ``/start`` and then ``/newbot``.
-Follow the instructions to provide the username of the bot and **copy the provided bot token**.
 
-2. In the Telegram app, search for ``@get_telegram_id_smppcenter_bot``, and type in  ``/start``. Copy
-the provided **numerical User ID**.
+Configure in Telegram
+~~~~~~~~~~~~~~~~~~~~~~
 
-3. Open the terminal of the machine you runs Fermilink,
+
+- Open your Telegram app, search for ``@BotFather``, and type in ``/start`` and then ``/newbot``. Follow the instructions to provide the username of the bot and **copy the provided bot token**.
+
+- In the Telegram app, search for ``@get_telegram_id_smppcenter_bot``, and type in  ``/start``. Copy the provided **numerical User ID**.
+
+Configure in working machines
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Open the terminal of the machine you runs Fermilink:
 
 .. code-block:: bash
 
    export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
    # optional: restrict which Telegram accounts can talk to the bot
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
-   fermilink gateway
+   fermilink gateway --max-wait-seconds 6000 --max-iterations 10
 
-4. Then open Telegram on your phone, chat with your bot, and run:
+By default, the gateway mode will wait for up to 6000 seconds (100 minutes) for waiting the PID/SLRUM jobs, and allow up to 10 iterations in each loop mode. You can adjust these parameters as needed. For example,
+for simulations involving long-running HPC jobs, you may want to increase the max wait time and iteration caps.
+
+You can also set the above variables in your shell profile (e.g., ``~/.bashrc``) to avoid exporting them every time:
+
+.. code-block:: bash
+
+   # add the following lines to ~/.bashrc or ~/.zshrc
+   export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
+   export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
+
+HPC default settings
+~~~~~~~~~~~~~~~~~~~~~~
+
+If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration.
+
+A sample HPC profile (``hpc_profile.json``) looks like this:
+
+.. code-block:: json
+
+   {
+      "slurm_default_partition": "shared",
+      "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --time=24:00:00",
+      "slurm_resource_policy": "Use serial/single-node defaults unless the method explicitly requires MPI or multi-node scaling"
+   }
+
+Chat in Telegram for simulations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Finally, open Telegram on your phone, chat with your new FermiLink bot, and run:
 
 .. code-block:: text
 
@@ -61,10 +96,10 @@ supports multiple run modes.
 
 Core commands:
 
-- ``/new [name]``: create and switch to a new workspace.
+- ``/new [name]``: create and switch to a new workspace (with a fresh memory for a different job).
 - ``/mode <exec|loop|research|reproduce>``: set the default run mode for normal
-  messages in this chat.
-- ``/status``: show current gateway/chat state (mode, workspace, run status).
+  messages in this chat. By default, the gateway starts in ``exec`` mode, which is good for quick one-turn runs. 
+- ``/status``: show current gateway state (mode, workspace, run status).
 - ``/stop``: stop the active run and clear queued runs for this chat.
 - ``/loopcfg``: show or update loop controls (max iterations + wait caps).
 - ``/reply <summary|agent|both>``: control the completion message style.

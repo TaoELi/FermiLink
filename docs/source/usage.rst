@@ -1,31 +1,29 @@
 Command Line Tools
 ==================
 
-This page focuses on practical command flows for the FermiLink CLI family.
-For runtime policy and architecture details, see :doc:`configuration` and
-:doc:`architecture`.
+The most powerful way to use FermiLink is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. The CLI supports multiple modes of operation, including one-shot execution, interactive chat, autonomous loops, and reproduction/research workflows. Below is a comprehensive reference for using the CLI effectively.
 
 One-shot execution in the current repo
 --------------------------------------
 
-Use ``exec`` when you want one prompt, and one run followed by package routing in
-your current working directory.
+Use ``exec`` when you want one prompt & one run followed by package routing in
+your current working directory. This is the most fundamental way to use FermiLink and is suitable for calculations within 30 minutes.
 
 .. code-block:: bash
 
-   fermilink exec "run a single-mode cavity coupled to a weakly excited two-level system"
+   fermilink exec "run a single-mode cavity coupled to a weakly excited two-level system and plot the population dynamics"
 
    # provide prompt from a file
-   fermilink exec prompt.md
+   fermilink exec goal.md
 
    # run with an HPC profile appended to the prompt context
-   fermilink exec "run the benchmark on slurm" --hpc-profile scripts/hpc_profile_anvil.json
+   fermilink exec goal.md --hpc-profile hpc_profile.json
 
 What ``exec`` does:
 
 - routes the prompt to the best installed package (keyword router + optional agent second-guess);
-- overlays the selected package files into the current repository;
-- syncs baseline ``AGENTS.md`` workspace instructions;
+- overlays the selected package knowledge base into the current repository;
+- syncs the unified ``AGENTS.md``  instructions to the current workspace;
 - initializes/upgrades shared memory at ``projects/memory.md``;
 - runs provider execution and streams output.
 
@@ -36,6 +34,22 @@ Useful flags:
 - ``--hpc-profile <json>``: append workflow-style HPC constraints to the prompt.
 - ``--init-git``: initialize a git repo non-interactively if missing.
 - ``--no-init-git``: fail if a git repo is missing.
+
+
+HPC default settings
+~~~~~~~~~~~~~~~~~~~~~~
+
+If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration.
+
+A sample HPC profile (``hpc_profile.json``) looks like this:
+
+.. code-block:: json
+
+   {
+      "slurm_default_partition": "shared",
+      "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --time=24:00:00",
+      "slurm_resource_policy": "Use serial/single-node defaults unless the method explicitly requires MPI or multi-node scaling"
+   }
 
 Interactive terminal chat
 -------------------------
