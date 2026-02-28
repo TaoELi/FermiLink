@@ -119,51 +119,22 @@ MPI workflows may need to bypass it. Check and set the policy if needed:
    # show current policy
    fermilink agent --json
 
-   # enforce sandbox (default)
-   fermilink agent --sandbox
+   # enforce sandbox mode (default)
+   fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-   # bypass sandbox for local MPI jobs (not needed for SLURM MPI jobs)
-   fermilink agent --bypass-sandbox
+   # bypass codex sandbox (which might be needed for local MPI jobs)
+   fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
 .. warning::
 
    If you bypass the sandbox, **never** run as root. Use a dedicated non-root
    account and keep regular backups of your data.
 
-
-If you need to force one model for all FermiLink runs, set a global override:
-
-.. code-block:: bash
-
-   fermilink agent --model gpt-5.3-codex
-
-Clear it later to return to Codex default model selection:
-
-.. code-block:: bash
-
-   fermilink agent --clear-model
-
-If you need to force Codex reasoning effort globally across
-``exec/chat/loop/research/reproduce/web``, set:
-
-.. code-block:: bash
-
-   fermilink agent --reasoning-effort high
-
-Clear it later to return to Codex default reasoning effort:
-
-.. code-block:: bash
-
-   fermilink agent --clear-reasoning-effort
-
-
-
-
 Step 6. Create an ``hpc_profile.json``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The HPC profile tells FermiLink how to request SLURM resources and what
-resource policy to follow. Start with this minimal template:
+resource policy to follow. Start with this minimal template and keep the file in your home directory:
 
 .. code-block:: json
 

@@ -122,25 +122,10 @@ However, some scientific simulations might require access to external files, net
    fermilink agent --json
 
    # enforce sandbox mode (default)
-   fermilink agent --sandbox
+   fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-   # bypass codex sandbox (which might be needed for local MPI jobs, not SLURM MPI jobs)
-   fermilink agent --bypass-sandbox
-
-   # set provider (currently support codex only)
-   fermilink agent codex
-
-   # override provider default model globally (exec/web/chat/loop/research/reproduce)
-   fermilink agent --model gpt-5.3-codex
-
-   # clear model override and return to provider default model selection
-   fermilink agent --clear-model
-
-   # override reasoning effort globally (provider support is best-effort)
-   fermilink agent --reasoning-effort xhigh
-
-   # clear reasoning effort override and return to provider defaults
-   fermilink agent --clear-reasoning-effort
+   # bypass codex sandbox (which might be needed for local MPI jobs)
+   fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
 .. warning::
 
