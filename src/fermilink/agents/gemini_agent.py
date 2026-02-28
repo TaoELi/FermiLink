@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fermilink.agent_runtime import DEFAULT_SANDBOX_POLICY
+from fermilink.agent_runtime import DEFAULT_SANDBOX_POLICY, normalize_sandbox_policy
 from fermilink.agents.base import ProviderAgent
 
 
 class GeminiAgent(ProviderAgent):
-    """Gemini provider adapter with codex-intent policy translation."""
-
-    REASONING_MAP = {"xhigh": "high"}
+    """Gemini provider adapter with provider-native CLI translation."""
 
     @property
     def provider(self) -> str:
@@ -35,15 +33,26 @@ class GeminiAgent(ProviderAgent):
         reasoning_effort: str | None = None,
         json_output: bool = True,
     ) -> list[str]:
-        return self._build_codex_contract_command(
-            provider_bin=provider_bin,
-            repo_dir=repo_dir,
-            prompt=prompt,
-            sandbox_policy=sandbox_policy,
-            sandbox_mode=sandbox_mode,
-            model=model,
-            reasoning_effort=reasoning_effort,
-            json_output=json_output,
-            reasoning_config_key="model_reasoning_effort",
-            reasoning_effort_map=self.REASONING_MAP,
-        )
+        del reasoning_effort
+        normalized_policy = normalize_sandbox_policy(sandbox_policy)
+        cmd = [provider_bin, "--include-directories", str(Path(repo_dir))]
+
+        if json_output:
+            cmd.extend(["--output-format", "stream-json"])
+
+        if normalized_policy == "bypass":
+            cmd.extend(["--approval-mode", "yolo"])
+        else:
+            cmd.append("--sandbox")
+            if isinstance(sandbox_mode, str) and sandbox_mode.strip():
+                mode = sandbox_mode.strip()
+                if mode == "read-only":
+                    cmd.extend(["--approval-mode", "plan"])
+                elif mode == "workspace-write":
+                    cmd.extend(["--approval-mode", "auto_edit"])
+
+        if isinstance(model, str) and model.strip():
+            cmd.extend(["--model", model.strip()])
+
+        cmd.append(f"--prompt={prompt}")
+        return cmd

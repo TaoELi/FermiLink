@@ -763,6 +763,33 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
 
+def test_run_exec_second_guess_skips_non_codex_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail_run(*_args, **_kwargs):
+        raise AssertionError("subprocess.run should not execute for non-codex")
+
+    monkeypatch.setattr(cli.subprocess, "run", fail_run)
+
+    result = cli._run_exec_second_guess(
+        user_text="simulate cavity",
+        repo_dir=tmp_path,
+        scipkg_root=tmp_path / "scientific_packages",
+        package_ids=["maxwelllink", "otherpkg"],
+        active_package_id="maxwelllink",
+        base_package_id="maxwelllink",
+        provider="claude",
+        provider_bin="claude",
+        sandbox_policy="bypass",
+    )
+    assert result == {
+        "package_id": "maxwelllink",
+        "source": "default",
+        "switched": False,
+        "note": "second_guess_provider_not_implemented",
+    }
+
+
 def test_filter_exec_overlay_package_meta_excludes_public_from_explicit_entries() -> (
     None
 ):

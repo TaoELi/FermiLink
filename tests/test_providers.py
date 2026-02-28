@@ -102,7 +102,7 @@ def test_build_exec_command_codex_with_reasoning_effort_override(
     ]
 
 
-def test_build_exec_command_gemini_with_translated_reasoning(tmp_path: Path) -> None:
+def test_build_exec_command_gemini_maps_sandbox_modes(tmp_path: Path) -> None:
     cmd = build_exec_command(
         provider="gemini",
         provider_bin="gemini",
@@ -115,15 +115,14 @@ def test_build_exec_command_gemini_with_translated_reasoning(tmp_path: Path) -> 
     )
     assert cmd == [
         "gemini",
-        "exec",
-        "--json",
-        "--cd",
+        "--include-directories",
         str(Path(tmp_path)),
+        "--output-format",
+        "stream-json",
         "--sandbox",
-        "read-only",
-        "--config",
-        'model_reasoning_effort="high"',
-        "hello",
+        "--approval-mode",
+        "plan",
+        "--prompt=hello",
     ]
 
 
@@ -139,10 +138,11 @@ def test_build_exec_command_claude_bypass_sandbox(tmp_path: Path) -> None:
     )
     assert cmd == [
         "claude",
-        "exec",
-        "--cd",
+        "--print",
+        "--add-dir",
         str(Path(tmp_path)),
-        "--dangerously-bypass-approvals-and-sandbox",
+        "--permission-mode",
+        "bypassPermissions",
         "hello",
     ]
 
@@ -161,18 +161,13 @@ def test_build_exec_command_deepseek_model_and_reasoning(tmp_path: Path) -> None
     )
     assert cmd == [
         "deepseek",
-        "exec",
-        "--json",
-        "--cd",
+        "--workspace",
         str(Path(tmp_path)),
-        "--sandbox",
-        "workspace-write",
-        "--full-auto",
+        "--quiet",
+        "--no-global",
         "--model",
         "deepseek-chat",
-        "--config",
-        'model_reasoning_effort="high"',
-        "hello",
+        "--prompt=hello",
     ]
 
 

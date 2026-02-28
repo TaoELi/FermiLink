@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from fermilink.agents import (
     ClaudeAgent,
     CodexAgent,
@@ -10,6 +12,7 @@ from fermilink.agents import (
     get_default_agent_registry,
     get_provider_agent,
 )
+from fermilink.agents.base import ProviderAgent
 
 
 def test_agent_registry_exposes_provider_binary_maps() -> None:
@@ -47,6 +50,35 @@ def test_deepseek_provider_resolve_binary_uses_env(monkeypatch) -> None:
     assert agent.resolve_binary() == "deepseek-env"
 
 
+def test_provider_base_build_exec_command_raises_clean_not_implemented(
+    tmp_path: Path,
+) -> None:
+    class _TestAgent(ProviderAgent):
+        @property
+        def provider(self) -> str:
+            return "test"
+
+        @property
+        def bin_env_key(self) -> str:
+            return "FERMILINK_TEST_BIN"
+
+        @property
+        def default_binary(self) -> str:
+            return "test-bin"
+
+    with pytest.raises(NotImplementedError, match="does not implement"):
+        _TestAgent().build_exec_command(
+            provider_bin="test-bin",
+            repo_dir=tmp_path,
+            prompt="hello",
+            sandbox_policy="enforce",
+            sandbox_mode="read-only",
+            model=None,
+            reasoning_effort=None,
+            json_output=True,
+        )
+
+
 def test_codex_agent_build_exec_command_matches_legacy(tmp_path: Path) -> None:
     agent = CodexAgent()
     cmd = agent.build_exec_command(
@@ -76,30 +108,75 @@ def test_codex_agent_build_exec_command_matches_legacy(tmp_path: Path) -> None:
     ]
 
 
-def test_non_codex_agent_build_exec_command_supported(tmp_path: Path) -> None:
-    for agent in (ClaudeAgent(), GeminiAgent(), DeepseekAgent()):
-        cmd = agent.build_exec_command(
-            provider_bin=agent.default_binary,
-            repo_dir=tmp_path,
-            prompt="hello",
-            sandbox_policy="enforce",
-            sandbox_mode="workspace-write",
-            model="test-model",
-            reasoning_effort="xhigh",
-            json_output=True,
-        )
-        assert cmd == [
-            agent.default_binary,
-            "exec",
-            "--json",
-            "--cd",
-            str(Path(tmp_path)),
-            "--sandbox",
-            "workspace-write",
-            "--full-auto",
-            "--model",
-            "test-model",
-            "--config",
-            'model_reasoning_effort="high"',
-            "hello",
-        ]
+def test_non_codex_agents_build_provider_native_commands(tmp_path: Path) -> None:
+    claude = ClaudeAgent()
+    assert claude.build_exec_command(
+        provider_bin=claude.default_binary,
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="workspace-write",
+        model="test-model",
+        reasoning_effort="xhigh",
+        json_output=True,
+    ) == [
+        "claude",
+        "--print",
+        "--add-dir",
+        str(Path(tmp_path)),
+        "--verbose",
+        "--output-format",
+        "stream-json",
+        "--permission-mode",
+        "acceptEdits",
+        "--model",
+        "test-model",
+        "--effort",
+        "high",
+        "hello",
+    ]
+
+    gemini = GeminiAgent()
+    assert gemini.build_exec_command(
+        provider_bin=gemini.default_binary,
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="workspace-write",
+        model="test-model",
+        reasoning_effort="xhigh",
+        json_output=True,
+    ) == [
+        "gemini",
+        "--include-directories",
+        str(Path(tmp_path)),
+        "--output-format",
+        "stream-json",
+        "--sandbox",
+        "--approval-mode",
+        "auto_edit",
+        "--model",
+        "test-model",
+        "--prompt=hello",
+    ]
+
+    deepseek = DeepseekAgent()
+    assert deepseek.build_exec_command(
+        provider_bin=deepseek.default_binary,
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="workspace-write",
+        model="test-model",
+        reasoning_effort="xhigh",
+        json_output=True,
+    ) == [
+        "deepseek",
+        "--workspace",
+        str(Path(tmp_path)),
+        "--quiet",
+        "--no-global",
+        "--model",
+        "test-model",
+        "--prompt=hello",
+    ]

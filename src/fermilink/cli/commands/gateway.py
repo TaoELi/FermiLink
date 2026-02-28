@@ -1676,7 +1676,7 @@ def _run_exec_in_workspace(
                         model=model,
                         json_output=json_output,
                     )
-                if json_output:
+                if json_output or provider != "codex":
                     return command
                 return inject_option(
                     command,

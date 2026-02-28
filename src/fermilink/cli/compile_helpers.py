@@ -3775,10 +3775,11 @@ def _run_codex_compile_pass(
 
     with cli.tempfile.TemporaryDirectory(prefix="fermilink-compile-pass-") as temp_dir:
         last_message_path = Path(temp_dir) / "last_message.txt"
-        cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
-        cmd = cli._inject_exec_option_before_prompt(
-            cmd, "--output-last-message", str(last_message_path)
-        )
+        if provider == "codex":
+            cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
+            cmd = cli._inject_exec_option_before_prompt(
+                cmd, "--output-last-message", str(last_message_path)
+            )
 
         print(f"[compile] pass {pass_index}/{total_passes}: {provider} exec")
         try:

@@ -216,10 +216,11 @@ def _run_exec_chat_turn(
         except NotImplementedError as exc:
             raise cli.PackageError(str(exc)) from exc
 
-        cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
-        cmd = cli._inject_exec_option_before_prompt(
-            cmd, "--output-last-message", str(last_message_path)
-        )
+        if provider == "codex":
+            cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
+            cmd = cli._inject_exec_option_before_prompt(
+                cmd, "--output-last-message", str(last_message_path)
+            )
 
         runner_app = cli._load_runner_app_module()
         env = cli.os.environ.copy()
@@ -315,7 +316,8 @@ def _run_exec_codex_prompt(
         )
     except NotImplementedError as exc:
         raise cli.PackageError(str(exc)) from exc
-    cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
+    if provider == "codex":
+        cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
     runner_app = cli._load_runner_app_module()
     env = cli.os.environ.copy()
     env = runner_app._sanitize_env(env)

@@ -870,6 +870,7 @@ async def run(req: RunRequest):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            cwd=str(repo_dir),
         )
 
         queue: asyncio.Queue = asyncio.Queue()

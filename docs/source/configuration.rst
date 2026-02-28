@@ -71,6 +71,15 @@ Common runner/web controls
    * - ``FERMILINK_CODEX_BIN``
      - ``codex``
      - Provider binary path for codex runs.
+   * - ``FERMILINK_CLAUDE_BIN``
+     - ``claude``
+     - Provider binary path for claude runs.
+   * - ``FERMILINK_GEMINI_BIN``
+     - ``gemini``
+     - Provider binary path for gemini runs.
+   * - ``FERMILINK_DEEPSEEK_BIN``
+     - ``deepseek``
+     - Provider binary path for deepseek runs.
    * - ``FERMILINK_RUNNER_MAX_RUNTIME_SECONDS``
      - ``600``
      - Per-run hard timeout in runner.

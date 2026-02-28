@@ -2,14 +2,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fermilink.agent_runtime import DEFAULT_SANDBOX_POLICY
+from fermilink.agent_runtime import (
+    DEFAULT_SANDBOX_POLICY,
+    normalize_reasoning_effort,
+    normalize_sandbox_policy,
+)
 from fermilink.agents.base import ProviderAgent
 
 
 class ClaudeAgent(ProviderAgent):
-    """Claude provider adapter with codex-intent policy translation."""
+    """Claude provider adapter with provider-native CLI translation."""
 
     REASONING_MAP = {"xhigh": "high"}
+    SANDBOX_PERMISSION_MODE = {
+        "read-only": "plan",
+        "workspace-write": "acceptEdits",
+    }
 
     @property
     def provider(self) -> str:
@@ -35,15 +43,27 @@ class ClaudeAgent(ProviderAgent):
         reasoning_effort: str | None = None,
         json_output: bool = True,
     ) -> list[str]:
-        return self._build_codex_contract_command(
-            provider_bin=provider_bin,
-            repo_dir=repo_dir,
-            prompt=prompt,
-            sandbox_policy=sandbox_policy,
-            sandbox_mode=sandbox_mode,
-            model=model,
-            reasoning_effort=reasoning_effort,
-            json_output=json_output,
-            reasoning_config_key="model_reasoning_effort",
-            reasoning_effort_map=self.REASONING_MAP,
-        )
+        normalized_policy = normalize_sandbox_policy(sandbox_policy)
+        cmd = [provider_bin, "--print", "--add-dir", str(Path(repo_dir))]
+
+        if json_output:
+            # Claude requires --verbose when using --print + stream-json output.
+            cmd.extend(["--verbose", "--output-format", "stream-json"])
+
+        if normalized_policy == "bypass":
+            cmd.extend(["--permission-mode", "bypassPermissions"])
+        elif isinstance(sandbox_mode, str) and sandbox_mode.strip():
+            permission_mode = self.SANDBOX_PERMISSION_MODE.get(sandbox_mode.strip())
+            if isinstance(permission_mode, str):
+                cmd.extend(["--permission-mode", permission_mode])
+
+        if isinstance(model, str) and model.strip():
+            cmd.extend(["--model", model.strip()])
+
+        normalized_effort = normalize_reasoning_effort(reasoning_effort)
+        if isinstance(normalized_effort, str) and normalized_effort:
+            translated = self.REASONING_MAP.get(normalized_effort, normalized_effort)
+            cmd.extend(["--effort", translated])
+
+        cmd.append(prompt)
+        return cmd
