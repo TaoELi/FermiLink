@@ -15,6 +15,7 @@ from typing import Any
 from fermilink.agent_runtime import (
     ENV_MODEL,
     ENV_PROVIDER,
+    ENV_REASONING_EFFORT,
     ENV_SANDBOX_MODE,
     ENV_SANDBOX_POLICY,
     load_agent_runtime_policy,
@@ -262,6 +263,13 @@ def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
     ):
         runner_env[ENV_MODEL] = runtime_policy.model
         web_env[ENV_MODEL] = runtime_policy.model
+    if (
+        ENV_REASONING_EFFORT not in os.environ
+        and isinstance(runtime_policy.reasoning_effort, str)
+        and runtime_policy.reasoning_effort
+    ):
+        runner_env[ENV_REASONING_EFFORT] = runtime_policy.reasoning_effort
+        web_env[ENV_REASONING_EFFORT] = runtime_policy.reasoning_effort
 
     return {
         "runner": ServiceSpec(

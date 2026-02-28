@@ -125,6 +125,12 @@ MPI workflows may need to bypass it. Check and set the policy if needed:
    # bypass sandbox for local MPI jobs (not needed for SLURM MPI jobs)
    fermilink agent --bypass-sandbox
 
+.. warning::
+
+   If you bypass the sandbox, **never** run as root. Use a dedicated non-root
+   account and keep regular backups of your data.
+
+   
 If you need to force one model for all FermiLink runs, set a global override:
 
 .. code-block:: bash
@@ -137,10 +143,20 @@ Clear it later to return to Codex default model selection:
 
    fermilink agent --clear-model
 
-.. warning::
+If you need to force Codex reasoning effort globally across
+``exec/chat/loop/research/reproduce/web``, set:
 
-   If you bypass the sandbox, **never** run as root. Use a dedicated non-root
-   account and keep regular backups of your data.
+.. code-block:: bash
+
+   fermilink agent --reasoning-effort high
+
+Clear it later to return to Codex default reasoning effort:
+
+.. code-block:: bash
+
+   fermilink agent --clear-reasoning-effort
+
+
 
 
 Step 6. Create an ``hpc_profile.json``

@@ -7,6 +7,7 @@ from fermilink.agent_runtime import (
     DEFAULT_PROVIDER,
     DEFAULT_SANDBOX_POLICY,
     normalize_provider,
+    normalize_reasoning_effort,
     normalize_sandbox_policy,
 )
 
@@ -81,6 +82,7 @@ def build_exec_command(
     sandbox_policy: str = DEFAULT_SANDBOX_POLICY,
     sandbox_mode: str | None = None,
     model: str | None = None,
+    reasoning_effort: str | None = None,
     json_output: bool = True,
 ) -> list[str]:
     """
@@ -102,6 +104,9 @@ def build_exec_command(
         Sandbox mode override passed to the provider runtime.
     model : str | None
         Optional provider model override.
+    reasoning_effort : str | None
+        Optional provider reasoning-effort override (`low`, `medium`, `high`,
+        or `xhigh`).
     json_output : bool
         Whether to request JSON output from the provider process.
 
@@ -138,6 +143,12 @@ def build_exec_command(
 
     if isinstance(model, str) and model.strip():
         cmd.extend(["--model", model.strip()])
+
+    normalized_effort = normalize_reasoning_effort(reasoning_effort)
+    if isinstance(normalized_effort, str) and normalized_effort:
+        cmd.extend(
+            ["--config", f'model_reasoning_effort="{normalized_effort}"']
+        )
 
     cmd.append(prompt)
     return cmd

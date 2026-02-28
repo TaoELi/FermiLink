@@ -18,6 +18,7 @@ def test_save_and_load_agent_runtime_policy(tmp_path: Path) -> None:
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
         model="gpt-5.3-codex-xhigh",
+        reasoning_effort="high",
         config_path=config_path,
     )
     assert saved == AgentRuntimePolicy(
@@ -25,6 +26,7 @@ def test_save_and_load_agent_runtime_policy(tmp_path: Path) -> None:
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
         model="gpt-5.3-codex-xhigh",
+        reasoning_effort="high",
     )
 
     loaded = load_agent_runtime_policy(config_path=config_path)
@@ -46,6 +48,7 @@ def test_resolve_policy_prefers_env_over_file(tmp_path: Path) -> None:
             "FERMILINK_AGENT_SANDBOX_POLICY": "bypass",
             "FERMILINK_AGENT_SANDBOX_MODE": "read-only",
             "FERMILINK_AGENT_MODEL": "gpt-5.2-medium",
+            "FERMILINK_AGENT_REASONING_EFFORT": "xhigh",
         },
         config_path=config_path,
     )
@@ -53,6 +56,7 @@ def test_resolve_policy_prefers_env_over_file(tmp_path: Path) -> None:
     assert resolved.sandbox_policy == "bypass"
     assert resolved.sandbox_mode == "read-only"
     assert resolved.model == "gpt-5.2-medium"
+    assert resolved.reasoning_effort == "xhigh"
 
 
 def test_resolve_policy_prefers_function_overrides(tmp_path: Path) -> None:
@@ -69,11 +73,13 @@ def test_resolve_policy_prefers_function_overrides(tmp_path: Path) -> None:
         sandbox_policy="bypass",
         sandbox_mode="workspace-write",
         model="gpt-5.3-codex-xhigh",
+        reasoning_effort="high",
         env={
             "FERMILINK_AGENT_PROVIDER": "gemini",
             "FERMILINK_AGENT_SANDBOX_POLICY": "enforce",
             "FERMILINK_AGENT_SANDBOX_MODE": "read-only",
             "FERMILINK_AGENT_MODEL": "gpt-5.2-medium",
+            "FERMILINK_AGENT_REASONING_EFFORT": "low",
         },
         config_path=config_path,
     )
@@ -81,6 +87,7 @@ def test_resolve_policy_prefers_function_overrides(tmp_path: Path) -> None:
     assert resolved.sandbox_policy == "bypass"
     assert resolved.sandbox_mode == "workspace-write"
     assert resolved.model == "gpt-5.3-codex-xhigh"
+    assert resolved.reasoning_effort == "high"
 
 
 def test_save_policy_can_clear_model_override(tmp_path: Path) -> None:
@@ -90,8 +97,14 @@ def test_save_policy_can_clear_model_override(tmp_path: Path) -> None:
         sandbox_policy="enforce",
         sandbox_mode="workspace-write",
         model="gpt-5.3-codex-xhigh",
+        reasoning_effort="xhigh",
         config_path=config_path,
     )
 
-    updated = save_agent_runtime_policy(model=None, config_path=config_path)
+    updated = save_agent_runtime_policy(
+        model=None,
+        reasoning_effort=None,
+        config_path=config_path,
+    )
     assert updated.model is None
+    assert updated.reasoning_effort is None

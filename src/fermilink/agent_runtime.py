@@ -19,13 +19,16 @@ DEFAULT_SANDBOX_MODE = "workspace-write"
 
 SUPPORTED_PROVIDERS = ("codex", "claude", "gemini")
 SUPPORTED_SANDBOX_POLICIES = ("enforce", "bypass")
+SUPPORTED_REASONING_EFFORTS = ("low", "medium", "high", "xhigh")
 
 ENV_PROVIDER = "FERMILINK_AGENT_PROVIDER"
 ENV_SANDBOX_POLICY = "FERMILINK_AGENT_SANDBOX_POLICY"
 ENV_SANDBOX_MODE = "FERMILINK_AGENT_SANDBOX_MODE"
 ENV_MODEL = "FERMILINK_AGENT_MODEL"
+ENV_REASONING_EFFORT = "FERMILINK_AGENT_REASONING_EFFORT"
 
 _MODEL_UNSET: object = object()
+_REASONING_EFFORT_UNSET: object = object()
 
 
 def _now_iso() -> str:
@@ -117,12 +120,39 @@ def normalize_model(raw: str | None) -> str | None:
     return value
 
 
+def normalize_reasoning_effort(raw: str | None) -> str | None:
+    """
+    Normalize an optional agent reasoning-effort override.
+
+    Parameters
+    ----------
+    raw : str | None
+        Raw reasoning-effort value from user input or configuration.
+
+    Returns
+    -------
+    str | None
+        Lowercased effort value, or ``None`` when unset.
+    """
+
+    if raw is None:
+        return None
+    value = raw.strip().lower()
+    if not value:
+        return None
+    if value not in SUPPORTED_REASONING_EFFORTS:
+        valid = ", ".join(SUPPORTED_REASONING_EFFORTS)
+        raise ValueError(f"Unsupported reasoning effort '{raw}'. Valid: {valid}")
+    return value
+
+
 @dataclass(frozen=True)
 class AgentRuntimePolicy:
     provider: str = DEFAULT_PROVIDER
     sandbox_policy: str = DEFAULT_SANDBOX_POLICY
     sandbox_mode: str = DEFAULT_SANDBOX_MODE
     model: str | None = None
+    reasoning_effort: str | None = None
 
     def as_dict(self) -> dict[str, str | None]:
         return {
@@ -130,6 +160,7 @@ class AgentRuntimePolicy:
             "sandbox_policy": self.sandbox_policy,
             "sandbox_mode": self.sandbox_mode,
             "model": self.model,
+            "reasoning_effort": self.reasoning_effort,
         }
 
     def as_env(self) -> dict[str, str]:
@@ -140,6 +171,11 @@ class AgentRuntimePolicy:
         }
         if isinstance(self.model, str) and self.model.strip():
             env[ENV_MODEL] = self.model
+        if (
+            isinstance(self.reasoning_effort, str)
+            and self.reasoning_effort.strip()
+        ):
+            env[ENV_REASONING_EFFORT] = self.reasoning_effort
         return env
 
 
@@ -149,12 +185,14 @@ def _coerce_policy(
     sandbox_policy: str,
     sandbox_mode: str,
     model: str | None,
+    reasoning_effort: str | None,
 ) -> AgentRuntimePolicy:
     return AgentRuntimePolicy(
         provider=normalize_provider(provider),
         sandbox_policy=normalize_sandbox_policy(sandbox_policy),
         sandbox_mode=normalize_sandbox_mode(sandbox_mode),
         model=normalize_model(model),
+        reasoning_effort=normalize_reasoning_effort(reasoning_effort),
     )
 
 
@@ -206,12 +244,20 @@ def load_agent_runtime_policy(*, config_path: Path | None = None) -> AgentRuntim
         model = raw_model
     else:
         model = str(raw_model)
+    raw_reasoning_effort = payload.get("reasoning_effort", None)
+    if raw_reasoning_effort is None:
+        reasoning_effort: str | None = None
+    elif isinstance(raw_reasoning_effort, str):
+        reasoning_effort = raw_reasoning_effort
+    else:
+        reasoning_effort = str(raw_reasoning_effort)
     try:
         return _coerce_policy(
             provider=str(provider),
             sandbox_policy=str(sandbox_policy),
             sandbox_mode=str(sandbox_mode),
             model=model,
+            reasoning_effort=reasoning_effort,
         )
     except ValueError:
         return AgentRuntimePolicy()
@@ -223,6 +269,7 @@ def resolve_agent_runtime_policy(
     sandbox_policy: str | None = None,
     sandbox_mode: str | None = None,
     model: str | None | object = _MODEL_UNSET,
+    reasoning_effort: str | None | object = _REASONING_EFFORT_UNSET,
     env: Mapping[str, str] | None = None,
     config_path: Path | None = None,
 ) -> AgentRuntimePolicy:
@@ -240,6 +287,10 @@ def resolve_agent_runtime_policy(
     model : str | None | object
         Optional model override. Use ``None`` to clear persisted model override,
         or leave unset to keep the current value.
+    reasoning_effort : str | None | object
+        Optional reasoning-effort override (`low`, `medium`, `high`, `xhigh`).
+        Use ``None`` to clear persisted override, or leave unset to keep the
+        current value.
     env : Mapping[str, str] | None
         Environment mapping used when resolving override variables.
     config_path : Path | None
@@ -286,11 +337,27 @@ def resolve_agent_runtime_policy(
         else:
             raise ValueError("Model override must be a string or None.")
 
+    reasoning_effort_value = runtime.reasoning_effort
+    env_reasoning_effort = env_map.get(ENV_REASONING_EFFORT)
+    if (
+        isinstance(env_reasoning_effort, str)
+        and env_reasoning_effort.strip()
+    ):
+        reasoning_effort_value = normalize_reasoning_effort(env_reasoning_effort)
+    if reasoning_effort is not _REASONING_EFFORT_UNSET:
+        if reasoning_effort is None:
+            reasoning_effort_value = None
+        elif isinstance(reasoning_effort, str):
+            reasoning_effort_value = normalize_reasoning_effort(reasoning_effort)
+        else:
+            raise ValueError("Reasoning effort override must be a string or None.")
+
     return _coerce_policy(
         provider=provider_value,
         sandbox_policy=sandbox_policy_value,
         sandbox_mode=sandbox_mode_value,
         model=model_value,
+        reasoning_effort=reasoning_effort_value,
     )
 
 
@@ -300,6 +367,7 @@ def save_agent_runtime_policy(
     sandbox_policy: str | None = None,
     sandbox_mode: str | None = None,
     model: str | None | object = _MODEL_UNSET,
+    reasoning_effort: str | None | object = _REASONING_EFFORT_UNSET,
     config_path: Path | None = None,
 ) -> AgentRuntimePolicy:
     """
@@ -316,6 +384,10 @@ def save_agent_runtime_policy(
     model : str | None | object
         Optional model override. Use ``None`` to clear persisted model override,
         or leave unset to keep the current value.
+    reasoning_effort : str | None | object
+        Optional reasoning-effort override (`low`, `medium`, `high`, `xhigh`).
+        Use ``None`` to clear persisted override, or leave unset to keep the
+        current value.
     config_path : Path | None
         Optional explicit path to the runtime policy file.
 
@@ -332,6 +404,11 @@ def save_agent_runtime_policy(
         ),
         sandbox_mode=sandbox_mode if sandbox_mode is not None else current.sandbox_mode,
         model=current.model if model is _MODEL_UNSET else model,
+        reasoning_effort=(
+            current.reasoning_effort
+            if reasoning_effort is _REASONING_EFFORT_UNSET
+            else reasoning_effort
+        ),
         env={},
         config_path=config_path,
     )

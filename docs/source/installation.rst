@@ -136,6 +136,12 @@ However, some scientific simulations might require access to external files, net
    # clear model override and return to provider default model selection
    fermilink agent --clear-model
 
+   # override Codex reasoning effort globally (low, medium, high, xhigh)
+   fermilink agent --reasoning-effort high
+
+   # clear reasoning effort override and return to Codex defaults
+   fermilink agent --clear-reasoning-effort
+
 .. warning::
 
    When ``fermilink agent --bypass-sandbox`` is needed for maximal functionality, **NEVER run it as a root user.** 

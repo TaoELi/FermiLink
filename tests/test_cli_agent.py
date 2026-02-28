@@ -26,6 +26,7 @@ def test_agent_shows_defaults_when_unconfigured(
     assert payload["sandbox_policy"] == "enforce"
     assert payload["sandbox_mode"] == "workspace-write"
     assert payload["model"] is None
+    assert payload["reasoning_effort"] is None
 
 
 def test_agent_updates_provider_and_sandbox_policy(
@@ -77,3 +78,18 @@ def test_agent_sets_and_clears_model_override(
     assert cli.main(["agent", "--clear-model", "--json"]) == 0
     cleared = _parse_stdout_json(capsys)
     assert cleared["model"] is None
+
+
+def test_agent_sets_and_clears_reasoning_effort(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+
+    assert cli.main(["agent", "--reasoning-effort", "high", "--json"]) == 0
+    payload = _parse_stdout_json(capsys)
+    assert payload["reasoning_effort"] == "high"
+
+    assert cli.main(["agent", "--clear-reasoning-effort", "--json"]) == 0
+    cleared = _parse_stdout_json(capsys)
+    assert cleared["reasoning_effort"] is None

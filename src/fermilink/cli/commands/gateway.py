@@ -1648,18 +1648,34 @@ def _run_exec_in_workspace(
                 sandbox_policy: str = "enforce",
                 sandbox_mode: str | None = None,
                 model: str | None = None,
+                reasoning_effort: str | None = None,
                 json_output: bool = True,
             ) -> list[str]:
-                command = original_build_exec_command(
-                    provider=provider,
-                    provider_bin=provider_bin,
-                    repo_dir=repo_dir,
-                    prompt=prompt,
-                    sandbox_policy=sandbox_policy,
-                    sandbox_mode=sandbox_mode,
-                    model=model,
-                    json_output=json_output,
-                )
+                try:
+                    command = original_build_exec_command(
+                        provider=provider,
+                        provider_bin=provider_bin,
+                        repo_dir=repo_dir,
+                        prompt=prompt,
+                        sandbox_policy=sandbox_policy,
+                        sandbox_mode=sandbox_mode,
+                        model=model,
+                        reasoning_effort=reasoning_effort,
+                        json_output=json_output,
+                    )
+                except TypeError as exc:
+                    if "reasoning_effort" not in str(exc):
+                        raise
+                    command = original_build_exec_command(
+                        provider=provider,
+                        provider_bin=provider_bin,
+                        repo_dir=repo_dir,
+                        prompt=prompt,
+                        sandbox_policy=sandbox_policy,
+                        sandbox_mode=sandbox_mode,
+                        model=model,
+                        json_output=json_output,
+                    )
                 if json_output:
                     return command
                 return inject_option(

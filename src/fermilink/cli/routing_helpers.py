@@ -60,6 +60,7 @@ def _run_exec_second_guess(
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
     model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict[str, object]:
     cli = _cli()
     web_app = cli._load_web_router_module()
@@ -84,6 +85,7 @@ def _run_exec_second_guess(
             sandbox_policy=sandbox_policy,
             sandbox_mode=preflight_sandbox_mode,
             model=model,
+            reasoning_effort=reasoning_effort,
             json_output=True,
         )
     except NotImplementedError:
@@ -225,6 +227,7 @@ def _resolve_exec_package_selection(
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
     model: str | None = None,
+    reasoning_effort: str | None = None,
     current_package_id: str | None = None,
     current_source: str = "none",
 ) -> dict[str, object]:
@@ -358,6 +361,7 @@ def _resolve_exec_package_selection(
             provider_bin=provider_bin,
             sandbox_policy=sandbox_policy,
             model=model,
+            reasoning_effort=reasoning_effort,
         )
         switched = bool(second_guess.get("switched"))
         second_package = second_guess.get("package_id")

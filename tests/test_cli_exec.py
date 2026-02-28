@@ -32,6 +32,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
             sandbox_policy="enforce",
             sandbox_mode="workspace-write",
             model="gpt-5.3-codex-xhigh",
+            reasoning_effort="high",
         ),
     )
     monkeypatch.setattr(
@@ -62,6 +63,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
         calls["sandbox"] = sandbox
         calls["codex_bin"] = codex_bin
         calls["model"] = _kwargs.get("model")
+        calls["reasoning_effort"] = _kwargs.get("reasoning_effort")
         return 0
 
     monkeypatch.setattr(cli, "_run_exec_codex_prompt", fake_run_exec)
@@ -73,6 +75,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
     assert "simulate a cavity" in str(calls["prompt"])
     assert calls["sandbox"] == "workspace-write"
     assert calls["model"] == "gpt-5.3-codex-xhigh"
+    assert calls["reasoning_effort"] == "high"
     memory_path = repo_dir / "projects" / "memory.md"
     assert memory_path.is_file()
     assert "simulate a cavity" in memory_path.read_text(encoding="utf-8")
@@ -475,6 +478,7 @@ def test_run_exec_codex_prompt_includes_model_override(
         sandbox="read-only",
         codex_bin="codex",
         model="gpt-5.3-codex-xhigh",
+        reasoning_effort="high",
     )
     assert code == 0
     assert captured["cmd"] == [
@@ -486,6 +490,8 @@ def test_run_exec_codex_prompt_includes_model_override(
         "read-only",
         "--model",
         "gpt-5.3-codex-xhigh",
+        "--config",
+        'model_reasoning_effort="high"',
         "--color",
         "always",
         "hello",

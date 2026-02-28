@@ -13,7 +13,8 @@ FermiLink resolves provider and sandbox behavior in this order:
    ``FERMILINK_AGENT_PROVIDER``,
    ``FERMILINK_AGENT_SANDBOX_POLICY``,
    ``FERMILINK_AGENT_SANDBOX_MODE``,
-   ``FERMILINK_AGENT_MODEL``.
+   ``FERMILINK_AGENT_MODEL``,
+   ``FERMILINK_AGENT_REASONING_EFFORT``.
 2. Persisted policy file:
    ``FERMILINK_HOME/agent_runtime.json``.
 3. Built-in defaults.
@@ -27,6 +28,8 @@ Set policy via CLI:
    fermilink agent codex
    fermilink agent --model gpt-5.3-codex-xhigh
    fermilink agent --clear-model
+   fermilink agent --reasoning-effort high
+   fermilink agent --clear-reasoning-effort
 
 Core path variables
 -------------------

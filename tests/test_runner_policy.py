@@ -13,16 +13,20 @@ def test_resolve_run_policy_honors_bypass_policy(monkeypatch) -> None:
             sandbox_policy="bypass",
             sandbox_mode="workspace-write",
             model="gpt-5.3-codex-xhigh",
+            reasoning_effort="high",
         ),
     )
 
     req = runner_app.RunRequest(user_prompt="hello", sandbox="read-only")
-    provider, sandbox_policy, sandbox_mode, model = runner_app._resolve_run_policy(req)
+    provider, sandbox_policy, sandbox_mode, model, reasoning_effort = (
+        runner_app._resolve_run_policy(req)
+    )
 
     assert provider == "codex"
     assert sandbox_policy == "bypass"
     assert sandbox_mode is None
     assert model == "gpt-5.3-codex-xhigh"
+    assert reasoning_effort == "high"
 
 
 def test_resolve_run_policy_allows_read_only_override(monkeypatch) -> None:
@@ -37,12 +41,15 @@ def test_resolve_run_policy_allows_read_only_override(monkeypatch) -> None:
     )
 
     req = runner_app.RunRequest(user_prompt="hello", sandbox="read-only")
-    provider, sandbox_policy, sandbox_mode, model = runner_app._resolve_run_policy(req)
+    provider, sandbox_policy, sandbox_mode, model, reasoning_effort = (
+        runner_app._resolve_run_policy(req)
+    )
 
     assert provider == "codex"
     assert sandbox_policy == "enforce"
     assert sandbox_mode == "read-only"
     assert model is None
+    assert reasoning_effort is None
 
 
 def test_resolve_run_policy_ignores_request_provider_override(monkeypatch) -> None:
@@ -57,9 +64,12 @@ def test_resolve_run_policy_ignores_request_provider_override(monkeypatch) -> No
     )
 
     req = runner_app.RunRequest(user_prompt="hello", provider="gemini")
-    provider, sandbox_policy, sandbox_mode, model = runner_app._resolve_run_policy(req)
+    provider, sandbox_policy, sandbox_mode, model, reasoning_effort = (
+        runner_app._resolve_run_policy(req)
+    )
 
     assert provider == "codex"
     assert sandbox_policy == "enforce"
     assert sandbox_mode == "workspace-write"
     assert model is None
+    assert reasoning_effort is None

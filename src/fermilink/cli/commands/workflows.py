@@ -2519,6 +2519,7 @@ def _run_reproduce_exec_turn(
     sandbox_policy = runtime_policy.sandbox_policy
     sandbox_mode = runtime_policy.sandbox_mode
     model = runtime_policy.model
+    reasoning_effort = runtime_policy.reasoning_effort
     if isinstance(sandbox_override, str) and sandbox_override.strip():
         sandbox_policy = "enforce"
         sandbox_mode = sandbox_override.strip()
@@ -2564,6 +2565,7 @@ def _run_reproduce_exec_turn(
         provider_bin=provider_bin,
         sandbox_policy=sandbox_policy,
         model=model,
+        reasoning_effort=reasoning_effort,
     )
     package_id = selection.get("package_id")
     if not isinstance(package_id, str) or not package_id:
@@ -2610,6 +2612,7 @@ def _run_reproduce_exec_turn(
             provider=provider,
             sandbox_policy=sandbox_policy,
             model=model,
+            reasoning_effort=reasoning_effort,
         )
     finally:
         cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)

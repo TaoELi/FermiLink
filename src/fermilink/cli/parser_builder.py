@@ -60,6 +60,7 @@ def _build_parser() -> argparse.ArgumentParser:
         add_json_option=_add_json_option,
         cmd_agent=cli._cmd_agent,
         supported_providers=cli.SUPPORTED_PROVIDERS,
+        supported_reasoning_efforts=cli.SUPPORTED_REASONING_EFFORTS,
     )
     cli.register_package_management_parsers(
         subparsers,

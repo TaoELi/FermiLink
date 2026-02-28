@@ -13,6 +13,7 @@ def register_agent_parser(
     add_json_option: Callable[[argparse.ArgumentParser], None],
     cmd_agent: CommandHandler,
     supported_providers: tuple[str, ...],
+    supported_reasoning_efforts: tuple[str, ...],
 ) -> None:
     """
     Register parser arguments for agent.
@@ -27,6 +28,8 @@ def register_agent_parser(
         Command handler for `agent` subcommands.
     supported_providers : tuple[str, ...]
         Provider names exposed by the runtime policy layer.
+    supported_reasoning_efforts : tuple[str, ...]
+        Reasoning-effort values exposed by the runtime policy layer.
 
     Returns
     -------
@@ -71,5 +74,22 @@ def register_agent_parser(
         "--clear-model",
         action="store_true",
         help="Clear model override and use provider default model selection.",
+    )
+    reasoning_group = agent_parser.add_mutually_exclusive_group(required=False)
+    reasoning_group.add_argument(
+        "--reasoning-effort",
+        choices=supported_reasoning_efforts,
+        help=(
+            "Override provider reasoning effort globally "
+            f"({', '.join(supported_reasoning_efforts)})."
+        ),
+    )
+    reasoning_group.add_argument(
+        "--clear-reasoning-effort",
+        action="store_true",
+        help=(
+            "Clear reasoning effort override and use provider default "
+            "reasoning effort."
+        ),
     )
     agent_parser.set_defaults(func=cmd_agent)

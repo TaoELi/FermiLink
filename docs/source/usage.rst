@@ -197,6 +197,20 @@ Notes:
    Note that **if a different prompt or file is provided in the second command, it will trigger a new planning stage.**
 
 
+Global agent runtime policy
+---------------------------
+
+Use ``fermilink agent`` to set global runtime defaults used by
+``exec/chat/loop/research/reproduce`` and the web runner path.
+
+.. code-block:: bash
+
+   fermilink agent --json
+   fermilink agent --model gpt-5.3-codex-xhigh
+   fermilink agent --reasoning-effort high
+   fermilink agent --clear-model
+   fermilink agent --clear-reasoning-effort
+
 
 See also
 --------

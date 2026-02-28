@@ -75,6 +75,33 @@ def test_build_exec_command_codex_with_model_override(tmp_path: Path) -> None:
     ]
 
 
+def test_build_exec_command_codex_with_reasoning_effort_override(
+    tmp_path: Path,
+) -> None:
+    cmd = build_exec_command(
+        provider="codex",
+        provider_bin="codex",
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="read-only",
+        reasoning_effort="high",
+        json_output=True,
+    )
+    assert cmd == [
+        "codex",
+        "exec",
+        "--json",
+        "--cd",
+        str(Path(tmp_path)),
+        "--sandbox",
+        "read-only",
+        "--config",
+        'model_reasoning_effort="high"',
+        "hello",
+    ]
+
+
 def test_build_exec_command_provider_not_implemented(tmp_path: Path) -> None:
     with pytest.raises(NotImplementedError):
         build_exec_command(
