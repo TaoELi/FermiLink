@@ -9,7 +9,7 @@ The most powerful way to use FermiLink is through the **command line interface (
    :width: 95%
 
 ``exec``: One-shot execution in the current repo
-----------------------------------------------
+---------------------------------------------------
 
 Use ``exec`` when you want one prompt & one run followed by package routing in
 your current working directory. This is the most fundamental way to use FermiLink and is suitable for calculations within 30 minutes.
@@ -220,4 +220,3 @@ See also
 - :doc:`configuration` for runtime variables and provider/sandbox policy.
 - :doc:`architecture` for the request flow and streaming contracts.
 - :doc:`scientific_packages` for install/compile/recompile workflows.
-- :doc:`usage` for the full Telegram reference (see :ref:`usage-cli-telegram`).

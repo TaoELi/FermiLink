@@ -167,5 +167,3 @@ See also
 - :doc:`installation` for full setup.
 - :doc:`configuration` for runtime variables.
 - :doc:`architecture` for request flow and workspace contracts.
-- For the full Telegram command reference, see :ref:`usage-cli-telegram` in
-  :doc:`usage`.
