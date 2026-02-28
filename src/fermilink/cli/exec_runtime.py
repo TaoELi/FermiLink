@@ -191,6 +191,7 @@ def _run_exec_chat_turn(
     codex_bin: str | None,
     provider: str = "codex",
     sandbox_policy: str = "enforce",
+    model: str | None = None,
 ) -> dict[str, object]:
     """Run one provider turn shared by `chat`, `loop`, and workflow planning/reporting."""
 
@@ -207,6 +208,7 @@ def _run_exec_chat_turn(
                 prompt=prompt,
                 sandbox_policy=sandbox_policy,
                 sandbox_mode=sandbox,
+                model=model,
                 json_output=False,
             )
         except NotImplementedError as exc:
@@ -291,6 +293,7 @@ def _run_exec_codex_prompt(
     codex_bin: str | None,
     provider: str = "codex",
     sandbox_policy: str = "enforce",
+    model: str | None = None,
 ) -> int:
     cli = _cli()
     _consume_last_wait_stop_requested()
@@ -303,6 +306,7 @@ def _run_exec_codex_prompt(
             prompt=prompt,
             sandbox_policy=sandbox_policy,
             sandbox_mode=sandbox,
+            model=model,
             json_output=False,
         )
     except NotImplementedError as exc:

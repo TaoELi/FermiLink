@@ -680,7 +680,7 @@ def _resolve_run_user_key(user_id: str | None, session_id: str) -> str:
     return f"session:{session_id}"
 
 
-def _resolve_run_policy(req: RunRequest) -> tuple[str, str, str | None]:
+def _resolve_run_policy(req: RunRequest) -> tuple[str, str, str | None, str | None]:
     """Resolve effective provider and sandbox policy for one run request."""
 
     policy = resolve_agent_runtime_policy()
@@ -704,7 +704,9 @@ def _resolve_run_policy(req: RunRequest) -> tuple[str, str, str | None]:
             if lowered == "read-only" or lowered == policy.sandbox_mode:
                 sandbox_mode = lowered
 
-    return provider, sandbox_policy, sandbox_mode
+    model = policy.model
+
+    return provider, sandbox_policy, sandbox_mode, model
 
 
 async def _read_stream(
@@ -837,7 +839,7 @@ async def run(req: RunRequest):
 
         (repo_dir / "outputs").mkdir(parents=True, exist_ok=True)
 
-        provider, sandbox_policy, sandbox_mode = _resolve_run_policy(req)
+        provider, sandbox_policy, sandbox_mode, model = _resolve_run_policy(req)
         provider_bin = resolve_provider_binary(provider, codex_bin=CODEX_BIN)
         try:
             cmd = build_exec_command(
@@ -847,6 +849,7 @@ async def run(req: RunRequest):
                 prompt=req.user_prompt,
                 sandbox_policy=sandbox_policy,
                 sandbox_mode=sandbox_mode,
+                model=model,
                 json_output=True,
             )
         except NotImplementedError as exc:
@@ -896,6 +899,7 @@ async def run(req: RunRequest):
                 "provider": provider,
                 "sandbox_policy": sandbox_policy,
                 "sandbox_mode": sandbox_mode,
+                "model": model,
             }
             yield sse("meta", meta_payload)
 

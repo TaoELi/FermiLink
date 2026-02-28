@@ -1647,6 +1647,7 @@ def _run_exec_in_workspace(
                 prompt: str,
                 sandbox_policy: str = "enforce",
                 sandbox_mode: str | None = None,
+                model: str | None = None,
                 json_output: bool = True,
             ) -> list[str]:
                 command = original_build_exec_command(
@@ -1656,6 +1657,7 @@ def _run_exec_in_workspace(
                     prompt=prompt,
                     sandbox_policy=sandbox_policy,
                     sandbox_mode=sandbox_mode,
+                    model=model,
                     json_output=json_output,
                 )
                 if json_output:

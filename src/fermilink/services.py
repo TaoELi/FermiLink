@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fermilink.agent_runtime import (
+    ENV_MODEL,
     ENV_PROVIDER,
     ENV_SANDBOX_MODE,
     ENV_SANDBOX_POLICY,
@@ -254,6 +255,13 @@ def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
     if ENV_SANDBOX_MODE not in os.environ:
         runner_env[ENV_SANDBOX_MODE] = runtime_policy.sandbox_mode
         web_env[ENV_SANDBOX_MODE] = runtime_policy.sandbox_mode
+    if (
+        ENV_MODEL not in os.environ
+        and isinstance(runtime_policy.model, str)
+        and runtime_policy.model
+    ):
+        runner_env[ENV_MODEL] = runtime_policy.model
+        web_env[ENV_MODEL] = runtime_policy.model
 
     return {
         "runner": ServiceSpec(

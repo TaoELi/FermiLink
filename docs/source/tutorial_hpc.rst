@@ -125,6 +125,18 @@ MPI workflows may need to bypass it. Check and set the policy if needed:
    # bypass sandbox for local MPI jobs (not needed for SLURM MPI jobs)
    fermilink agent --bypass-sandbox
 
+If you need to force one model for all FermiLink runs, set a global override:
+
+.. code-block:: bash
+
+   fermilink agent --model gpt-5.3-codex-xhigh
+
+Clear it later to return to Codex default model selection:
+
+.. code-block:: bash
+
+   fermilink agent --clear-model
+
 .. warning::
 
    If you bypass the sandbox, **never** run as root. Use a dedicated non-root
@@ -253,7 +265,17 @@ Adjust the ``#SBATCH`` lines to match your site’s partition, account, or QoS
 requirements.
 
 
-Step 11. Optional: Telegram remote control for HPC
+Step 11. Compile / recompile your own package
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+At this early stage, it is likely that you want to add your own package or pipeline to FermiLink. Use ``fermilink compile`` to turn a local project into a package knowledge base, and use ``fermilink recompile`` to update it after you add more skills or files.
+
+See :doc:`usage_configure_your_package` and :doc:`usage_advanced_configuration` for details on how to compile/recompile your package and convert research pipelines or memory suggestions into package knowledge.
+
+Alternatively, you can also send an email to the FermiLink team (taoeli@udel.edu) with your open-source package or pipeline, and we can help compile it into the curated channel for easy installation and use by the community.
+
+
+Step 12. Optional: Telegram remote control for HPC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Telegram gateway is a convenient remote control when you want to queue jobs

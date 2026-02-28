@@ -12,7 +12,8 @@ FermiLink resolves provider and sandbox behavior in this order:
 1. Environment overrides:
    ``FERMILINK_AGENT_PROVIDER``,
    ``FERMILINK_AGENT_SANDBOX_POLICY``,
-   ``FERMILINK_AGENT_SANDBOX_MODE``.
+   ``FERMILINK_AGENT_SANDBOX_MODE``,
+   ``FERMILINK_AGENT_MODEL``.
 2. Persisted policy file:
    ``FERMILINK_HOME/agent_runtime.json``.
 3. Built-in defaults.
@@ -24,6 +25,8 @@ Set policy via CLI:
    fermilink agent --sandbox
    fermilink agent --bypass-sandbox
    fermilink agent codex
+   fermilink agent --model gpt-5.3-codex-xhigh
+   fermilink agent --clear-model
 
 Core path variables
 -------------------
@@ -113,4 +116,3 @@ Runner exposes:
 - ``GET /ops/concurrency``
 - ``GET /ops/concurrency.prom``
 - ``GET /ops/admission``
-

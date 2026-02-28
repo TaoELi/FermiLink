@@ -59,6 +59,7 @@ def _run_exec_second_guess(
     provider: str = "codex",
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
+    model: str | None = None,
 ) -> dict[str, object]:
     cli = _cli()
     web_app = cli._load_web_router_module()
@@ -82,6 +83,7 @@ def _run_exec_second_guess(
             prompt=prompt,
             sandbox_policy=sandbox_policy,
             sandbox_mode=preflight_sandbox_mode,
+            model=model,
             json_output=True,
         )
     except NotImplementedError:
@@ -222,6 +224,7 @@ def _resolve_exec_package_selection(
     provider: str = "codex",
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
+    model: str | None = None,
     current_package_id: str | None = None,
     current_source: str = "none",
 ) -> dict[str, object]:
@@ -354,6 +357,7 @@ def _resolve_exec_package_selection(
             provider=provider,
             provider_bin=provider_bin,
             sandbox_policy=sandbox_policy,
+            model=model,
         )
         switched = bool(second_guess.get("switched"))
         second_package = second_guess.get("package_id")

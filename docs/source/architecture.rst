@@ -17,7 +17,7 @@ Root
 Core package (``src/fermilink``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``agent_runtime.py``: persisted runtime provider/sandbox policy.
+- ``agent_runtime.py``: persisted runtime provider/sandbox/model policy.
 - ``providers.py``: provider binary resolution and command assembly.
 - ``config.py``: runtime path resolution.
 - ``services.py``: runner/web process lifecycle helpers.

@@ -423,6 +423,7 @@ def test_run_exec_in_workspace_captures_last_message(
             prompt: str,
             sandbox_policy: str = "enforce",
             sandbox_mode: str | None = None,
+            model: str | None = None,
             json_output: bool = True,
         ) -> list[str]:
             del (
@@ -431,6 +432,7 @@ def test_run_exec_in_workspace_captures_last_message(
                 repo_dir,
                 sandbox_policy,
                 sandbox_mode,
+                model,
                 json_output,
             )
             return ["codex", "exec", prompt]

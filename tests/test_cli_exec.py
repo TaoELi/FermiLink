@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from fermilink import cli
+from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink.runner import scientific_packages as scipkg
 
 
@@ -23,6 +24,16 @@ def test_exec_runs_with_routing_overlay_and_codex(
 
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: scipkg_root)
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+            model="gpt-5.3-codex-xhigh",
+        ),
+    )
     monkeypatch.setattr(
         cli,
         "_resolve_exec_package_selection",
@@ -50,6 +61,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
         calls["prompt"] = prompt
         calls["sandbox"] = sandbox
         calls["codex_bin"] = codex_bin
+        calls["model"] = _kwargs.get("model")
         return 0
 
     monkeypatch.setattr(cli, "_run_exec_codex_prompt", fake_run_exec)
@@ -60,6 +72,7 @@ def test_exec_runs_with_routing_overlay_and_codex(
     assert "projects/memory.md" in str(calls["prompt"])
     assert "simulate a cavity" in str(calls["prompt"])
     assert calls["sandbox"] == "workspace-write"
+    assert calls["model"] == "gpt-5.3-codex-xhigh"
     memory_path = repo_dir / "projects" / "memory.md"
     assert memory_path.is_file()
     assert "simulate a cavity" in memory_path.read_text(encoding="utf-8")
@@ -435,6 +448,48 @@ def test_run_exec_codex_prompt_uses_runner_sanitized_env(
     assert isinstance(env, dict)
     assert env.get("SANITIZED") == "1"
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
+
+
+def test_run_exec_codex_prompt_includes_model_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_codex_home=lambda env: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return SimpleNamespace(stdout=io.StringIO(""), stderr=io.StringIO(""))
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(cli, "_stream_exec_process_output", lambda _proc: 0)
+
+    code = cli._run_exec_codex_prompt(
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox="read-only",
+        codex_bin="codex",
+        model="gpt-5.3-codex-xhigh",
+    )
+    assert code == 0
+    assert captured["cmd"] == [
+        "codex",
+        "exec",
+        "--cd",
+        str(tmp_path),
+        "--sandbox",
+        "read-only",
+        "--model",
+        "gpt-5.3-codex-xhigh",
+        "--color",
+        "always",
+        "hello",
+    ]
 
 
 def test_stream_exec_process_output_with_capture_emits_and_captures(

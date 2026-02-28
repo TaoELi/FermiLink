@@ -37,7 +37,7 @@ def register_agent_parser(
         "agent",
         help=(
             "Manage global agent runtime policy for provider and sandbox behavior "
-            "used by runner/web/exec/chat/compile."
+            "used by runner/web/exec/chat/loop/research/reproduce."
         ),
     )
     add_json_option(agent_parser)
@@ -57,5 +57,19 @@ def register_agent_parser(
         "--bypass-sandbox",
         action="store_true",
         help="Bypass sandbox mode.",
+    )
+    model_group = agent_parser.add_mutually_exclusive_group(required=False)
+    model_group.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Override provider default model (for example "
+            "`gpt-5.3-codex-xhigh`)."
+        ),
+    )
+    model_group.add_argument(
+        "--clear-model",
+        action="store_true",
+        help="Clear model override and use provider default model selection.",
     )
     agent_parser.set_defaults(func=cmd_agent)

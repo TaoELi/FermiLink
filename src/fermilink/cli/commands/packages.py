@@ -704,6 +704,7 @@ def _generate_metadata_with_codex(
         codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN,
         provider="codex",
         sandbox_policy="enforce",
+        model=runtime_policy.model,
     )
     return_code_raw = response.get("return_code")
     try:

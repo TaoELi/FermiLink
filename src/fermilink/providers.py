@@ -80,6 +80,7 @@ def build_exec_command(
     prompt: str,
     sandbox_policy: str = DEFAULT_SANDBOX_POLICY,
     sandbox_mode: str | None = None,
+    model: str | None = None,
     json_output: bool = True,
 ) -> list[str]:
     """
@@ -99,6 +100,8 @@ def build_exec_command(
         Sandbox policy override (`enforce` or `bypass`).
     sandbox_mode : str | None
         Sandbox mode override passed to the provider runtime.
+    model : str | None
+        Optional provider model override.
     json_output : bool
         Whether to request JSON output from the provider process.
 
@@ -132,6 +135,9 @@ def build_exec_command(
         cmd.extend(["--sandbox", mode])
         if mode == "workspace-write":
             cmd.append("--full-auto")
+
+    if isinstance(model, str) and model.strip():
+        cmd.extend(["--model", model.strip()])
 
     cmd.append(prompt)
     return cmd

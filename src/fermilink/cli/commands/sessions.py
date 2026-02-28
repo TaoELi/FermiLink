@@ -521,6 +521,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
     provider = runtime_policy.provider
     sandbox_policy = runtime_policy.sandbox_policy
     sandbox_mode = runtime_policy.sandbox_mode
+    model = runtime_policy.model
     if isinstance(args.sandbox, str) and args.sandbox.strip():
         sandbox_policy = "enforce"
         sandbox_mode = args.sandbox.strip()
@@ -570,6 +571,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             provider=provider,
             provider_bin=provider_bin,
             sandbox_policy=sandbox_policy,
+            model=model,
             current_package_id=current_package_id,
             current_source=current_source,
         )
@@ -614,6 +616,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 codex_bin=provider_bin,
                 provider=provider,
                 sandbox_policy=sandbox_policy,
+                model=model,
             )
         finally:
             cli._cleanup_exec_overlay_symlinks(
@@ -744,6 +747,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
     provider = runtime_policy.provider
     sandbox_policy = runtime_policy.sandbox_policy
     sandbox_mode = runtime_policy.sandbox_mode
+    model = runtime_policy.model
     if isinstance(args.sandbox, str) and args.sandbox.strip():
         sandbox_policy = "enforce"
         sandbox_mode = args.sandbox.strip()
@@ -757,6 +761,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
         provider=provider,
         provider_bin=provider_bin,
         sandbox_policy=sandbox_policy,
+        model=model,
     )
     package_id = selection.get("package_id")
     if not isinstance(package_id, str) or not package_id:
@@ -819,6 +824,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
                 codex_bin=provider_bin,
                 provider=provider,
                 sandbox_policy=sandbox_policy,
+                model=model,
             )
 
             if bool(run_result.get("stopped_by_user")) or _stop_requested():
@@ -1172,6 +1178,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
     provider = runtime_policy.provider
     sandbox_policy = runtime_policy.sandbox_policy
     sandbox_mode = runtime_policy.sandbox_mode
+    model = runtime_policy.model
     if isinstance(args.sandbox, str) and args.sandbox.strip():
         sandbox_policy = "enforce"
         sandbox_mode = args.sandbox.strip()
@@ -1185,6 +1192,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
         provider=provider,
         provider_bin=provider_bin,
         sandbox_policy=sandbox_policy,
+        model=model,
     )
     package_id = selection.get("package_id")
     if not isinstance(package_id, str) or not package_id:
@@ -1230,6 +1238,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
             codex_bin=provider_bin,
             provider=provider,
             sandbox_policy=sandbox_policy,
+            model=model,
         )
     finally:
         cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)

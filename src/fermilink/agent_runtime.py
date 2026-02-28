@@ -23,6 +23,9 @@ SUPPORTED_SANDBOX_POLICIES = ("enforce", "bypass")
 ENV_PROVIDER = "FERMILINK_AGENT_PROVIDER"
 ENV_SANDBOX_POLICY = "FERMILINK_AGENT_SANDBOX_POLICY"
 ENV_SANDBOX_MODE = "FERMILINK_AGENT_SANDBOX_MODE"
+ENV_MODEL = "FERMILINK_AGENT_MODEL"
+
+_MODEL_UNSET: object = object()
 
 
 def _now_iso() -> str:
@@ -91,25 +94,53 @@ def normalize_sandbox_mode(raw: str | None) -> str:
     return value
 
 
+def normalize_model(raw: str | None) -> str | None:
+    """
+    Normalize an optional agent model override.
+
+    Parameters
+    ----------
+    raw : str | None
+        Raw model value from user input or configuration.
+
+    Returns
+    -------
+    str | None
+        Trimmed model id, or ``None`` when unset.
+    """
+
+    if raw is None:
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    return value
+
+
 @dataclass(frozen=True)
 class AgentRuntimePolicy:
     provider: str = DEFAULT_PROVIDER
     sandbox_policy: str = DEFAULT_SANDBOX_POLICY
     sandbox_mode: str = DEFAULT_SANDBOX_MODE
+    model: str | None = None
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> dict[str, str | None]:
         return {
             "provider": self.provider,
             "sandbox_policy": self.sandbox_policy,
             "sandbox_mode": self.sandbox_mode,
+            "model": self.model,
         }
 
     def as_env(self) -> dict[str, str]:
-        return {
+        env = {
             ENV_PROVIDER: self.provider,
             ENV_SANDBOX_POLICY: self.sandbox_policy,
             ENV_SANDBOX_MODE: self.sandbox_mode,
         }
+        if isinstance(self.model, str) and self.model.strip():
+            env[ENV_MODEL] = self.model
+        return env
 
 
 def _coerce_policy(
@@ -117,11 +148,13 @@ def _coerce_policy(
     provider: str,
     sandbox_policy: str,
     sandbox_mode: str,
+    model: str | None,
 ) -> AgentRuntimePolicy:
     return AgentRuntimePolicy(
         provider=normalize_provider(provider),
         sandbox_policy=normalize_sandbox_policy(sandbox_policy),
         sandbox_mode=normalize_sandbox_mode(sandbox_mode),
+        model=normalize_model(model),
     )
 
 
@@ -166,11 +199,19 @@ def load_agent_runtime_policy(*, config_path: Path | None = None) -> AgentRuntim
     provider = payload.get("provider", DEFAULT_PROVIDER)
     sandbox_policy = payload.get("sandbox_policy", DEFAULT_SANDBOX_POLICY)
     sandbox_mode = payload.get("sandbox_mode", DEFAULT_SANDBOX_MODE)
+    raw_model = payload.get("model", None)
+    if raw_model is None:
+        model: str | None = None
+    elif isinstance(raw_model, str):
+        model = raw_model
+    else:
+        model = str(raw_model)
     try:
         return _coerce_policy(
             provider=str(provider),
             sandbox_policy=str(sandbox_policy),
             sandbox_mode=str(sandbox_mode),
+            model=model,
         )
     except ValueError:
         return AgentRuntimePolicy()
@@ -181,6 +222,7 @@ def resolve_agent_runtime_policy(
     provider: str | None = None,
     sandbox_policy: str | None = None,
     sandbox_mode: str | None = None,
+    model: str | None | object = _MODEL_UNSET,
     env: Mapping[str, str] | None = None,
     config_path: Path | None = None,
 ) -> AgentRuntimePolicy:
@@ -195,6 +237,9 @@ def resolve_agent_runtime_policy(
         Sandbox policy override (`enforce` or `bypass`).
     sandbox_mode : str | None
         Sandbox mode override passed to the provider runtime.
+    model : str | None | object
+        Optional model override. Use ``None`` to clear persisted model override,
+        or leave unset to keep the current value.
     env : Mapping[str, str] | None
         Environment mapping used when resolving override variables.
     config_path : Path | None
@@ -229,10 +274,23 @@ def resolve_agent_runtime_policy(
     if sandbox_mode is not None and sandbox_mode.strip():
         sandbox_mode_value = normalize_sandbox_mode(sandbox_mode)
 
+    model_value = runtime.model
+    env_model = env_map.get(ENV_MODEL)
+    if isinstance(env_model, str) and env_model.strip():
+        model_value = normalize_model(env_model)
+    if model is not _MODEL_UNSET:
+        if model is None:
+            model_value = None
+        elif isinstance(model, str):
+            model_value = normalize_model(model)
+        else:
+            raise ValueError("Model override must be a string or None.")
+
     return _coerce_policy(
         provider=provider_value,
         sandbox_policy=sandbox_policy_value,
         sandbox_mode=sandbox_mode_value,
+        model=model_value,
     )
 
 
@@ -241,6 +299,7 @@ def save_agent_runtime_policy(
     provider: str | None = None,
     sandbox_policy: str | None = None,
     sandbox_mode: str | None = None,
+    model: str | None | object = _MODEL_UNSET,
     config_path: Path | None = None,
 ) -> AgentRuntimePolicy:
     """
@@ -254,6 +313,9 @@ def save_agent_runtime_policy(
         Sandbox policy override (`enforce` or `bypass`).
     sandbox_mode : str | None
         Sandbox mode override passed to the provider runtime.
+    model : str | None | object
+        Optional model override. Use ``None`` to clear persisted model override,
+        or leave unset to keep the current value.
     config_path : Path | None
         Optional explicit path to the runtime policy file.
 
@@ -269,6 +331,7 @@ def save_agent_runtime_policy(
             sandbox_policy if sandbox_policy is not None else current.sandbox_policy
         ),
         sandbox_mode=sandbox_mode if sandbox_mode is not None else current.sandbox_mode,
+        model=current.model if model is _MODEL_UNSET else model,
         env={},
         config_path=config_path,
     )
