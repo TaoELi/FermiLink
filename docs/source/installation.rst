@@ -127,7 +127,7 @@ However, some scientific simulations might require access to external files, net
    # bypass codex sandbox (which might be needed for local MPI jobs, not SLURM MPI jobs)
    fermilink agent --bypass-sandbox
 
-   # set provider (codex, claude, gemini, or deepseek)
+   # set provider (currently support codex only)
    fermilink agent codex
 
    # override provider default model globally (exec/web/chat/loop/research/reproduce)
@@ -137,7 +137,7 @@ However, some scientific simulations might require access to external files, net
    fermilink agent --clear-model
 
    # override reasoning effort globally (provider support is best-effort)
-   fermilink agent --reasoning-effort high
+   fermilink agent --reasoning-effort xhigh
 
    # clear reasoning effort override and return to provider defaults
    fermilink agent --clear-reasoning-effort
