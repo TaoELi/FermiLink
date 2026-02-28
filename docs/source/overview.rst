@@ -24,16 +24,16 @@ Users can enjoy autonomous scientific computing at any time, any place.
    installation
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Usage Guide
-
-   Usage Guide <usage_guide>
-
-.. toctree::
    :maxdepth: 1
    :caption: Practical Tutorial at HPC
 
    tutorial_hpc
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Usage Guide
+
+   Usage Guide <usage_guide>
 
 .. toctree::
    :maxdepth: 1
