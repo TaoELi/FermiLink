@@ -3,8 +3,8 @@
 Built-in Supported Scientific Packages
 ======================================
 
-- Last curated update: ``2026-02-22 21:20:38 EST``
-- Total built-in packages: ``66``
+- Last curated update: ``2026-02-28 22:34:03 EST``
+- Total built-in packages: ``84``
 
 .. list-table:: Built-in package catalog
    :header-rows: 1
@@ -13,12 +13,18 @@ Built-in Supported Scientific Packages
    * - Package ID
      - Title
      - Repository
+   * - ``abinit``
+     - ABINIT Electronic-Structure Suite
+     - `skilled-scipkg/abinit <https://github.com/skilled-scipkg/abinit>`_
    * - ``amuse``
      - AMUSE Astrophysical Simulation Environment
      - `skilled-scipkg/amuse <https://github.com/skilled-scipkg/amuse>`_
    * - ``anndata``
      - AnnData Annotated Data Matrices
      - `skilled-scipkg/anndata <https://github.com/skilled-scipkg/anndata>`_
+   * - ``arbor``
+     - Arbor Neural Simulation Library
+     - `skilled-scipkg/arbor <https://github.com/skilled-scipkg/arbor>`_
    * - ``arc``
      - ARC Alkali Rydberg Calculator
      - `skilled-scipkg/ARC-Alkali-Rydberg-Calculator <https://github.com/skilled-scipkg/ARC-Alkali-Rydberg-Calculator>`_
@@ -37,6 +43,9 @@ Built-in Supported Scientific Packages
    * - ``bloqade``
      - Bloqade Neutral Atom Quantum SDK
      - `skilled-scipkg/bloqade <https://github.com/skilled-scipkg/bloqade>`_
+   * - ``brian2``
+     - Brian2 Spiking Neural Network Simulator
+     - `skilled-scipkg/brian2 <https://github.com/skilled-scipkg/brian2>`_
    * - ``cantera``
      - Cantera Chemical Kinetics and Combustion
      - `skilled-scipkg/cantera <https://github.com/skilled-scipkg/cantera>`_
@@ -61,15 +70,27 @@ Built-in Supported Scientific Packages
    * - ``chempy``
      - ChemPy Chemical Modeling Toolkit
      - `skilled-scipkg/chempy <https://github.com/skilled-scipkg/chempy>`_
+   * - ``cp2k``
+     - CP2K Quantum Chemistry Suite
+     - `skilled-scipkg/cp2k <https://github.com/skilled-scipkg/cp2k>`_
    * - ``datamol``
      - Datamol Molecular Processing Toolkit
      - `skilled-scipkg/datamol <https://github.com/skilled-scipkg/datamol>`_
    * - ``deepchem``
      - DeepChem Molecular Machine Learning Toolkit
      - `skilled-scipkg/deepchem <https://github.com/skilled-scipkg/deepchem>`_
+   * - ``devito``
+     - Devito Stencil Compiler
+     - `skilled-scipkg/devito <https://github.com/skilled-scipkg/devito>`_
    * - ``dftd4``
      - DFT-D4 Dispersion Correction
      - `skilled-scipkg/dftd4 <https://github.com/skilled-scipkg/dftd4>`_
+   * - ``dftk-jl``
+     - DFTK.jl Density-Functional Toolkit
+     - `skilled-scipkg/DFTK.jl <https://github.com/skilled-scipkg/DFTK.jl>`_
+   * - ``elk``
+     - Elk All-Electron DFT Code
+     - `skilled-scipkg/elk <https://github.com/skilled-scipkg/elk>`_
    * - ``enzo-e``
      - Enzo-E Exascale Astrophysics Simulator
      - `skilled-scipkg/enzo-e <https://github.com/skilled-scipkg/enzo-e>`_
@@ -88,6 +109,12 @@ Built-in Supported Scientific Packages
    * - ``hoomd-blue``
      - HOOMD-blue Particle Simulation
      - `skilled-scipkg/hoomd-blue <https://github.com/skilled-scipkg/hoomd-blue>`_
+   * - ``jdftx``
+     - JDFTx
+     - `skilled-scipkg/jdftx <https://github.com/skilled-scipkg/jdftx>`_
+   * - ``kwant``
+     - Kwant Quantum Transport Toolkit
+     - `skilled-scipkg/kwant <https://github.com/skilled-scipkg/kwant>`_
    * - ``lammps``
      - LAMMPS Molecular Dynamics
      - `skilled-scipkg/lammps <https://github.com/skilled-scipkg/lammps>`_
@@ -115,6 +142,12 @@ Built-in Supported Scientific Packages
    * - ``nekrs``
      - nekRS CFD Solver
      - `skilled-scipkg/nekRS <https://github.com/skilled-scipkg/nekRS>`_
+   * - ``nest-simulator``
+     - NEST Spiking Neural Network Simulator
+     - `skilled-scipkg/nest-simulator <https://github.com/skilled-scipkg/nest-simulator>`_
+   * - ``neuron``
+     - NEURON Neural Simulator
+     - `skilled-scipkg/nrn <https://github.com/skilled-scipkg/nrn>`_
    * - ``nextflow``
      - Nextflow Scientific Workflow Engine
      - `skilled-scipkg/nextflow <https://github.com/skilled-scipkg/nextflow>`_
@@ -154,6 +187,9 @@ Built-in Supported Scientific Packages
    * - ``pylcp``
      - PyLCP Laser Cooling Physics
      - `skilled-scipkg/pylcp <https://github.com/skilled-scipkg/pylcp>`_
+   * - ``pylith``
+     - PyLith Tectonic Deformation Simulator
+     - `skilled-scipkg/pylith <https://github.com/skilled-scipkg/pylith>`_
    * - ``pynbody``
      - Pynbody Astrophysical Simulation Analysis
      - `skilled-scipkg/pynbody <https://github.com/skilled-scipkg/pynbody>`_
@@ -163,6 +199,9 @@ Built-in Supported Scientific Packages
    * - ``pyscf``
      - PySCF Quantum Chemistry
      - `skilled-scipkg/pyscf <https://github.com/skilled-scipkg/pyscf>`_
+   * - ``q-e``
+     - Quantum ESPRESSO
+     - `skilled-scipkg/q-e <https://github.com/skilled-scipkg/q-e>`_
    * - ``qutip``
      - QuTiP Quantum Toolbox
      - `skilled-scipkg/qutip <https://github.com/skilled-scipkg/qutip>`_
@@ -181,9 +220,15 @@ Built-in Supported Scientific Packages
    * - ``scvi-tools``
      - scvi-tools Single-Cell Probabilistic Modeling
      - `skilled-scipkg/scvi-tools <https://github.com/skilled-scipkg/scvi-tools>`_
+   * - ``seissol``
+     - SeisSol Earthquake Wave Simulator
+     - `skilled-scipkg/SeisSol <https://github.com/skilled-scipkg/SeisSol>`_
    * - ``snakemake``
      - Snakemake Workflow Manager
      - `skilled-scipkg/snakemake <https://github.com/skilled-scipkg/snakemake>`_
+   * - ``specfem3d-globe``
+     - SPECFEM3D Globe
+     - `skilled-scipkg/specfem3d_globe <https://github.com/skilled-scipkg/specfem3d_globe>`_
    * - ``specutils``
      - Specutils Astronomical Spectroscopy
      - `skilled-scipkg/specutils <https://github.com/skilled-scipkg/specutils>`_
@@ -196,12 +241,21 @@ Built-in Supported Scientific Packages
    * - ``su2``
      - SU2 Open-Source CFD Suite
      - `skilled-scipkg/SU2 <https://github.com/skilled-scipkg/SU2>`_
+   * - ``sw4``
+     - SW4 Seismic Waves Solver
+     - `skilled-scipkg/sw4 <https://github.com/skilled-scipkg/sw4>`_
    * - ``swift``
      - SWIFT Astrophysical Simulation Engine
      - `skilled-scipkg/SWIFT <https://github.com/skilled-scipkg/SWIFT>`_
    * - ``thermo``
      - Thermo Chemical Engineering Thermodynamics
      - `skilled-scipkg/thermo <https://github.com/skilled-scipkg/thermo>`_
+   * - ``tkwant``
+     - Tkwant Time-Dependent Quantum Transport
+     - `skilled-scipkg/tkwant <https://github.com/skilled-scipkg/tkwant>`_
+   * - ``tvb-root``
+     - The Virtual Brain Core
+     - `skilled-scipkg/tvb-root <https://github.com/skilled-scipkg/tvb-root>`_
    * - ``wrf``
      - WRF Weather Forecasting Model
      - `skilled-scipkg/WRF <https://github.com/skilled-scipkg/WRF>`_
