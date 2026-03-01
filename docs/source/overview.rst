@@ -25,8 +25,9 @@ Users can enjoy autonomous scientific computing at any time, any place.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Practical Tutorial at HPC
+   :caption: Practical Tutorial on machines
 
+   tutorial_laptop
    tutorial_hpc
 
 .. toctree::
