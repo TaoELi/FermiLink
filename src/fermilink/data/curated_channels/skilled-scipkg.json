@@ -746,6 +746,34 @@
       ]
     },
     {
+      "package_id": "elk",
+      "title": "Elk All-Electron DFT Code",
+      "description": "Elk is an all-electron full-potential linearized augmented-plane-wave code for first-principles electronic-structure calculations in solids using density functional theory and related methods.",
+      "upstream_repo_url": "https://github.com/elk-code/elk",
+      "homepage_url": "https://elk.sourceforge.io/",
+      "zip_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electronic-structure",
+        "density-functional-theory",
+        "all-electron",
+        "fp-lapw",
+        "materials-science",
+        "solid-state-physics"
+      ]
+    },
+    {
       "package_id": "exoplanet",
       "title": "exoplanet Bayesian Exoplanet Inference Toolkit",
       "description": "exoplanet provides fast, scalable probabilistic models for astronomical time-series, enabling Bayesian transit and radial-velocity inference for exoplanet systems using PyMC-based MCMC workflows.",
@@ -881,6 +909,34 @@
         "joint-dft",
         "electrochemistry",
         "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "kwant",
+      "title": "Kwant Quantum Transport Toolkit",
+      "description": "Kwant is an open-source Python package for numerical calculations on tight-binding models with a strong focus on quantum transport in mesoscopic systems.",
+      "upstream_repo_url": "https://github.com/kwant-project/kwant",
+      "homepage_url": "https://kwant-project.org/",
+      "zip_url": "https://github.com/skilled-scipkg/kwant/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/kwant/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-transport",
+        "tight-binding",
+        "mesoscopic-physics",
+        "condensed-matter",
+        "nanodevices",
+        "quantum-simulation"
       ]
     },
     {
@@ -2124,6 +2180,34 @@
         "vle",
         "flashcalculation",
         "mixtureproperties"
+      ]
+    },
+    {
+      "package_id": "tkwant",
+      "title": "Tkwant Time-Dependent Quantum Transport",
+      "description": "Tkwant is a Python package for simulating time-dependent quantum dynamics of mesoscopic systems and serves as the time-dependent extension of Kwant for open quantum transport problems.",
+      "upstream_repo_url": "https://gitlab.kwant-project.org/kwant/tkwant",
+      "homepage_url": "https://tkwant.kwant-project.org/",
+      "zip_url": "https://github.com/skilled-scipkg/tkwant/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/tkwant/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "time-dependent-quantum-transport",
+        "non-equilibrium",
+        "tight-binding",
+        "mesoscopic-physics",
+        "nanoelectronics",
+        "keldysh-formalism"
       ]
     },
     {

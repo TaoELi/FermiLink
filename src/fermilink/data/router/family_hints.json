@@ -3145,6 +3145,115 @@
         "amuse",
         "anndata"
       ]
+    },
+    "elk": {
+      "description": "Use this family for all-electron full-potential LAPW electronic-structure workflows in solids, including first-principles DFT material-property calculations.",
+      "strong_keywords": [
+        "elk",
+        "all-electron dft",
+        "fp-lapw",
+        "full-potential lapw",
+        "linearized augmented plane wave",
+        "solid-state electronic structure",
+        "density functional theory"
+      ],
+      "keywords": [
+        "band structure",
+        "density of states",
+        "phonons",
+        "optical response",
+        "spin orbit coupling",
+        "magnetism",
+        "lattice optimization",
+        "ground-state energy",
+        "crystalline solids",
+        "first-principles materials simulation"
+      ],
+      "negative_keywords": [
+        "lammps",
+        "gromacs",
+        "hoomd-blue",
+        "kwant",
+        "tkwant",
+        "qutip",
+        "oqupy",
+        "astropy",
+        "anndata",
+        "biopython"
+      ]
+    },
+    "kwant": {
+      "description": "Route intents about tight-binding quantum transport, scattering-matrix calculations, and mesoscopic nanodevice modeling to this family.",
+      "strong_keywords": [
+        "kwant",
+        "quantum transport",
+        "tight-binding model",
+        "mesoscopic systems",
+        "scattering matrix",
+        "landauer-buttiker",
+        "conductance quantization",
+        "quantum nanodevice simulation"
+      ],
+      "keywords": [
+        "transport through nanostructures",
+        "lead self-energy",
+        "graphene transport",
+        "topological edge states",
+        "quantum hall transport",
+        "superconducting junction",
+        "hamiltonian discretization",
+        "wave function in leads",
+        "green function transport",
+        "finite-size tight-binding"
+      ],
+      "negative_keywords": [
+        "tkwant",
+        "oqupy",
+        "qutip",
+        "abinit",
+        "q-e",
+        "cp2k",
+        "lammps",
+        "gromacs",
+        "meep",
+        "astropy"
+      ]
+    },
+    "tkwant": {
+      "description": "Use this family for time-dependent quantum transport in open systems, including transient currents and non-equilibrium dynamics with the Tkwant extension.",
+      "strong_keywords": [
+        "tkwant",
+        "time-dependent quantum transport",
+        "non-equilibrium quantum dynamics",
+        "transient current",
+        "open quantum systems transport",
+        "voltage pulse transport",
+        "time-dependent kwant"
+      ],
+      "keywords": [
+        "real-time transport simulation",
+        "keldysh formalism",
+        "time-dependent hamiltonian",
+        "nanoelectronic pulses",
+        "ac-driven transport",
+        "current versus time",
+        "many-body wave functions",
+        "lead-reservoir dynamics",
+        "quantum quenches",
+        "mesoscopic transient response"
+      ],
+      "negative_keywords": [
+        "kwant",
+        "oqupy",
+        "qutip",
+        "abinit",
+        "q-e",
+        "cp2k",
+        "lammps",
+        "gromacs",
+        "meep",
+        "astropy"
+      ]
     }
   }
 }
