@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-02-23T02:20:38.383586Z",
+  "updated_at": "2026-03-01T03:34:03.416400Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -2578,6 +2578,572 @@
         "lammps",
         "lightkurve",
         "cellrank"
+      ]
+    },
+    "specfem3d-globe": {
+      "description": "Routes to computational seismology and geodynamics workflows centered on forward spectral-element simulation of planetary seismic wavefields.",
+      "strong_keywords": [
+        "specfem3d-globe",
+        "specfem3d_globe",
+        "xspecfem3d",
+        "xmeshfem3d",
+        "spectral-element seismology",
+        "global seismic wave propagation",
+        "regional seismic wave propagation",
+        "cubed-sphere hexahedral mesh",
+        "planetary seismology"
+      ],
+      "keywords": [
+        "computational seismology",
+        "synthetic seismograms",
+        "forward seismic simulation",
+        "full waveform modeling",
+        "earth interior modeling",
+        "mars seismology",
+        "lunar seismology",
+        "continental-scale simulation",
+        "computational geodynamics",
+        "seismic wavefield solver"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "lightkurve",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "meep",
+        "mitgcm",
+        "cantera",
+        "biopython",
+        "amuse"
+      ]
+    },
+    "seissol": {
+      "description": "Route intents about computational seismology, dynamic rupture physics, and high-order PDE solvers for crustal earthquake scenario modeling.",
+      "strong_keywords": [
+        "seissol",
+        "seismic wave simulation",
+        "earthquake dynamics",
+        "dynamic rupture",
+        "discontinuous galerkin",
+        "ader",
+        "computational seismology",
+        "geophysical pde solver"
+      ],
+      "keywords": [
+        "fault rupture modeling",
+        "elastodynamics",
+        "tectonic earthquake scenarios",
+        "high-performance geophysics",
+        "wave propagation in solids",
+        "numerical seismics",
+        "rupture dynamics",
+        "earthquake source physics"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "biopython",
+        "anndata",
+        "gromacs",
+        "lammps",
+        "meep",
+        "cantera",
+        "mitgcm",
+        "amuse",
+        "arc"
+      ]
+    },
+    "devito": {
+      "description": "Use this family for requests about symbolic stencil PDE modeling, automatic kernel generation, and high-performance finite-difference execution workflows.",
+      "strong_keywords": [
+        "devito",
+        "symbolic finite differences",
+        "stencil computation",
+        "pde operator generation",
+        "timefunction operator",
+        "adjoint modeling",
+        "wave propagation kernels",
+        "jit kernel compilation"
+      ],
+      "keywords": [
+        "grid discretization",
+        "laplacian stencil",
+        "boundary conditions",
+        "sparse interpolation",
+        "staggered grids",
+        "domain decomposition",
+        "mpi parallel stencils",
+        "openmp parallel loops",
+        "openacc gpu offload",
+        "operator autotuning",
+        "seismic inversion",
+        "finite difference pde solvers"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "anndata",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "meep",
+        "lightkurve",
+        "cantera",
+        "biopython",
+        "cellrank"
+      ]
+    },
+    "sw4": {
+      "description": "Route to computational seismology and geophysical wave-equation solvers focused on high-order finite-difference simulation of elastic and anelastic seismic waves.",
+      "strong_keywords": [
+        "sw4",
+        "seismic wave propagation",
+        "3d seismic modeling",
+        "elastic wave equation",
+        "fourth order finite difference",
+        "free surface boundary condition",
+        "absorbing super-grid boundary",
+        "moment tensor source",
+        "point force source"
+      ],
+      "keywords": [
+        "computational seismology",
+        "curvilinear coordinates",
+        "mesh refinement interfaces",
+        "anelastic attenuation",
+        "anisotropic elasticity",
+        "synthetic seismograms",
+        "earthquake source modeling",
+        "geodynamics",
+        "seismic hazard simulation"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "anndata",
+        "astropy",
+        "biopython",
+        "cantera",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "meep",
+        "lightkurve"
+      ]
+    },
+    "neuron": {
+      "description": "Use this family for intents about biophysical neuron simulation, compartmental membrane dynamics, synapses, and NEURON-specific modeling workflows.",
+      "strong_keywords": [
+        "neuron",
+        "nrn",
+        "hoc",
+        "nmodl",
+        "nrnivmodl",
+        "multicompartment modeling",
+        "cable equation",
+        "ion channel kinetics",
+        "synaptic mechanisms",
+        "computational neuroscience"
+      ],
+      "keywords": [
+        "neuronal morphology",
+        "dendrite simulation",
+        "axon conduction",
+        "membrane potential dynamics",
+        "spike generation",
+        "current clamp simulation",
+        "voltage clamp simulation",
+        "point process models",
+        "reaction diffusion in neurons",
+        "network of neurons",
+        "python interface for neuron",
+        "cell template modeling"
+      ],
+      "negative_keywords": [
+        "anndata",
+        "astropy",
+        "gromacs",
+        "lammps",
+        "cantera",
+        "meep",
+        "lightkurve",
+        "deepchem",
+        "cellrank",
+        "amuse"
+      ]
+    },
+    "pylith": {
+      "description": "Routes queries about computational solid-earth geophysics, especially finite-element modeling of faults, crustal stress evolution, and tectonic deformation in dynamic or quasi-static settings.",
+      "strong_keywords": [
+        "pylith",
+        "tectonic deformation",
+        "crustal deformation",
+        "earthquake rupture",
+        "fault slip",
+        "fault friction",
+        "geodynamics",
+        "finite element geophysics",
+        "quasi-static simulation",
+        "dynamic rupture"
+      ],
+      "keywords": [
+        "cohesive cell faults",
+        "dieterich rate state friction",
+        "slip weakening friction",
+        "maxwell viscoelasticity",
+        "drucker prager plasticity",
+        "green functions",
+        "dirichlet boundary conditions",
+        "neumann traction boundary conditions",
+        "absorbing boundaries",
+        "volcano deformation",
+        "hdf5 xdmf output",
+        "tetrahedral mesh",
+        "hexahedral mesh"
+      ],
+      "negative_keywords": [
+        "amuse",
+        "anndata",
+        "astropy",
+        "biopython",
+        "deepchem",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "meep",
+        "lightkurve"
+      ]
+    },
+    "brian2": {
+      "description": "Use this family for questions about specifying neuron and synapse equations, simulating spike-based networks, and analyzing neural dynamics with Brian2.",
+      "strong_keywords": [
+        "brian2",
+        "brian simulator",
+        "spiking neural networks",
+        "computational neuroscience",
+        "neuron and synapse models",
+        "spike timing dependent plasticity",
+        "leaky integrate and fire"
+      ],
+      "keywords": [
+        "clock driven simulator",
+        "event based synapses",
+        "neuron groups",
+        "spike trains",
+        "synaptic dynamics",
+        "network equations",
+        "stochastic spiking models",
+        "plasticity rules",
+        "neuronal population simulation",
+        "state monitors",
+        "spike monitors"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "anndata",
+        "gromacs",
+        "lammps",
+        "meep",
+        "cantera",
+        "biopython",
+        "lightkurve",
+        "amuse",
+        "arc"
+      ]
+    },
+    "nest-simulator": {
+      "description": "Route to this family for computational neuroscience requests about spiking neuron network modeling, synaptic plasticity, or large-scale event-driven brain simulations.",
+      "strong_keywords": [
+        "nest-simulator",
+        "nest simulator",
+        "spiking neural network simulator",
+        "computational neuroscience simulation",
+        "event-driven neural dynamics",
+        "synapse and neuron models",
+        "large-scale cortical network simulation"
+      ],
+      "keywords": [
+        "pynest",
+        "leaky integrate-and-fire neurons",
+        "stdp plasticity",
+        "balanced random networks",
+        "laminar cortical circuits",
+        "point neuron models",
+        "neuronal population activity",
+        "electrophysiology-inspired experiments",
+        "distributed neural simulation",
+        "multi-core neural simulation"
+      ],
+      "negative_keywords": [
+        "brian2",
+        "amuse",
+        "anndata",
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "lightkurve",
+        "biopython"
+      ]
+    },
+    "arbor": {
+      "description": "Routes to computational neuroscience simulators focused on biophysical multi-compartment neuronal electrophysiology and large-scale network dynamics.",
+      "strong_keywords": [
+        "arbor",
+        "multi-compartment neuron models",
+        "cable equation simulation",
+        "biophysical neural network simulation",
+        "morphologically detailed neurons",
+        "performance portable neuroscience"
+      ],
+      "keywords": [
+        "computational neuroscience",
+        "neuronal morphology",
+        "ion channel dynamics",
+        "synaptic mechanisms",
+        "electrophysiology modeling",
+        "gpu neural simulation",
+        "hpc neuron simulator",
+        "large-scale neural circuits",
+        "cable cell models"
+      ],
+      "negative_keywords": [
+        "brian2",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "astropy",
+        "anndata",
+        "cantera",
+        "lightkurve",
+        "deepchem",
+        "amuse"
+      ]
+    },
+    "tvb-root": {
+      "description": "Routes intents for The Virtual Brain ecosystem covering tvb-library simulations, tvb-framework workflows, persistence layers, and neuroscience visual analytics.",
+      "strong_keywords": [
+        "tvb-root",
+        "the virtual brain",
+        "tvb-library",
+        "tvb-framework",
+        "whole-brain simulation",
+        "brain network dynamics",
+        "neural mass modeling",
+        "connectome-based simulation"
+      ],
+      "keywords": [
+        "connectome dynamics",
+        "resting-state activity",
+        "structural connectivity",
+        "functional connectivity",
+        "neural population modeling",
+        "brain dynamics analysis",
+        "network neuroscience",
+        "simulation workflows",
+        "multiscale brain modeling",
+        "clinical brain simulation"
+      ],
+      "negative_keywords": [
+        "brian2",
+        "anndata",
+        "astropy",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "deepchem",
+        "cantera",
+        "lightkurve",
+        "bloqade"
+      ]
+    },
+    "cp2k": {
+      "description": "Routes intents about electronic-structure calculations, mixed Gaussian plane-wave DFT workflows, and atomistic simulations of molecular or periodic materials in CP2K.",
+      "strong_keywords": [
+        "cp2k",
+        "quantum chemistry",
+        "solid state physics",
+        "density functional theory",
+        "gpw",
+        "gapw",
+        "ab initio molecular dynamics",
+        "electronic structure"
+      ],
+      "keywords": [
+        "mp2",
+        "rpa",
+        "gw",
+        "dftb",
+        "xtb",
+        "metadynamics",
+        "transition state optimization",
+        "neb method",
+        "pseudopotentials",
+        "periodic materials simulation",
+        "vibrational analysis"
+      ],
+      "negative_keywords": [
+        "espresso",
+        "gromacs",
+        "lammps",
+        "hoomd-blue",
+        "cantera",
+        "astropy",
+        "biopython",
+        "anndata",
+        "brian2",
+        "lightkurve"
+      ]
+    },
+    "q-e": {
+      "description": "Use this family for first principles materials modeling tasks involving DFT or DFPT, pseudopotential plane wave calculations, phonons, and related electronic structure workflows.",
+      "strong_keywords": [
+        "q-e",
+        "quantum espresso",
+        "pwscf",
+        "plane wave dft",
+        "density functional theory",
+        "dfpt",
+        "phonon",
+        "pseudopotential",
+        "electronic structure",
+        "ab initio molecular dynamics"
+      ],
+      "keywords": [
+        "car parrinello dynamics",
+        "electron phonon coupling",
+        "nudged elastic band",
+        "x ray absorption spectra",
+        "hubbard parameters",
+        "time dependent dfpt",
+        "wannier functions",
+        "koopmans compliant functionals",
+        "phonon limited superconductivity",
+        "ballistic transport",
+        "gw approach",
+        "structural optimization"
+      ],
+      "negative_keywords": [
+        "anndata",
+        "astropy",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "gromacs",
+        "hoomd-blue",
+        "lammps",
+        "deepchem"
+      ]
+    },
+    "abinit": {
+      "description": "Route here for quantum-mechanical solid-state simulations focused on DFT electronic structure, perturbative responses, and ab initio materials-property predictions.",
+      "strong_keywords": [
+        "abinit",
+        "density functional theory",
+        "electronic structure",
+        "dfpt",
+        "plane-wave pseudopotential",
+        "first-principles materials simulation",
+        "ab initio molecular dynamics",
+        "phonon calculations",
+        "gw approximation"
+      ],
+      "keywords": [
+        "band structure",
+        "total energy",
+        "geometry optimization",
+        "dielectric properties",
+        "born effective charges",
+        "lattice dynamics",
+        "many-body perturbation theory",
+        "time-dependent dft",
+        "ferroelectric polarization",
+        "response functions"
+      ],
+      "negative_keywords": [
+        "cp2k",
+        "espresso",
+        "lammps",
+        "gromacs",
+        "hoomd-blue",
+        "astropy",
+        "anndata",
+        "biopython",
+        "amuse",
+        "arbor"
+      ]
+    },
+    "jdftx": {
+      "description": "Use this family for plane-wave quantum materials simulations focused on joint DFT, solvent-aware interfaces, and electrochemical energy applications.",
+      "strong_keywords": [
+        "jdftx",
+        "joint density functional theory",
+        "joint dft",
+        "plane-wave density functional theory",
+        "electronic structure",
+        "continuum solvation",
+        "electrochemical interfaces",
+        "grand canonical dft"
+      ],
+      "keywords": [
+        "density functional theory",
+        "materials modeling",
+        "surface chemistry",
+        "solid-state physics",
+        "ab initio simulation",
+        "periodic systems",
+        "pseudopotentials",
+        "k-point sampling",
+        "solvent effects",
+        "electrocatalysis"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "espresso",
+        "cp2k",
+        "gromacs",
+        "hoomd-blue",
+        "astropy",
+        "biopython",
+        "cantera",
+        "amuse",
+        "anndata"
+      ]
+    },
+    "dftk-jl": {
+      "description": "Routes intents about plane-wave Kohn-Sham DFT, periodic solid-state electronic-structure calculations, and flexible algorithm development in Julia.",
+      "strong_keywords": [
+        "dftk-jl",
+        "dftk",
+        "density-functional toolkit",
+        "plane-wave dft",
+        "kohn-sham dft",
+        "electronic structure",
+        "solid-state dft"
+      ],
+      "keywords": [
+        "pseudopotentials",
+        "self-consistent field",
+        "brillouin zone sampling",
+        "band structure",
+        "total energy",
+        "periodic solids",
+        "crystalline materials",
+        "density functional calculations",
+        "mpi parallelization",
+        "gpu acceleration"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "gromacs",
+        "hoomd-blue",
+        "astropy",
+        "biopython",
+        "deepchem",
+        "amuse",
+        "anndata"
       ]
     }
   }

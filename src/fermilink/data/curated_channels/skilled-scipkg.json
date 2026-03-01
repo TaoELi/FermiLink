@@ -1,8 +1,36 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-02-23T02:20:38.383586Z",
+  "updated_at": "2026-03-01T03:34:03.416400Z",
   "packages": [
+    {
+      "package_id": "abinit",
+      "title": "ABINIT Electronic-Structure Suite",
+      "description": "ABINIT is a first-principles atomic-scale simulation package for computing electronic, structural, vibrational, and dielectric properties of materials using DFT and related methods.",
+      "upstream_repo_url": "https://github.com/abinit/abinit",
+      "homepage_url": "https://www.abinit.org",
+      "zip_url": "https://github.com/skilled-scipkg/abinit/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/abinit/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "abinit",
+        "dft",
+        "electronic-structure",
+        "materials-science",
+        "dfpt",
+        "first-principles"
+      ]
+    },
     {
       "package_id": "amuse",
       "title": "AMUSE Astrophysical Simulation Environment",
@@ -56,6 +84,33 @@
         "omics",
         "bioinformatics",
         "h5ad"
+      ]
+    },
+    {
+      "package_id": "arbor",
+      "title": "Arbor Neural Simulation Library",
+      "description": "Arbor is a high-performance library for simulating morphologically detailed multi-compartment neuron and network models with performance portability across CPU and GPU architectures.",
+      "upstream_repo_url": "https://github.com/arbor-sim/arbor",
+      "homepage_url": "https://arbor-sim.org",
+      "zip_url": "https://github.com/skilled-scipkg/arbor/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/arbor/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-neuroscience",
+        "neuron-simulation",
+        "electrophysiology",
+        "multi-compartment",
+        "hpc"
       ]
     },
     {
@@ -221,6 +276,32 @@
         "quantum-sdk",
         "edsl",
         "quera"
+      ]
+    },
+    {
+      "package_id": "brian2",
+      "title": "Brian2 Spiking Neural Network Simulator",
+      "description": "Brian2 is an open source Python simulator for building and running flexible spiking neural network models in computational neuroscience research and education.",
+      "upstream_repo_url": "https://github.com/brian-team/brian2",
+      "homepage_url": "http://briansimulator.org",
+      "zip_url": "https://github.com/skilled-scipkg/brian2/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/brian2/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-neuroscience",
+        "spiking-networks",
+        "neural-simulation",
+        "dynamical-systems"
       ]
     },
     {
@@ -445,6 +526,34 @@
       ]
     },
     {
+      "package_id": "cp2k",
+      "title": "CP2K Quantum Chemistry Suite",
+      "description": "CP2K is an atomistic simulation package for quantum chemistry and solid-state physics, supporting DFT and beyond for molecular, periodic, and materials systems with efficient parallel execution.",
+      "upstream_repo_url": "https://github.com/cp2k/cp2k",
+      "homepage_url": "https://www.cp2k.org",
+      "zip_url": "https://github.com/skilled-scipkg/cp2k/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/cp2k/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cp2k",
+        "quantum-chemistry",
+        "electronic-structure",
+        "dft",
+        "molecular-dynamics",
+        "solid-state"
+      ]
+    },
+    {
       "package_id": "datamol",
       "title": "Datamol Molecular Processing Toolkit",
       "description": "Datamol is a lightweight RDKit-first toolkit for molecular standardization, structure conversion, fingerprints, conformer generation, visualization, and molecule file I/O with practical defaults for cheminformatics workflows.",
@@ -500,6 +609,34 @@
       ]
     },
     {
+      "package_id": "devito",
+      "title": "Devito Stencil Compiler",
+      "description": "Devito is a symbolic Python DSL and compiler framework that generates optimized finite-difference and stencil operators for PDE simulations on CPUs, GPUs, and distributed-memory clusters.",
+      "upstream_repo_url": "https://github.com/devitocodes/devito",
+      "homepage_url": "http://www.devitoproject.org",
+      "zip_url": "https://github.com/skilled-scipkg/devito/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/devito/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "pde",
+        "finite-difference",
+        "stencil",
+        "symbolic-dsl",
+        "hpc",
+        "seismic"
+      ]
+    },
+    {
       "package_id": "dftd4",
       "title": "DFT-D4 Dispersion Correction",
       "description": "Fortran-based implementation of the D4 atomic-charge dependent London dispersion correction for DFT, providing energies, gradients, pairwise decomposition, periodic support, and C and Python interfaces.",
@@ -524,6 +661,33 @@
         "dispersion",
         "fortran",
         "electronic-structure"
+      ]
+    },
+    {
+      "package_id": "dftk-jl",
+      "title": "DFTK.jl Density-Functional Toolkit",
+      "description": "Julia package for plane-wave density-functional theory in solid-state simulations, emphasizing simple extensible algorithms for electronic-structure research with MPI parallelization and GPU support.",
+      "upstream_repo_url": "https://github.com/JuliaMolSim/DFTK.jl",
+      "homepage_url": "https://docs.dftk.org",
+      "zip_url": "https://github.com/skilled-scipkg/DFTK.jl/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/DFTK.jl/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "density-functional-theory",
+        "electronic-structure",
+        "plane-wave",
+        "materials-science",
+        "julia"
       ]
     },
     {
@@ -690,6 +854,33 @@
         "particle-simulation",
         "gpu-computing",
         "computational-physics"
+      ]
+    },
+    {
+      "package_id": "jdftx",
+      "title": "JDFTx",
+      "description": "JDFTx is a high-performance electronic-structure code implementing joint density functional theory for quantum simulations of solids, surfaces, and electrochemical interfaces with continuum solvation and advanced DFT capabilities.",
+      "upstream_repo_url": "https://github.com/shankar1729/jdftx",
+      "homepage_url": "http://jdftx.org",
+      "zip_url": "https://github.com/skilled-scipkg/jdftx/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/jdftx/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electronic-structure",
+        "density-functional-theory",
+        "joint-dft",
+        "electrochemistry",
+        "materials-simulation"
       ]
     },
     {
@@ -941,6 +1132,60 @@
         "spectral-elements",
         "navier-stokes",
         "fluid-dynamics"
+      ]
+    },
+    {
+      "package_id": "nest-simulator",
+      "title": "NEST Spiking Neural Network Simulator",
+      "description": "NEST is a scalable simulator for large spiking neural networks, supporting diverse neuron and synapse models to study cortical dynamics, plasticity, and electrophysiology-inspired experiments.",
+      "upstream_repo_url": "https://github.com/nest/nest-simulator",
+      "homepage_url": "http://www.nest-simulator.org",
+      "zip_url": "https://github.com/skilled-scipkg/nest-simulator/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/nest-simulator/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-neuroscience",
+        "spiking-networks",
+        "neural-simulation",
+        "synaptic-plasticity",
+        "brain-network-modeling"
+      ]
+    },
+    {
+      "package_id": "neuron",
+      "title": "NEURON Neural Simulator",
+      "description": "NEURON is a scientific simulator for biophysical neuron and neural network models, supporting multicompartment electrophysiology, synaptic mechanisms, and MOD-defined ion-channel dynamics for computational neuroscience research.",
+      "upstream_repo_url": "https://github.com/neuronsimulator/nrn",
+      "homepage_url": "http://nrn.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/nrn/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/nrn/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-neuroscience",
+        "neuron-modeling",
+        "electrophysiology",
+        "biophysical-simulation",
+        "neural-networks"
       ]
     },
     {
@@ -1298,6 +1543,34 @@
       ]
     },
     {
+      "package_id": "pylith",
+      "title": "PyLith Tectonic Deformation Simulator",
+      "description": "PyLith is a finite-element geodynamics package for quasi-static and dynamic simulation of crustal deformation, including earthquake rupture, fault friction, viscoelastic rheology, and volcano-related tectonic processes.",
+      "upstream_repo_url": "https://github.com/geodynamics/pylith",
+      "homepage_url": "https://github.com/geodynamics/pylith",
+      "zip_url": "https://github.com/skilled-scipkg/pylith/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pylith/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "geodynamics",
+        "finite-element",
+        "tectonics",
+        "earthquake-modeling",
+        "crustal-deformation",
+        "seismology"
+      ]
+    },
+    {
       "package_id": "pynbody",
       "title": "Pynbody Astrophysical Simulation Analysis",
       "description": "Python framework for analyzing and visualizing N-body and hydrodynamic astrophysical simulation data, including Gadget, Gasoline, Arepo, N-Chilada, and RAMSES AMR outputs.",
@@ -1379,6 +1652,34 @@
         "molecular-modeling",
         "computational-chemistry",
         "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "q-e",
+      "title": "Quantum ESPRESSO",
+      "description": "Quantum ESPRESSO is an open source suite for plane wave density functional theory, phonons, and ab initio molecular dynamics in electronic structure simulations of materials.",
+      "upstream_repo_url": "https://github.com/QEF/q-e",
+      "homepage_url": "https://github.com/QEF/q-e",
+      "zip_url": "https://github.com/skilled-scipkg/q-e/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/q-e/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-espresso",
+        "dft",
+        "dfpt",
+        "electronic-structure",
+        "materials-simulation",
+        "plane-wave"
       ]
     },
     {
@@ -1547,6 +1848,33 @@
       ]
     },
     {
+      "package_id": "seissol",
+      "title": "SeisSol Earthquake Wave Simulator",
+      "description": "SeisSol is a high-order discontinuous Galerkin and ADER solver for seismic wave propagation and dynamic earthquake rupture simulations at scale.",
+      "upstream_repo_url": "https://github.com/SeisSol/SeisSol",
+      "homepage_url": "http://www.seissol.org",
+      "zip_url": "https://github.com/skilled-scipkg/SeisSol/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/SeisSol/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "seismology",
+        "earthquake-dynamics",
+        "wave-propagation",
+        "geophysics",
+        "numerical-pde"
+      ]
+    },
+    {
       "package_id": "snakemake",
       "title": "Snakemake Workflow Manager",
       "description": "Snakemake is a Python based workflow management system for reproducible and scalable scientific data pipelines that execute on local machines, HPC clusters, grids, and cloud environments.",
@@ -1572,6 +1900,34 @@
         "bioinformatics",
         "hpc",
         "orchestration"
+      ]
+    },
+    {
+      "package_id": "specfem3d-globe",
+      "title": "SPECFEM3D Globe",
+      "description": "SPECFEM3D Globe is a 3D spectral-element solver for simulating global and continental-scale seismic wave propagation in Earth, Mars, and Moon models.",
+      "upstream_repo_url": "https://github.com/SPECFEM/specfem3d_globe",
+      "homepage_url": "https://specfem.org",
+      "zip_url": "https://github.com/skilled-scipkg/specfem3d_globe/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/specfem3d_globe/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "seismology",
+        "geodynamics",
+        "wave-propagation",
+        "spectral-element",
+        "earth-science",
+        "hpc"
       ]
     },
     {
@@ -1686,6 +2042,35 @@
       ]
     },
     {
+      "package_id": "sw4",
+      "title": "SW4 Seismic Waves Solver",
+      "description": "SW4 is a high-order solver for 3D seismic wave propagation with free-surface and absorbing boundaries, supporting point-force and moment-tensor earthquake source modeling.",
+      "upstream_repo_url": "https://github.com/geodynamics/sw4",
+      "homepage_url": "https://github.com/geodynamics/sw4",
+      "zip_url": "https://github.com/skilled-scipkg/sw4/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/sw4/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "sw4",
+        "seismology",
+        "geophysics",
+        "seismic-modeling",
+        "elastic-waves",
+        "finite-difference",
+        "earthquake-simulation"
+      ]
+    },
+    {
       "package_id": "swift",
       "title": "SWIFT Astrophysical Simulation Engine",
       "description": "SWIFT is a high-performance astrophysics engine for cosmological particle simulations, combining gravity and smoothed particle hydrodynamics with fine-grained tasking across large HPC systems.",
@@ -1739,6 +2124,33 @@
         "vle",
         "flashcalculation",
         "mixtureproperties"
+      ]
+    },
+    {
+      "package_id": "tvb-root",
+      "title": "The Virtual Brain Core",
+      "description": "The Virtual Brain main codebase provides neuroscience tools for whole-brain network simulation, multimodal data analysis, and framework components for workflows, storage, and visualization.",
+      "upstream_repo_url": "https://github.com/the-virtual-brain/tvb-root",
+      "homepage_url": "https://thevirtualbrain.org",
+      "zip_url": "https://github.com/skilled-scipkg/tvb-root/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/tvb-root/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "neuroscience",
+        "brain-simulation",
+        "connectomics",
+        "neuroinformatics",
+        "computational-neuroscience"
       ]
     },
     {
