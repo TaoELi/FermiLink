@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-03-01T03:34:03.416400Z",
+  "updated_at": "2026-03-01T08:57:24.201165Z",
   "packages": [
     {
       "package_id": "abinit",
@@ -29,6 +29,33 @@
         "materials-science",
         "dfpt",
         "first-principles"
+      ]
+    },
+    {
+      "package_id": "alamode",
+      "title": "ALAMODE Lattice Thermal Transport",
+      "description": "ALAMODE computes harmonic and anharmonic force constants from first-principles data to analyze phonons, lattice anharmonicity, and lattice thermal conductivity in crystalline and low-dimensional solids.",
+      "upstream_repo_url": "https://github.com/ttadano/ALAMODE",
+      "homepage_url": "http://sourceforge.net/projects/alamode",
+      "zip_url": "https://github.com/skilled-scipkg/ALAMODE/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/ALAMODE/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "materials-science",
+        "phonons",
+        "thermal-transport",
+        "anharmonicity",
+        "lattice-dynamics"
       ]
     },
     {
@@ -167,6 +194,34 @@
         "coordinates",
         "cosmology",
         "units"
+      ]
+    },
+    {
+      "package_id": "astroquery",
+      "title": "Astroquery Astronomical Data Access",
+      "description": "Astroquery provides a unified Python interface for querying online astronomical catalogs, mission archives, and object databases through service-specific modules and standardized query methods.",
+      "upstream_repo_url": "https://github.com/astropy/astroquery",
+      "homepage_url": "http://astroquery.readthedocs.org/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/astroquery/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/astroquery/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "astronomy",
+        "astroinformatics",
+        "catalog-query",
+        "archive-access",
+        "observational-data",
+        "astropy-affiliated"
       ]
     },
     {
@@ -691,6 +746,34 @@
       ]
     },
     {
+      "package_id": "elk",
+      "title": "Elk All-Electron DFT Code",
+      "description": "Elk is an all-electron full-potential linearized augmented-plane-wave code for first-principles electronic-structure calculations in solids using density functional theory and related methods.",
+      "upstream_repo_url": "https://github.com/elk-code/elk",
+      "homepage_url": "https://elk.sourceforge.io/",
+      "zip_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electronic-structure",
+        "density-functional-theory",
+        "all-electron",
+        "fp-lapw",
+        "materials-science",
+        "solid-state-physics"
+      ]
+    },
+    {
       "package_id": "enzo-e",
       "title": "Enzo-E Exascale Astrophysics Simulator",
       "description": "Enzo-E is an exascale-oriented astrophysics and cosmology simulation code built on the Cello AMR framework for massively parallel hydrodynamics and structure-formation studies.",
@@ -743,34 +826,6 @@
         "coarse-grained",
         "computational-physics",
         "mesoscale-simulation"
-      ]
-    },
-    {
-      "package_id": "elk",
-      "title": "Elk All-Electron DFT Code",
-      "description": "Elk is an all-electron full-potential linearized augmented-plane-wave code for first-principles electronic-structure calculations in solids using density functional theory and related methods.",
-      "upstream_repo_url": "https://github.com/elk-code/elk",
-      "homepage_url": "https://elk.sourceforge.io/",
-      "zip_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/master.zip",
-      "default_version": "branch-head",
-      "versions": [
-        {
-          "version_id": "branch-head",
-          "source_archive_url": "https://github.com/skilled-scipkg/elk/archive/refs/heads/master.zip",
-          "source_ref": {
-            "type": "branch",
-            "value": "master"
-          },
-          "verified": false
-        }
-      ],
-      "tags": [
-        "electronic-structure",
-        "density-functional-theory",
-        "all-electron",
-        "fp-lapw",
-        "materials-science",
-        "solid-state-physics"
       ]
     },
     {
@@ -829,6 +884,33 @@
       ]
     },
     {
+      "package_id": "gprmax",
+      "title": "gprMax Ground Penetrating Radar Simulator",
+      "description": "gprMax is an open-source 3D finite-difference time-domain simulator for electromagnetic wave propagation, primarily used for ground penetrating radar modelling and subsurface investigations.",
+      "upstream_repo_url": "https://github.com/gprMax/gprMax",
+      "homepage_url": "https://www.gprmax.com",
+      "zip_url": "https://github.com/skilled-scipkg/gprMax/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/gprMax/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electromagnetics",
+        "fdtd",
+        "gpr",
+        "geophysics",
+        "simulation"
+      ]
+    },
+    {
       "package_id": "gromacs",
       "title": "GROMACS Molecular Dynamics",
       "description": "GROMACS is a high-performance molecular dynamics toolkit for simulating biomolecules, polymers, and liquids, with strong support for free-energy workflows and trajectory analysis.",
@@ -854,6 +936,33 @@
         "biophysics",
         "free-energy",
         "trajectory-analysis"
+      ]
+    },
+    {
+      "package_id": "hiphive",
+      "title": "hiphive Force-Constant Modeling",
+      "description": "hiphive builds sparse high-order interatomic force constant models from first-principles data to enable phonon calculations, lattice dynamics analysis, and anharmonic thermal transport workflows in crystalline materials.",
+      "upstream_repo_url": "https://github.com/hiphive/hiphive",
+      "homepage_url": "https://github.com/hiphive/hiphive",
+      "zip_url": "https://github.com/skilled-scipkg/hiphive/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/hiphive/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "materials-science",
+        "lattice-dynamics",
+        "phonons",
+        "force-constants",
+        "atomistic-modeling"
       ]
     },
     {
@@ -885,6 +994,33 @@
       ]
     },
     {
+      "package_id": "itensor",
+      "title": "ITensor Tensor Network Library",
+      "description": "ITensor is a C++ library for efficient tensor network calculations, featuring automatic index-aware contractions for matrix product states and quantum many-body algorithms.",
+      "upstream_repo_url": "https://github.com/ITensor/ITensor",
+      "homepage_url": "http://itensor.org",
+      "zip_url": "https://github.com/skilled-scipkg/ITensor/archive/refs/heads/v3.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/ITensor/archive/refs/heads/v3.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "v3"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "tensor-networks",
+        "quantum-many-body",
+        "dmrg",
+        "mps",
+        "cpp"
+      ]
+    },
+    {
       "package_id": "jdftx",
       "title": "JDFTx",
       "description": "JDFTx is a high-performance electronic-structure code implementing joint density functional theory for quantum simulations of solids, surfaces, and electrochemical interfaces with continuum solvation and advanced DFT capabilities.",
@@ -909,6 +1045,62 @@
         "joint-dft",
         "electrochemistry",
         "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "kadanoffbaym-jl",
+      "title": "KadanoffBaym.jl",
+      "description": "Julia package for adaptive numerical integration of nonequilibrium Kadanoff-Baym equations and real-time Green function dynamics in many-body quantum systems.",
+      "upstream_repo_url": "https://github.com/NonequilibriumDynamics/KadanoffBaym.jl",
+      "homepage_url": "https://github.com/NonequilibriumDynamics/KadanoffBaym.jl",
+      "zip_url": "https://github.com/skilled-scipkg/KadanoffBaym.jl/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/KadanoffBaym.jl/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "julia",
+        "nonequilibrium",
+        "many-body",
+        "quantum-dynamics",
+        "green-functions",
+        "kadanoff-baym"
+      ]
+    },
+    {
+      "package_id": "kite",
+      "title": "KITE Quantum Transport Suite",
+      "description": "KITE is a Python/C++ package for large-scale real-space tight-binding simulations of electronic structure and bulk quantum transport in disordered materials, including DC/AC conductivity, DoS, and wave-packet dynamics.",
+      "upstream_repo_url": "https://github.com/quantum-kite/kite",
+      "homepage_url": "https://quantum-kite.com",
+      "zip_url": "https://github.com/skilled-scipkg/kite/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/kite/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-transport",
+        "tight-binding",
+        "electronic-structure",
+        "condensed-matter",
+        "hpc",
+        "disorder"
       ]
     },
     {
@@ -1191,6 +1383,34 @@
       ]
     },
     {
+      "package_id": "nessi",
+      "title": "NESSi Non-Equilibrium Systems Simulation",
+      "description": "NESSi is an open-source package for simulating nonequilibrium many-body dynamics using contour-ordered Green's functions on the Kadanoff-Baym contour with equation-of-motion solvers and scalable reciprocal-space parallelization.",
+      "upstream_repo_url": "https://github.com/nessi-cntr/nessi",
+      "homepage_url": "https://github.com/nessi-cntr/nessi",
+      "zip_url": "https://github.com/skilled-scipkg/nessi/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/nessi/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "many-body-physics",
+        "nonequilibrium",
+        "green-functions",
+        "quantum-dynamics",
+        "kadanoff-baym",
+        "condensed-matter"
+      ]
+    },
+    {
       "package_id": "nest-simulator",
       "title": "NEST Spiking Neural Network Simulator",
       "description": "NEST is a scalable simulator for large spiking neural networks, supporting diverse neuron and synapse models to study cortical dynamics, plasticity, and electrophysiology-inspired experiments.",
@@ -1326,6 +1546,34 @@
         "file-conversion",
         "smiles",
         "inchi"
+      ]
+    },
+    {
+      "package_id": "openems",
+      "title": "openEMS Electromagnetic Solver",
+      "description": "openEMS is an open-source EC-FDTD electromagnetic field solver for simulating antennas, RF and microwave structures, and wave propagation in three-dimensional computational electromagnetics workflows.",
+      "upstream_repo_url": "https://github.com/thliebig/openEMS",
+      "homepage_url": "http://openEMS.de",
+      "zip_url": "https://github.com/skilled-scipkg/openEMS/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/openEMS/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electromagnetics",
+        "fdtd",
+        "rf",
+        "microwave",
+        "antenna",
+        "simulation"
       ]
     },
     {
@@ -1490,6 +1738,60 @@
       ]
     },
     {
+      "package_id": "phono3py",
+      "title": "Phono3py",
+      "description": "phono3py computes anharmonic phonon properties from third-order force constants, enabling lattice thermal conductivity and phonon lifetime simulations for crystalline materials.",
+      "upstream_repo_url": "https://github.com/phonopy/phono3py",
+      "homepage_url": "http://phonopy.github.io/phono3py/",
+      "zip_url": "https://github.com/skilled-scipkg/phono3py/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/phono3py/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "phonons",
+        "anharmonicity",
+        "lattice-dynamics",
+        "thermal-conductivity",
+        "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "phonopy",
+      "title": "Phonopy Phonon Lattice Dynamics",
+      "description": "Phonopy computes crystal phonons and vibrational thermodynamic properties from force constants, supporting dispersion, density of states, and finite-displacement lattice-dynamics workflows.",
+      "upstream_repo_url": "https://github.com/phonopy/phonopy",
+      "homepage_url": "http://phonopy.github.io/phonopy/",
+      "zip_url": "https://github.com/skilled-scipkg/phonopy/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/phonopy/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "phonons",
+        "lattice-dynamics",
+        "solid-state",
+        "materials-simulation",
+        "computational-physics"
+      ]
+    },
+    {
       "package_id": "photutils",
       "title": "Photutils Astronomical Photometry Toolkit",
       "description": "Photutils provides robust algorithms for detecting astronomical sources and performing aperture and PSF photometry, with background estimation, segmentation, centroiding, and profile analysis for telescope image data.",
@@ -1542,6 +1844,33 @@
         "ab-initio",
         "computational-chemistry",
         "molecular-modeling"
+      ]
+    },
+    {
+      "package_id": "pybinding",
+      "title": "Pybinding Tight Binding Toolkit",
+      "description": "pybinding is a scientific Python library for constructing and solving tight-binding models of crystalline materials to study electronic structure and quantum transport in solid-state systems.",
+      "upstream_repo_url": "https://github.com/dean0x7d/pybinding",
+      "homepage_url": "https://pybinding.site",
+      "zip_url": "https://github.com/skilled-scipkg/pybinding/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pybinding/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-physics",
+        "condensed-matter",
+        "tight-binding",
+        "electronic-structure",
+        "quantum-transport"
       ]
     },
     {
@@ -1739,6 +2068,34 @@
       ]
     },
     {
+      "package_id": "quantica-jl",
+      "title": "Quantica.jl Lattice Quantum Systems",
+      "description": "Quantica.jl is a Julia package for building lattice tight-binding Hamiltonians and computing band structures, Green functions, and transport observables for quantum condensed-matter systems.",
+      "upstream_repo_url": "https://github.com/pablosanjose/Quantica.jl",
+      "homepage_url": "https://github.com/pablosanjose/Quantica.jl",
+      "zip_url": "https://github.com/skilled-scipkg/Quantica.jl/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/Quantica.jl/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-physics",
+        "lattice-models",
+        "tight-binding",
+        "condensed-matter",
+        "quantum-transport",
+        "julia"
+      ]
+    },
+    {
       "package_id": "qutip",
       "title": "QuTiP Quantum Toolbox",
       "description": "QuTiP is a Python framework for simulating closed and open quantum system dynamics with Hamiltonians, collapse operators, and time-dependent master-equation solvers used in quantum optics and information research.",
@@ -1877,6 +2234,34 @@
       ]
     },
     {
+      "package_id": "scuff-em",
+      "title": "SCUFF-EM Electromagnetic BEM Suite",
+      "description": "SCUFF-EM is a computational electromagnetics suite for boundary-element simulations of scattering, Casimir interactions, radiative heat transfer, nanophotonics, RF structures, and electrostatics via library and command-line solvers.",
+      "upstream_repo_url": "https://github.com/HomerReid/scuff-em",
+      "homepage_url": "http://www.homerreid.com/scuff-em",
+      "zip_url": "https://github.com/skilled-scipkg/scuff-em/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/scuff-em/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-physics",
+        "electromagnetics",
+        "boundary-element",
+        "casimir",
+        "nanophotonics",
+        "electrostatics"
+      ]
+    },
+    {
       "package_id": "scvi-tools",
       "title": "scvi-tools Single-Cell Probabilistic Modeling",
       "description": "scvi-tools provides deep probabilistic models for single-cell and spatial omics, enabling latent representation learning, batch correction, cell type annotation, doublet detection, and multimodal integration within the scverse ecosystem.",
@@ -1928,6 +2313,34 @@
         "wave-propagation",
         "geophysics",
         "numerical-pde"
+      ]
+    },
+    {
+      "package_id": "sisl",
+      "title": "sisl Electronic Structure Toolkit",
+      "description": "sisl is a Python toolkit for post-processing electronic-structure simulations and building tight-binding and NEGF workflows with LCAO Hamiltonians, transport analysis, and real-space grids.",
+      "upstream_repo_url": "https://github.com/zerothi/sisl",
+      "homepage_url": "https://zerothi.github.io/sisl",
+      "zip_url": "https://github.com/skilled-scipkg/sisl/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/sisl/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "electronic-structure",
+        "dft",
+        "tight-binding",
+        "negf",
+        "quantum-transport",
+        "materials-simulation"
       ]
     },
     {
@@ -2011,6 +2424,35 @@
         "astrophysics",
         "spectral-analysis",
         "python"
+      ]
+    },
+    {
+      "package_id": "spglib",
+      "title": "Spglib Crystal Symmetry Toolkit",
+      "description": "Spglib provides robust crystal symmetry analysis to determine space groups, symmetry operations, and standardized cells from atomic coordinates, supporting crystallography, materials modeling, and solid-state simulation workflows.",
+      "upstream_repo_url": "https://github.com/spglib/spglib",
+      "homepage_url": "https://spglib.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/spglib/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/spglib/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "crystallography",
+        "materials-science",
+        "crystal-symmetry",
+        "space-groups",
+        "solid-state",
+        "atomistic",
+        "structure-analysis"
       ]
     },
     {
@@ -2152,6 +2594,34 @@
         "sph",
         "gravity",
         "hpc"
+      ]
+    },
+    {
+      "package_id": "tenpy",
+      "title": "TeNPy Tensor Network Python",
+      "description": "TeNPy is a tensor-network simulation library for strongly correlated quantum many-body systems, with readable yet extensible implementations of DMRG, TEBD, and related matrix-product-state algorithms for physics research.",
+      "upstream_repo_url": "https://github.com/tenpy/tenpy",
+      "homepage_url": "https://github.com/tenpy/tenpy",
+      "zip_url": "https://github.com/skilled-scipkg/tenpy/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/tenpy/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "tensor-networks",
+        "quantum-many-body",
+        "dmrg",
+        "tebd",
+        "matrix-product-states",
+        "computational-physics"
       ]
     },
     {

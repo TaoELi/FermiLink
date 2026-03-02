@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-01T03:34:03.416400Z",
+  "updated_at": "2026-03-01T08:57:24.201165Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -3253,6 +3253,658 @@
         "gromacs",
         "meep",
         "astropy"
+      ]
+    },
+    "nessi": {
+      "description": "Use this family for nonequilibrium Green-function quantum many-body workflows, especially Kadanoff-Baym or Keldysh contour dynamics and transient out-of-equilibrium simulations.",
+      "strong_keywords": [
+        "nessi",
+        "non-equilibrium systems simulation",
+        "nonequilibrium green functions",
+        "kadanoff-baym contour",
+        "keldysh contour",
+        "many-body dynamics",
+        "contour-ordered equations of motion",
+        "libcntr"
+      ],
+      "keywords": [
+        "feynman diagram construction",
+        "transient dynamics",
+        "interacting many-body problems",
+        "time-dependent model parameters",
+        "initial equilibrium state",
+        "high-order quadrature",
+        "reciprocal-space parallelization",
+        "distributed-memory calculations",
+        "extended systems",
+        "computer physics communications 2020"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "amuse",
+        "anndata",
+        "arbor",
+        "astropy",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "espresso"
+      ]
+    },
+    "astroquery": {
+      "description": "Use this family for astronomy data-retrieval intents involving remote catalog and archive queries by object name, sky coordinates, or region.",
+      "strong_keywords": [
+        "astroquery",
+        "astronomy catalog query",
+        "simbad",
+        "vizier",
+        "ned",
+        "query_object",
+        "query_region",
+        "astronomical archive access"
+      ],
+      "keywords": [
+        "mast",
+        "gaia archive",
+        "sdss",
+        "irsa",
+        "heasarc",
+        "alma archive",
+        "eso archive",
+        "jpl horizons",
+        "nasa exoplanet archive",
+        "cone search",
+        "sky coordinate search",
+        "astronomical table retrieval"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "abinit",
+        "amuse",
+        "anndata",
+        "batman",
+        "biopython",
+        "brian2",
+        "cp2k",
+        "deepchem",
+        "espresso"
+      ]
+    },
+    "kadanoffbaym-jl": {
+      "description": "Best for intents on nonequilibrium many-body quantum dynamics, contour Green functions, and adaptive Kadanoff-Baym equation time evolution.",
+      "strong_keywords": [
+        "kadanoffbaym.jl",
+        "kadanoffbaym-jl",
+        "kadanoff-baym equations",
+        "nonequilibrium green functions",
+        "keldysh contour",
+        "negf",
+        "two-time propagation",
+        "adaptive kadanoff-baym solver"
+      ],
+      "keywords": [
+        "nonequilibrium quantum field theory",
+        "dyson-keldysh equations",
+        "self-energy kernels",
+        "integro-differential evolution",
+        "quantum kinetic equations",
+        "real-time green function dynamics",
+        "many-body perturbation theory",
+        "time contour discretization",
+        "initial correlations",
+        "julia quantum simulation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "amuse",
+        "anndata",
+        "arbor",
+        "astropy",
+        "biopython",
+        "cp2k",
+        "espresso",
+        "dftk-jl",
+        "exoplanet"
+      ]
+    },
+    "tenpy": {
+      "description": "Use this family for tensor-network and matrix-product-state workflows targeting strongly correlated lattice quantum systems and condensed-matter simulations.",
+      "strong_keywords": [
+        "tenpy",
+        "tensor network python",
+        "tensor networks",
+        "matrix product states",
+        "dmrg",
+        "tebd",
+        "quantum lattice models",
+        "strongly correlated quantum systems"
+      ],
+      "keywords": [
+        "mps",
+        "mpo",
+        "tdvp",
+        "infinite dmrg",
+        "finite dmrg",
+        "time evolution",
+        "entanglement entropy",
+        "spin chains",
+        "hubbard model",
+        "heisenberg model",
+        "quantum many-body simulation",
+        "condensed matter numerics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "elk",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "deepchem",
+        "cantera"
+      ]
+    },
+    "itensor": {
+      "description": "Best for questions on tensor network methods in C++, especially MPS and MPO workflows, DMRG optimization, and lattice quantum many-body simulations.",
+      "strong_keywords": [
+        "itensor",
+        "tensor networks",
+        "matrix product state",
+        "matrix product operator",
+        "dmrg",
+        "tebd",
+        "quantum many-body",
+        "tensor contraction",
+        "index matching"
+      ],
+      "keywords": [
+        "mps",
+        "mpo",
+        "finite dmrg",
+        "time evolution",
+        "lattice hamiltonian",
+        "spin chain",
+        "entanglement entropy",
+        "tensor diagram transcription",
+        "quantum lattice model",
+        "variational optimization"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "amuse",
+        "anndata",
+        "arbor",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "espresso",
+        "exoplanet"
+      ]
+    },
+    "phonopy": {
+      "description": "Use this route for crystal vibrational analysis, phonon spectra, and temperature-dependent lattice thermodynamics in atomistic materials simulations.",
+      "strong_keywords": [
+        "phonopy",
+        "phonon dispersion",
+        "force constants",
+        "lattice dynamics",
+        "phonon density of states",
+        "vibrational thermodynamics",
+        "dynamical matrix",
+        "finite displacement"
+      ],
+      "keywords": [
+        "brillouin zone",
+        "supercell phonons",
+        "non-analytical term correction",
+        "born effective charges",
+        "thermal properties",
+        "helmholtz free energy",
+        "phonon band structure",
+        "group velocity",
+        "thermal displacement",
+        "quasi harmonic approximation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "deepchem",
+        "brian2",
+        "cantera"
+      ]
+    },
+    "phono3py": {
+      "description": "Routes to atomistic lattice-dynamics and thermal-transport workflows focused on phonon scattering, third-order force constants, and anharmonic crystal property calculations.",
+      "strong_keywords": [
+        "phono3py",
+        "phonon-phonon interaction",
+        "third-order force constants",
+        "lattice thermal conductivity",
+        "phonon lifetime",
+        "anharmonic lattice dynamics",
+        "boltzmann transport equation"
+      ],
+      "keywords": [
+        "phonon scattering rates",
+        "thermal transport in crystals",
+        "fc3 supercell displacements",
+        "gruneisen parameters",
+        "isotope scattering",
+        "joint density of states",
+        "q-point mesh",
+        "force constants symmetrization",
+        "phonopy integration",
+        "crystal anharmonicity"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "amuse",
+        "anndata",
+        "arbor",
+        "astropy",
+        "astroquery",
+        "cp2k",
+        "espresso",
+        "deepchem",
+        "exoplanet"
+      ]
+    },
+    "hiphive": {
+      "description": "Use this family for materials-physics intents about learning and validating harmonic or anharmonic force constants from atomistic force datasets.",
+      "strong_keywords": [
+        "hiphive",
+        "interatomic force constants",
+        "high-order force constants",
+        "force constant potential",
+        "anharmonic lattice dynamics",
+        "phonon interactions",
+        "cluster space",
+        "sum rules"
+      ],
+      "keywords": [
+        "phonon dispersion",
+        "phonon density of states",
+        "third-order force constants",
+        "thermal conductivity",
+        "supercell force fitting",
+        "displacement-force datasets",
+        "lattice thermal transport",
+        "phonopy integration",
+        "shengbte export",
+        "temperature-dependent force constants",
+        "crystal anharmonicity"
+      ],
+      "negative_keywords": [
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "deepchem",
+        "exoplanet",
+        "cesm"
+      ]
+    },
+    "spglib": {
+      "description": "Use this family for crystal structure symmetry, space-group identification, and unit-cell standardization in atomistic calculations.",
+      "strong_keywords": [
+        "spglib",
+        "crystal symmetry",
+        "space group detection",
+        "symmetry operations",
+        "standardized cell",
+        "wyckoff positions",
+        "hall symbol",
+        "spglibdataset",
+        "symprec"
+      ],
+      "keywords": [
+        "primitive cell",
+        "cell refinement",
+        "international space group number",
+        "bravais lattice",
+        "crystal structure format",
+        "atomic positions",
+        "lattice vectors",
+        "symmetry tolerance",
+        "materials informatics",
+        "electronic structure preprocessing",
+        "fortran interface",
+        "python interface"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "amuse",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "exoplanet"
+      ]
+    },
+    "alamode": {
+      "description": "Routes requests about phonon-driven lattice dynamics and anharmonic thermal transport workflows based on force constants extracted from DFT supercell calculations.",
+      "strong_keywords": [
+        "alamode",
+        "lattice anharmonicity",
+        "lattice thermal conductivity",
+        "anharmonic force constants",
+        "harmonic force constants",
+        "phonon linewidth",
+        "gruneisen parameter",
+        "bte-rta",
+        "self-consistent phonon"
+      ],
+      "keywords": [
+        "phonon dispersion",
+        "phonon density of states",
+        "two-phonon dos",
+        "3-phonon scattering phase space",
+        "4-phonon interactions",
+        "temperature-dependent effective potential",
+        "supercell force-constant extraction",
+        "first-principles thermal transport",
+        "crystal lattice dynamics",
+        "phonon isotope scattering",
+        "cumulative thermal conductivity",
+        "coherent thermal conductivity"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "cellrank",
+        "biopython",
+        "cantera",
+        "deepchem",
+        "brian2",
+        "exoplanet"
+      ]
+    },
+    "kite": {
+      "description": "Routes queries about tight-binding quantum transport and spectral or optical response calculations for disordered condensed-matter lattice models.",
+      "strong_keywords": [
+        "kite",
+        "quantum transport",
+        "tight-binding",
+        "disordered systems",
+        "dc conductivity",
+        "optical conductivity",
+        "density of states",
+        "cpgf",
+        "kitex",
+        "kite-tools"
+      ],
+      "keywords": [
+        "local density of states",
+        "ldos",
+        "arpes",
+        "nonlinear optical susceptibility",
+        "wave-packet propagation",
+        "gaussian wave packet",
+        "unitary time evolution",
+        "twisted boundary conditions",
+        "magnetic field lattice",
+        "finite temperature conductivity",
+        "fermi energy sweep",
+        "disorder cell"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "elk",
+        "dftk-jl",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "cantera"
+      ]
+    },
+    "pybinding": {
+      "description": "Use this family for condensed-matter lattice model tasks involving tight-binding Hamiltonians, band structures, density of states, and nanoscale transport calculations.",
+      "strong_keywords": [
+        "pybinding",
+        "tight binding",
+        "solid state physics",
+        "lattice hamiltonian",
+        "electronic band structure",
+        "quantum transport",
+        "condensed matter"
+      ],
+      "keywords": [
+        "density of states",
+        "brillouin zone",
+        "bloch states",
+        "graphene",
+        "nanoribbon",
+        "supercell",
+        "k space sampling",
+        "onsite potential",
+        "hopping parameters",
+        "lattice symmetry"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "alamode",
+        "amuse",
+        "anndata",
+        "arbor",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "espresso"
+      ]
+    },
+    "sisl": {
+      "description": "Routes intents about atomistic electronic-structure post-analysis, tight-binding Hamiltonians, NEGF transport workflows, and conversion or plotting of simulation outputs.",
+      "strong_keywords": [
+        "sisl",
+        "electronic structure",
+        "dft post processing",
+        "tight binding hamiltonian",
+        "negf",
+        "quantum transport",
+        "lcao",
+        "tbtrans",
+        "siesta"
+      ],
+      "keywords": [
+        "density of states",
+        "projected density of states",
+        "inverse participation ratio",
+        "real space grid",
+        "wavefunction plotting",
+        "spin density difference",
+        "sparse matrix manipulation",
+        "hamiltonian conversion",
+        "geometry file conversion",
+        "cube format",
+        "xsf format",
+        "transiesta",
+        "ase interoperability",
+        "pymatgen interoperability"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "elk",
+        "dftk-jl",
+        "astropy",
+        "biopython",
+        "deepchem",
+        "alamode",
+        "amuse"
+      ]
+    },
+    "quantica-jl": {
+      "description": "Use this family for intents on lattice Hamiltonian modeling, band calculations, and quantum transport in condensed-matter physics.",
+      "strong_keywords": [
+        "quantica-jl",
+        "quantica.jl",
+        "lattice hamiltonian",
+        "tight-binding model",
+        "band structure",
+        "green functions",
+        "quantum transport",
+        "local density of states",
+        "hartree-fock-bogoliubov",
+        "josephson currents"
+      ],
+      "keywords": [
+        "kane-mele model",
+        "honeycomb lattice",
+        "bloch harmonics",
+        "parametric hamiltonian",
+        "periodic lattice systems",
+        "conductance",
+        "current density",
+        "spectral observables",
+        "mean-field hamiltonian",
+        "orbital hopping",
+        "lattice presets"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "elk",
+        "dftk-jl",
+        "bloqade",
+        "brian2",
+        "astropy",
+        "alamode",
+        "amuse"
+      ]
+    },
+    "openems": {
+      "description": "Routes requests about time-domain computational electromagnetics, antenna and RF device simulation, and EC-FDTD based field analysis.",
+      "strong_keywords": [
+        "openems",
+        "ec-fdtd",
+        "computational electromagnetics",
+        "electromagnetic field solver",
+        "antenna simulation",
+        "rf simulation",
+        "microwave simulation"
+      ],
+      "keywords": [
+        "maxwell equations",
+        "time domain solver",
+        "scattering parameters",
+        "waveguide modeling",
+        "near field far field",
+        "metamaterial simulation",
+        "sar analysis",
+        "csxcad",
+        "octave interface",
+        "python interface"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "cellrank",
+        "brian2",
+        "cantera"
+      ]
+    },
+    "gprmax": {
+      "description": "Use this family for intents about Maxwell-equation FDTD solvers and forward modelling of ground penetrating radar in 3D media.",
+      "strong_keywords": [
+        "gprmax",
+        "gprmax simulator",
+        "ground penetrating radar",
+        "finite difference time domain",
+        "fdtd electromagnetics",
+        "maxwell equations solver",
+        "electromagnetic wave propagation",
+        "3d gpr simulation"
+      ],
+      "keywords": [
+        "subsurface radar modelling",
+        "geophysical electromagnetics",
+        "radargram simulation",
+        "dielectric permittivity modelling",
+        "conductive media modelling",
+        "dispersive material modelling",
+        "time domain wave solver",
+        "antenna radiation modelling",
+        "buried object detection",
+        "soil and pavement scanning",
+        "cpu and gpu fdtd"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "brian2",
+        "alamode",
+        "amuse"
+      ]
+    },
+    "scuff-em": {
+      "description": "Route queries about boundary-element computational electromagnetics, especially scattering, Casimir physics, near-field thermal radiation, nanophotonic devices, and electrostatic surface-current formulations.",
+      "strong_keywords": [
+        "scuff-em",
+        "boundary element electromagnetics",
+        "electromagnetic scattering",
+        "casimir forces",
+        "radiative heat transfer",
+        "surface-current-field formulation",
+        "nanophotonics",
+        "rf device engineering",
+        "electrostatics"
+      ],
+      "keywords": [
+        "bem solver",
+        "fluctuation-induced phenomena",
+        "near-field thermal radiation",
+        "casimir interaction energy",
+        "surface current method",
+        "open-region electromagnetics",
+        "frequency-domain em",
+        "photonic structures",
+        "electromagnetic boundary integral equations",
+        "computational electrodynamics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "alamode",
+        "biopython",
+        "anndata",
+        "astropy",
+        "deepchem",
+        "amuse",
+        "arbor"
       ]
     }
   }
