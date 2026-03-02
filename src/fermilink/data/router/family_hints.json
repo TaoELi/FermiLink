@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-01T08:57:24.201165Z",
+  "updated_at": "2026-03-02T16:17:11.980100Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -3905,6 +3905,48 @@
         "deepchem",
         "amuse",
         "arbor"
+      ]
+    },
+    "wannier_tools": {
+      "description": "Routes requests about postprocessing Wannier90 derived tight binding models for topological phase identification, surface and bulk band analysis, and related condensed matter observables.",
+      "strong_keywords": [
+        "wannier_tools",
+        "wanniertools",
+        "topological materials",
+        "wilson loop",
+        "surface state spectrum",
+        "weyl points",
+        "dirac points",
+        "nodal line",
+        "berry curvature",
+        "tight binding hamiltonian"
+      ],
+      "keywords": [
+        "wannier90 interface",
+        "fermi arcs",
+        "surface green function",
+        "brillouin zone",
+        "topological invariant",
+        "berry phase",
+        "landau levels",
+        "magnetoresistance",
+        "boltzmann transport",
+        "qpi",
+        "arpes simulation",
+        "stm spectrum",
+        "band unfolding"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "deepchem",
+        "anndata",
+        "cantera",
+        "brian2"
       ]
     }
   }
