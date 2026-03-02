@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-02T16:17:11.980100Z",
+  "updated_at": "2026-03-02T19:15:57.449341Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -3947,6 +3947,43 @@
         "anndata",
         "cantera",
         "brian2"
+      ]
+    },
+    "tdnegf": {
+      "description": "Use this family for time-dependent nonequilibrium Green-function modeling of spin-resolved electron transport in open quantum lattice devices with lead self-energies and current observables.",
+      "strong_keywords": [
+        "tdnegf",
+        "time-dependent nonequilibrium greens function",
+        "one-time tdnegf propagation",
+        "open quantum transport",
+        "reduced density matrix dynamics",
+        "spin-resolved transport",
+        "embedding self-energy poles",
+        "lead charge and spin currents"
+      ],
+      "keywords": [
+        "two-terminal square lattice",
+        "spin electron dynamics",
+        "auxiliary variables psi omega",
+        "local charge density",
+        "local spin density",
+        "lead charge current",
+        "lead spin current",
+        "quantum device leads",
+        "observables time series",
+        "nonequilibrium transport ode"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "elk",
+        "dftk-jl",
+        "dftd4",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata"
       ]
     }
   }
