@@ -1,5 +1,6 @@
 FermiLink_oldversion
 /public/
+/chainlit.md
 .chainlit
 .pytest_cache
 workspaces/
