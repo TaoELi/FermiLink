@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-03-05T03:11:10.202571Z",
+  "updated_at": "2026-03-05T04:15:03.641131Z",
   "packages": [
     {
       "package_id": "abinit",
@@ -1131,6 +1131,33 @@
         "optimization",
         "control",
         "planning"
+      ]
+    },
+    {
+      "package_id": "dumux",
+      "title": "DuMux Porous Media Simulator",
+      "description": "DuMux is an open source multiphysics simulation framework for finite volume modeling of flow and transport in porous media, supporting coupled domains, reactive processes, and geoscience applications.",
+      "upstream_repo_url": "https://github.com/dumux/dumux",
+      "homepage_url": "https://dumux.org/",
+      "zip_url": "https://github.com/skilled-scipkg/dumux/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/dumux/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "porousmedia",
+        "multiphysics",
+        "finitevolume",
+        "flowtransport",
+        "geoscience"
       ]
     },
     {
@@ -2630,6 +2657,34 @@
       ]
     },
     {
+      "package_id": "opm-simulators",
+      "title": "OPM Flow Reservoir Simulator",
+      "description": "Open Porous Media simulators provide fully implicit reservoir modeling for black-oil production, CO2 and hydrogen storage, thermal, solvent, and polymer processes using Eclipse-compatible input decks at industrial scale.",
+      "upstream_repo_url": "https://github.com/OPM/opm-simulators",
+      "homepage_url": "http://www.opm-project.org",
+      "zip_url": "https://github.com/skilled-scipkg/opm-simulators/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/opm-simulators/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "reservoir-simulation",
+        "porous-media",
+        "black-oil",
+        "co2-storage",
+        "hydrogen-storage",
+        "well-modeling"
+      ]
+    },
+    {
       "package_id": "oqupy",
       "title": "OQuPy",
       "description": "Open Quantum Systems in Python package focused on non-Markovian process-tensor methods and environment-driven quantum dynamics.",
@@ -2706,6 +2761,34 @@
         "fluid-dynamics",
         "hpc",
         "multiphase-flow"
+      ]
+    },
+    {
+      "package_id": "parflow",
+      "title": "ParFlow Watershed Flow Model",
+      "description": "ParFlow is a massively parallel integrated hydrologic model for coupled surface and subsurface watershed flow, simulating overland runoff, groundwater, and land-surface processes across complex terrain.",
+      "upstream_repo_url": "https://github.com/parflow/parflow",
+      "homepage_url": "http://parflow.org",
+      "zip_url": "https://github.com/skilled-scipkg/parflow/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/parflow/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "hydrology",
+        "watershed",
+        "groundwater",
+        "surface-water",
+        "hpc",
+        "environmental-modeling"
       ]
     },
     {

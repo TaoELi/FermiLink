@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-05T03:11:10.202571Z",
+  "updated_at": "2026-03-05T04:15:03.641131Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -6114,6 +6114,126 @@
         "cp2k",
         "cellrank",
         "cantera"
+      ]
+    },
+    "parflow": {
+      "description": "Use this family for integrated watershed hydrology intents involving coupled surface-subsurface flow physics, ParFlow simulations, and land-surface coupling in parallel environmental models.",
+      "strong_keywords": [
+        "parflow",
+        "integrated hydrologic model",
+        "coupled surface subsurface flow",
+        "watershed flow model",
+        "overland flow",
+        "groundwater flow",
+        "richards equation",
+        "clm coupling",
+        "parallel hydrology simulation"
+      ],
+      "keywords": [
+        "hydrologic simulation",
+        "land surface processes",
+        "land energy budget",
+        "snow process coupling",
+        "biogeochemistry coupling",
+        "complex topography",
+        "heterogeneous subsurface",
+        "infiltration runoff dynamics",
+        "water table dynamics",
+        "distributed watershed model",
+        "hydrometeorology coupling",
+        "massively parallel solver"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "bullet3"
+      ]
+    },
+    "opm-simulators": {
+      "description": "Reservoir and porous-media simulation software for subsurface flow, well operations, and geologic storage workflows in petroleum and energy systems.",
+      "strong_keywords": [
+        "opm-simulators",
+        "opm flow",
+        "reservoir simulator",
+        "black-oil",
+        "eclipse deck",
+        "well models",
+        "automatic differentiation",
+        "porous media flow",
+        "co2 storage",
+        "h2 storage",
+        "thermal simulation",
+        "polymer flooding"
+      ],
+      "keywords": [
+        "fully implicit method",
+        "multiphase reservoir flow",
+        "subsurface energy storage",
+        "solvent injection",
+        "reservoir engineering",
+        "well control",
+        "geological reservoir model",
+        "industrial reservoir simulation",
+        "deck-based simulation",
+        "co2 sequestration",
+        "hydrogen storage reservoirs"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "cellrank",
+        "cantera"
+      ]
+    },
+    "dumux": {
+      "description": "Routes queries about porous medium flow and transport simulation, finite volume discretization schemes, and coupled multiphysics solvers in the DUNE based scientific computing ecosystem.",
+      "strong_keywords": [
+        "dumux",
+        "porous media flow",
+        "finite volume discretization",
+        "multiphysics coupling",
+        "reactive transport",
+        "darcy scale simulation",
+        "dune framework"
+      ],
+      "keywords": [
+        "control volume finite element",
+        "tpfa",
+        "mpfa",
+        "staggered discretization",
+        "multidomain simulation",
+        "navier stokes models",
+        "poromechanics",
+        "pore network models",
+        "co2 sequestration",
+        "fractured porous media",
+        "soil remediation",
+        "newton method solver"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "calculix",
+        "cirq",
+        "cp2k"
       ]
     }
   }
