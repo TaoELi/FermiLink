@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-03-02T19:15:57.449341Z",
+  "updated_at": "2026-03-05T03:11:10.202571Z",
   "packages": [
     {
       "package_id": "abinit",
@@ -29,6 +29,62 @@
         "materials-science",
         "dfpt",
         "first-principles"
+      ]
+    },
+    {
+      "package_id": "acts",
+      "title": "ACTS Common Tracking Software",
+      "description": "ACTS is a modern C++ toolkit for experiment independent charged particle track reconstruction, detector geometry, and fast tracking simulation in high energy physics workflows.",
+      "upstream_repo_url": "https://github.com/acts-project/acts",
+      "homepage_url": "https://acts-project.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/acts/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/acts/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "high-energy-physics",
+        "particle-tracking",
+        "track-reconstruction",
+        "detector-geometry",
+        "simulation",
+        "cpp"
+      ]
+    },
+    {
+      "package_id": "aiida-core",
+      "title": "AiiDA Core Workflow Engine",
+      "description": "AiiDA-core is a scientific workflow and provenance platform that automates remote HPC calculations, tracks reproducible process graphs, and integrates simulation-code plugins.",
+      "upstream_repo_url": "https://github.com/aiidateam/aiida-core",
+      "homepage_url": "https://aiida-core.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/aiida-core/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/aiida-core/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "workflow",
+        "provenance",
+        "hpc",
+        "computational-science",
+        "reproducibility",
+        "scientific-automation"
       ]
     },
     {
@@ -225,6 +281,34 @@
       ]
     },
     {
+      "package_id": "atomate2",
+      "title": "Atomate2 Materials Workflow Library",
+      "description": "Atomate2 provides composable high-throughput computational materials science workflows for running and managing VASP and related calculations of electronic, vibrational, and defect properties at scale.",
+      "upstream_repo_url": "https://github.com/materialsproject/atomate2",
+      "homepage_url": "https://materialsproject.github.io/atomate2/",
+      "zip_url": "https://github.com/skilled-scipkg/atomate2/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/atomate2/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "materials-science",
+        "workflow-automation",
+        "high-throughput",
+        "dft",
+        "vasp",
+        "computational-materials"
+      ]
+    },
+    {
       "package_id": "atomsmltr",
       "title": "atomSmltr Laser Cooling and Trapping Simulator",
       "description": "atomSmltr is a modular Python toolkit for simulating laser-cooled atoms in custom laser and magnetic field geometries with trajectory integration.",
@@ -249,6 +333,33 @@
         "cold-atoms",
         "magneto-optical-trap",
         "numerical-simulation"
+      ]
+    },
+    {
+      "package_id": "awkward",
+      "title": "Awkward Array",
+      "description": "Awkward Array enables NumPy-like, compiled operations on deeply nested, variable-length, and record-rich scientific data, making jagged JSON-like event structures fast and practical to analyze.",
+      "upstream_repo_url": "https://github.com/scikit-hep/awkward",
+      "homepage_url": "https://awkward-array.org",
+      "zip_url": "https://github.com/skilled-scipkg/awkward/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/awkward/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "awkward",
+        "ragged-arrays",
+        "jagged-data",
+        "columnar-analysis",
+        "scikit-hep"
       ]
     },
     {
@@ -357,6 +468,61 @@
         "spiking-networks",
         "neural-simulation",
         "dynamical-systems"
+      ]
+    },
+    {
+      "package_id": "bullet3",
+      "title": "Bullet Physics SDK (bullet3)",
+      "description": "Bullet3 is a real time physics simulation library for rigid body dynamics and collision detection, with strong PyBullet workflows for robotics and reinforcement learning research.",
+      "upstream_repo_url": "https://github.com/bulletphysics/bullet3",
+      "homepage_url": "http://bulletphysics.org",
+      "zip_url": "https://github.com/skilled-scipkg/bullet3/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/bullet3/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "physics",
+        "simulation",
+        "collision",
+        "rigidbody",
+        "robotics",
+        "pybullet"
+      ]
+    },
+    {
+      "package_id": "calculix",
+      "title": "CalculiX Finite Element Program",
+      "description": "CalculiX is an open-source three-dimensional finite element package for structural and thermomechanical simulation, with ABAQUS-style input decks and engineering stress analysis workflows.",
+      "upstream_repo_url": "https://github.com/Dhondtguido/CalculiX",
+      "homepage_url": "https://github.com/Dhondtguido/CalculiX",
+      "zip_url": "https://github.com/skilled-scipkg/CalculiX/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/CalculiX/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "finite-element",
+        "fea",
+        "structural-mechanics",
+        "thermomechanics",
+        "mechanical-simulation"
       ]
     },
     {
@@ -581,6 +747,62 @@
       ]
     },
     {
+      "package_id": "cirq",
+      "title": "Cirq Quantum Circuit Framework",
+      "description": "Cirq is a Python framework for building, transforming, and simulating noisy intermediate-scale quantum circuits on simulators and hardware-aware quantum devices.",
+      "upstream_repo_url": "https://github.com/quantumlib/Cirq",
+      "homepage_url": "https://quantumai.google/cirq",
+      "zip_url": "https://github.com/skilled-scipkg/Cirq/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/Cirq/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cirq",
+        "quantum",
+        "nisq",
+        "quantum-circuits",
+        "simulation"
+      ]
+    },
+    {
+      "package_id": "coffea",
+      "title": "Coffea Collider HEP Analysis Framework",
+      "description": "Coffea provides columnar high-energy collider physics analysis tools with event processing, histogramming, corrections, and scalable execution from laptops to clusters in Python.",
+      "upstream_repo_url": "https://github.com/scikit-hep/coffea",
+      "homepage_url": "https://coffea-hep.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/coffea/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/coffea/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "hep",
+        "collider",
+        "columnar",
+        "nanoaod",
+        "event-analysis",
+        "scikit-hep",
+        "distributed-execution"
+      ]
+    },
+    {
       "package_id": "cp2k",
       "title": "CP2K Quantum Chemistry Suite",
       "description": "CP2K is an atomistic simulation package for quantum chemistry and solid-state physics, supporting DFT and beyond for molecular, periodic, and materials systems with efficient parallel execution.",
@@ -606,6 +828,62 @@
         "dft",
         "molecular-dynamics",
         "solid-state"
+      ]
+    },
+    {
+      "package_id": "custodian",
+      "title": "Custodian JIT Simulation Job Manager",
+      "description": "Custodian is a Python framework for just-in-time management of long-running materials and chemistry calculations, providing automated error detection, correction, and restart workflows for high-throughput simulation campaigns.",
+      "upstream_repo_url": "https://github.com/materialsproject/custodian",
+      "homepage_url": "https://github.com/materialsproject/custodian",
+      "zip_url": "https://github.com/skilled-scipkg/custodian/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/custodian/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "materials-science",
+        "computational-chemistry",
+        "job-management",
+        "error-recovery",
+        "high-throughput",
+        "electronic-structure"
+      ]
+    },
+    {
+      "package_id": "dart",
+      "title": "DART Robotics Dynamics Engine",
+      "description": "DART is a C++20 robotics and animation dynamics engine with stable articulated rigid-body simulation, collision and constraint handling, and Python bindings via dartpy.",
+      "upstream_repo_url": "https://github.com/dartsim/dart",
+      "homepage_url": "https://dart.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/dart/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/dart/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "robotics",
+        "physics-engine",
+        "dynamics",
+        "simulation",
+        "multibody",
+        "collision"
       ]
     },
     {
@@ -636,6 +914,34 @@
       ]
     },
     {
+      "package_id": "dd4hep",
+      "title": "DD4hep Detector Description Toolkit",
+      "description": "DD4hep provides a unified detector description framework for high energy physics, spanning geometry, materials, visualization, readout, alignment, and calibration for simulation, reconstruction, and analysis.",
+      "upstream_repo_url": "https://github.com/AIDASoft/DD4hep",
+      "homepage_url": "http://dd4hep.cern.ch",
+      "zip_url": "https://github.com/skilled-scipkg/DD4hep/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/DD4hep/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "hep",
+        "detector",
+        "geometry",
+        "readout",
+        "simulation",
+        "reconstruction"
+      ]
+    },
+    {
       "package_id": "deepchem",
       "title": "DeepChem Molecular Machine Learning Toolkit",
       "description": "DeepChem provides domain-focused machine learning tools for molecular property prediction, drug discovery, and scientific modeling across chemistry, materials science, quantum chemistry, and biology.",
@@ -661,6 +967,33 @@
         "quantum-chemistry",
         "materials-science",
         "computational-biology"
+      ]
+    },
+    {
+      "package_id": "delphes",
+      "title": "Delphes Fast Collider Simulation",
+      "description": "Delphes is a C++ framework for fast multipurpose collider detector-response simulation, producing reconstructed physics objects and ROOT trees from generated high-energy physics events.",
+      "upstream_repo_url": "https://github.com/delphes/delphes",
+      "homepage_url": "https://delphes.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/delphes/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/delphes/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "hep",
+        "collider",
+        "detector-simulation",
+        "fast-simulation",
+        "root"
       ]
     },
     {
@@ -746,6 +1079,61 @@
       ]
     },
     {
+      "package_id": "dolfinx",
+      "title": "DOLFINx",
+      "description": "DOLFINx is the next generation FEniCSx environment for parallel finite element solution of partial differential equations through interoperable C++ and Python interfaces.",
+      "upstream_repo_url": "https://github.com/FEniCS/dolfinx",
+      "homepage_url": "https://fenicsproject.org",
+      "zip_url": "https://github.com/skilled-scipkg/dolfinx/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/dolfinx/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "fenicsx",
+        "finite-element",
+        "pde",
+        "hpc",
+        "multiphysics"
+      ]
+    },
+    {
+      "package_id": "drake",
+      "title": "Drake Robotics Toolkit",
+      "description": "Drake is an open-source robotics toolbox for model-based design, simulation, planning, control, and verification of complex robotic systems.",
+      "upstream_repo_url": "https://github.com/RobotLocomotion/drake",
+      "homepage_url": "https://drake.mit.edu",
+      "zip_url": "https://github.com/skilled-scipkg/drake/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/drake/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "robotics",
+        "simulation",
+        "multibody",
+        "optimization",
+        "control",
+        "planning"
+      ]
+    },
+    {
       "package_id": "elk",
       "title": "Elk All-Electron DFT Code",
       "description": "Elk is an all-electron full-potential linearized augmented-plane-wave code for first-principles electronic-structure calculations in solids using density functional theory and related methods.",
@@ -771,6 +1159,34 @@
         "fp-lapw",
         "materials-science",
         "solid-state-physics"
+      ]
+    },
+    {
+      "package_id": "elmerfem",
+      "title": "Elmer FEM",
+      "description": "ElmerFEM is an open-source multiphysics finite element simulation suite for solving coupled partial differential equations in engineering and physics, including fluid flow, heat transfer, electromagnetics, and structural mechanics.",
+      "upstream_repo_url": "https://github.com/ElmerCSC/elmerfem",
+      "homepage_url": "http://www.elmerfem.org",
+      "zip_url": "https://github.com/skilled-scipkg/elmerfem/archive/refs/heads/devel.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/elmerfem/archive/refs/heads/devel.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "devel"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "finite-element",
+        "multiphysics",
+        "pde",
+        "computational-physics",
+        "cfd",
+        "structural-mechanics"
       ]
     },
     {
@@ -856,6 +1272,62 @@
       ]
     },
     {
+      "package_id": "fairroot",
+      "title": "FairRoot Particle Physics Framework",
+      "description": "FairRoot is a C++ framework for detector simulation, event reconstruction, and physics analysis in nuclear and particle experiments, built on ROOT with Geant3 and Geant4 transport support.",
+      "upstream_repo_url": "https://github.com/FairRootGroup/FairRoot",
+      "homepage_url": "http://fairroot.gsi.de",
+      "zip_url": "https://github.com/skilled-scipkg/FairRoot/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/FairRoot/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "particle-physics",
+        "nuclear-physics",
+        "detector-simulation",
+        "event-reconstruction",
+        "root",
+        "geant"
+      ]
+    },
+    {
+      "package_id": "fbpic",
+      "title": "FBPIC Spectral Quasi-3D PIC",
+      "description": "FBPIC is a Fourier-Bessel particle-in-cell simulator for relativistic plasma physics, optimized for laser and plasma wakefield acceleration studies on CPU and GPU.",
+      "upstream_repo_url": "https://github.com/fbpic/fbpic",
+      "homepage_url": "http://fbpic.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/fbpic/archive/refs/heads/dev.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/fbpic/archive/refs/heads/dev.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "dev"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "plasma-physics",
+        "particle-in-cell",
+        "wakefield-acceleration",
+        "laser-plasma",
+        "spectral-simulation",
+        "gpu-simulation"
+      ]
+    },
+    {
       "package_id": "fdtdbath-meep",
       "title": "Modified Meep FDTD Electromagnetics Simulator for FDTD-Bath approach of condensed-phase polaritonics",
       "description": "The modified Meep code with standard meep functions + fdtd-bath implementation for condensed-phase polaritonics",
@@ -881,6 +1353,34 @@
         "maxwell",
         "computational-physics",
         "wave-simulation"
+      ]
+    },
+    {
+      "package_id": "geant4",
+      "title": "Geant4 Particle-Matter Simulation Toolkit",
+      "description": "Geant4 is a C++ toolkit for Monte Carlo simulation of particle interactions with matter across detector design, radiation transport, medical physics, and space science applications.",
+      "upstream_repo_url": "https://github.com/Geant4/geant4",
+      "homepage_url": "https://geant4.org",
+      "zip_url": "https://github.com/skilled-scipkg/geant4/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/geant4/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "particle-physics",
+        "monte-carlo",
+        "radiation-transport",
+        "detector-simulation",
+        "medical-physics",
+        "nuclear-physics"
       ]
     },
     {
@@ -936,6 +1436,89 @@
         "biophysics",
         "free-energy",
         "trajectory-analysis"
+      ]
+    },
+    {
+      "package_id": "gwaslab",
+      "title": "GWASLab Summary Statistics Toolkit",
+      "description": "GWASLab is a Python toolkit for loading, harmonizing, quality-controlling, converting, and visualizing genome-wide association study summary statistics across common GWAS formats and reference resources.",
+      "upstream_repo_url": "https://github.com/Cloufield/gwaslab",
+      "homepage_url": "https://github.com/Cloufield/gwaslab",
+      "zip_url": "https://github.com/skilled-scipkg/gwaslab/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/gwaslab/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "gwas",
+        "genomics",
+        "summary-statistics",
+        "statistical-genetics",
+        "visualization"
+      ]
+    },
+    {
+      "package_id": "gz-sim",
+      "title": "Gazebo Sim (gz-sim)",
+      "description": "Open-source robotics simulator for high-fidelity physics, 3D rendering, and sensor modeling, enabling virtual robot testing through GUI, plugins, command-line tools, and distributed transport interfaces.",
+      "upstream_repo_url": "https://github.com/gazebosim/gz-sim",
+      "homepage_url": "https://gazebosim.org",
+      "zip_url": "https://github.com/skilled-scipkg/gz-sim/archive/refs/heads/gz-sim10.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/gz-sim/archive/refs/heads/gz-sim10.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "gz-sim10"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "robotics",
+        "simulation",
+        "physics",
+        "sensors",
+        "gazebo",
+        "autonomy"
+      ]
+    },
+    {
+      "package_id": "hail",
+      "title": "Hail Genomics Analytics",
+      "description": "Hail is a cloud native Python framework for large scale genomic dataframes, enabling distributed variant analysis, GWAS pipelines, and cohort level quality control on massive sequencing datasets.",
+      "upstream_repo_url": "https://github.com/hail-is/hail",
+      "homepage_url": "https://hail.is",
+      "zip_url": "https://github.com/skilled-scipkg/hail/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/hail/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "genomics",
+        "gwas",
+        "populationgenetics",
+        "variantqc",
+        "bioinformatics",
+        "distributedcomputing"
       ]
     },
     {
@@ -1021,6 +1604,33 @@
       ]
     },
     {
+      "package_id": "itensors-jl",
+      "title": "ITensors.jl Tensor Network Library",
+      "description": "ITensors.jl is a Julia package for efficient index-aware tensor operations and tensor network primitives used in quantum many-body and numerical physics workflows.",
+      "upstream_repo_url": "https://github.com/ITensor/ITensors.jl",
+      "homepage_url": "https://itensor.org",
+      "zip_url": "https://github.com/skilled-scipkg/ITensors.jl/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/ITensors.jl/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "julia",
+        "tensor-networks",
+        "computational-physics",
+        "quantum-many-body",
+        "tensor-algebra"
+      ]
+    },
+    {
       "package_id": "jdftx",
       "title": "JDFTx",
       "description": "JDFTx is a high-performance electronic-structure code implementing joint density functional theory for quantum simulations of solids, surfaces, and electrochemical interfaces with continuum solvation and advanced DFT capabilities.",
@@ -1045,6 +1655,34 @@
         "joint-dft",
         "electrochemistry",
         "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "jobflow",
+      "title": "Jobflow Computational Workflow Library",
+      "description": "Jobflow is a Python library for defining, composing, and executing dynamic computational workflows as connected jobs and flows, with remote execution options and persistent scientific output storage.",
+      "upstream_repo_url": "https://github.com/materialsproject/jobflow",
+      "homepage_url": "https://materialsproject.github.io/jobflow",
+      "zip_url": "https://github.com/skilled-scipkg/jobflow/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/jobflow/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "workflow",
+        "computational-workflows",
+        "materials-science",
+        "high-throughput",
+        "job-orchestration",
+        "scientific-automation"
       ]
     },
     {
@@ -1101,6 +1739,34 @@
         "condensed-matter",
         "hpc",
         "disorder"
+      ]
+    },
+    {
+      "package_id": "kratos",
+      "title": "Kratos Multiphysics",
+      "description": "Kratos Multiphysics is a modular, parallel framework for coupled finite-element simulations across fluid dynamics, structural mechanics, contact, DEM, and fluid-structure interaction domains.",
+      "upstream_repo_url": "https://github.com/KratosMultiphysics/Kratos",
+      "homepage_url": "https://kratosmultiphysics.github.io/Kratos/",
+      "zip_url": "https://github.com/skilled-scipkg/Kratos/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/Kratos/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "multiphysics",
+        "finite-element",
+        "cfd",
+        "structural-mechanics",
+        "fsi",
+        "hpc"
       ]
     },
     {
@@ -1187,6 +1853,34 @@
       ]
     },
     {
+      "package_id": "limix",
+      "title": "LIMIX Genomic Linear Mixed Models",
+      "description": "LIMIX provides efficient linear mixed model methods for genomic association, interaction, and variance decomposition analyses, supporting workflows such as single-variant tests, set tests, and eQTL-style statistical genetics studies.",
+      "upstream_repo_url": "https://github.com/limix/limix",
+      "homepage_url": "https://github.com/limix/limix",
+      "zip_url": "https://github.com/skilled-scipkg/limix/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/limix/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "genomics",
+        "statistical-genetics",
+        "linear-mixed-models",
+        "gwas",
+        "eqtl",
+        "association-testing"
+      ]
+    },
+    {
       "package_id": "maxwelllink",
       "title": "MaxwellLink Light-Matter Co-Simulation",
       "description": "MaxwellLink is a modular Python framework for self-consistent electromagnetic molecular co-simulation, coupling EM solvers with quantum, force-field, and first-principles molecular dynamics drivers.",
@@ -1212,6 +1906,33 @@
         "molecular-dynamics",
         "quantum-dynamics",
         "hpc"
+      ]
+    },
+    {
+      "package_id": "mcdc",
+      "title": "MC/DC Neutron Transport",
+      "description": "MC/DC is a scalable Monte Carlo neutron transport package for fully transient reactor and radiation simulations, enabling rapid methods development with performant, machine-portable Python implementations.",
+      "upstream_repo_url": "https://github.com/CEMeNT-PSAAP/MCDC",
+      "homepage_url": "https://mcdc.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/MCDC/archive/refs/heads/dev.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/MCDC/archive/refs/heads/dev.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "dev"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "neutron-transport",
+        "monte-carlo",
+        "reactor-physics",
+        "radiation-transport",
+        "computational-physics"
       ]
     },
     {
@@ -1243,6 +1964,34 @@
       ]
     },
     {
+      "package_id": "mfem",
+      "title": "MFEM Finite Element Library",
+      "description": "MFEM is a modular, scalable C++ finite element library for high-order PDE discretization, adaptive meshing, and MPI/GPU-enabled scientific simulation from laptops to supercomputers.",
+      "upstream_repo_url": "https://github.com/mfem/mfem",
+      "homepage_url": "http://mfem.org",
+      "zip_url": "https://github.com/skilled-scipkg/mfem/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/mfem/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "finite-element",
+        "pde",
+        "scientific-computing",
+        "hpc",
+        "cpp",
+        "amr"
+      ]
+    },
+    {
       "package_id": "mitgcm",
       "title": "MIT General Circulation Model (MITgcm)",
       "description": "MITgcm is a flexible geophysical fluid dynamics package for simulating ocean and atmospheric circulation, with coupled ocean sea ice and climate process capabilities.",
@@ -1268,6 +2017,34 @@
         "atmospheric-circulation",
         "geophysical-fluids",
         "sea-ice"
+      ]
+    },
+    {
+      "package_id": "modflow6",
+      "title": "MODFLOW 6 Groundwater Model",
+      "description": "MODFLOW 6 is the USGS modular hydrologic simulator for groundwater flow and transport, supporting integrated surface-water interactions, time-varying stresses, and extensible packages for basin-scale hydrogeologic modeling.",
+      "upstream_repo_url": "https://github.com/MODFLOW-ORG/modflow6",
+      "homepage_url": "https://modflow6.readthedocs.io/",
+      "zip_url": "https://github.com/skilled-scipkg/modflow6/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/modflow6/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "groundwater",
+        "hydrology",
+        "hydrogeology",
+        "usgs",
+        "modflow",
+        "aquifer-modeling"
       ]
     },
     {
@@ -1326,6 +2103,34 @@
       ]
     },
     {
+      "package_id": "moose",
+      "title": "MOOSE Multiphysics Framework",
+      "description": "MOOSE is an object-oriented finite-element framework for fully coupled implicit multiphysics simulations with adaptive meshing, scalable parallel solvers, and engineering-focused APIs.",
+      "upstream_repo_url": "https://github.com/idaholab/moose",
+      "homepage_url": "https://mooseframework.inl.gov",
+      "zip_url": "https://github.com/skilled-scipkg/moose/archive/refs/heads/next.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/moose/archive/refs/heads/next.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "next"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "multiphysics",
+        "finite-element",
+        "pde",
+        "simulation",
+        "hpc",
+        "engineering"
+      ]
+    },
+    {
       "package_id": "mpas-model",
       "title": "MPAS Model for Prediction Across Scales",
       "description": "MPAS-Model is an unstructured-mesh earth system modeling framework for atmosphere, ocean, sea ice, and land ice simulations used in climate, regional climate, and weather research.",
@@ -1352,6 +2157,34 @@
         "ocean",
         "sea-ice",
         "weather-modeling"
+      ]
+    },
+    {
+      "package_id": "mujoco",
+      "title": "MuJoCo Physics Simulator",
+      "description": "MuJoCo is a high-performance multi-joint rigid-body physics engine for contact-rich simulation in robotics, biomechanics, control, and differentiable dynamics research.",
+      "upstream_repo_url": "https://github.com/google-deepmind/mujoco",
+      "homepage_url": "https://mujoco.org",
+      "zip_url": "https://github.com/skilled-scipkg/mujoco/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/mujoco/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "physics-simulation",
+        "robotics",
+        "rigid-body-dynamics",
+        "contact-dynamics",
+        "biomechanics",
+        "optimal-control"
       ]
     },
     {
@@ -1435,6 +2268,33 @@
         "neural-simulation",
         "synaptic-plasticity",
         "brain-network-modeling"
+      ]
+    },
+    {
+      "package_id": "netket",
+      "title": "NetKet Quantum Many-Body ML",
+      "description": "NetKet is a Python library for variational and machine-learning methods in many-body quantum physics, supporting neural quantum states, Monte Carlo sampling, and optimization of lattice Hamiltonian ground states and dynamics.",
+      "upstream_repo_url": "https://github.com/netket/netket",
+      "homepage_url": "https://www.netket.org",
+      "zip_url": "https://github.com/skilled-scipkg/netket/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/netket/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-physics",
+        "many-body",
+        "variational-monte-carlo",
+        "neural-quantum-states",
+        "computational-physics"
       ]
     },
     {
@@ -1632,6 +2492,34 @@
       ]
     },
     {
+      "package_id": "openmc",
+      "title": "OpenMC Monte Carlo Particle Transport",
+      "description": "OpenMC is a Monte Carlo neutron and photon transport package for reactor physics and radiation modeling using continuous energy nuclear data and constructive solid geometry.",
+      "upstream_repo_url": "https://github.com/openmc-dev/openmc",
+      "homepage_url": "https://docs.openmc.org",
+      "zip_url": "https://github.com/skilled-scipkg/openmc/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/openmc/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "openmc",
+        "monte-carlo",
+        "reactor-physics",
+        "nuclear-transport",
+        "criticality",
+        "radiation"
+      ]
+    },
+    {
       "package_id": "openmm",
       "title": "OpenMM Molecular Dynamics Toolkit",
       "description": "OpenMM is a high-performance molecular dynamics toolkit for biomolecular simulation, offering flexible custom forces and integrators with fast GPU execution through Python and C++ interfaces.",
@@ -1656,6 +2544,89 @@
         "computational-chemistry",
         "biophysics",
         "gpu-acceleration"
+      ]
+    },
+    {
+      "package_id": "openmoc",
+      "title": "OpenMOC Reactor Physics Solver",
+      "description": "OpenMOC is a deterministic method-of-characteristics simulator for neutron transport in nuclear reactors, computing flux, power distribution, and multiplication factors for fixed-source and eigenvalue problems.",
+      "upstream_repo_url": "https://github.com/mit-crpg/OpenMOC",
+      "homepage_url": "https://mit-crpg.github.io/OpenMOC/",
+      "zip_url": "https://github.com/skilled-scipkg/OpenMOC/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/OpenMOC/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "openmoc",
+        "nuclear",
+        "reactor-physics",
+        "neutron-transport",
+        "moc",
+        "core-simulation"
+      ]
+    },
+    {
+      "package_id": "opensees",
+      "title": "OpenSees Earthquake Engineering Simulator",
+      "description": "OpenSees is a finite element platform for nonlinear structural and geotechnical analysis, widely used to model seismic response, time history behavior, and performance based earthquake engineering systems.",
+      "upstream_repo_url": "https://github.com/OpenSees/OpenSees",
+      "homepage_url": "https://github.com/OpenSees/OpenSees",
+      "zip_url": "https://github.com/skilled-scipkg/OpenSees/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/OpenSees/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "earthquake-engineering",
+        "structural-mechanics",
+        "finite-element",
+        "seismic-analysis",
+        "civil-engineering"
+      ]
+    },
+    {
+      "package_id": "opensn",
+      "title": "OpenSn Linear Boltzmann Solver",
+      "description": "OpenSn is a massively parallel scientific simulation engine that solves the linear Boltzmann equation using deterministic discrete-ordinates transport methods.",
+      "upstream_repo_url": "https://github.com/Open-Sn/opensn",
+      "homepage_url": "https://open-sn.github.io/opensn/",
+      "zip_url": "https://github.com/skilled-scipkg/opensn/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/opensn/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "neutron-transport",
+        "radiation-transport",
+        "boltzmann-equation",
+        "discrete-ordinates",
+        "hpc",
+        "scientific-simulation"
       ]
     },
     {
@@ -1735,6 +2706,60 @@
         "fluid-dynamics",
         "hpc",
         "multiphase-flow"
+      ]
+    },
+    {
+      "package_id": "pennylane",
+      "title": "PennyLane",
+      "description": "PennyLane is an open-source Python framework for building and optimizing quantum circuits, hybrid quantum-classical models, and quantum chemistry workflows across simulators and hardware backends.",
+      "upstream_repo_url": "https://github.com/PennyLaneAI/pennylane",
+      "homepage_url": "https://pennylane.ai",
+      "zip_url": "https://github.com/skilled-scipkg/pennylane/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pennylane/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-computing",
+        "quantum-machine-learning",
+        "quantum-chemistry",
+        "python",
+        "variational-algorithms"
+      ]
+    },
+    {
+      "package_id": "perceval",
+      "title": "Perceval Photonic Quantum Toolkit",
+      "description": "Perceval is a Python framework for designing, simulating, and executing discrete-variable photonic quantum circuits with linear optics models and Quandela hardware connectivity.",
+      "upstream_repo_url": "https://github.com/Quandela/Perceval",
+      "homepage_url": "https://perceval.quandela.net",
+      "zip_url": "https://github.com/skilled-scipkg/Perceval/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/Perceval/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "photonic-quantum",
+        "linear-optics",
+        "fock-states",
+        "quantum-simulation",
+        "quandela"
       ]
     },
     {
@@ -1820,6 +2845,117 @@
       ]
     },
     {
+      "package_id": "picongpu",
+      "title": "PIConGPU",
+      "description": "PIConGPU performs fully relativistic 3D3V particle-in-cell plasma simulations with self-consistent electromagnetic fields, ionization, radiation diagnostics, and exascale GPU manycore scalability.",
+      "upstream_repo_url": "https://github.com/ComputationalRadiationPhysics/picongpu",
+      "homepage_url": "https://picongpu.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/picongpu/archive/refs/heads/dev.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/picongpu/archive/refs/heads/dev.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "dev"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "plasma-physics",
+        "particle-in-cell",
+        "hpc",
+        "gpu",
+        "electromagnetics",
+        "computational-physics"
+      ]
+    },
+    {
+      "package_id": "plink-ng",
+      "title": "PLINK 2 Genome Association Toolkit",
+      "description": "PLINK-NG provides high-performance whole-genome association and population genetics analyses, supporting large cohort genotype, VCF, and dosage datasets for GWAS, quality control, and relatedness workflows.",
+      "upstream_repo_url": "https://github.com/chrchang/plink-ng",
+      "homepage_url": "https://www.cog-genomics.org/plink/2.0/",
+      "zip_url": "https://github.com/skilled-scipkg/plink-ng/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/plink-ng/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "genomics",
+        "gwas",
+        "population-genetics",
+        "bioinformatics",
+        "variant-analysis"
+      ]
+    },
+    {
+      "package_id": "precice",
+      "title": "preCICE Coupling Library",
+      "description": "preCICE couples independent simulation solvers for partitioned multi-physics and multi-scale workflows, providing robust communication, data mapping, and acceleration for surface and volume interface exchanges.",
+      "upstream_repo_url": "https://github.com/precice/precice",
+      "homepage_url": "https://precice.org/",
+      "zip_url": "https://github.com/skilled-scipkg/precice/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/precice/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "multiphysics",
+        "partitioned-coupling",
+        "cosimulation",
+        "fsi",
+        "multiscale",
+        "solver-coupling"
+      ]
+    },
+    {
+      "package_id": "psc",
+      "title": "PSC Particle-in-Cell Plasma Simulator",
+      "description": "PSC is a three-dimensional fully electromagnetic particle-in-cell code for kinetic plasma simulations with MPI scaling, GPU acceleration, and patch-based dynamic load balancing.",
+      "upstream_repo_url": "https://github.com/psc-code/psc",
+      "homepage_url": "https://psc.readthedocs.io/en/latest/",
+      "zip_url": "https://github.com/skilled-scipkg/psc/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/psc/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "plasma-physics",
+        "particle-in-cell",
+        "electromagnetics",
+        "kinetic-plasma",
+        "hpc",
+        "gpu"
+      ]
+    },
+    {
       "package_id": "psi4",
       "title": "Psi4 Quantum Chemistry",
       "description": "Psi4 is an open source ab initio quantum chemistry package for high accuracy molecular electronic structure calculations, with performant C++ kernels and Python driven user workflows.",
@@ -1898,6 +3034,62 @@
         "flux-reconstruction",
         "unstructured-mesh",
         "gpu-computing"
+      ]
+    },
+    {
+      "package_id": "pyhf",
+      "title": "pyhf HistFactory Inference Toolkit",
+      "description": "pyhf provides pure-Python HistFactory statistical models for high-energy physics, enabling likelihood fitting, CLs hypothesis testing, and interval estimation with tensor backends and autodiff support.",
+      "upstream_repo_url": "https://github.com/scikit-hep/pyhf",
+      "homepage_url": "https://pyhf.readthedocs.io/",
+      "zip_url": "https://github.com/skilled-scipkg/pyhf/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pyhf/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "hep",
+        "histfactory",
+        "likelihood",
+        "inference",
+        "cls",
+        "autodiff"
+      ]
+    },
+    {
+      "package_id": "pyiron_base",
+      "title": "pyiron Base Workflow Core",
+      "description": "pyiron_base provides core workflow, job orchestration, and HDF5-based data management for large-scale computational materials science studies across local and HPC resources.",
+      "upstream_repo_url": "https://github.com/pyiron/pyiron_base",
+      "homepage_url": "https://pyiron-base.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/pyiron_base/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/pyiron_base/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "computational-materials-science",
+        "workflow-management",
+        "hpc",
+        "job-orchestration",
+        "hdf5",
+        "parameter-studies"
       ]
     },
     {
@@ -2068,6 +3260,62 @@
       ]
     },
     {
+      "package_id": "qibo",
+      "title": "Qibo Quantum Simulation and Control",
+      "description": "Qibo is an open-source full-stack framework for building, simulating, and executing quantum circuits, with device-agnostic backends for CPU or GPU simulation and quantum hardware control.",
+      "upstream_repo_url": "https://github.com/qiboteam/qibo",
+      "homepage_url": "https://qibo.science",
+      "zip_url": "https://github.com/skilled-scipkg/qibo/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/qibo/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "qibo",
+        "quantum-computing",
+        "quantum-circuits",
+        "quantum-simulation",
+        "hardware-control",
+        "variational-algorithms"
+      ]
+    },
+    {
+      "package_id": "qiskit",
+      "title": "Qiskit Quantum SDK",
+      "description": "Qiskit is an open source quantum computing SDK for building circuits, transpiling to target backends, and evaluating observables with sampler and estimator primitives.",
+      "upstream_repo_url": "https://github.com/Qiskit/qiskit",
+      "homepage_url": "https://www.ibm.com/quantum/qiskit",
+      "zip_url": "https://github.com/skilled-scipkg/qiskit/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/qiskit/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-computing",
+        "quantum-circuits",
+        "transpiler",
+        "quantum-information",
+        "primitives",
+        "ibm-quantum"
+      ]
+    },
+    {
       "package_id": "quantica-jl",
       "title": "Quantica.jl Lattice Quantum Systems",
       "description": "Quantica.jl is a Julia package for building lattice tight-binding Hamiltonians and computing band structures, Green functions, and transport observables for quantum condensed-matter systems.",
@@ -2093,6 +3341,87 @@
         "condensed-matter",
         "quantum-transport",
         "julia"
+      ]
+    },
+    {
+      "package_id": "quantumoptics-jl",
+      "title": "QuantumOptics.jl Quantum Dynamics Simulator",
+      "description": "Julia package for numerically simulating closed and open quantum systems, with tools for quantum optics models, operator algebra, and dissipative time evolution.",
+      "upstream_repo_url": "https://github.com/qojulia/QuantumOptics.jl",
+      "homepage_url": "http://qojulia.org",
+      "zip_url": "https://github.com/skilled-scipkg/QuantumOptics.jl/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/QuantumOptics.jl/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-optics",
+        "open-quantum-systems",
+        "julia",
+        "quantum-simulation",
+        "computational-physics"
+      ]
+    },
+    {
+      "package_id": "quimb",
+      "title": "Quimb Quantum Tensor Networks",
+      "description": "Quimb is a Python package for quantum information and many-body physics, combining tensor-network algorithms with exact operator methods for entanglement, spectra, and dynamics.",
+      "upstream_repo_url": "https://github.com/jcmgray/quimb",
+      "homepage_url": "http://quimb.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/quimb/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/quimb/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum",
+        "tensor-networks",
+        "many-body",
+        "entanglement",
+        "simulation"
+      ]
+    },
+    {
+      "package_id": "qulacs",
+      "title": "Qulacs Quantum Circuit Simulator",
+      "description": "Qulacs is a high performance C++ and Python library for simulating large noisy and parametric gate based quantum circuits with multithreaded CPU and optional CUDA acceleration for variational quantum computing research.",
+      "upstream_repo_url": "https://github.com/qulacs/qulacs",
+      "homepage_url": "https://github.com/qulacs/qulacs",
+      "zip_url": "https://github.com/skilled-scipkg/qulacs/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/qulacs/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum",
+        "circuit",
+        "simulation",
+        "variational",
+        "nisq"
       ]
     },
     {
@@ -2178,6 +3507,34 @@
       ]
     },
     {
+      "package_id": "root",
+      "title": "CERN ROOT Data Analysis Framework",
+      "description": "ROOT is CERN's C++ scientific data analysis framework for storing columnar event data, building histograms, fitting models, and producing publication-quality visualizations with interactive and batch workflows.",
+      "upstream_repo_url": "https://github.com/root-project/root",
+      "homepage_url": "https://root.cern",
+      "zip_url": "https://github.com/skilled-scipkg/root/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/root/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "cern",
+        "hep",
+        "data-analysis",
+        "histogramming",
+        "visualization",
+        "cpp"
+      ]
+    },
+    {
       "package_id": "scanpy",
       "title": "Scanpy Single-Cell Toolkit",
       "description": "Scanpy is a scalable Python toolkit for preprocessing, visualization, clustering, trajectory inference, and differential expression analysis of single-cell gene expression data.",
@@ -2206,6 +3563,33 @@
       ]
     },
     {
+      "package_id": "scikit-allel",
+      "title": "scikit-allel Population Genetics",
+      "description": "Python package for exploratory analysis of large-scale genetic variation data, with tools for genotype arrays, variant statistics, and population genetics workflows.",
+      "upstream_repo_url": "https://github.com/cggh/scikit-allel",
+      "homepage_url": "https://github.com/cggh/scikit-allel",
+      "zip_url": "https://github.com/skilled-scipkg/scikit-allel/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/scikit-allel/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "population-genetics",
+        "genomics",
+        "variant-analysis",
+        "bioinformatics",
+        "vcf"
+      ]
+    },
+    {
       "package_id": "scikit-bio",
       "title": "scikit-bio Bioinformatics Library",
       "description": "Community-driven Python bioinformatics library with reusable data structures and algorithms for sequence processing, phylogenetics, microbiome ecology, diversity metrics, ordination, and omic data analysis.",
@@ -2231,6 +3615,33 @@
         "phylogenetics",
         "sequence-analysis",
         "community-ecology"
+      ]
+    },
+    {
+      "package_id": "scqubits",
+      "title": "scqubits superconducting qubit simulator",
+      "description": "scqubits is a Python package for modeling superconducting qubit circuits, computing energy spectra and matrix elements, and analyzing coupled qubit resonator Hilbert spaces for circuit QED research.",
+      "upstream_repo_url": "https://github.com/scqubits/scqubits",
+      "homepage_url": "https://github.com/scqubits/scqubits",
+      "zip_url": "https://github.com/skilled-scipkg/scqubits/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/scqubits/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum",
+        "superconducting-qubits",
+        "circuit-qed",
+        "quantum-simulation",
+        "qubit-modeling"
       ]
     },
     {
@@ -2313,6 +3724,33 @@
         "wave-propagation",
         "geophysics",
         "numerical-pde"
+      ]
+    },
+    {
+      "package_id": "sfepy",
+      "title": "SfePy Finite Element PDE Solver",
+      "description": "SfePy is a Python finite element framework for solving coupled PDEs in 1D, 2D, and 3D using weak formulations, configurable problem definition files, and external meshes.",
+      "upstream_repo_url": "https://github.com/sfepy/sfepy",
+      "homepage_url": "http://sfepy.org",
+      "zip_url": "https://github.com/skilled-scipkg/sfepy/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/sfepy/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "finite-element",
+        "pde",
+        "computational-mechanics",
+        "multiphysics",
+        "numerical-simulation"
       ]
     },
     {
@@ -2509,6 +3947,34 @@
         "lightcurve",
         "mapping",
         "sphericalharmonics"
+      ]
+    },
+    {
+      "package_id": "strawberryfields",
+      "title": "Strawberry Fields Continuous-Variable Quantum Toolkit",
+      "description": "Strawberry Fields is a Python platform for designing, simulating, and optimizing continuous-variable photonic quantum circuits, including near-term algorithms and execution pathways for quantum optical hardware.",
+      "upstream_repo_url": "https://github.com/XanaduAI/strawberryfields",
+      "homepage_url": "https://xanadu.ai",
+      "zip_url": "https://github.com/skilled-scipkg/strawberryfields/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/strawberryfields/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "quantum-computing",
+        "photonics",
+        "continuous-variable",
+        "quantum-optics",
+        "circuit-simulation",
+        "bosonic-systems"
       ]
     },
     {
@@ -2735,6 +4201,33 @@
       ]
     },
     {
+      "package_id": "uproot5",
+      "title": "Uproot5 ROOT I/O",
+      "description": "Uproot5 is a pure Python library for reading and writing CERN ROOT files, especially TTrees, and streaming high-energy physics event data into array and dataframe workflows without C++ ROOT.",
+      "upstream_repo_url": "https://github.com/scikit-hep/uproot5",
+      "homepage_url": "https://uproot.readthedocs.io",
+      "zip_url": "https://github.com/skilled-scipkg/uproot5/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/uproot5/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "hep",
+        "root",
+        "ttree",
+        "columnar",
+        "particle-physics"
+      ]
+    },
+    {
       "package_id": "wannier_tools",
       "title": "WannierTools Topological Materials Toolkit",
       "description": "WannierTools analyzes Wannier tight binding Hamiltonians to compute topological invariants, surface spectra, Weyl and Dirac features, Berry properties, and transport observables in quantum materials.",
@@ -2760,6 +4253,34 @@
         "wannier",
         "condensed-matter",
         "surface-states"
+      ]
+    },
+    {
+      "package_id": "warpx",
+      "title": "WarpX PIC Plasma Simulator",
+      "description": "WarpX is a high-performance electromagnetic and electrostatic particle-in-cell simulator for plasma and accelerator modeling, with mesh refinement, boosted-frame techniques, and scalable CPU and GPU execution on supercomputers.",
+      "upstream_repo_url": "https://github.com/BLAST-WarpX/warpx",
+      "homepage_url": "https://blast-warpx.github.io",
+      "zip_url": "https://github.com/skilled-scipkg/warpx/archive/refs/heads/development.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/warpx/archive/refs/heads/development.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "development"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "plasma-physics",
+        "particle-in-cell",
+        "accelerator-physics",
+        "electromagnetics",
+        "electrostatics",
+        "hpc-simulation"
       ]
     },
     {

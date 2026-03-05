@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-02T19:15:57.449341Z",
+  "updated_at": "2026-03-05T03:11:10.202571Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -3984,6 +3984,2136 @@
         "astroquery",
         "biopython",
         "anndata"
+      ]
+    },
+    "root": {
+      "description": "Use this family for CERN ROOT intents on scientific data storage and analysis, including TTrees and ROOT files, RDataFrame workflows, histogramming, fitting, and visualization.",
+      "strong_keywords": [
+        "root",
+        "cern root",
+        "root framework",
+        "root file",
+        "ttree",
+        "rdataframe",
+        "cling interpreter",
+        "pyroot",
+        "roofit",
+        "tmva"
+      ],
+      "keywords": [
+        "tfile",
+        "tbranch",
+        "columnar event data",
+        "multidimensional histograms",
+        "statistical modeling",
+        "minuit minimization",
+        "interactive analysis",
+        "batch analysis",
+        "parallel data processing",
+        "publication-ready plots",
+        "cpp python interoperability",
+        "large hadron collider data"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "espresso",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "deepchem",
+        "brian2",
+        "cantera"
+      ]
+    },
+    "uproot5": {
+      "description": "Route high-energy physics ROOT file access, TTree extraction, and Python-native columnar event-data I/O intents to this package.",
+      "strong_keywords": [
+        "uproot5",
+        "uproot",
+        "root file",
+        "root io",
+        "ttree",
+        "cern root",
+        "scikit-hep",
+        "hep event data"
+      ],
+      "keywords": [
+        "branch arrays",
+        "basket decompression",
+        "jagged arrays",
+        "awkward array",
+        "ntuple reading",
+        "event ntuples",
+        "pandas export",
+        "dask integration",
+        "xrootd access",
+        "s3 root files"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "deepchem",
+        "cp2k",
+        "espresso",
+        "cantera",
+        "cellrank"
+      ]
+    },
+    "awkward": {
+      "description": "Use this family for intents about vectorized computation on irregular nested arrays, especially jagged record data in scientific and event-analysis workflows.",
+      "strong_keywords": [
+        "awkward",
+        "awkward array",
+        "ragged arrays",
+        "jagged arrays",
+        "nested variable-length data",
+        "record-oriented arrays",
+        "json-like scientific data",
+        "high energy physics events"
+      ],
+      "keywords": [
+        "irregular array operations",
+        "columnar event data",
+        "listoffsetarray",
+        "unionarray",
+        "missing value masks",
+        "vectorized nested slicing",
+        "heterogeneous records",
+        "particle physics analysis",
+        "numba jit integration",
+        "nested list transformations"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "alamode",
+        "amuse",
+        "anndata",
+        "arbor",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "espresso"
+      ]
+    },
+    "coffea": {
+      "description": "Use this family for requests on collider HEP event workflows, NanoAOD-style columnar processing, and Coffea-based distributed analysis execution.",
+      "strong_keywords": [
+        "coffea",
+        "coffea processor",
+        "coffea nanoevents",
+        "columnar hep analysis",
+        "collider event processing",
+        "nanoaod",
+        "uproot root files",
+        "awkward arrays",
+        "event weights",
+        "packedselection"
+      ],
+      "keywords": [
+        "hep analysis pipeline",
+        "histogramming",
+        "correction factors",
+        "jet and met corrections",
+        "luminosity masks",
+        "monte carlo normalization",
+        "dask executor",
+        "parsl executor",
+        "taskvine executor",
+        "root ntuples",
+        "trigger selection",
+        "systematic variations"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "alamode",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cellrank",
+        "cp2k",
+        "cantera",
+        "deepchem"
+      ]
+    },
+    "pyhf": {
+      "description": "Routes requests about HistFactory style likelihood modeling and high energy physics limit setting to pyhf when CLs, profile likelihood, or workspace based inference is needed.",
+      "strong_keywords": [
+        "pyhf",
+        "histfactory",
+        "cls",
+        "hypotest",
+        "profile likelihood",
+        "limit setting",
+        "interval estimation",
+        "workspace inference"
+      ],
+      "keywords": [
+        "asymptotic formulae",
+        "qtilde",
+        "signal strength mu",
+        "nuisance parameters",
+        "multi bin histogram",
+        "histosys",
+        "shapesys",
+        "overallsys",
+        "normfactor",
+        "shapefactor",
+        "staterror",
+        "non asymptotic calculators"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "deepchem",
+        "cp2k",
+        "cantera",
+        "awkward",
+        "coffea",
+        "abinit"
+      ]
+    },
+    "geant4": {
+      "description": "Routes intents about Monte Carlo particle transport, detector response modeling, and radiation interaction physics for high-energy, nuclear, medical, and space science workflows.",
+      "strong_keywords": [
+        "geant4",
+        "geant4 toolkit",
+        "particle transport simulation",
+        "passage of particles through matter",
+        "detector simulation",
+        "radiation transport",
+        "physics lists",
+        "electromagnetic physics",
+        "hadronic physics",
+        "monte carlo particle tracking"
+      ],
+      "keywords": [
+        "high energy physics",
+        "nuclear physics",
+        "accelerator physics",
+        "medical physics",
+        "space radiation",
+        "dosimetry",
+        "geometry and materials",
+        "sensitive detectors",
+        "track stepping",
+        "secondary particle production",
+        "shielding simulation",
+        "particle interaction models"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "deepchem",
+        "elk",
+        "brian2",
+        "cantera"
+      ]
+    },
+    "acts": {
+      "description": "Routes to high energy physics software for detector tracking pipelines, including trajectory propagation, seeding, fitting, and reconstruction components.",
+      "strong_keywords": [
+        "acts",
+        "a common tracking software",
+        "particle track reconstruction",
+        "charged particle tracking",
+        "high energy physics tracking",
+        "detector geometry",
+        "track propagation",
+        "kalman track fitting",
+        "acts fatras"
+      ],
+      "keywords": [
+        "collider detector reconstruction",
+        "track seeding",
+        "track finding",
+        "trajectory fitting",
+        "magnetic field propagation",
+        "material effects",
+        "alignment",
+        "combinatorial kalman filter",
+        "hep software",
+        "silicon tracker",
+        "vertexing workflows",
+        "tracking simulation"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "coffea",
+        "awkward",
+        "anndata",
+        "biopython",
+        "deepchem",
+        "cp2k",
+        "abinit",
+        "cantera"
+      ]
+    },
+    "dd4hep": {
+      "description": "Routes intents about high energy physics detector modeling, especially geometry and conditions definitions used across DD4hep-based experiment software chains.",
+      "strong_keywords": [
+        "dd4hep",
+        "detector description",
+        "high energy physics",
+        "detector geometry",
+        "materials description",
+        "readout geometry",
+        "detector alignment",
+        "detector calibration"
+      ],
+      "keywords": [
+        "cern",
+        "aidasoft",
+        "detector visualization",
+        "full experiment lifecycle",
+        "detector optimization",
+        "construction and operation",
+        "simulation reconstruction analysis",
+        "detector segmentation",
+        "calorimeter layout",
+        "tracking detector layout",
+        "compact detector model"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "abinit",
+        "cp2k",
+        "cantera",
+        "deepchem",
+        "cellrank",
+        "brian2"
+      ]
+    },
+    "delphes": {
+      "description": "Use this family for high-energy collider detector-response simulation, Delphes card setup, and ROOT analysis of reconstructed event objects.",
+      "strong_keywords": [
+        "delphes",
+        "fast detector simulation",
+        "collider detector response",
+        "delphes card tcl",
+        "delphesstdhep",
+        "delpheshepmc3",
+        "hepmc event input",
+        "root delphes tree"
+      ],
+      "keywords": [
+        "high energy physics",
+        "lhc phenomenology",
+        "event reconstruction smearing",
+        "electron muon jet branches",
+        "missing transverse energy",
+        "exroottreereader",
+        "root macro analysis",
+        "cms atlas detector cards",
+        "pileup parameterization",
+        "particle flow objects"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "cp2k",
+        "dd4hep",
+        "dftd4",
+        "alamode",
+        "amuse"
+      ]
+    },
+    "fairroot": {
+      "description": "Use this family for ROOT-centric particle and nuclear physics workflows covering detector simulation, reconstruction, and experiment analysis.",
+      "strong_keywords": [
+        "fairroot",
+        "fairroot framework",
+        "fairrootmanager",
+        "cbmsim",
+        "geant3",
+        "geant4",
+        "root simulation",
+        "particle physics reconstruction"
+      ],
+      "keywords": [
+        "event reconstruction",
+        "detector simulation",
+        "track visualization",
+        "magnetic field maps",
+        "fairsoft integration",
+        "event display",
+        "transport engine independent",
+        "cbmsim tree",
+        "monte carlo transport",
+        "analysis macros",
+        "detector tasks",
+        "root manager tree name"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "deepchem",
+        "dd4hep",
+        "delphes"
+      ]
+    },
+    "aiida-core": {
+      "description": "Use this family for intents about scientific workflow orchestration, provenance graph tracking, scheduler-based remote execution, and plugin-driven automation of computational research pipelines.",
+      "strong_keywords": [
+        "aiida-core",
+        "aiida",
+        "workchain",
+        "calcjob",
+        "provenance graph",
+        "verdi",
+        "aiida daemon",
+        "aiida plugins",
+        "materials cloud",
+        "scientific workflows"
+      ],
+      "keywords": [
+        "workflow checkpointing",
+        "high-throughput simulations",
+        "remote scheduler submission",
+        "slurm",
+        "pbs pro",
+        "sge",
+        "lsf",
+        "querybuilder",
+        "data lineage",
+        "reproducible computational science",
+        "process orchestration",
+        "provenance export"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "deepchem",
+        "devito",
+        "cp2k"
+      ]
+    },
+    "atomate2": {
+      "description": "Use this family for requests about automated atomistic materials simulation workflows, property calculations, and scalable orchestration of solid-state DFT studies.",
+      "strong_keywords": [
+        "atomate2",
+        "materials science workflows",
+        "high-throughput materials",
+        "vasp workflows",
+        "band structure",
+        "phonon workflows",
+        "defect formation energy",
+        "elastic tensor"
+      ],
+      "keywords": [
+        "density of states",
+        "electronic structure",
+        "dielectric tensor",
+        "piezoelectric tensor",
+        "electron phonon interactions",
+        "amset transport",
+        "phonopy",
+        "lobster bonding analysis",
+        "jobflow makers",
+        "workflow chaining",
+        "materials property database",
+        "fireworks"
+      ],
+      "negative_keywords": [
+        "aiida-core",
+        "abinit",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "cantera",
+        "acts",
+        "alamode"
+      ]
+    },
+    "jobflow": {
+      "description": "Use this family for scientific workflow authoring, job graph composition, dynamic flow generation, and execution or storage orchestration across research compute resources.",
+      "strong_keywords": [
+        "jobflow",
+        "job",
+        "flow",
+        "job decorator",
+        "dynamic workflows",
+        "workflow composition",
+        "workflow graph",
+        "output reference resolution",
+        "jobflow remote",
+        "fireworks workflow manager",
+        "maggma stores"
+      ],
+      "keywords": [
+        "nested workflows",
+        "computational workflow execution",
+        "high throughput workflows",
+        "scientific pipeline orchestration",
+        "local execution",
+        "queue based execution",
+        "mongodb",
+        "gridfs",
+        "s3 object store",
+        "materials project workflows",
+        "future output objects"
+      ],
+      "negative_keywords": [
+        "aiida-core",
+        "atomate2",
+        "abinit",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "deepchem",
+        "anndata",
+        "cantera"
+      ]
+    },
+    "custodian": {
+      "description": "Use for computational materials and electronic-structure workflow orchestration when users need resilient job supervision, failure handlers, and automatic restarts across many simulation runs.",
+      "strong_keywords": [
+        "custodian",
+        "custodian python",
+        "just in time job management",
+        "high throughput error recovery",
+        "vasp error handler",
+        "nwchem error handler",
+        "qchem error handler",
+        "feff error handler",
+        "lobster error handler",
+        "cp2k error handler"
+      ],
+      "keywords": [
+        "long running simulation restart",
+        "automated job restarts",
+        "materials simulation workflows",
+        "electronic structure calculations",
+        "fault tolerant hpc jobs",
+        "job wrapper plugins",
+        "calculation failure recovery",
+        "pymatgen compatible handlers",
+        "simulation parameter correction",
+        "batch run monitoring"
+      ],
+      "negative_keywords": [
+        "aiida-core",
+        "atomate2",
+        "abinit",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "brian2",
+        "biopython",
+        "cantera",
+        "deepchem"
+      ]
+    },
+    "pyiron_base": {
+      "description": "Routes intents about pyiron workflow jobs, high-throughput simulation execution, HPC queue submission, and structured scientific result management.",
+      "strong_keywords": [
+        "pyiron_base",
+        "pyiron",
+        "workflow manager",
+        "job object",
+        "computational materials science",
+        "hpc queue submission",
+        "hdf5 data storage",
+        "parameter studies"
+      ],
+      "keywords": [
+        "wrap_python_function",
+        "create_job_class",
+        "simulation code wrapper",
+        "external executable workflows",
+        "write_input collect_output",
+        "map reduce workflow",
+        "remote ssh submission",
+        "pyiron_table",
+        "high throughput simulations",
+        "scientific job management",
+        "project based job storage",
+        "workflow upscaling"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "aiida-core",
+        "atomate2",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "anndata",
+        "brian2"
+      ]
+    },
+    "moose": {
+      "description": "Routes requests about finite-element multiphysics PDE modeling, coupled nonlinear solution strategies, mesh adaptivity, and massively parallel engineering simulation workflows.",
+      "strong_keywords": [
+        "moose",
+        "moose framework",
+        "multiphysics object oriented simulation environment",
+        "finite element multiphysics",
+        "fully implicit coupled solver",
+        "nonlinear pde solves",
+        "mesh adaptivity",
+        "discontinuous galerkin"
+      ],
+      "keywords": [
+        "continuous galerkin",
+        "dimension independent physics",
+        "parallel multiscale solves",
+        "parallel geometric search",
+        "contact applications",
+        "modular code reuse",
+        "pluggable interfaces",
+        "engineering simulation",
+        "high performance computing",
+        "petsc nonlinear solvers"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "coffea",
+        "cp2k",
+        "dd4hep"
+      ]
+    },
+    "kratos": {
+      "description": "Use this family for high-performance multiphysics finite-element workflows combining coupled PDE physics, meshing, and scalable solvers on multicore or MPI systems.",
+      "strong_keywords": [
+        "kratos multiphysics",
+        "kratos",
+        "multiphysics finite element",
+        "fluid structure interaction",
+        "structural mechanics",
+        "fluid dynamics application",
+        "dem application",
+        "contact structural mechanics"
+      ],
+      "keywords": [
+        "incompressible flow simulation",
+        "fsi coupling",
+        "solid shell beam analysis",
+        "nonlinear static dynamic analysis",
+        "particle mechanics",
+        "meshing and remeshing",
+        "trilinos application",
+        "metis partitioning",
+        "openmp mpi scaling",
+        "parallel pde solver",
+        "c++ python simulation framework",
+        "engineering multiphysics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "amuse",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "brian2",
+        "cp2k",
+        "dd4hep"
+      ]
+    },
+    "elmerfem": {
+      "description": "Route requests about finite element multiphysics PDE modeling, ElmerSolver setup, coupled field simulations, and continuum mechanics workflows to this package family.",
+      "strong_keywords": [
+        "elmerfem",
+        "elmer solver",
+        "finite element method",
+        "multiphysics pde",
+        "coupled field simulation",
+        "heat transfer simulation",
+        "electromagnetics finite element",
+        "structural mechanics fem"
+      ],
+      "keywords": [
+        "navier stokes",
+        "linear elasticity",
+        "incompressible flow",
+        "poisson equation",
+        "transient pde",
+        "steady state pde",
+        "sif input file",
+        "unstructured mesh",
+        "parallel fem",
+        "continuum mechanics",
+        "acoustics simulation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "aiida-core",
+        "brian2",
+        "cantera",
+        "dd4hep"
+      ]
+    },
+    "precice": {
+      "description": "Route intents here when users ask about partitioned solver coupling, configuring participants, or exchanging interface fields between fluid, structural, thermal, and other physics simulations.",
+      "strong_keywords": [
+        "precice",
+        "partitioned multiphysics",
+        "co-simulation",
+        "solver coupling",
+        "fluid-structure interaction",
+        "surface coupling",
+        "volume coupling",
+        "coupling library"
+      ],
+      "keywords": [
+        "fsi coupling",
+        "multiscale simulation coupling",
+        "participant configuration",
+        "coupling scheme",
+        "implicit coupling",
+        "explicit coupling",
+        "data mapping",
+        "mesh-to-mesh mapping",
+        "quasi-newton acceleration",
+        "interface data exchange",
+        "adapter development",
+        "xml configuration"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "cp2k",
+        "dd4hep"
+      ]
+    },
+    "sfepy": {
+      "description": "Routes intents about finite element PDE modeling, weak-form equation terms, boundary-condition setup, mesh-driven simulation workflows, and SfePy problem definition files.",
+      "strong_keywords": [
+        "sfepy",
+        "simple finite elements in python",
+        "finite element method",
+        "coupled pdes",
+        "weak formulation",
+        "problem definition file",
+        "boundary conditions",
+        "linear elasticity"
+      ],
+      "keywords": [
+        "multiphysics simulation",
+        "fe mesh",
+        "legacy vtk output",
+        "hdf5 results",
+        "term-based equations",
+        "1d 2d 3d pde",
+        "material models",
+        "pyvista visualization",
+        "paraview",
+        "custom pde applications"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cellrank",
+        "cp2k",
+        "cantera",
+        "brian2",
+        "dd4hep"
+      ]
+    },
+    "warpx": {
+      "description": "Belongs to high-performance plasma and beam simulation software focused on particle-in-cell methods for electromagnetic and electrostatic accelerator applications.",
+      "strong_keywords": [
+        "warpx",
+        "particle in cell",
+        "electromagnetic pic",
+        "electrostatic pic",
+        "plasma simulation",
+        "accelerator physics simulation",
+        "adaptive mesh refinement",
+        "boosted frame"
+      ],
+      "keywords": [
+        "laser plasma acceleration",
+        "beam plasma interaction",
+        "maxwell solver",
+        "space charge",
+        "pml boundaries",
+        "picmi",
+        "openpmd",
+        "amrex",
+        "picsar",
+        "supercomputer scaling",
+        "multispecies particles",
+        "rz cylindrical geometry"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "cp2k",
+        "dd4hep"
+      ]
+    },
+    "picongpu": {
+      "description": "Use this for high-intensity plasma and laser-particle interaction workflows requiring electromagnetic PIC methods on large-scale GPU HPC systems.",
+      "strong_keywords": [
+        "picongpu",
+        "particle-in-cell plasma",
+        "electromagnetic pic",
+        "3d3v relativistic simulation",
+        "laser-plasma interaction",
+        "maxwell equations solver",
+        "yee lattice",
+        "boris pusher",
+        "esirkepov current deposition",
+        "openpmd output"
+      ],
+      "keywords": [
+        "vay pusher",
+        "lehe solver",
+        "radiation reaction",
+        "field ionization",
+        "coherent radiation diagnostics",
+        "incoherent radiation diagnostics",
+        "charged particle dynamics",
+        "manycore gpu scaling",
+        "plasma accelerator modeling",
+        "parallel hdf5 checkpointing"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "brian2",
+        "cantera",
+        "dd4hep",
+        "acts"
+      ]
+    },
+    "fbpic": {
+      "description": "Computational plasma accelerator modeling package for spectral quasi-3D electromagnetic particle-in-cell simulations in cylindrical geometry.",
+      "strong_keywords": [
+        "fbpic",
+        "fourier-bessel particle-in-cell",
+        "quasi-3d pic",
+        "relativistic plasma physics",
+        "laser-wakefield acceleration",
+        "plasma-wakefield acceleration",
+        "spectral cylindrical pic",
+        "boosted-frame simulation",
+        "electromagnetic plasma simulation"
+      ],
+      "keywords": [
+        "moving window",
+        "azimuthal mode decomposition",
+        "numerical cherenkov instability suppression",
+        "numerical cherenkov radiation mitigation",
+        "field ionization adk",
+        "space-charge field initialization",
+        "galilean technique",
+        "openpmd hdf5 output",
+        "beam-driven wakefield modeling",
+        "cylindrical geometry plasma code",
+        "picmi interface"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "arbor",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "dd4hep"
+      ]
+    },
+    "psc": {
+      "description": "Route requests here for kinetic plasma modeling with fully electromagnetic PIC methods, especially large-scale 3D simulations on MPI and Nvidia GPU systems.",
+      "strong_keywords": [
+        "psc",
+        "particle-in-cell",
+        "kinetic plasma simulation",
+        "fully electromagnetic pic",
+        "3d plasma simulation",
+        "laser plasma interaction",
+        "patch-based load balancing",
+        "gpu-accelerated pic"
+      ],
+      "keywords": [
+        "vlasov maxwell",
+        "charged particle dynamics",
+        "field solver",
+        "current deposition",
+        "plasma instabilities",
+        "wakefield simulation",
+        "relativistic plasma",
+        "mpi parallel simulation",
+        "input deck",
+        "flatfoil",
+        "bubble yz",
+        "electromagnetic waves in plasma"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "dd4hep",
+        "brian2"
+      ]
+    },
+    "qiskit": {
+      "description": "Use this family for gate-based quantum computing tasks involving circuit design, transpilation, quantum operators, and primitive workflows for sampling and expectation estimation.",
+      "strong_keywords": [
+        "qiskit",
+        "quantumcircuit",
+        "transpiler",
+        "sampler primitive",
+        "estimator primitive",
+        "sparsepauliop",
+        "quantum operators",
+        "statevectorsampler",
+        "statevectorestimator"
+      ],
+      "keywords": [
+        "quantum gate synthesis",
+        "circuit optimization",
+        "qubit layout mapping",
+        "measurement counts",
+        "expectation value estimation",
+        "pauli observable",
+        "ghz state circuit",
+        "parameterized quantum circuits",
+        "hadamard gate",
+        "cnot gate",
+        "phase gate",
+        "quantum circuit execution"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "cp2k",
+        "abinit",
+        "brian2",
+        "cantera",
+        "dd4hep",
+        "aiida-core"
+      ]
+    },
+    "cirq": {
+      "description": "Use this family for quantum-computing intents centered on NISQ circuit design, simulation, noise modeling, and hardware-targeted execution workflows.",
+      "strong_keywords": [
+        "cirq",
+        "quantum circuits",
+        "nisq",
+        "gridqubit",
+        "quantum gates",
+        "noise modeling",
+        "quantum circuit simulator",
+        "circuit compilation",
+        "quantum measurement",
+        "device topology"
+      ],
+      "keywords": [
+        "parameterized circuits",
+        "symbolic parameters",
+        "circuit optimization",
+        "transpilation",
+        "moment operations",
+        "state vector simulation",
+        "density matrix simulation",
+        "qubit placement",
+        "hardware-aware compilation",
+        "qsim integration",
+        "variational quantum algorithms",
+        "google quantum ai"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "cantera",
+        "brian2"
+      ]
+    },
+    "pennylane": {
+      "description": "Route queries about hybrid quantum-classical programming, variational circuit training, device execution, and differentiable quantum algorithms to this package.",
+      "strong_keywords": [
+        "pennylane",
+        "qnode",
+        "variational quantum circuits",
+        "quantum machine learning",
+        "quantum chemistry",
+        "parameter-shift gradients",
+        "hybrid quantum-classical models",
+        "quantum device plugins"
+      ],
+      "keywords": [
+        "mid-circuit measurements",
+        "error mitigation",
+        "vqe",
+        "qaoa",
+        "quantum kernels",
+        "differentiable quantum programming",
+        "state preparation",
+        "quantum circuit visualization",
+        "lightning simulator",
+        "catalyst compilation",
+        "fault-tolerant algorithm prototyping",
+        "hardware-compatible gradients"
+      ],
+      "negative_keywords": [
+        "cirq",
+        "bloqade",
+        "astropy",
+        "anndata",
+        "brian2",
+        "cp2k",
+        "abinit",
+        "biopython",
+        "acts",
+        "aiida-core"
+      ]
+    },
+    "qulacs": {
+      "description": "Route here for intents about fast gate based quantum circuit simulation, noisy and parametric circuits, and variational quantum algorithm experiments on CPU or GPU.",
+      "strong_keywords": [
+        "qulacs",
+        "quantum circuit simulator",
+        "variational quantum circuit",
+        "parametric quantum gates",
+        "noisy quantum gates",
+        "nisq simulation",
+        "quantum state vector simulation",
+        "quantum circuit compression"
+      ],
+      "keywords": [
+        "vqe",
+        "qaoa",
+        "gate based quantum computing",
+        "quantum algorithm prototyping",
+        "cuda quantum simulation",
+        "openmp multithreading",
+        "quantum expectation value",
+        "noise modeling",
+        "circuit optimization",
+        "high performance quantum simulation"
+      ],
+      "negative_keywords": [
+        "cirq",
+        "bloqade",
+        "abinit",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "acts",
+        "aiida-core"
+      ]
+    },
+    "qibo": {
+      "description": "Use this family for requests on gate-based quantum circuit construction, simulation, and execution on heterogeneous simulator or hardware backends.",
+      "strong_keywords": [
+        "qibo",
+        "quantum circuit simulation",
+        "quantum hardware control",
+        "gate-based quantum computing",
+        "quantum fourier transform",
+        "variational quantum algorithms",
+        "device-agnostic backends"
+      ],
+      "keywords": [
+        "quantum gates",
+        "circuit model",
+        "statevector simulation",
+        "shot-based simulation",
+        "measurement sampling",
+        "multi-gpu simulation",
+        "cpu multithreading",
+        "quantum algorithm examples",
+        "qft circuit",
+        "backend driver implementation",
+        "quantum execution workflows"
+      ],
+      "negative_keywords": [
+        "cirq",
+        "bloqade",
+        "aiida-core",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "cantera",
+        "abinit"
+      ]
+    },
+    "scqubits": {
+      "description": "Use this family for superconducting circuit quantization, qubit spectrum analysis, and coupled qubit mode simulations in circuit QED workflows.",
+      "strong_keywords": [
+        "scqubits",
+        "superconducting qubits",
+        "circuit qed",
+        "transmon",
+        "fluxonium",
+        "energy spectra",
+        "matrix elements",
+        "coupled hilbert space"
+      ],
+      "keywords": [
+        "superconducting circuits",
+        "qubit anharmonicity",
+        "flux qubit",
+        "charge qubit",
+        "hamiltonian diagonalization",
+        "quantum circuit quantization",
+        "resonator coupling",
+        "qubit parameter sweeps",
+        "level transitions",
+        "dispersive shifts",
+        "qutip interface"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "cantera",
+        "cp2k",
+        "cellrank",
+        "acts",
+        "aiida-core"
+      ]
+    },
+    "strawberryfields": {
+      "description": "Routes intents on continuous-variable photonic quantum circuit modeling, Gaussian and Fock simulation methods, and optimization of quantum optical algorithms in Strawberry Fields.",
+      "strong_keywords": [
+        "strawberryfields",
+        "strawberry fields",
+        "continuous variable quantum computing",
+        "photonic quantum computing",
+        "quantum optical circuits",
+        "cv quantum circuits",
+        "gaussian boson sampling",
+        "fock state simulation",
+        "gaussian simulation",
+        "xanadu quantum"
+      ],
+      "keywords": [
+        "photonic circuit compilation",
+        "bosonic mode operations",
+        "squeezing gates",
+        "interferometer decomposition",
+        "homodyne measurement",
+        "quantum state preparation",
+        "differentiable quantum optimization",
+        "near term photonic algorithms",
+        "graph optimization with gbs",
+        "photonic quantum chemistry"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "cantera",
+        "brian2"
+      ]
+    },
+    "perceval": {
+      "description": "Routes requests about photonic quantum circuit construction, Fock-space simulation, linear-optics components, and execution on Quandela photonic QPUs.",
+      "strong_keywords": [
+        "perceval",
+        "photonic quantum computing",
+        "linear optics circuit",
+        "fock state",
+        "single photon source model",
+        "boson sampling",
+        "quandela qpu",
+        "discrete variable photonics"
+      ],
+      "keywords": [
+        "quantum optics simulation",
+        "interferometer design",
+        "beam splitter network",
+        "unitary matrix decomposition",
+        "state vector utilities",
+        "photon loss model",
+        "optical quantum algorithms",
+        "photonic circuit visualization",
+        "symbolic computation",
+        "quandela cloud execution"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "cantera",
+        "cirq"
+      ]
+    },
+    "quantumoptics-jl": {
+      "description": "Use for intents involving Julia-based simulation of quantum optics and general quantum dynamics, especially Lindblad open-system evolution and operator and basis workflows.",
+      "strong_keywords": [
+        "quantumoptics-jl",
+        "quantum optics",
+        "open quantum systems",
+        "closed quantum systems",
+        "lindblad master equation",
+        "density matrix evolution",
+        "quantum dynamics simulation",
+        "julia quantum physics"
+      ],
+      "keywords": [
+        "hamiltonian evolution",
+        "dissipative dynamics",
+        "quantum trajectories",
+        "state vectors",
+        "operator expectation values",
+        "fock basis",
+        "spin systems",
+        "cavity qed",
+        "many body quantum models",
+        "qutip style framework"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "aiida-core",
+        "cp2k",
+        "cantera",
+        "cellrank",
+        "brian2",
+        "cirq"
+      ]
+    },
+    "itensors-jl": {
+      "description": "Route requests about Julia tensor network construction, labeled-index tensor algebra, and core ITensor structures for computational and quantum physics.",
+      "strong_keywords": [
+        "itensors-jl",
+        "itensors.jl",
+        "itensor",
+        "tensor networks",
+        "index-aware tensors",
+        "ndtensors",
+        "julia tensor library",
+        "computational quantum physics"
+      ],
+      "keywords": [
+        "tensor contraction",
+        "block sparse tensors",
+        "matrix product states",
+        "matrix product operators",
+        "dmrg",
+        "tebd",
+        "quantum lattice models",
+        "variational tensor methods",
+        "itensormps.jl",
+        "many-body physics",
+        "tensor network algorithms"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "cantera",
+        "cp2k",
+        "aiida-core",
+        "acts",
+        "cellrank",
+        "datamol"
+      ]
+    },
+    "netket": {
+      "description": "Use this family for variational neural-network and Monte Carlo workflows on lattice many-body quantum systems, especially spin-model ground states and quantum-state sampling.",
+      "strong_keywords": [
+        "netket",
+        "neural quantum states",
+        "variational monte carlo",
+        "many-body quantum systems",
+        "quantum spin models",
+        "lattice hamiltonians",
+        "ground state optimization",
+        "metropolis sampling"
+      ],
+      "keywords": [
+        "quantum monte carlo",
+        "stochastic reconfiguration",
+        "variational quantum state",
+        "rbm wavefunction",
+        "heisenberg model",
+        "ising model",
+        "lindblad dynamics",
+        "open quantum systems",
+        "hilbert space lattice",
+        "quantum observables",
+        "sampler chains"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "anndata",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "cantera",
+        "brian2"
+      ]
+    },
+    "quimb": {
+      "description": "Use this family for quantum many-body workloads centered on tensor-network construction, contraction, and exact-state and operator calculations.",
+      "strong_keywords": [
+        "quimb",
+        "tensor networks",
+        "quantum information",
+        "many-body physics",
+        "mps",
+        "peps",
+        "mera",
+        "dmrg",
+        "tebd",
+        "entanglement entropy"
+      ],
+      "keywords": [
+        "exact diagonalization",
+        "ground state search",
+        "excited state solvers",
+        "time evolution",
+        "tensor contraction optimization",
+        "hypergraph tensor networks",
+        "fermionic tensor networks",
+        "quantum circuit simulation",
+        "sparse operators",
+        "stochastic trace estimation",
+        "slepc eigensolver",
+        "operator construction"
+      ],
+      "negative_keywords": [
+        "cirq",
+        "bloqade",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "cellrank",
+        "cantera",
+        "cp2k",
+        "aiida-core"
+      ]
+    },
+    "openmc": {
+      "description": "Routes requests about neutron and photon transport simulation, reactor core modeling, geometry and tally setup, and nuclear data driven criticality or depletion workflows.",
+      "strong_keywords": [
+        "openmc",
+        "monte carlo particle transport",
+        "neutron transport",
+        "photon transport",
+        "reactor physics",
+        "criticality calculations",
+        "constructive solid geometry",
+        "nuclear cross sections",
+        "depletion"
+      ],
+      "keywords": [
+        "statepoint analysis",
+        "tally filters",
+        "k eigenvalue",
+        "burnup simulation",
+        "dagmc geometry",
+        "mesh tallies",
+        "fixed source transport",
+        "multigroup cross sections",
+        "particle tracking",
+        "hdf5 cross section library",
+        "pin cell model",
+        "fusion neutronics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "coffea",
+        "cp2k",
+        "cantera"
+      ]
+    },
+    "mcdc": {
+      "description": "Routes queries about Monte Carlo neutron transport, transient radiation particle simulation, reactor physics methods, and high-performance scientific computing workflows.",
+      "strong_keywords": [
+        "mcdc",
+        "monte carlo dynamic code",
+        "monte carlo neutron transport",
+        "fully transient neutron transport",
+        "neutron transport simulation",
+        "radiation transport",
+        "reactor neutron physics",
+        "particle transport monte carlo"
+      ],
+      "keywords": [
+        "time-dependent neutron transport",
+        "transient reactor simulation",
+        "criticality calculation",
+        "k-eigenvalue",
+        "variance reduction",
+        "mesh tally",
+        "radiation shielding analysis",
+        "nuclear engineering simulation",
+        "stochastic particle transport",
+        "exascale monte carlo"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "cantera",
+        "cellrank"
+      ]
+    },
+    "openmoc": {
+      "description": "Use this family for deterministic neutron transport and reactor-core physics intents focused on method-of-characteristics, criticality, and flux or power calculations.",
+      "strong_keywords": [
+        "openmoc",
+        "method of characteristics",
+        "nuclear reactor physics",
+        "neutron transport",
+        "multiplication factor",
+        "fixed source calculation",
+        "eigenvalue calculation",
+        "multi-group transport",
+        "constructive solid geometry",
+        "2d ray tracing"
+      ],
+      "keywords": [
+        "reactor core flux",
+        "power distribution",
+        "k-effective",
+        "deterministic transport solver",
+        "neutral particle transport",
+        "heterogeneous reactor geometry",
+        "transport sweeps",
+        "lattice physics",
+        "pin cell analysis",
+        "reactivity studies",
+        "criticality calculation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "cirq",
+        "cp2k"
+      ]
+    },
+    "opensn": {
+      "description": "Deterministic transport physics software for linear Boltzmann, neutron, and radiation simulations on large parallel meshes.",
+      "strong_keywords": [
+        "opensn",
+        "linear boltzmann equation",
+        "discrete ordinates",
+        "sn transport",
+        "deterministic neutron transport",
+        "radiation transport",
+        "multigroup transport",
+        "transport sweep"
+      ],
+      "keywords": [
+        "fixed source transport",
+        "k eigenvalue",
+        "angular flux",
+        "source iteration",
+        "mesh based simulation",
+        "parallel domain decomposition",
+        "massively parallel algorithms",
+        "deterministic particle transport",
+        "reactor physics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "anndata"
+      ]
+    },
+    "mujoco": {
+      "description": "Use this family for fast articulated-body simulation with contacts, forward and inverse dynamics, and controller or policy development in robotics and biomechanics.",
+      "strong_keywords": [
+        "mujoco",
+        "multi-joint dynamics",
+        "contact dynamics",
+        "articulated-body simulation",
+        "rigid-body physics",
+        "mjcf",
+        "robotics simulation",
+        "biomechanics simulation"
+      ],
+      "keywords": [
+        "trajectory optimization",
+        "model predictive control",
+        "humanoid locomotion",
+        "differentiable physics",
+        "analytical gradients",
+        "collision detection",
+        "constraint solver",
+        "actuator modeling",
+        "sensor simulation",
+        "reinforcement learning"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "cantera",
+        "coffea"
+      ]
+    },
+    "bullet3": {
+      "description": "Best for intents about rigid body contact simulation, collision queries, multibody control tasks, and PyBullet based robotics experimentation.",
+      "strong_keywords": [
+        "bullet3",
+        "bullet physics sdk",
+        "pybullet",
+        "rigid body dynamics",
+        "collision detection",
+        "multibody dynamics",
+        "physics simulation",
+        "robotics simulation"
+      ],
+      "keywords": [
+        "real time physics",
+        "contact dynamics",
+        "constraint solver",
+        "inverse dynamics",
+        "reinforcement learning simulation",
+        "robot locomotion",
+        "grasp simulation",
+        "visual effects physics",
+        "physics engine",
+        "shared memory physics server",
+        "opencl rigid body"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "cellrank",
+        "cp2k",
+        "cirq"
+      ]
+    },
+    "gz-sim": {
+      "description": "Use this family for robotics and autonomous-system simulation tasks involving virtual worlds, robot dynamics, synthetic sensors, and Gazebo ecosystem workflows.",
+      "strong_keywords": [
+        "gz-sim",
+        "gazebo sim",
+        "gazebo",
+        "robotics simulator",
+        "robot simulation",
+        "physics simulation",
+        "sensor simulation",
+        "gz sim",
+        "sdf"
+      ],
+      "keywords": [
+        "gazebosim",
+        "gazebo classic migration",
+        "3d rendering",
+        "ogre2",
+        "lidar simulation",
+        "camera simulation",
+        "imu simulation",
+        "gps simulation",
+        "force torque sensor",
+        "robot plugins",
+        "world plugins",
+        "gazebo transport",
+        "gazebo gui",
+        "virtual robot testing"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "biopython",
+        "cp2k",
+        "coffea",
+        "cirq",
+        "atomate2"
+      ]
+    },
+    "drake": {
+      "description": "Use this family for intents about model-based robotics, multibody dynamics, trajectory optimization, and system-level simulation or verification in Drake.",
+      "strong_keywords": [
+        "drake",
+        "robotlocomotion drake",
+        "multibody dynamics",
+        "trajectory optimization",
+        "robot motion planning",
+        "robot control",
+        "inverse kinematics",
+        "manipulation planning",
+        "model based design",
+        "robot verification"
+      ],
+      "keywords": [
+        "rigid body dynamics",
+        "contact modeling",
+        "hydroelastic contact",
+        "nonlinear optimization",
+        "kinematics",
+        "locomotion",
+        "state estimation",
+        "diagram systems",
+        "physics simulation",
+        "collision geometry",
+        "robot manipulation",
+        "systems framework"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "cp2k",
+        "cantera",
+        "cirq",
+        "bullet3"
+      ]
+    },
+    "dart": {
+      "description": "Routes queries about articulated rigid-body robotics physics, model import formats, collision and contact solvers, and C++ or Python simulation APIs.",
+      "strong_keywords": [
+        "dart",
+        "dartsim",
+        "dynamic animation and robotics toolkit",
+        "articulated rigid body dynamics",
+        "featherstone articulated body algorithm",
+        "constraint dynamics",
+        "robotics simulation",
+        "dartpy"
+      ],
+      "keywords": [
+        "urdf",
+        "sdf",
+        "mjcf",
+        "skel",
+        "kinematics",
+        "inverse dynamics",
+        "contact resolution",
+        "collision detection",
+        "joint limits",
+        "closed-loop constraints",
+        "gazebo integration",
+        "multibody dynamics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cp2k",
+        "cantera",
+        "cirq",
+        "coffea"
+      ]
+    },
+    "hail": {
+      "description": "Use this family for genome scale cohort analytics, especially distributed GWAS, variant and sample QC, and MatrixTable or Table workflows in Hail.",
+      "strong_keywords": [
+        "hail",
+        "matrixtable",
+        "genomic dataframe",
+        "gwas",
+        "variant qc",
+        "sample qc",
+        "cohort genomics",
+        "hail batch"
+      ],
+      "keywords": [
+        "vcf import",
+        "bgen import",
+        "plink import",
+        "linear mixed model",
+        "kinship estimation",
+        "rare variant burden",
+        "population stratification",
+        "ancestry inference",
+        "uk biobank genetics",
+        "gnomad pipelines",
+        "distributed query",
+        "genomic table joins"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "anndata",
+        "coffea",
+        "cp2k",
+        "cantera",
+        "cirq",
+        "bullet3",
+        "abinit",
+        "acts"
+      ]
+    },
+    "limix": {
+      "description": "Routes queries about statistical genetics and genomics analyses using linear mixed models, especially association testing, variance components, and gene-environment interaction methods.",
+      "strong_keywords": [
+        "limix",
+        "linear mixed model",
+        "genomic association testing",
+        "single-variant association",
+        "variance decomposition",
+        "set-based association tests",
+        "genetic interaction testing",
+        "statistical genetics"
+      ],
+      "keywords": [
+        "eqtl mapping",
+        "struct-lmm",
+        "heritability estimation",
+        "kinship matrix",
+        "variance components",
+        "gene environment interaction",
+        "quantitative trait association",
+        "population structure correction",
+        "genomic association analysis",
+        "mixed model inference"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "cp2k",
+        "cantera",
+        "cirq",
+        "coffea",
+        "alamode",
+        "amuse"
+      ]
+    },
+    "scikit-allel": {
+      "description": "Use this family for intents about analyzing genomic variants, computing allele and haplotype statistics, and population structure from cohort genotype data.",
+      "strong_keywords": [
+        "scikit-allel",
+        "genetic variation analysis",
+        "population genetics",
+        "genotype array",
+        "variant call format",
+        "allele frequency",
+        "linkage disequilibrium",
+        "haplotype analysis",
+        "fst",
+        "tajima d"
+      ],
+      "keywords": [
+        "site frequency spectrum",
+        "windowed diversity",
+        "nucleotide diversity",
+        "weir cockerham fst",
+        "genetic pca",
+        "runs of homozygosity",
+        "hardy weinberg equilibrium",
+        "selection scan",
+        "biallelic snp filtering",
+        "cohort variant data",
+        "vcf ingestion",
+        "genome variation statistics"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "brian2",
+        "cantera",
+        "cirq",
+        "cp2k"
+      ]
+    },
+    "plink-ng": {
+      "description": "Routes to statistical genomics and human genetics tools focused on genome-wide association studies, genotype quality control, and large-scale cohort variant analysis.",
+      "strong_keywords": [
+        "plink-ng",
+        "plink 2",
+        "gwas",
+        "whole genome association",
+        "genotype quality control",
+        "population stratification",
+        "vcf genotype analysis",
+        "dosage data association",
+        "relatedness estimation"
+      ],
+      "keywords": [
+        "case control association",
+        "quantitative trait analysis",
+        "principal component analysis genetics",
+        "linkage disequilibrium pruning",
+        "hardy weinberg equilibrium test",
+        "identity by descent",
+        "allele frequency analysis",
+        "polygenic risk scoring",
+        "imputed genotype dosage",
+        "pgen pvar psam",
+        "bed bim fam"
+      ],
+      "negative_keywords": [
+        "astropy",
+        "astroquery",
+        "aiida-core",
+        "cp2k",
+        "cantera",
+        "cirq",
+        "bullet3",
+        "cellrank",
+        "abinit",
+        "acts"
+      ]
+    },
+    "gwaslab": {
+      "description": "Routes requests about GWAS summary-statistics processing, harmonization, quality control, format conversion, and Manhattan and QQ style plotting workflows.",
+      "strong_keywords": [
+        "gwaslab",
+        "gwas summary statistics",
+        "sumstats harmonization",
+        "manhattan qq plot",
+        "liftover genome build",
+        "allele normalization",
+        "ldsc format conversion",
+        "plink2 sumstats",
+        "palindromic snp handling",
+        "genetic correlation heatmap"
+      ],
+      "keywords": [
+        "gwas-ssf",
+        "metal format",
+        "saige",
+        "regenie",
+        "magma",
+        "fuma",
+        "gwas-vcf",
+        "variant qc filtering",
+        "rsid assignment",
+        "mhc region filtering",
+        "lead variant extraction",
+        "miami plot"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "cantera"
+      ]
+    },
+    "dolfinx": {
+      "description": "Use this family for mesh-based variational PDE modeling, finite element assembly, and parallel continuum simulation workflows.",
+      "strong_keywords": [
+        "dolfinx",
+        "fenicsx",
+        "finite element method",
+        "partial differential equations",
+        "variational forms",
+        "weak form",
+        "function spaces",
+        "mesh topology"
+      ],
+      "keywords": [
+        "galerkin method",
+        "boundary conditions",
+        "poisson equation",
+        "linear elasticity",
+        "stokes flow",
+        "navier stokes",
+        "heat equation",
+        "fem discretization",
+        "unstructured mesh",
+        "parallel pde solver"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "cantera"
+      ]
+    },
+    "mfem": {
+      "description": "Use this family for finite-element PDE solver development, especially high-order Galerkin or DG workflows with parallel meshes, AMR, and matrix or matrix-free operator assembly.",
+      "strong_keywords": [
+        "mfem",
+        "finite element methods",
+        "high-order fem",
+        "galerkin discretization",
+        "discontinuous galerkin",
+        "adaptive mesh refinement",
+        "hdiv finite elements",
+        "hcurl finite elements"
+      ],
+      "keywords": [
+        "mixed finite elements",
+        "isogeometric analysis",
+        "nurbs finite elements",
+        "matrix-free operators",
+        "sparse matrix assembly",
+        "unstructured mesh",
+        "mpi parallel finite elements",
+        "pde discretization",
+        "krylov solvers",
+        "newton nonlinear solver",
+        "runge-kutta time integration",
+        "hypre preconditioning"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "coffea",
+        "cp2k",
+        "alamode"
+      ]
+    },
+    "calculix": {
+      "description": "Routes intents about 3D structural finite element analysis, stress and deformation prediction, and CalculiX model setup and solver execution.",
+      "strong_keywords": [
+        "calculix",
+        "ccx",
+        "cgx",
+        "finite element analysis",
+        "structural mechanics",
+        "thermomechanical analysis",
+        "abaqus inp",
+        "von mises stress"
+      ],
+      "keywords": [
+        "linear static analysis",
+        "nonlinear analysis",
+        "contact mechanics",
+        "buckling analysis",
+        "modal analysis",
+        "heat transfer",
+        "stress strain",
+        "displacement field",
+        "mesh preprocessing",
+        "input deck",
+        "structural simulation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "cirq",
+        "coffea",
+        "anndata"
+      ]
+    },
+    "opensees": {
+      "description": "Route here for earthquake engineering and structural mechanics workflows focused on nonlinear finite element models, seismic loading, and dynamic response of civil infrastructure.",
+      "strong_keywords": [
+        "opensees",
+        "open system for earthquake engineering simulation",
+        "earthquake engineering",
+        "nonlinear structural analysis",
+        "seismic response simulation",
+        "time history analysis"
+      ],
+      "keywords": [
+        "pushover analysis",
+        "soil structure interaction",
+        "geotechnical modeling",
+        "reinforced concrete modeling",
+        "steel frame analysis",
+        "bridge seismic assessment",
+        "performance based earthquake engineering",
+        "hysteretic material models",
+        "dynamic structural response",
+        "civil infrastructure simulation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "biopython",
+        "brian2",
+        "cp2k",
+        "cantera",
+        "alamode",
+        "amuse"
+      ]
+    },
+    "modflow6": {
+      "description": "Route to this family for groundwater and coupled hydrologic process simulation in the MODFLOW ecosystem, especially aquifer flow, exchange packages, and transport analyses.",
+      "strong_keywords": [
+        "modflow6",
+        "modflow 6",
+        "usgs modular hydrologic model",
+        "groundwater flow modeling",
+        "aquifer simulation",
+        "groundwater transport",
+        "gwf model",
+        "surface groundwater exchange"
+      ],
+      "keywords": [
+        "transient groundwater model",
+        "confined aquifer",
+        "unconfined aquifer",
+        "river lake stream packages",
+        "recharge evapotranspiration stresses",
+        "boundary condition packages",
+        "head and drawdown simulation",
+        "flopy modflow6",
+        "modflow input files",
+        "water resources basin modeling"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cirq",
+        "cp2k",
+        "cellrank",
+        "cantera"
       ]
     }
   }
