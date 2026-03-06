@@ -28,7 +28,7 @@ What ``exec`` does:
 
 - routes the prompt to the best installed package (keyword router + optional agent second-guess);
 - overlays the selected package knowledge base into the current repository;
-- syncs the unified ``AGENTS.md``  instructions to the current workspace;
+- syncs the unified ``AGENTS.md`` instructions to the current workspace, along with the active provider alias file (``CLAUDE.md`` for Claude or ``GEMINI.md`` for Gemini) when that alias is not already a real user-owned file;
 - initializes/upgrades shared memory at ``projects/memory.md``;
 - runs provider execution and streams output (including provider-native
   stream-json reasoning/tool events for non-codex providers such as
