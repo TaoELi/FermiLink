@@ -241,6 +241,9 @@ _cleanup_exec_overlay_symlinks = overlay_helpers._cleanup_exec_overlay_symlinks
 _inject_exec_option_before_prompt = exec_runtime._inject_exec_option_before_prompt
 _render_claude_stream_event = exec_runtime._render_claude_stream_event
 _stream_claude_exec_output = exec_runtime._stream_claude_exec_output
+_stream_claude_exec_output_with_capture = (
+    exec_runtime._stream_claude_exec_output_with_capture
+)
 _stream_exec_process_output = exec_runtime._stream_exec_process_output
 _stream_exec_process_output_with_capture = (
     exec_runtime._stream_exec_process_output_with_capture

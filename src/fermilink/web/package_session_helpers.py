@@ -197,6 +197,7 @@ async def _run_package_second_guess(
     build_second_guess_prompt: Callable[..., str],
     resolve_agent_runtime_policy: Callable[[], Any],
     stream_runner: Callable[[dict[str, Any]], Any],
+    is_assistant_stream_event: Callable[[dict[str, Any]], bool],
     extract_text: Callable[[dict[str, Any]], str | None],
     extract_first_json_object: Callable[[str], dict[str, Any] | None],
     normalize_package_id_safe: Callable[[str | None], str | None],
@@ -300,17 +301,17 @@ async def _run_package_second_guess(
                 event = json.loads(data)
             except json.JSONDecodeError:
                 continue
-            item = event.get("item")
-            if not isinstance(item, dict):
-                item = {}
-            item_type = item.get("type") or event.get("type") or ""
-            if not isinstance(item_type, str):
+            if not isinstance(event, dict):
                 continue
-            if not item_type.startswith("agent_message"):
+            if is_assistant_stream_event(event):
+                text = extract_text(event) or ""
+                if text:
+                    assistant_chunks.append(text)
                 continue
-            text = extract_text(event) or ""
-            if text:
-                assistant_chunks.append(text)
+            # Accept direct JSON decision payload lines from providers that emit
+            # the final route object directly.
+            if isinstance(event.get("route"), str):
+                assistant_chunks.append(json.dumps(event, ensure_ascii=False))
 
     try:
         timeout = package_second_guess_timeout_seconds

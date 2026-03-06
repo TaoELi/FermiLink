@@ -3,30 +3,80 @@ from __future__ import annotations
 from typing import Any
 
 
+_NON_ASSISTANT_EVENT_TYPES = {
+    "command",
+    "command_execution",
+    "error",
+    "exec",
+    "exec_command_begin",
+    "exec_command_end",
+    "exec_command_output_delta",
+    "result",
+    "stream_error",
+    "system",
+    "tool_call",
+    "turn.failed",
+    "user",
+}
+
+
+def _event_item_type(payload: dict[str, Any]) -> str:
+    """Return normalized stream item type from heterogeneous payloads."""
+
+    item = payload.get("item")
+    if isinstance(item, dict):
+        item_type = item.get("type")
+        if isinstance(item_type, str) and item_type.strip():
+            return item_type.strip().lower()
+    raw_type = payload.get("type")
+    if isinstance(raw_type, str) and raw_type.strip():
+        return raw_type.strip().lower()
+    return ""
+
+
+def _is_assistant_stream_event(payload: dict[str, Any]) -> bool:
+    """Decide whether one stream payload should be treated as assistant text."""
+
+    item_type = _event_item_type(payload)
+    if item_type.startswith("agent_message"):
+        return True
+    if item_type in {"assistant", "assistant_delta", "assistant_message"}:
+        return True
+    if item_type in _NON_ASSISTANT_EVENT_TYPES:
+        return False
+
+    # Provider-native delta payloads may omit explicit assistant item type.
+    if any(key in payload for key in ("delta", "content_delta", "message_delta")):
+        return True
+    return False
+
+
 def _extract_text(payload: dict[str, Any]) -> str | None:
     """Extract best-effort text content from heterogeneous stream payloads."""
 
     def from_obj(obj: object) -> str | None:
         if not isinstance(obj, dict):
             return None
-        for key in ("text", "content", "message", "raw_content", "summary_text"):
-            value = obj.get(key)
+
+        def from_value(value: object) -> str | None:
             if isinstance(value, str) and value:
                 return value
-        content = obj.get("content")
-        if isinstance(content, list):
-            parts: list[str] = []
-            for entry in content:
-                if isinstance(entry, str):
-                    parts.append(entry)
-                elif isinstance(entry, dict):
-                    for key in ("text", "content", "message", "raw_content"):
-                        value = entry.get(key)
-                        if isinstance(value, str) and value:
-                            parts.append(value)
-                            break
-            if parts:
-                return "".join(parts)
+            if isinstance(value, dict):
+                return from_obj(value)
+            if isinstance(value, list):
+                parts: list[str] = []
+                for entry in value:
+                    nested = from_value(entry)
+                    if nested:
+                        parts.append(nested)
+                if parts:
+                    return "".join(parts)
+            return None
+
+        for key in ("text", "content", "message", "raw_content", "summary_text"):
+            text = from_value(obj.get(key))
+            if text:
+                return text
         return None
 
     if isinstance(payload.get("item"), dict):

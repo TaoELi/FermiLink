@@ -9,7 +9,7 @@ more detailed references if you want them.
 What you will set up:
 
 - A user-local Python + Node.js environment
-- FermiLink + Codex CLI authentication
+- FermiLink + provider CLI authentication (Codex or Claude)
 - One or more scientific packages (knowledge bases)
 - An ``hpc_profile.json`` so FermiLink submits and monitors SLURM jobs
 - Example runs with ``exec``, ``loop``, ``research``, and ``reproduce``
@@ -23,7 +23,7 @@ You need the following available on the cluster (all can be user-local):
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
-- Node.js + ``npm`` (for the Codex CLI)
+- Node.js + ``npm`` (for local provider CLIs)
 - SLURM client tools (``sbatch``, ``squeue``, ``sacct``) if you plan to submit jobs
 
 .. note::
@@ -49,20 +49,26 @@ The most significant storage is for workspaces, which might generate large runti
    # Example: also keep the simulation workspaces in scratch 
    export FERMILINK_WORKSPACES_ROOT="$SCRATCH/fermilink/workspaces"
 
-Step 2. Install Codex CLI and authenticate
+Step 2. Install provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink runs agents through the Codex CLI. Install it once and login:
+FermiLink currently documents tested provider support for Codex and Claude.
+Install and authenticate the provider you want to use:
 
 .. code-block:: bash
 
+   # Codex option
    npm i -g @openai/codex
    codex login
+   # Claude option
+   # install Claude CLI from its official distribution, then:
+   claude login
 
-If ``codex`` is not found after install, ensure your local ``npm`` bin directory
-is on ``PATH``.
+If your selected provider CLI is not found after install, ensure your local
+binary directory is on ``PATH``.
 
-Within the ``codex`` terminal, choose the default model (e.g., gpt-5.3-codex) you want to use for FermiLink.
+For Codex users, choose the default model (e.g., ``gpt-5.3-codex``) you want
+to use for FermiLink.
 
 
 Step 3. Install FermiLink
@@ -119,11 +125,14 @@ MPI workflows may need to bypass it. Check and set the policy if needed:
    # show current policy
    fermilink agent --json
 
-   # enforce sandbox mode (default)
+   # enforce sandbox mode (default) for codex
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-   # bypass codex sandbox (which might be needed for local MPI jobs)
+   # bypass sandbox for codex (which might be needed for local MPI jobs)
    fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort xhigh
+
+   # bypass sandbox for claude
+   fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
 
 .. warning::
 
@@ -344,7 +353,8 @@ In this tutorial, we have also set ``FERMILINK_WORKSPACES_ROOT`` to a scratch lo
 Troubleshooting quick checks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **Codex not found**: confirm ``npm`` install and PATH, then run ``codex login``.
+- **Provider CLI not found**: confirm install/PATH for the selected provider
+  (``codex`` or ``claude``), then run the corresponding login command.
 - **Jobs run locally instead of SLURM**: ensure you passed ``--hpc-profile`` and
   the JSON file path is correct.
 - **``sbatch`` not found**: you are not on a SLURM-enabled node or SLURM tools

@@ -710,6 +710,72 @@ def test_stream_claude_exec_output_handles_keyboard_interrupt() -> None:
     assert terminated == [True]
 
 
+def test_stream_claude_exec_output_with_capture_renders_and_captures(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events = [
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Running sim"}]}}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "python sim.py"}}]}}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "<wait_seconds>5</wait_seconds>"}]}}),
+    ]
+    process = SimpleNamespace(
+        stdout=io.StringIO("\n".join(events) + "\n"),
+        stderr=io.StringIO("warning-line\n"),
+        wait=lambda: 0,
+    )
+    return_code, assistant_text, stderr_text = (
+        cli._stream_claude_exec_output_with_capture(process)
+    )
+    assert return_code == 0
+    assert assistant_text == "Running sim\n<wait_seconds>5</wait_seconds>"
+    assert stderr_text == "warning-line\n"
+    captured = capsys.readouterr()
+    assert "Running sim" in captured.out
+    assert "[Bash] python sim.py" in captured.out
+    assert "warning-line" in captured.err
+
+
+def test_stream_claude_exec_output_with_capture_handles_keyboard_interrupt() -> None:
+    """KeyboardInterrupt during wait must terminate the child and return 130."""
+    terminated: list[bool] = []
+
+    class FakeProcess:
+        stdout = io.StringIO("")
+        stderr = io.StringIO("")
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            terminated.append(True)
+
+        def wait(self, timeout=None):
+            return 130
+
+        def kill(self):
+            pass
+
+    import fermilink.cli.exec_runtime as _rt
+
+    original_wait = _rt._wait_process_with_optional_stop
+
+    def _raise_keyboard_interrupt(process, **_kwargs):
+        raise KeyboardInterrupt
+
+    _rt._wait_process_with_optional_stop = _raise_keyboard_interrupt
+    try:
+        return_code, assistant_text, stderr_text = (
+            cli._stream_claude_exec_output_with_capture(FakeProcess())
+        )
+    finally:
+        _rt._wait_process_with_optional_stop = original_wait
+
+    assert return_code == 130
+    assert assistant_text == ""
+    assert stderr_text == ""
+    assert terminated == [True]
+
+
 def test_run_exec_codex_prompt_uses_devnull_stdin_for_claude(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -920,6 +986,68 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     assert command[color_index + 1] == "always"
     assert "--output-last-message" in command
     assert command[-1] == "hello tty"
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env.get("SANITIZED") == "1"
+    assert env.get("CODEX_HOME_NORMALIZED") == "1"
+
+
+def test_run_exec_chat_turn_claude_streams_and_captures_assistant_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
+        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("subprocess.run should not be called for claude chat turns")
+        ),
+    )
+
+    events = [
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "loop step done"}]}}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "<wait_seconds>3</wait_seconds>"}]}}),
+    ]
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["cwd"] = kwargs.get("cwd")
+        captured["env"] = kwargs.get("env")
+        captured["stdin"] = kwargs.get("stdin")
+        return SimpleNamespace(
+            stdout=io.StringIO("\n".join(events) + "\n"),
+            stderr=io.StringIO("warning-line\n"),
+            wait=lambda: 0,
+        )
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    result = cli._run_exec_chat_turn(
+        repo_dir=tmp_path,
+        prompt="hello claude",
+        sandbox="workspace-write",
+        codex_bin="claude",
+        provider="claude",
+        sandbox_policy="enforce",
+    )
+    assert result["assistant_text"] == "loop step done\n<wait_seconds>3</wait_seconds>"
+    assert result["return_code"] == 0
+    assert result["stderr"] == "warning-line"
+    assert captured["cwd"] == str(tmp_path)
+    assert captured["stdin"] is cli.subprocess.DEVNULL
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert "--output-format" in command
+    output_index = command.index("--output-format")
+    assert command[output_index + 1] == "stream-json"
+    assert "--output-last-message" not in command
+    assert command[-1] == "hello claude"
     env = captured["env"]
     assert isinstance(env, dict)
     assert env.get("SANITIZED") == "1"

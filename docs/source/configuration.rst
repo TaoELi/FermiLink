@@ -19,6 +19,8 @@ FermiLink resolves provider and sandbox behavior in this order:
    ``FERMILINK_HOME/agent_runtime.json``.
 3. Built-in defaults.
 
+Tested provider options in current docs: ``codex`` and ``claude``.
+
 Set policy via CLI:
 
 .. code-block:: bash
@@ -26,6 +28,7 @@ Set policy via CLI:
    fermilink agent --sandbox
    fermilink agent --bypass-sandbox
    fermilink agent codex
+   fermilink agent claude
    fermilink agent --model gpt-5.3-codex
    fermilink agent --clear-model
    fermilink agent --reasoning-effort high
@@ -74,12 +77,6 @@ Common runner/web controls
    * - ``FERMILINK_CLAUDE_BIN``
      - ``claude``
      - Provider binary path for claude runs.
-   * - ``FERMILINK_GEMINI_BIN``
-     - ``gemini``
-     - Provider binary path for gemini runs.
-   * - ``FERMILINK_DEEPSEEK_BIN``
-     - ``deepseek``
-     - Provider binary path for deepseek runs.
    * - ``FERMILINK_RUNNER_MAX_RUNTIME_SECONDS``
      - ``600``
      - Per-run hard timeout in runner.

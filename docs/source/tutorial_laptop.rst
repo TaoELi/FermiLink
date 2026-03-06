@@ -13,7 +13,7 @@ This tutorial uses the default FermiLink runtime location:
 What you will set up:
 
 - A local Python environment
-- Codex CLI authentication
+- Provider CLI authentication (Codex or Claude)
 - FermiLink installation
 - One scientific package knowledge base (example: ``qutip``)
 - Example runs with ``exec``, ``chat``, and the Web UI (``start``)
@@ -26,7 +26,7 @@ You need:
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
-- Node.js + ``npm`` (or Homebrew on macOS) for the Codex CLI
+- Node.js + ``npm`` (or Homebrew on macOS) for local provider CLIs
 
 .. note::
 
@@ -45,15 +45,20 @@ Use conda environment so your laptop test does not modify your system Python:
    conda activate fermilink-laptop
 
 
-Step 2. Install Codex CLI and authenticate
+Step 2. Install provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink runs agents through the Codex CLI. Install it once and login:
+FermiLink currently documents tested provider support for Codex and Claude.
+Install and authenticate the provider you want to use:
 
 .. code-block:: bash
 
+   # Codex option
    npm i -g @openai/codex
    codex login
+   # Claude option
+   # install Claude CLI from its official distribution, then:
+   claude login
 
 .. note::
 
@@ -61,11 +66,11 @@ FermiLink runs agents through the Codex CLI. Install it once and login:
 
      brew install codex
 
-If ``codex`` is not found after install, ensure your local ``npm`` bin directory
-is on ``PATH``.
+If your selected provider CLI is not found after install, ensure your local
+binary directory is on ``PATH``.
 
-Within the ``codex`` terminal, choose the default model you want to use for
-FermiLink (for example ``gpt-5.3-codex``).
+For Codex users, you can choose a default model (for example
+``gpt-5.3-codex``).
 
 
 Step 3. Install FermiLink
@@ -135,8 +140,11 @@ the default is recommended.
    # show current policy
    fermilink agent --json
 
-   # enforce sandbox mode (default)
+   # enforce sandbox mode (default) for codex
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
+
+   # relax sandbox for claude
+   fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
 
 .. warning::
 
@@ -226,7 +234,8 @@ By default, FermiLink stores runtime data under ``~/.fermilink``:
 Troubleshooting quick checks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **Codex not found**: confirm ``npm`` install and PATH, then run ``codex login``.
+- **Provider CLI not found**: confirm install/PATH for the selected provider
+  (``codex`` or ``claude``), then run the corresponding login command.
 - **No packages installed**: run ``fermilink install <package_id> --activate``,
   then verify with ``fermilink list``.
 - **Runtime package missing**: install the underlying package (for example
@@ -240,4 +249,3 @@ Further reading (optional)
 - :doc:`usage` for CLI modes and flags.
 - :doc:`scientific_packages` for package management and dependencies.
 - :doc:`tutorial_hpc` for SLURM-based HPC workflows.
-

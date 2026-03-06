@@ -156,8 +156,9 @@ Troubleshooting (common first-run issues)
 
 - **Access denied.**: your account is not in the allowlist; update
   ``FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM`` and restart the gateway.
-- **Runs fail immediately**: verify Codex authentication (``codex login`` or API
-  key) on the machine running the gateway.
+- **Runs fail immediately**: verify authentication for the selected provider
+  (for example ``codex login`` or ``claude login``) on the machine running the
+  gateway.
 - **Missing outputs/figures**: ask the agent to write files under ``outputs/`` or
   ``projects/`` so they can be detected and attached.
 

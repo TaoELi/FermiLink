@@ -94,10 +94,13 @@ Troubleshooting (common first-run issues)
     fermilink install <package_id> --activate
 
 - **Runner fails with a provider error**:
-  ensure ``codex`` is on ``PATH`` and authenticated (``codex login``), then
-  restart::
+  ensure the active provider CLI (``codex`` or ``claude``) is on ``PATH`` and
+  authenticated, then restart. You can check
+  or change provider selection with ``fermilink agent``::
 
-    codex login
+    fermilink agent --json
+    # optional: switch provider
+    fermilink agent claude
     fermilink restart
 
 - **Ports already in use**:

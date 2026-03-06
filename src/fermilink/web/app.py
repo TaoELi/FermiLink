@@ -532,6 +532,7 @@ async def _run_package_second_guess(
         build_second_guess_prompt=_build_second_guess_prompt,
         resolve_agent_runtime_policy=resolve_agent_runtime_policy,
         stream_runner=_stream_runner,
+        is_assistant_stream_event=_is_assistant_stream_event,
         extract_text=_extract_text,
         extract_first_json_object=_extract_first_json_object,
         normalize_package_id_safe=_normalize_package_id_safe,
@@ -1426,6 +1427,10 @@ def _extract_text(payload: dict) -> str | None:
     return chat_helpers._extract_text(payload)
 
 
+def _is_assistant_stream_event(payload: dict) -> bool:
+    return chat_helpers._is_assistant_stream_event(payload)
+
+
 def _extract_command(payload: dict) -> str | None:
     return chat_helpers._extract_command(payload)
 
@@ -1929,7 +1934,7 @@ async def on_message(message: cl.Message):
                     status_msg, status_label, last_status
                 )
 
-                if item_type.startswith("agent_message"):
+                if _is_assistant_stream_event(event):
                     text = _extract_text(event) or ""
                     if text:
                         assistant_buffer += text

@@ -357,6 +357,102 @@ def _stream_claude_exec_output(process) -> int:
     return int(return_code)
 
 
+def _extract_claude_assistant_text(event: dict) -> str:
+    """Extract assistant text blocks from one Claude stream-json event."""
+
+    if not isinstance(event, dict):
+        return ""
+    if event.get("type") != "assistant":
+        return ""
+    message = event.get("message")
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if not isinstance(content, list):
+        return ""
+
+    parts: list[str] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") != "text":
+            continue
+        text = block.get("text")
+        if isinstance(text, str):
+            cleaned = text.strip()
+            if cleaned:
+                parts.append(cleaned)
+    return "\n".join(parts).strip()
+
+
+def _stream_claude_exec_output_with_capture(process) -> tuple[int, str, str]:
+    """Stream Claude stream-json output and capture assistant/stderr text."""
+
+    cli = _cli()
+    try:
+        use_color = bool(cli.sys.stdout.isatty())
+    except Exception:
+        use_color = False
+
+    assistant_parts: list[str] = []
+    stderr_lines: list[str] = []
+
+    def _pump_stdout(stream) -> None:
+        if stream is None:
+            return
+        for line in iter(stream.readline, ""):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                event = json.loads(stripped)
+            except (json.JSONDecodeError, ValueError):
+                # Not JSON (e.g. startup warnings) — print as-is.
+                print(line.rstrip("\n"), file=cli.sys.stdout, flush=True)
+                continue
+            if isinstance(event, dict):
+                assistant_text = _extract_claude_assistant_text(event)
+                if assistant_text:
+                    assistant_parts.append(assistant_text)
+                rendered = _render_claude_stream_event(event, use_color=use_color)
+                if rendered:
+                    print(rendered, file=cli.sys.stdout, flush=True)
+        stream.close()
+
+    def _pump_stderr(stream) -> None:
+        if stream is None:
+            return
+        for line in iter(stream.readline, ""):
+            stderr_lines.append(line)
+            print(line.rstrip("\n"), file=cli.sys.stderr, flush=True)
+        stream.close()
+
+    stdout_thread = cli.threading.Thread(target=_pump_stdout, args=(process.stdout,), daemon=True)
+    stderr_thread = cli.threading.Thread(target=_pump_stderr, args=(process.stderr,), daemon=True)
+    stdout_thread.start()
+    stderr_thread.start()
+    return_code = 130
+    try:
+        return_code = _wait_process_with_optional_stop(process)
+    except KeyboardInterrupt:
+        # Ctrl+C: send SIGTERM, wait up to 5 s, then SIGKILL.
+        try:
+            process.terminate()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=5.0)
+        except Exception:
+            try:
+                process.kill()
+            except OSError:
+                pass
+        return_code = 130
+    stdout_thread.join(timeout=2.0)
+    stderr_thread.join(timeout=2.0)
+    return int(return_code), "\n".join(assistant_parts).strip(), "".join(stderr_lines)
+
+
 def _should_use_direct_terminal_stream() -> bool:
     """Return whether Codex output should stream directly to the terminal.
 
@@ -394,6 +490,7 @@ def _run_exec_chat_turn(
     provider_bin = cli.resolve_provider_binary(provider, codex_bin=codex_bin)
     with cli.tempfile.TemporaryDirectory(prefix="fermilink-chat-") as temp_dir:
         last_message_path = Path(temp_dir) / "last_message.txt"
+        use_json_stream = provider != "codex"
         try:
             cmd = cli.build_exec_command(
                 provider=provider,
@@ -404,7 +501,7 @@ def _run_exec_chat_turn(
                 sandbox_mode=sandbox,
                 model=model,
                 reasoning_effort=reasoning_effort,
-                json_output=False,
+                json_output=use_json_stream,
             )
         except NotImplementedError as exc:
             raise cli.PackageError(str(exc)) from exc
@@ -419,6 +516,35 @@ def _run_exec_chat_turn(
         env = cli.os.environ.copy()
         env = runner_app._sanitize_env(env)
         env = runner_app._normalize_codex_home(env)
+
+        if use_json_stream:
+            try:
+                process = cli.subprocess.Popen(
+                    cmd,
+                    cwd=str(repo_dir),
+                    stdin=cli.subprocess.DEVNULL,
+                    stdout=cli.subprocess.PIPE,
+                    stderr=cli.subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    env=env,
+                )
+            except FileNotFoundError as exc:
+                env_key = cli.provider_bin_env_key(provider)
+                raise cli.PackageError(
+                    f"{provider} CLI not found: {provider_bin}. "
+                    f"Install the provider CLI or set {env_key}."
+                ) from exc
+            return_code, assistant_text, stderr_text = (
+                cli._stream_claude_exec_output_with_capture(process)
+            )
+            stop_requested = _consume_last_wait_stop_requested()
+            return {
+                "assistant_text": assistant_text.strip(),
+                "return_code": int(return_code),
+                "stderr": stderr_text.strip(),
+                "stopped_by_user": bool(stop_requested),
+            }
 
         stdout_text = ""
         stderr_text = ""

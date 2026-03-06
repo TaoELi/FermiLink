@@ -17,7 +17,7 @@ With [an official package channel](https://github.com/skilled-scipkg), **FermiLi
 After receiving the user's request, **FermiLink** utilizes a **four-layer progressive disclosure** mechansim to efficiently perform multidomain computational tasks. Specially designed for modern HPC simulations, it can run a set of computational tasks for days or even weeks in HPC clusters without human interference.
 
 ## Quick Start
-
+Ensure `codex` or `claude` CLI is installed in your machine. Then,
 ```bash
 # 1. Install
 pip install .

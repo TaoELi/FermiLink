@@ -11,9 +11,13 @@ Fast path
    # 1. Install FermiLink (from this repo root)
    pip install .
 
-   # 2. Install and authenticate the fundamental agent model (Codex)
+   # 2. Install and authenticate one supported agent provider CLI (Codex or Claude)
+   # Codex option:
    npm i -g @openai/codex   # Use ``brew install codex`` for Mac
    codex login
+   # Claude option:
+   # install Claude CLI from its official distribution, then:
+   claude login
 
    # 3. Install at least one scientific package (knowledge base)
    fermilink install meep --activate
@@ -45,32 +49,38 @@ FermiLink assumes a standard local developer environment:
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
-- Node.js + ``npm`` (to install the Codex CLI) or ``homebrew`` installed for Mac
-- Codex CLI (``codex``) on ``PATH`` 
+- Node.js + ``npm`` (commonly used for local provider CLIs) or ``homebrew`` installed for Mac
+- Supported provider CLI on ``PATH``: Codex (``codex``) or Claude (``claude``)
 
 .. note::
 
    For HPC users without sudo access, you need to install Node.js and ``npm`` locally first.
 
-Install Codex CLI 
-~~~~~~~~~~~~~~~~~~~~~
+Install provider CLI (Codex or Claude)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
+   # Codex option
    npm i -g @openai/codex  # Use ``brew install codex`` for Mac
+   # Claude option
+   # install Claude CLI from its official distribution
 
-Codex authentication
-~~~~~~~~~~~~~~~~~~~~~~~
+Provider authentication
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently executes agent runs via the Codex CLI provider
-(``codex exec``). Authenticate **before** starting web UI services or running 
+FermiLink currently documents tested agent-provider support for Codex and Claude.
+Authenticate the provider you selected **before** starting web UI services or running
 ``fermilink exec/chat/loop/research/reproduce``.
 
-Login Codex using OpenAI credentials:
+Example login commands:
 
 .. code-block:: bash
 
+   # Codex
    codex login
+   # Claude
+   claude login
 
 Install FermiLink
 ~~~~~~~~~~~~~~~~~~
@@ -121,11 +131,14 @@ However, some scientific simulations might require access to external files, net
    # show current policy
    fermilink agent --json
 
-   # enforce sandbox mode (default)
+   # enforce sandbox mode (default), codex provider
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-   # bypass codex sandbox (which might be needed for local MPI jobs)
+   # bypass sandbox (which might be needed for local MPI jobs)
    fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort xhigh
+
+   # bypass sandbox for claude
+   fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
 
 .. warning::
 
