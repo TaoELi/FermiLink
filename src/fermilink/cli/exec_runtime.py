@@ -127,7 +127,9 @@ def _wait_process_with_optional_stop(
                     process.terminate()
                 except Exception:
                     pass
-                terminate_deadline = time.monotonic() + max(0.0, terminate_grace_seconds)
+                terminate_deadline = time.monotonic() + max(
+                    0.0, terminate_grace_seconds
+                )
             elif not kill_sent and time.monotonic() >= terminate_deadline:
                 try:
                     process.kill()
@@ -425,7 +427,7 @@ def _run_exec_chat_turn(
     repo_dir: Path,
     prompt: str,
     sandbox: str | None,
-    codex_bin: str | None,
+    provider_bin_override: str | None,
     provider: str = "codex",
     sandbox_policy: str = "enforce",
     model: str | None = None,
@@ -436,7 +438,10 @@ def _run_exec_chat_turn(
     cli = _cli()
     _consume_last_wait_stop_requested()
     agent = get_provider_agent(provider)
-    provider_bin = cli.resolve_provider_binary(provider, codex_bin=codex_bin)
+    provider_bin = cli.resolve_provider_binary(
+        provider,
+        provider_bin_override=provider_bin_override,
+    )
     with cli.tempfile.TemporaryDirectory(prefix="fermilink-chat-") as temp_dir:
         last_message_path = Path(temp_dir) / "last_message.txt"
         use_json_stream = agent.uses_json_stream()
@@ -580,7 +585,7 @@ def _run_exec_provider_prompt(
     repo_dir: Path,
     prompt: str,
     sandbox: str | None,
-    codex_bin: str | None,
+    provider_bin_override: str | None,
     provider: str = "codex",
     sandbox_policy: str = "enforce",
     model: str | None = None,
@@ -589,7 +594,10 @@ def _run_exec_provider_prompt(
     cli = _cli()
     _consume_last_wait_stop_requested()
     agent = get_provider_agent(provider)
-    provider_bin = cli.resolve_provider_binary(provider, codex_bin=codex_bin)
+    provider_bin = cli.resolve_provider_binary(
+        provider,
+        provider_bin_override=provider_bin_override,
+    )
 
     use_json_stream = agent.uses_json_stream()
 
@@ -672,9 +680,3 @@ def _run_exec_provider_prompt(
         return int(return_code)
     finally:
         _cleanup_temp_paths(temp_paths)
-
-
-def _run_exec_codex_prompt(**kwargs) -> int:
-    """Compatibility wrapper around provider-aware one-shot exec execution."""
-
-    return _run_exec_provider_prompt(**kwargs)

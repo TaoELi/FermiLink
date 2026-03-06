@@ -66,8 +66,8 @@ def _extract_text_like(value: object, *, strip: bool = True) -> str:
 
 def _format_tool_input_preview(payload: object) -> str:
     if isinstance(payload, dict):
-        candidate = payload.get("command") or payload.get("file_path") or payload.get(
-            "path"
+        candidate = (
+            payload.get("command") or payload.get("file_path") or payload.get("path")
         )
         if isinstance(candidate, str) and candidate:
             return candidate
@@ -98,10 +98,10 @@ class ProviderAgent(ABC):
     def provider_id(self) -> str:
         return self.provider
 
-    def resolve_binary(self, *, codex_bin: str | None = None) -> str:
+    def resolve_binary(self, *, provider_bin_override: str | None = None) -> str:
         """Resolve executable name/path for this provider."""
 
-        del codex_bin
+        del provider_bin_override
         raw = os.getenv(self.bin_env_key, self.default_binary)
         cleaned = raw.strip() if isinstance(raw, str) else ""
         return cleaned or self.default_binary

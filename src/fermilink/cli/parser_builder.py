@@ -37,23 +37,19 @@ def _build_parser() -> argparse.ArgumentParser:
         subparsers,
         cmd_exec=cli._cmd_exec,
         cmd_loop=cli._cmd_loop,
-        default_provider_bin=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     cli.register_gateway_parser(
         subparsers,
         cmd_gateway=cli._cmd_gateway,
-        default_provider_bin=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     cli.register_workflow_parsers(
         subparsers,
         cmd_reproduce=cli._cmd_reproduce,
         cmd_research=cli._cmd_research,
-        default_provider_bin=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     cli.register_chat_parser(
         subparsers,
         cmd_chat=cli._cmd_chat,
-        default_provider_bin=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     cli.register_agent_parser(
         subparsers,

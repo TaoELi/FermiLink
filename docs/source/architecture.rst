@@ -19,7 +19,7 @@ Core package (``src/fermilink``)
 
 - ``agent_runtime.py``: persisted runtime provider/sandbox/model/reasoning-effort policy.
 - ``agents/``: provider-agent base contract, per-provider adapters, shared provider runtime behavior (stream rendering/extraction, runtime env tweaks, workspace instruction aliases, command adjustments), and provider registry.
-- ``providers.py``: stable provider wrappers that delegate binary resolution, compatibility override selection, capability queries, service-env collection, and command assembly to the agent registry.
+- ``providers.py``: stable provider wrappers that delegate binary resolution, compatibility override selection, capability queries, service-env collection, and command assembly to the agent registry, so command/runner code stays provider-generic without codex-named exec/compile shims.
 - ``config.py``: runtime path resolution.
 - ``services.py``: runner/web process lifecycle helpers.
 - ``router_rules.py``: package router rule synchronization.
@@ -35,7 +35,7 @@ CLI subsystem (``src/fermilink/cli``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``commands/*``: implementations for package/service/session/workflow commands, with provider-specific execution, metadata-generation, and final-reply capture quirks delegated to ``agents/`` hooks and provider-wrapper helpers.
-- ``parser_*`` modules: parser registration by command family.
+- ``parser_*`` modules: parser registration by command family, without provider-specific binary override flags in command surfaces.
 - ``exec_runtime.py`` and helpers: subprocess execution and shared CLI behavior, with provider-specific runtime details delegated to ``agents/``.
 
 Runner and web

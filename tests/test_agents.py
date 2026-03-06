@@ -34,8 +34,10 @@ def test_agent_registry_exposes_provider_binary_maps() -> None:
 def test_codex_agent_resolve_binary_honors_explicit_override(monkeypatch) -> None:
     monkeypatch.setenv("FERMILINK_CODEX_BIN", "codex-env")
     agent = get_provider_agent("codex")
-    assert agent.resolve_binary(codex_bin="codex-explicit") == "codex-explicit"
-    assert agent.resolve_binary(codex_bin=None) == "codex-env"
+    assert agent.resolve_binary(provider_bin_override="codex-explicit") == (
+        "codex-explicit"
+    )
+    assert agent.resolve_binary(provider_bin_override=None) == "codex-env"
 
 
 def test_stub_provider_resolve_binary_uses_env(monkeypatch) -> None:

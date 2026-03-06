@@ -138,7 +138,7 @@ def verify_provider_bin() -> None:
     policy = resolve_agent_runtime_policy()
     provider_bin = resolve_provider_binary(
         policy.provider,
-        codex_bin=DEFAULT_PROVIDER_BINARY_OVERRIDE,
+        provider_bin_override=DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     if shutil.which(provider_bin) is None:
         env_key = provider_bin_env_key(policy.provider)
@@ -805,7 +805,7 @@ async def run(req: RunRequest):
         )
         provider_bin = resolve_provider_binary(
             provider,
-            codex_bin=DEFAULT_PROVIDER_BINARY_OVERRIDE,
+            provider_bin_override=DEFAULT_PROVIDER_BINARY_OVERRIDE,
         )
         try:
             cmd = build_exec_command(

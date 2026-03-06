@@ -445,7 +445,7 @@ def test_ensure_public_fork_omits_org_flag_for_personal_owner(monkeypatch) -> No
     assert result["fork_name"] == "tester/qutip"
 
 
-def test_generate_metadata_with_codex_uses_repo_dir(
+def test_generate_metadata_with_provider_uses_repo_dir(
     monkeypatch, tmp_path: Path
 ) -> None:
     repo_root = tmp_path / "fork-repo"
@@ -475,7 +475,7 @@ def test_generate_metadata_with_codex_uses_repo_dir(
 
     monkeypatch.setattr(cli, "_run_exec_chat_turn", _fake_run_exec_chat_turn)
 
-    payload = package_commands._generate_metadata_with_codex(
+    payload = package_commands._generate_metadata_with_provider(
         metadata_repo_dir=repo_root,
         package_id="qutip",
         upstream_repo_url="https://github.com/qutip/qutip",
@@ -490,7 +490,7 @@ def test_generate_metadata_with_codex_uses_repo_dir(
     assert seen_kwargs["repo_dir"] == repo_root
 
 
-def test_generate_metadata_with_codex_rejects_invalid_repo_dir(
+def test_generate_metadata_with_provider_rejects_invalid_repo_dir(
     monkeypatch, tmp_path: Path
 ) -> None:
     missing_repo = tmp_path / "missing-repo"
@@ -504,7 +504,7 @@ def test_generate_metadata_with_codex_rejects_invalid_repo_dir(
     )
 
     with pytest.raises(cli.PackageError) as exc_info:
-        package_commands._generate_metadata_with_codex(
+        package_commands._generate_metadata_with_provider(
             metadata_repo_dir=missing_repo,
             package_id="qutip",
             upstream_repo_url="https://github.com/qutip/qutip",

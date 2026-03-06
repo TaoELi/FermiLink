@@ -189,7 +189,7 @@ def test_recompile_without_project_path_uses_managed_package_path(
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -281,7 +281,7 @@ def test_recompile_explicit_dot_uses_current_directory(
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -367,7 +367,7 @@ def test_recompile_install_off_skips_registry_and_install(
     monkeypatch.setattr(cli, "sync_router_rules", _fail)
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -438,7 +438,7 @@ def test_recompile_auto_initializes_git_repo_when_missing(
     )
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -534,7 +534,7 @@ def test_recompile_runs_three_passes_then_installs(monkeypatch, tmp_path: Path) 
             "assistant_text": assistant_text,
         }
 
-    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+    monkeypatch.setattr(cli, "_run_compile_provider_pass", fake_pass)
     monkeypatch.setattr(
         cli,
         "_load_compile_profile",
@@ -650,7 +650,7 @@ def test_recompile_validation_non_blocking_by_default(
     monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -711,7 +711,7 @@ def test_recompile_strict_validation_blocks_install(
     monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -789,7 +789,7 @@ def test_recompile_existing_package_id_updates_by_default(
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -856,7 +856,7 @@ def test_recompile_force_flag_is_accepted_as_compat_noop(
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -1074,7 +1074,7 @@ def test_recompile_memory_mode_builds_plan_from_recursive_memory(
             ),
         }
 
-    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+    monkeypatch.setattr(cli, "_run_compile_provider_pass", fake_pass)
 
     payloads: list[dict[str, object]] = []
     monkeypatch.setattr(cli, "_print_json", lambda payload: payloads.append(payload))
@@ -1215,7 +1215,7 @@ def test_recompile_accepts_doc_data_dir_and_comment(
 
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         fake_pass,
     )
     monkeypatch.setattr(
@@ -1345,7 +1345,7 @@ def test_recompile_doc_only_still_writes_disabled_staged_assets_manifest(
             "assistant_text": assistant_text,
         }
 
-    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+    monkeypatch.setattr(cli, "_run_compile_provider_pass", fake_pass)
     monkeypatch.setattr(
         cli, "_load_compile_profile", lambda *_a, **_k: _default_profile()
     )
@@ -1670,7 +1670,7 @@ def test_recompile_strict_validation_blocks_on_paper_validation(
     monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": int(_k.get("pass_index") or 1),
             "status": "ok",

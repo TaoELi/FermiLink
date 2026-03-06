@@ -260,7 +260,6 @@ WORKFLOW_REPORT_AUDITOR_PROMPT_PREFIX = (
     "Do not fabricate data; flag uncertain or missing support explicitly.\n"
     "After your edits, also translate this markdown report into a LaTeX format (revtex 4.1 preprint, filename report.tex) suitable for submission to physcial review journals, ensuring all scientific content and clarity is preserved or enhanced in the translation.\n"
     "If pdflatex is installed in this machine, also compile the LaTeX into a PDF and save it as an artifact, ensuring that all figures are correctly included and formatted according to journal standards.\n"
-
 )
 
 WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX = (

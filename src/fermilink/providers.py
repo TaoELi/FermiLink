@@ -35,7 +35,7 @@ def provider_bin_env_key(provider: str) -> str:
 def resolve_provider_binary(
     provider: str,
     *,
-    codex_bin: str | None = None,
+    provider_bin_override: str | None = None,
 ) -> str:
     """
     Resolve the executable name/path for the selected provider.
@@ -45,15 +45,18 @@ def resolve_provider_binary(
     provider : str
         Provider identifier (for example `codex`, `claude`, `gemini`, or
         `deepseek`).
-    codex_bin : str | None
-        Optional override for the Codex executable when provider is `codex`.
+    provider_bin_override : str | None
+        Optional provider-specific binary override consumed by the selected
+        agent adapter.
 
     Returns
     -------
     str
         Resolved executable name/path for the provider.
     """
-    return _AGENT_REGISTRY.get(provider).resolve_binary(codex_bin=codex_bin)
+    return _AGENT_REGISTRY.get(provider).resolve_binary(
+        provider_bin_override=provider_bin_override
+    )
 
 
 def resolve_provider_binary_override(

@@ -12,7 +12,6 @@ def register_workflow_parsers(
     *,
     cmd_reproduce: CommandHandler,
     cmd_research: CommandHandler,
-    default_provider_bin: str,
 ) -> None:
     """
     Register parser arguments for workflow.
@@ -25,9 +24,6 @@ def register_workflow_parsers(
         Command handler for `reproduce` subcommands.
     cmd_research : CommandHandler
         Command handler for `research` subcommands.
-    default_provider_bin : str
-        Default compatibility override value for `--codex-bin`.
-
     Returns
     -------
     None
@@ -59,14 +55,6 @@ def register_workflow_parsers(
         help=(
             "Override sandbox mode for planning/auditing/loop runs. "
             "When omitted, uses `fermilink agent` policy."
-        ),
-    )
-    reproduce_parser.add_argument(
-        "--codex-bin",
-        default=default_provider_bin,
-        help=(
-            f"Codex executable path (default: {default_provider_bin}). "
-            "Ignored when provider is not codex."
         ),
     )
     reproduce_parser.add_argument(
@@ -203,14 +191,6 @@ def register_workflow_parsers(
         help=(
             "Override sandbox mode for planning/auditing/loop runs. "
             "When omitted, uses `fermilink agent` policy."
-        ),
-    )
-    research_parser.add_argument(
-        "--codex-bin",
-        default=default_provider_bin,
-        help=(
-            f"Codex executable path (default: {default_provider_bin}). "
-            "Ignored when provider is not codex."
         ),
     )
     research_parser.add_argument(

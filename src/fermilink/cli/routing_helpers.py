@@ -78,7 +78,9 @@ def _run_exec_second_guess(
         current_package_id=base_package_id,
         package_catalog=package_catalog,
     )
-    provider_bin_value = cli.resolve_provider_binary(provider, codex_bin=provider_bin)
+    provider_bin_value = cli.resolve_provider_binary(
+        provider, provider_bin_override=provider_bin
+    )
     preflight_sandbox_mode = "read-only" if sandbox_policy == "enforce" else None
     try:
         cmd = cli.build_exec_command(
@@ -172,7 +174,9 @@ def _run_exec_second_guess(
 
         route_raw = decision.get("route")
         route = str(route_raw).strip().lower() if route_raw is not None else ""
-        suggested_package = web_app._normalize_package_id_safe(decision.get("package_id"))
+        suggested_package = web_app._normalize_package_id_safe(
+            decision.get("package_id")
+        )
         confidence = web_app._coerce_confidence(decision.get("confidence"))
         reason_raw = decision.get("reason")
         reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""

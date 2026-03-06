@@ -12,7 +12,6 @@ def _loop_config() -> gateway_commands.GatewayLoopConfig:
     return gateway_commands.GatewayLoopConfig(
         package_id=None,
         sandbox=None,
-        codex_bin="codex",
         max_iterations=2,
         wait_seconds=0.0,
         max_wait_seconds=10.0,
@@ -78,7 +77,9 @@ def test_extract_telegram_inbound_files_supports_document_and_photo() -> None:
     assert files[1].suggested_name == "photo.jpg"
 
 
-def test_download_telegram_inbound_files_saves_under_repo_uploads(tmp_path: Path) -> None:
+def test_download_telegram_inbound_files_saves_under_repo_uploads(
+    tmp_path: Path,
+) -> None:
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -216,7 +217,6 @@ def test_cmd_gateway_uploads_document_without_text_and_replies_with_saved_path(
         session_store=str(session_store),
         package_id=None,
         sandbox=None,
-        codex_bin="codex",
         max_iterations=2,
         wait_seconds=0.0,
         max_wait_seconds=10.0,
@@ -231,7 +231,10 @@ def test_cmd_gateway_uploads_document_without_text_and_replies_with_saved_path(
         workspaces_root.glob("telegram-*/repo/telegram_uploads/experiment.csv")
     )
     assert len(uploaded_matches) == 1
-    assert uploaded_matches[0].read_text(encoding="utf-8") == "wavelength,intensity\n500,1.0\n"
+    assert (
+        uploaded_matches[0].read_text(encoding="utf-8")
+        == "wavelength,intensity\n500,1.0\n"
+    )
     assert sent_messages
     assert any("Uploaded 1 file to workspace" in text for _, text, _ in sent_messages)
     assert any(
@@ -320,7 +323,6 @@ def test_run_loop_in_workspace_forwards_iteration_hook(
     loop_config = gateway_commands.GatewayLoopConfig(
         package_id=None,
         sandbox=None,
-        codex_bin="codex",
         max_iterations=10,
         wait_seconds=0.0,
         max_wait_seconds=60.0,
@@ -467,7 +469,6 @@ def test_run_exec_in_workspace_captures_last_message(
         gateway_commands.GatewayLoopConfig(
             package_id=None,
             sandbox=None,
-            codex_bin="codex",
             max_iterations=2,
             wait_seconds=0.0,
             max_wait_seconds=10.0,
@@ -510,7 +511,6 @@ def test_run_research_in_workspace_forwards_hpc_profile(
     loop_config = gateway_commands.GatewayLoopConfig(
         package_id="maxwelllink",
         sandbox="workspace-write",
-        codex_bin="codex",
         max_iterations=8,
         wait_seconds=2.0,
         max_wait_seconds=90.0,
@@ -971,7 +971,6 @@ def test_handle_telegram_text_loopcfg_overrides_apply_without_restart(
     base_loop_config = gateway_commands.GatewayLoopConfig(
         package_id=None,
         sandbox=None,
-        codex_bin="codex",
         max_iterations=4,
         wait_seconds=0.0,
         max_wait_seconds=20.0,
@@ -1070,7 +1069,6 @@ def test_queue_telegram_run_snapshots_loop_controls_per_job() -> None:
     base_loop_config = gateway_commands.GatewayLoopConfig(
         package_id=None,
         sandbox=None,
-        codex_bin="codex",
         max_iterations=2,
         wait_seconds=0.0,
         max_wait_seconds=10.0,
@@ -1264,7 +1262,6 @@ def test_handle_telegram_text_supports_workflow_prompts(
     loop_config = gateway_commands.GatewayLoopConfig(
         package_id=None,
         sandbox=None,
-        codex_bin="codex",
         max_iterations=2,
         wait_seconds=0.0,
         max_wait_seconds=10.0,

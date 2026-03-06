@@ -2053,7 +2053,7 @@ def _generate_task_data_map(
     summary_text: str,
     requested_package_id: str | None,
     sandbox_override: str | None,
-    codex_bin: str,
+    provider_bin_override: str,
     max_tries: int,
     log_tag: str,
     data_context: dict[str, object],
@@ -2099,7 +2099,7 @@ def _generate_task_data_map(
                 prompt=prompt,
                 requested_package_id=requested_package_id,
                 sandbox_override=sandbox_override,
-                codex_bin=codex_bin,
+                provider_bin_override=provider_bin_override,
                 data_context=data_context,
             )
             return_code = int(run_result.get("return_code") or 0)
@@ -2574,7 +2574,7 @@ def _run_reproduce_exec_turn(
     prompt: str,
     requested_package_id: str | None,
     sandbox_override: str | None,
-    codex_bin: str,
+    provider_bin_override: str,
     data_context: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Execute one planning/reporting turn used by `reproduce` and `research`.
@@ -2629,7 +2629,7 @@ def _run_reproduce_exec_turn(
 
     provider_bin = cli.resolve_provider_binary_override(
         provider,
-        raw_override=codex_bin,
+        raw_override=provider_bin_override,
     )
     selection = cli._resolve_exec_package_selection(
         user_prompt=prompt,
@@ -2683,7 +2683,7 @@ def _run_reproduce_exec_turn(
             repo_dir=repo_dir,
             prompt=prompt,
             sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-            codex_bin=provider_bin,
+            provider_bin_override=provider_bin,
             provider=provider,
             sandbox_policy=sandbox_policy,
             model=model,
@@ -2727,7 +2727,7 @@ def _generate_mode_plan(
     source_description: str,
     requested_package_id: str | None,
     sandbox_override: str | None,
-    codex_bin: str,
+    provider_bin_override: str,
     planner_max_tries: int,
     auditor_max_tries: int,
     planner_prompt_prefix: str,
@@ -2766,7 +2766,7 @@ def _generate_mode_plan(
             prompt=planner_prompt,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
-            codex_bin=codex_bin,
+            provider_bin_override=provider_bin_override,
             data_context=data_context,
         )
         return_code = int(run_result.get("return_code") or 0)
@@ -2839,7 +2839,7 @@ def _generate_mode_plan(
             summary_text=summary_text,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
-            codex_bin=codex_bin,
+            provider_bin_override=provider_bin_override,
             max_tries=auditor_max_tries,
             log_tag=log_tag,
             data_context=data_context,
@@ -2909,7 +2909,7 @@ def _generate_mode_plan(
             prompt=auditor_prompt,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
-            codex_bin=codex_bin,
+            provider_bin_override=provider_bin_override,
             data_context=data_context,
         )
         return_code = int(run_result.get("return_code") or 0)
@@ -2973,7 +2973,7 @@ def _generate_reproduce_plan(
     source_description: str,
     requested_package_id: str | None,
     sandbox_override: str | None,
-    codex_bin: str,
+    provider_bin_override: str,
     planner_max_tries: int,
     auditor_max_tries: int,
     run_dir: Path | None = None,
@@ -2988,7 +2988,7 @@ def _generate_reproduce_plan(
         source_description=source_description,
         requested_package_id=requested_package_id,
         sandbox_override=sandbox_override,
-        codex_bin=codex_bin,
+        provider_bin_override=provider_bin_override,
         planner_max_tries=planner_max_tries,
         auditor_max_tries=auditor_max_tries,
         planner_prompt_prefix=REPRODUCE_PLANNER_PROMPT_PREFIX,
@@ -3010,7 +3010,7 @@ def _generate_research_plan(
     source_description: str,
     requested_package_id: str | None,
     sandbox_override: str | None,
-    codex_bin: str,
+    provider_bin_override: str,
     planner_max_tries: int,
     auditor_max_tries: int,
     run_dir: Path | None = None,
@@ -3025,7 +3025,7 @@ def _generate_research_plan(
         source_description=source_description,
         requested_package_id=requested_package_id,
         sandbox_override=sandbox_override,
-        codex_bin=codex_bin,
+        provider_bin_override=provider_bin_override,
         planner_max_tries=planner_max_tries,
         auditor_max_tries=auditor_max_tries,
         planner_prompt_prefix=RESEARCH_PLANNER_PROMPT_PREFIX,
@@ -3182,9 +3182,7 @@ def _canonicalize_unified_memory_sections(content: str) -> str:
     else:
         chosen_long = UNIFIED_MEMORY_LONG_TERM_BLOCK.rstrip()
 
-    spans = sorted(
-        (start, end) for start, end, _ in [*short_sections, *long_sections]
-    )
+    spans = sorted((start, end) for start, end, _ in [*short_sections, *long_sections])
     merged_spans: list[list[int]] = []
     for start, end in spans:
         if not merged_spans or start > merged_spans[-1][1]:
@@ -4662,7 +4660,7 @@ def _finalize_workflow_report(
     tasks_state: list[dict[str, object]],
     requested_package_id: str | None,
     sandbox_override: str | None,
-    codex_bin: str,
+    provider_bin_override: str,
     data_context: dict[str, object] | None = None,
     hpc_context: dict[str, object] | None = None,
     workflow_status_hook: WorkflowStatusHook | None = None,
@@ -4807,7 +4805,7 @@ def _finalize_workflow_report(
             prompt=generation_prompt_with_feedback,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
-            codex_bin=codex_bin,
+            provider_bin_override=provider_bin_override,
             data_context=data_context,
         )
         return_code = int(run_result.get("return_code") or 0)
@@ -4941,7 +4939,7 @@ def _finalize_workflow_report(
             prompt=audit_prompt_with_feedback,
             requested_package_id=requested_package_id,
             sandbox_override=sandbox_override,
-            codex_bin=codex_bin,
+            provider_bin_override=provider_bin_override,
             data_context=data_context,
         )
         return_code = int(run_result.get("return_code") or 0)
@@ -5335,7 +5333,7 @@ def cmd_plan_workflow(
             source_description=source_description,
             requested_package_id=args.package_id,
             sandbox_override=args.sandbox,
-            codex_bin=args.codex_bin,
+            provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
             planner_max_tries=planner_max_tries,
             auditor_max_tries=auditor_max_tries,
             data_context=state_data_context,
@@ -5423,7 +5421,7 @@ def cmd_plan_workflow(
                 tasks_state=tasks_state,
                 requested_package_id=args.package_id,
                 sandbox_override=args.sandbox,
-                codex_bin=args.codex_bin,
+                provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
                 data_context=state_data_context,
                 hpc_context=state_hpc_context,
                 workflow_status_hook=workflow_status_hook,
@@ -5534,7 +5532,7 @@ def cmd_plan_workflow(
                         tasks_state=tasks_state,
                         requested_package_id=args.package_id,
                         sandbox_override=args.sandbox,
-                        codex_bin=args.codex_bin,
+                        provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
                         data_context=state_data_context,
                         hpc_context=state_hpc_context,
                         workflow_status_hook=workflow_status_hook,
@@ -5724,7 +5722,6 @@ def cmd_plan_workflow(
             prompt=[str(prompt_path)],
             package_id=args.package_id,
             sandbox=args.sandbox,
-            codex_bin=args.codex_bin,
             max_iterations=max_iterations,
             wait_seconds=wait_seconds,
             max_wait_seconds=max_wait_seconds,
@@ -5826,9 +5823,7 @@ def cmd_plan_workflow(
                         "pre_task_commit_status": str(
                             pre_task_commit.get("status") or ""
                         ),
-                        "pre_task_commit_sha": str(
-                            pre_task_commit.get("sha") or ""
-                        ),
+                        "pre_task_commit_sha": str(pre_task_commit.get("sha") or ""),
                         "pre_task_commit_error": str(
                             pre_task_commit.get("error") or ""
                         ),

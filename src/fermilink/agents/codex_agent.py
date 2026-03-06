@@ -42,11 +42,11 @@ class CodexAgent(ProviderAgent):
     def default_binary(self) -> str:
         return "codex"
 
-    def resolve_binary(self, *, codex_bin: str | None = None) -> str:
-        override = self.resolve_binary_override(codex_bin)
+    def resolve_binary(self, *, provider_bin_override: str | None = None) -> str:
+        override = self.resolve_binary_override(provider_bin_override)
         if isinstance(override, str):
             return override
-        return super().resolve_binary(codex_bin=codex_bin)
+        return super().resolve_binary(provider_bin_override=provider_bin_override)
 
     def resolve_binary_override(self, raw_override: str | None = None) -> str | None:
         if isinstance(raw_override, str) and raw_override.strip():
@@ -100,9 +100,7 @@ class CodexAgent(ProviderAgent):
             env.pop("OPENAI_API_KEY", None)
             return env
 
-        key = env.get("FERMILINK_CODEX_API_KEY") or env.get(
-            "FERMILINK_OPENAI_API_KEY"
-        )
+        key = env.get("FERMILINK_CODEX_API_KEY") or env.get("FERMILINK_OPENAI_API_KEY")
         if not key:
             key = env.get("CODEX_API_KEY") or env.get("OPENAI_API_KEY")
         if key and key.strip() in PLACEHOLDER_KEYS:
@@ -221,9 +219,7 @@ class CodexAgent(ProviderAgent):
                 if isinstance(reasoning_effort_map, dict)
                 else normalized_effort
             )
-            cmd.extend(
-                ["--config", f'{reasoning_config_key}="{translated_effort}"']
-            )
+            cmd.extend(["--config", f'{reasoning_config_key}="{translated_effort}"'])
 
         cmd.append(prompt)
         return cmd

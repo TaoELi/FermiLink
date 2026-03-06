@@ -74,8 +74,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
             (
                 f"Reasoning effort override: {policy.reasoning_effort}."
                 if (
-                    isinstance(policy.reasoning_effort, str)
-                    and policy.reasoning_effort
+                    isinstance(policy.reasoning_effort, str) and policy.reasoning_effort
                 )
                 else "Reasoning effort override: provider default."
             ),
@@ -110,10 +109,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         ),
         (
             f"Reasoning effort override set to {updated.reasoning_effort}."
-            if (
-                isinstance(updated.reasoning_effort, str)
-                and updated.reasoning_effort
-            )
+            if (isinstance(updated.reasoning_effort, str) and updated.reasoning_effort)
             else (
                 "Reasoning effort override cleared "
                 "(provider default reasoning effort)."

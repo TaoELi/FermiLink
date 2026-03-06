@@ -37,7 +37,7 @@ def _stub_compile_repo_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _path: False)
 
 
-def test_run_codex_compile_pass_reports_large_doc_prompt(
+def test_run_compile_provider_pass_reports_large_doc_prompt(
     monkeypatch, tmp_path: Path
 ) -> None:
     project_root = tmp_path / "project"
@@ -55,7 +55,7 @@ def test_run_codex_compile_pass_reports_large_doc_prompt(
     monkeypatch.setattr(cli.subprocess, "run", _raise_e2big)
 
     with pytest.raises(cli.PackageError) as exc_info:
-        cli._run_codex_compile_pass(
+        cli._run_compile_provider_pass(
             project_root,
             prompt="prompt",
             pass_index=1,
@@ -113,7 +113,7 @@ def test_compile_install_off_skips_registry_and_install(
     monkeypatch.setattr(cli, "sync_router_rules", _fail)
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -188,7 +188,7 @@ def test_compile_auto_initializes_git_repo_when_missing(
     )
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -290,7 +290,7 @@ def test_compile_runs_staged_pipeline_then_installs(
             "assistant_text": assistant_text,
         }
 
-    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+    monkeypatch.setattr(cli, "_run_compile_provider_pass", fake_pass)
 
     profile_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
@@ -449,7 +449,7 @@ def test_compile_keep_compile_artifacts_retains_tool_dir(
     monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {"updated": True})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -510,7 +510,7 @@ def test_compile_validation_findings_are_non_blocking_by_default(
     monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -575,7 +575,7 @@ def test_compile_strict_validation_blocks_install(
     monkeypatch.setattr(cli, "load_registry", lambda _root: {"packages": {}})
     monkeypatch.setattr(
         cli,
-        "_run_codex_compile_pass",
+        "_run_compile_provider_pass",
         lambda *_a, **_k: {
             "pass": 1,
             "status": "ok",
@@ -664,7 +664,7 @@ def test_compile_inherits_provider_from_runtime_policy(
     monkeypatch.setattr(
         cli,
         "resolve_provider_binary",
-        lambda provider, codex_bin=None: f"{provider}-bin",
+        lambda provider, provider_bin_override=None: f"{provider}-bin",
     )
 
     pass_calls: list[dict[str, object]] = []
@@ -694,7 +694,7 @@ def test_compile_inherits_provider_from_runtime_policy(
             "assistant_text": "",
         }
 
-    monkeypatch.setattr(cli, "_run_codex_compile_pass", fake_pass)
+    monkeypatch.setattr(cli, "_run_compile_provider_pass", fake_pass)
     monkeypatch.setattr(
         cli,
         "_load_compile_profile",
@@ -758,7 +758,7 @@ def test_compile_errors_when_runtime_provider_binary_missing(
     monkeypatch.setattr(
         cli,
         "resolve_provider_binary",
-        lambda provider, codex_bin=None: f"{provider}-bin",
+        lambda provider, provider_bin_override=None: f"{provider}-bin",
     )
 
     code = cli.main(["compile", "newpkg", str(project_root)])

@@ -42,9 +42,7 @@ def _build_gemini_reasoning_settings_payload(
         thinking_level = _GEMINI_REASONING_THINKING_LEVEL.get(reasoning_effort, "HIGH")
         thinking_config["thinkingLevel"] = thinking_level
     else:
-        thinking_budget = _GEMINI_REASONING_THINKING_BUDGET.get(
-            reasoning_effort, 8192
-        )
+        thinking_budget = _GEMINI_REASONING_THINKING_BUDGET.get(reasoning_effort, 8192)
         thinking_config["thinkingBudget"] = int(thinking_budget)
 
     return {

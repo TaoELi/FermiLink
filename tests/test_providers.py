@@ -194,7 +194,10 @@ def test_resolve_provider_binary_override_only_applies_to_codex() -> None:
         resolve_provider_binary_override("codex", raw_override="codex-explicit")
         == "codex-explicit"
     )
-    assert resolve_provider_binary_override("claude", raw_override="claude-explicit") is None
+    assert (
+        resolve_provider_binary_override("claude", raw_override="claude-explicit")
+        is None
+    )
 
 
 def test_provider_metadata_generation_capability_is_agent_defined() -> None:

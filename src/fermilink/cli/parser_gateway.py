@@ -11,7 +11,6 @@ def register_gateway_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
     *,
     cmd_gateway: CommandHandler,
-    default_provider_bin: str,
 ) -> None:
     """
     Register parser arguments for gateway.
@@ -22,9 +21,6 @@ def register_gateway_parser(
         Subparser collection created from the root parser.
     cmd_gateway : CommandHandler
         Command handler for `gateway`.
-    default_provider_bin : str
-        Default compatibility override value for `--codex-bin`.
-
     Returns
     -------
     None
@@ -81,14 +77,6 @@ def register_gateway_parser(
         help=(
             "Override sandbox mode for loop/workflow runs triggered by gateway messages. "
             "When omitted, uses `fermilink agent` policy."
-        ),
-    )
-    gateway_parser.add_argument(
-        "--codex-bin",
-        default=default_provider_bin,
-        help=(
-            f"Codex executable path (default: {default_provider_bin}). "
-            "Ignored when provider is not codex."
         ),
     )
     gateway_parser.add_argument(

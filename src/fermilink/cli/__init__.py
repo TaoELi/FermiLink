@@ -157,7 +157,6 @@ DEFAULT_MAX_ZIP_BYTES = int(
 DEFAULT_BOOTSTRAP_PACKAGE_ID = "maxwelllink"
 DEFAULT_BOOTSTRAP_CHANNEL = "skilled-scipkg"
 DEFAULT_PROVIDER_BINARY_OVERRIDE = os.getenv("FERMILINK_CODEX_BIN", "codex")
-DEFAULT_COMPILE_CODEX_BIN = DEFAULT_PROVIDER_BINARY_OVERRIDE
 DEFAULT_COMPILE_SANDBOX = os.getenv("FERMILINK_COMPILE_SANDBOX", "workspace-write")
 
 EXEC_ROUTER_ENABLED = os.getenv(
@@ -259,11 +258,7 @@ _has_stop_requested_checker = exec_runtime._has_stop_requested_checker
 _is_stop_requested = exec_runtime._is_stop_requested
 _should_use_direct_terminal_stream = exec_runtime._should_use_direct_terminal_stream
 _run_exec_chat_turn = exec_runtime._run_exec_chat_turn
-_run_exec_codex_prompt = exec_runtime._run_exec_codex_prompt
-
-
-def _run_exec_provider_prompt(*args, **kwargs):
-    return _run_exec_codex_prompt(*args, **kwargs)
+_run_exec_provider_prompt = exec_runtime._run_exec_provider_prompt
 
 # Repo and prompt input helpers
 _ensure_exec_repo_ready = input_repo_helpers._ensure_exec_repo_ready
@@ -324,11 +319,7 @@ _validate_recompile_paper_outputs = compile_helpers._validate_recompile_paper_ou
 _validate_compiled_skills = compile_helpers._validate_compiled_skills
 _load_previous_source_inventory = compile_helpers._load_previous_source_inventory
 _write_compile_report = compile_helpers._write_compile_report
-_run_codex_compile_pass = compile_helpers._run_codex_compile_pass
-
-
-def _run_compile_provider_pass(*args, **kwargs):
-    return _run_codex_compile_pass(*args, **kwargs)
+_run_compile_provider_pass = compile_helpers._run_compile_provider_pass
 
 # Workflow internals moved to fermilink.cli.commands.workflows.
 _utc_now_z = workflow_commands._utc_now_z

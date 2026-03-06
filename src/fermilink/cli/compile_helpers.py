@@ -3818,9 +3818,3 @@ def _run_compile_provider_pass(
             "return_code": int(completed.returncode),
             "assistant_text": assistant_text,
         }
-
-
-def _run_codex_compile_pass(*args, **kwargs) -> dict[str, object]:
-    """Compatibility wrapper around provider-aware compile execution."""
-
-    return _run_compile_provider_pass(*args, **kwargs)

@@ -130,7 +130,6 @@ WorkflowStatusHook = Callable[[str], None]
 class GatewayLoopConfig:
     package_id: str | None
     sandbox: str | None
-    codex_bin: str | None
     max_iterations: int
     wait_seconds: float
     max_wait_seconds: float
@@ -400,7 +399,9 @@ def _next_available_upload_path(upload_dir: Path, file_name: str) -> Path:
     raise RuntimeError("Unable to reserve upload filename after many attempts.")
 
 
-def _extract_telegram_inbound_files(message: dict[str, Any]) -> list[TelegramInboundFile]:
+def _extract_telegram_inbound_files(
+    message: dict[str, Any],
+) -> list[TelegramInboundFile]:
     files: list[TelegramInboundFile] = []
 
     document = message.get("document")
@@ -498,7 +499,9 @@ def _append_uploaded_files_context_to_prompt(
         rel = _resolve_repo_relative_display_path(repo_dir, path)
         lines.append(f"- {rel}")
     if len(uploaded_paths) > TELEGRAM_UPLOAD_CONTEXT_MAX_FILES:
-        lines.append(f"- ... and {len(uploaded_paths) - TELEGRAM_UPLOAD_CONTEXT_MAX_FILES} more")
+        lines.append(
+            f"- ... and {len(uploaded_paths) - TELEGRAM_UPLOAD_CONTEXT_MAX_FILES} more"
+        )
     lines.append("Use these local paths directly if needed.")
     return "\n".join(lines).strip()
 
@@ -591,7 +594,6 @@ def _default_gateway_loop_config() -> GatewayLoopConfig:
     return GatewayLoopConfig(
         package_id=None,
         sandbox=None,
-        codex_bin=None,
         max_iterations=DEFAULT_GATEWAY_MAX_ITERATIONS,
         wait_seconds=DEFAULT_GATEWAY_WAIT_SECONDS,
         max_wait_seconds=DEFAULT_GATEWAY_MAX_WAIT_SECONDS,
@@ -1521,7 +1523,6 @@ def _build_loop_config(args: argparse.Namespace) -> GatewayLoopConfig:
     return GatewayLoopConfig(
         package_id=getattr(args, "package_id", None),
         sandbox=getattr(args, "sandbox", None),
-        codex_bin=getattr(args, "codex_bin", None),
         max_iterations=int(
             getattr(args, "max_iterations", DEFAULT_GATEWAY_MAX_ITERATIONS)
         ),
@@ -1582,7 +1583,6 @@ def _run_loop_in_workspace(
         package_id=loop_config.package_id,
         sandbox=loop_config.sandbox,
         hpc_profile=loop_config.hpc_profile,
-        codex_bin=loop_config.codex_bin,
         max_iterations=loop_config.max_iterations,
         wait_seconds=loop_config.wait_seconds,
         max_wait_seconds=loop_config.max_wait_seconds,
@@ -1623,7 +1623,6 @@ def _run_exec_in_workspace(
         package_id=loop_config.package_id,
         sandbox=loop_config.sandbox,
         hpc_profile=loop_config.hpc_profile,
-        codex_bin=loop_config.codex_bin,
         init_git=loop_config.init_git,
         no_init_git=not loop_config.init_git,
     )
@@ -1738,7 +1737,6 @@ def _run_workflow_in_workspace(
         prompt=[prompt],
         package_id=loop_config.package_id,
         sandbox=loop_config.sandbox,
-        codex_bin=loop_config.codex_bin,
         task_max_runs=5,
         planner_max_tries=2,
         auditor_max_tries=2,
@@ -2456,7 +2454,9 @@ def _resolve_workflow_report_markdown_path(
 
     if run_started_epoch is not None:
         recent_candidates = [
-            path for path in candidates if _safe_mtime(path) >= (run_started_epoch - 5.0)
+            path
+            for path in candidates
+            if _safe_mtime(path) >= (run_started_epoch - 5.0)
         ]
         if recent_candidates:
             candidates = recent_candidates
@@ -2534,9 +2534,7 @@ def _render_workflow_report_markdown_html(
 
         caption = alt_text or target or "figure"
         if not target:
-            placeholders[token] = (
-                "<p><i>Invalid image link in report markdown.</i></p>"
-            )
+            placeholders[token] = "<p><i>Invalid image link in report markdown.</i></p>"
             return token
 
         resolved = _resolve_report_link_path(
@@ -2559,9 +2557,7 @@ def _render_workflow_report_markdown_html(
                     payload = b""
                 if payload:
                     mime = mimetypes.guess_type(resolved.name)[0] or "image/png"
-                    data_uri = (
-                        f"data:{mime};base64,{base64.b64encode(payload).decode('ascii')}"
-                    )
+                    data_uri = f"data:{mime};base64,{base64.b64encode(payload).decode('ascii')}"
                     embedded_image_count += 1
                     embedded_total_bytes += len(payload)
                     placeholders[token] = (
@@ -3036,7 +3032,9 @@ def _derive_run_outcome(
         "done" if int(code) == 0 else "provider_failure"
     )
     if status == "stopped_by_user":
-        reason = str((outcome or {}).get("reason") or "").strip() or "gateway_stop_command"
+        reason = (
+            str((outcome or {}).get("reason") or "").strip() or "gateway_stop_command"
+        )
         provider_exit_code_raw = (outcome or {}).get("provider_exit_code")
         provider_exit_code = (
             int(provider_exit_code_raw)
@@ -3755,7 +3753,9 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     exec_runner=None,
                 )
                 if _job_stop_requested():
-                    normalized_outcome = dict(outcome) if isinstance(outcome, dict) else {}
+                    normalized_outcome = (
+                        dict(outcome) if isinstance(outcome, dict) else {}
+                    )
                     normalized_outcome["status"] = "stopped_by_user"
                     normalized_outcome["reason"] = "gateway_stop_command"
                     outcome = normalized_outcome
@@ -3955,10 +3955,12 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                         _save_gateway_state(session_store_path, state)
                     try:
                         _ensure_workspace_repo(upload_repo_dir, loop_config.init_git)
-                        uploaded_paths, upload_warnings = _download_telegram_inbound_files(
-                            client=client,
-                            repo_dir=upload_repo_dir,
-                            inbound_files=inbound_files,
+                        uploaded_paths, upload_warnings = (
+                            _download_telegram_inbound_files(
+                                client=client,
+                                repo_dir=upload_repo_dir,
+                                inbound_files=inbound_files,
+                            )
                         )
                     except Exception as exc:
                         upload_warnings.append(f"workspace file download failed: {exc}")

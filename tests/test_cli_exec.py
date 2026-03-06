@@ -56,17 +56,22 @@ def test_exec_runs_with_routing_overlay_and_codex(
     )
 
     def fake_run_exec(
-        *, repo_dir: Path, prompt: str, sandbox: str, codex_bin: str, **_kwargs
+        *,
+        repo_dir: Path,
+        prompt: str,
+        sandbox: str,
+        provider_bin_override: str,
+        **_kwargs,
     ) -> int:
         calls["repo_dir"] = repo_dir
         calls["prompt"] = prompt
         calls["sandbox"] = sandbox
-        calls["codex_bin"] = codex_bin
+        calls["provider_bin_override"] = provider_bin_override
         calls["model"] = _kwargs.get("model")
         calls["reasoning_effort"] = _kwargs.get("reasoning_effort")
         return 0
 
-    monkeypatch.setattr(cli, "_run_exec_codex_prompt", fake_run_exec)
+    monkeypatch.setattr(cli, "_run_exec_provider_prompt", fake_run_exec)
 
     code = cli.main(["exec", "simulate", "a", "cavity", "--sandbox", "workspace-write"])
     assert code == 0
@@ -115,7 +120,7 @@ def test_exec_propagates_codex_exit_code(
             "linked_dependency_count": 0,
         },
     )
-    monkeypatch.setattr(cli, "_run_exec_codex_prompt", lambda **_kwargs: 7)
+    monkeypatch.setattr(cli, "_run_exec_provider_prompt", lambda **_kwargs: 7)
     cleanup_calls: list[tuple[Path, Path]] = []
     monkeypatch.setattr(
         cli,
@@ -297,7 +302,7 @@ def test_exec_accepts_prompt_file(
     captured: dict[str, object] = {}
     monkeypatch.setattr(
         cli,
-        "_run_exec_codex_prompt",
+        "_run_exec_provider_prompt",
         lambda **kwargs: captured.update(kwargs) or 0,
     )
     monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
@@ -350,7 +355,7 @@ def test_exec_hpc_profile_appends_execution_target_constraints(
     captured: dict[str, object] = {}
     monkeypatch.setattr(
         cli,
-        "_run_exec_codex_prompt",
+        "_run_exec_provider_prompt",
         lambda **kwargs: captured.update(kwargs) or 0,
     )
     monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
@@ -408,7 +413,7 @@ def test_exec_rejects_pdf_prompt_file(
     assert "PDF prompt files are not supported yet" in capsys.readouterr().err
 
 
-def test_run_exec_codex_prompt_uses_runner_sanitized_env(
+def test_run_exec_provider_prompt_uses_runner_sanitized_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     captured: dict[str, object] = {}
@@ -431,11 +436,11 @@ def test_run_exec_codex_prompt_uses_runner_sanitized_env(
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(cli, "_stream_exec_process_output", lambda _proc: 0)
 
-    code = cli._run_exec_codex_prompt(
+    code = cli._run_exec_provider_prompt(
         repo_dir=tmp_path,
         prompt="hello",
         sandbox="workspace-write",
-        codex_bin="codex",
+        provider_bin_override="codex",
     )
     assert code == 0
     assert captured["cmd"] == [
@@ -456,7 +461,7 @@ def test_run_exec_codex_prompt_uses_runner_sanitized_env(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
 
-def test_run_exec_codex_prompt_includes_model_override(
+def test_run_exec_provider_prompt_includes_model_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     captured: dict[str, object] = {}
@@ -475,11 +480,11 @@ def test_run_exec_codex_prompt_includes_model_override(
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(cli, "_stream_exec_process_output", lambda _proc: 0)
 
-    code = cli._run_exec_codex_prompt(
+    code = cli._run_exec_provider_prompt(
         repo_dir=tmp_path,
         prompt="hello",
         sandbox="read-only",
-        codex_bin="codex",
+        provider_bin_override="codex",
         model="gpt-5.3-codex",
         reasoning_effort="high",
     )
@@ -540,7 +545,9 @@ def test_render_claude_stream_event_text_block() -> None:
 def test_render_claude_stream_event_thinking_block() -> None:
     event = {
         "type": "assistant",
-        "message": {"content": [{"type": "thinking", "thinking": "I should use Bash."}]},
+        "message": {
+            "content": [{"type": "thinking", "thinking": "I should use Bash."}]
+        },
     }
     result = cli._render_claude_stream_event(event, use_color=False)
     assert result is not None
@@ -570,7 +577,9 @@ def test_render_claude_stream_event_tool_use_command() -> None:
     event = {
         "type": "assistant",
         "message": {
-            "content": [{"type": "tool_use", "name": "Bash", "input": {"command": "ls -la"}}]
+            "content": [
+                {"type": "tool_use", "name": "Bash", "input": {"command": "ls -la"}}
+            ]
         },
     }
     result = cli._render_claude_stream_event(event, use_color=False)
@@ -581,7 +590,13 @@ def test_render_claude_stream_event_tool_use_file_path() -> None:
     event = {
         "type": "assistant",
         "message": {
-            "content": [{"type": "tool_use", "name": "Read", "input": {"file_path": "/tmp/foo.py"}}]
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "Read",
+                    "input": {"file_path": "/tmp/foo.py"},
+                }
+            ]
         },
     }
     result = cli._render_claude_stream_event(event, use_color=False)
@@ -593,7 +608,11 @@ def test_render_claude_stream_event_tool_result() -> None:
         "type": "user",
         "message": {
             "content": [
-                {"type": "tool_result", "tool_use_id": "abc", "content": "output text here"}
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "abc",
+                    "content": "output text here",
+                }
             ]
         },
     }
@@ -606,7 +625,9 @@ def test_render_claude_stream_event_tool_result_truncated() -> None:
     event = {
         "type": "user",
         "message": {
-            "content": [{"type": "tool_result", "tool_use_id": "x", "content": long_output}]
+            "content": [
+                {"type": "tool_result", "tool_use_id": "x", "content": long_output}
+            ]
         },
     }
     result = cli._render_claude_stream_event(event, use_color=False)
@@ -651,15 +672,25 @@ def test_render_claude_stream_event_gemini_tool_events() -> None:
 
 
 def test_render_claude_stream_event_system_returns_none() -> None:
-    assert cli._render_claude_stream_event({"type": "system", "subtype": "init"}) is None
+    assert (
+        cli._render_claude_stream_event({"type": "system", "subtype": "init"}) is None
+    )
 
 
 def test_render_claude_stream_event_result_returns_none() -> None:
-    assert cli._render_claude_stream_event({"type": "result", "subtype": "success"}) is None
+    assert (
+        cli._render_claude_stream_event({"type": "result", "subtype": "success"})
+        is None
+    )
 
 
 def test_render_claude_stream_event_empty_content_returns_none() -> None:
-    assert cli._render_claude_stream_event({"type": "assistant", "message": {"content": []}}) is None
+    assert (
+        cli._render_claude_stream_event(
+            {"type": "assistant", "message": {"content": []}}
+        )
+        is None
+    )
 
 
 def test_render_claude_stream_event_applies_ansi_colors() -> None:
@@ -688,8 +719,26 @@ def test_stream_claude_exec_output_renders_events(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     events = [
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Running sim"}]}}),
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "python sim.py"}}]}}),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": "Running sim"}]},
+            }
+        ),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": "python sim.py"},
+                        }
+                    ]
+                },
+            }
+        ),
         json.dumps({"type": "result", "subtype": "success", "result": "done"}),
     ]
     process = SimpleNamespace(
@@ -748,9 +797,36 @@ def test_stream_claude_exec_output_with_capture_renders_and_captures(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     events = [
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Running sim"}]}}),
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "python sim.py"}}]}}),
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "<wait_seconds>5</wait_seconds>"}]}}),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": "Running sim"}]},
+            }
+        ),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": "python sim.py"},
+                        }
+                    ]
+                },
+            }
+        ),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "<wait_seconds>5</wait_seconds>"}
+                    ]
+                },
+            }
+        ),
     ]
     process = SimpleNamespace(
         stdout=io.StringIO("\n".join(events) + "\n"),
@@ -850,7 +926,7 @@ def test_stream_claude_exec_output_with_capture_handles_keyboard_interrupt() -> 
     assert terminated == [True]
 
 
-def test_run_exec_codex_prompt_uses_devnull_stdin_for_claude(
+def test_run_exec_provider_prompt_uses_devnull_stdin_for_claude(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     captured: dict[str, object] = {}
@@ -872,18 +948,18 @@ def test_run_exec_codex_prompt_uses_devnull_stdin_for_claude(
 
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
 
-    cli._run_exec_codex_prompt(
+    cli._run_exec_provider_prompt(
         repo_dir=tmp_path,
         prompt="hello",
         sandbox=None,
-        codex_bin="claude",
+        provider_bin_override="claude",
         provider="claude",
         sandbox_policy="bypass",
     )
     assert captured["stdin"] is cli.subprocess.DEVNULL
 
 
-def test_run_exec_codex_prompt_uses_json_stream_for_claude(
+def test_run_exec_provider_prompt_uses_json_stream_for_claude(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     captured: dict[str, object] = {}
@@ -895,7 +971,12 @@ def test_run_exec_codex_prompt_uses_json_stream_for_claude(
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
 
-    event = json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "done"}]}})
+    event = json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "done"}]},
+        }
+    )
 
     def fake_popen(cmd, **kwargs):
         captured["cmd"] = cmd
@@ -907,15 +988,18 @@ def test_run_exec_codex_prompt_uses_json_stream_for_claude(
 
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(
-        cli.subprocess, "run",
-        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("subprocess.run should not be called for claude")),
+        cli.subprocess,
+        "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("subprocess.run should not be called for claude")
+        ),
     )
 
-    code = cli._run_exec_codex_prompt(
+    code = cli._run_exec_provider_prompt(
         repo_dir=tmp_path,
         prompt="hello",
         sandbox=None,
-        codex_bin="claude",
+        provider_bin_override="claude",
         provider="claude",
         sandbox_policy="bypass",
     )
@@ -977,7 +1061,7 @@ def test_prepare_provider_runtime_env_gemini_thinking_budget_and_cleanup() -> No
     assert not settings_path.exists()
 
 
-def test_run_exec_codex_prompt_gemini_applies_reasoning_env_and_cleans_temp_file(
+def test_run_exec_provider_prompt_gemini_applies_reasoning_env_and_cleans_temp_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     captured: dict[str, object] = {}
@@ -991,7 +1075,12 @@ def test_run_exec_codex_prompt_gemini_applies_reasoning_env_and_cleans_temp_file
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
 
     event = json.dumps(
-        {"type": "message", "role": "assistant", "content": "gemini done", "delta": True}
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": "gemini done",
+            "delta": True,
+        }
     )
 
     def fake_popen(cmd, **kwargs):
@@ -1012,11 +1101,11 @@ def test_run_exec_codex_prompt_gemini_applies_reasoning_env_and_cleans_temp_file
 
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
 
-    code = cli._run_exec_codex_prompt(
+    code = cli._run_exec_provider_prompt(
         repo_dir=tmp_path,
         prompt="hello gemini",
         sandbox="read-only",
-        codex_bin="gemini",
+        provider_bin_override="gemini",
         provider="gemini",
         sandbox_policy="enforce",
         model="gemini-3.0-pro",
@@ -1041,7 +1130,7 @@ def test_run_exec_codex_prompt_gemini_applies_reasoning_env_and_cleans_temp_file
     assert not settings_path.exists()
 
 
-def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
+def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     captured: dict[str, object] = {}
@@ -1086,7 +1175,7 @@ def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
         repo_dir=tmp_path,
         prompt="hello",
         sandbox="workspace-write",
-        codex_bin="codex",
+        provider_bin_override="codex",
         provider="codex",
         sandbox_policy="enforce",
     )
@@ -1155,7 +1244,7 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
         repo_dir=tmp_path,
         prompt="hello tty",
         sandbox="read-only",
-        codex_bin="codex",
+        provider_bin_override="codex",
         provider="codex",
         sandbox_policy="enforce",
     )
@@ -1207,8 +1296,22 @@ def test_run_exec_chat_turn_claude_streams_and_captures_assistant_text(
     )
 
     events = [
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "loop step done"}]}}),
-        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "<wait_seconds>3</wait_seconds>"}]}}),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {"content": [{"type": "text", "text": "loop step done"}]},
+            }
+        ),
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "<wait_seconds>3</wait_seconds>"}
+                    ]
+                },
+            }
+        ),
     ]
 
     def fake_popen(cmd, **kwargs):
@@ -1228,7 +1331,7 @@ def test_run_exec_chat_turn_claude_streams_and_captures_assistant_text(
         repo_dir=tmp_path,
         prompt="hello claude",
         sandbox="workspace-write",
-        codex_bin="claude",
+        provider_bin_override="claude",
         provider="claude",
         sandbox_policy="enforce",
     )
@@ -1244,61 +1347,6 @@ def test_run_exec_chat_turn_claude_streams_and_captures_assistant_text(
     assert command[output_index + 1] == "stream-json"
     assert "--output-last-message" not in command
     assert command[-1] == "hello claude"
-    env = captured["env"]
-    assert isinstance(env, dict)
-    assert env.get("SANITIZED") == "1"
-    assert env.get("CODEX_HOME_NORMALIZED") == "1"
-
-
-def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    captured: dict[str, object] = {}
-
-    runner_app = SimpleNamespace(
-        _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_provider_home=lambda env, _provider: {
-            **env,
-            "CODEX_HOME_NORMALIZED": "1",
-        },
-    )
-    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
-    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
-    monkeypatch.setattr(
-        cli.subprocess,
-        "Popen",
-        lambda *_a, **_k: (_ for _ in ()).throw(
-            AssertionError("Popen should not run in tty mode")
-        ),
-    )
-
-    def fake_run(cmd, **kwargs):
-        captured["cmd"] = cmd
-        captured["env"] = kwargs.get("env")
-        captured["cwd"] = kwargs.get("cwd")
-        return SimpleNamespace(returncode=3)
-
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
-
-    code = cli._run_exec_codex_prompt(
-        repo_dir=tmp_path,
-        prompt="hello",
-        sandbox="read-only",
-        codex_bin="codex",
-    )
-    assert code == 3
-    assert captured["cmd"] == [
-        "codex",
-        "exec",
-        "--cd",
-        str(tmp_path),
-        "--sandbox",
-        "read-only",
-        "--color",
-        "always",
-        "hello",
-    ]
-    assert captured["cwd"] == str(tmp_path)
     env = captured["env"]
     assert isinstance(env, dict)
     assert env.get("SANITIZED") == "1"

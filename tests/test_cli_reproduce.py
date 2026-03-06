@@ -957,7 +957,7 @@ def test_finalize_workflow_report_uses_run_scoped_report_path(
         tasks_state=[{"id": "task_001", "title": "Task one"}],
         requested_package_id=None,
         sandbox_override=None,
-        codex_bin="codex",
+        provider_bin_override="codex",
         workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
     )
     assert Path(str(info["report_path"])) == run_dir / "report.md"
@@ -1045,7 +1045,7 @@ def test_finalize_workflow_report_rejects_stale_generation_outputs(
             tasks_state=[{"id": "task_001", "title": "Task one"}],
             requested_package_id=None,
             sandbox_override=None,
-            codex_bin="codex",
+            provider_bin_override="codex",
         )
 
 
@@ -1105,7 +1105,7 @@ def test_finalize_workflow_report_rejects_stale_audit_outputs(
             tasks_state=[{"id": "task_001", "title": "Task one"}],
             requested_package_id=None,
             sandbox_override=None,
-            codex_bin="codex",
+            provider_bin_override="codex",
         )
     assert call_counter["count"] == 3
 
@@ -1354,7 +1354,7 @@ def test_finalize_workflow_report_hpc_retries_invalid_generation_contract(
         tasks_state=[{"id": "task_001", "title": "Task one"}],
         requested_package_id=None,
         sandbox_override=None,
-        codex_bin="codex",
+        provider_bin_override="codex",
         hpc_context={
             "enabled": True,
             "mode": "hpc_slurm",
@@ -1451,7 +1451,7 @@ def test_finalize_workflow_report_hpc_contract_stall_fails_with_artifact(
             tasks_state=[{"id": "task_001", "title": "Task one"}],
             requested_package_id=None,
             sandbox_override=None,
-            codex_bin="codex",
+            provider_bin_override="codex",
             hpc_context={
                 "enabled": True,
                 "mode": "hpc_slurm",
@@ -1511,7 +1511,7 @@ def test_generate_reproduce_plan_omits_dry_run_prompt_requirements(
         source_description="paper.md",
         requested_package_id=None,
         sandbox_override=None,
-        codex_bin="codex",
+        provider_bin_override="codex",
         planner_max_tries=1,
         auditor_max_tries=1,
         workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
@@ -1560,7 +1560,7 @@ def test_generate_reproduce_plan_appends_hpc_prompt_context(
         source_description="paper.md",
         requested_package_id=None,
         sandbox_override=None,
-        codex_bin="codex",
+        provider_bin_override="codex",
         planner_max_tries=1,
         auditor_max_tries=1,
         hpc_context={
@@ -1765,7 +1765,7 @@ def test_generate_reproduce_plan_with_data_auditor_writes_task_data_artifacts(
         source_description="paper.md",
         requested_package_id=None,
         sandbox_override=None,
-        codex_bin="codex",
+        provider_bin_override="codex",
         planner_max_tries=1,
         auditor_max_tries=1,
         data_context=data_context,

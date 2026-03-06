@@ -12,7 +12,6 @@ def register_exec_loop_parsers(
     *,
     cmd_exec: CommandHandler,
     cmd_loop: CommandHandler,
-    default_provider_bin: str,
 ) -> None:
     """
     Register parser arguments for exec loop.
@@ -25,9 +24,6 @@ def register_exec_loop_parsers(
         Command handler for `exec` subcommands.
     cmd_loop : CommandHandler
         Command handler for `loop` subcommands.
-    default_provider_bin : str
-        Default compatibility override value for `--codex-bin`.
-
     Returns
     -------
     None
@@ -68,14 +64,6 @@ def register_exec_loop_parsers(
             "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
             "and `slurm_resource_policy`; when set, execution prompt context is "
             "constrained to this HPC profile."
-        ),
-    )
-    exec_parser.add_argument(
-        "--codex-bin",
-        default=default_provider_bin,
-        help=(
-            f"Codex executable path (default: {default_provider_bin}). "
-            "Ignored when provider is not codex."
         ),
     )
     exec_parser.add_argument(
@@ -125,14 +113,6 @@ def register_exec_loop_parsers(
             "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
             "and `slurm_resource_policy`; when set, execution prompt context is "
             "constrained to this HPC profile."
-        ),
-    )
-    loop_parser.add_argument(
-        "--codex-bin",
-        default=default_provider_bin,
-        help=(
-            f"Codex executable path (default: {default_provider_bin}). "
-            "Ignored when provider is not codex."
         ),
     )
     loop_parser.add_argument(
@@ -187,7 +167,6 @@ def register_chat_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
     *,
     cmd_chat: CommandHandler,
-    default_provider_bin: str,
 ) -> None:
     """
     Register parser arguments for chat.
@@ -198,9 +177,6 @@ def register_chat_parser(
         Subparser collection created from the root parser.
     cmd_chat : CommandHandler
         Command handler for `chat` subcommands.
-    default_provider_bin : str
-        Default compatibility override value for `--codex-bin`.
-
     Returns
     -------
     None
@@ -224,14 +200,6 @@ def register_chat_parser(
         help=(
             "Override sandbox mode for this chat session. "
             "When omitted, uses `fermilink agent` policy."
-        ),
-    )
-    chat_parser.add_argument(
-        "--codex-bin",
-        default=default_provider_bin,
-        help=(
-            f"Codex executable path (default: {default_provider_bin}). "
-            "Ignored when provider is not codex."
         ),
     )
     chat_parser.add_argument(

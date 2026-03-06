@@ -23,10 +23,15 @@ def _base_second_guess_kwargs():
         "package_source_second_guess": "second_guess",
         "package_second_guess_timeout_seconds": 10.0,
         "package_second_guess_min_confidence": 0.75,
-        "resolve_package_registry": lambda: (["pkg-a", "pkg-b"], "pkg-a", Path("/tmp/scipkg")),
+        "resolve_package_registry": lambda: (
+            ["pkg-a", "pkg-b"],
+            "pkg-a",
+            Path("/tmp/scipkg"),
+        ),
         "load_router_config": lambda _root: {},
         "resolve_default_package_id": (
-            lambda package_ids, active_package_id, _config: active_package_id or package_ids[0]
+            lambda package_ids, active_package_id, _config: active_package_id
+            or package_ids[0]
         ),
         "build_package_catalog": (
             lambda package_ids, active_package_id, scipkg_root: [

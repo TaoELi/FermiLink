@@ -48,10 +48,7 @@ def register_agent_parser(
         "provider",
         nargs="?",
         choices=supported_providers,
-        help=(
-            "Agent provider selection "
-            f"({', '.join(supported_providers)})."
-        ),
+        help=("Agent provider selection " f"({', '.join(supported_providers)})."),
     )
     sandbox_group = agent_parser.add_mutually_exclusive_group(required=False)
     sandbox_group.add_argument(
@@ -68,10 +65,7 @@ def register_agent_parser(
     model_group.add_argument(
         "--model",
         default=None,
-        help=(
-            "Override provider default model (for example "
-            "`gpt-5.3-codex`)."
-        ),
+        help=("Override provider default model (for example " "`gpt-5.3-codex`)."),
     )
     model_group.add_argument(
         "--clear-model",

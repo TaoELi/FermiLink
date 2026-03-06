@@ -703,7 +703,7 @@ def _generate_metadata_with_provider(
         repo_dir=metadata_repo_dir,
         prompt=prompt,
         sandbox="read-only",
-        codex_bin=cli.resolve_provider_binary_override(
+        provider_bin_override=cli.resolve_provider_binary_override(
             provider,
             raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
         ),
@@ -732,12 +732,6 @@ def _generate_metadata_with_provider(
             "Failed to parse generated metadata JSON payload from tagged response."
         )
     return payload
-
-
-def _generate_metadata_with_codex(**kwargs) -> dict[str, object]:
-    """Compatibility wrapper around provider-aware metadata generation."""
-
-    return _generate_metadata_with_provider(**kwargs)
 
 
 def _build_curated_entry_from_metadata(
@@ -1469,7 +1463,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
     )
     provider_bin = cli.resolve_provider_binary(
         provider,
-        codex_bin=provider_bin_override,
+        provider_bin_override=provider_bin_override,
     )
 
     tool_dest = project_root / "sci-skills-generator"
@@ -1901,7 +1895,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     )
     provider_bin = cli.resolve_provider_binary(
         provider,
-        codex_bin=provider_bin_override,
+        provider_bin_override=provider_bin_override,
     )
 
     tool_dest = project_root / "sci-skills-generator"

@@ -529,7 +529,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
 
     provider_bin = cli.resolve_provider_binary_override(
         provider,
-        raw_override=args.codex_bin,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     sandbox_text = (
         f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
@@ -618,7 +618,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 repo_dir=repo_dir,
                 prompt=prompt,
                 sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-                codex_bin=provider_bin,
+                provider_bin_override=provider_bin,
                 provider=provider,
                 sandbox_policy=sandbox_policy,
                 model=model,
@@ -761,7 +761,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
 
     provider_bin = cli.resolve_provider_binary_override(
         provider,
-        raw_override=args.codex_bin,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     selection = cli._resolve_exec_package_selection(
         user_prompt=user_prompt,
@@ -832,7 +832,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
                 repo_dir=repo_dir,
                 prompt=prompt,
                 sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-                codex_bin=provider_bin,
+                provider_bin_override=provider_bin,
                 provider=provider,
                 sandbox_policy=sandbox_policy,
                 model=model,
@@ -1198,7 +1198,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
 
     provider_bin = cli.resolve_provider_binary_override(
         provider,
-        raw_override=args.codex_bin,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
     selection = cli._resolve_exec_package_selection(
         user_prompt=user_prompt,
@@ -1252,7 +1252,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
             repo_dir=repo_dir,
             prompt=prompt,
             sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-            codex_bin=provider_bin,
+            provider_bin_override=provider_bin,
             provider=provider,
             sandbox_policy=sandbox_policy,
             model=model,

@@ -171,10 +171,7 @@ class AgentRuntimePolicy:
         }
         if isinstance(self.model, str) and self.model.strip():
             env[ENV_MODEL] = self.model
-        if (
-            isinstance(self.reasoning_effort, str)
-            and self.reasoning_effort.strip()
-        ):
+        if isinstance(self.reasoning_effort, str) and self.reasoning_effort.strip():
             env[ENV_REASONING_EFFORT] = self.reasoning_effort
         return env
 
@@ -340,10 +337,7 @@ def resolve_agent_runtime_policy(
 
     reasoning_effort_value = runtime.reasoning_effort
     env_reasoning_effort = env_map.get(ENV_REASONING_EFFORT)
-    if (
-        isinstance(env_reasoning_effort, str)
-        and env_reasoning_effort.strip()
-    ):
+    if isinstance(env_reasoning_effort, str) and env_reasoning_effort.strip():
         reasoning_effort_value = normalize_reasoning_effort(env_reasoning_effort)
     if reasoning_effort is not _REASONING_EFFORT_UNSET:
         if reasoning_effort is None:

@@ -115,7 +115,7 @@ def test_generate_research_plan_includes_unified_memory_stage_instructions(
         source_description="idea.md",
         requested_package_id=None,
         sandbox_override=None,
-        codex_bin="codex",
+        provider_bin_override="codex",
         planner_max_tries=1,
         auditor_max_tries=1,
         workflow_status_hook=lambda mode_text: status_updates.append(mode_text),
