@@ -187,6 +187,16 @@ _ANSI_OFF = {k: "" for k in _ANSI}
 
 # Strip <system-reminder> blocks (and similar XML system noise) from thinking.
 _SYSTEM_BLOCK_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
+_TOOL_OUTPUT_MAX_LINES = 10
+
+
+def _truncate_tool_output(text: str, max_lines: int = _TOOL_OUTPUT_MAX_LINES) -> str:
+    """Truncate tool output to ``max_lines``, appending a count of omitted lines."""
+    lines = text.splitlines()
+    if len(lines) <= max_lines:
+        return text
+    omitted = len(lines) - max_lines
+    return "\n".join(lines[:max_lines]) + f"\n… ({omitted} more lines)"
 
 
 def _strip_thinking_noise(text: str) -> str:
@@ -266,13 +276,15 @@ def _render_claude_stream_event(event: dict, *, use_color: bool = True) -> str |
                 continue
             result_content = block.get("content")
             if isinstance(result_content, str) and result_content.strip():
-                parts.append(f"{c['tool_out']}{result_content.strip()}{R}")
+                out = _truncate_tool_output(result_content.strip())
+                parts.append(f"{c['tool_out']}{out}{R}")
             elif isinstance(result_content, list):
                 for entry in result_content:
                     if isinstance(entry, dict) and entry.get("type") == "text":
                         text = entry.get("text", "").strip()
                         if text:
-                            parts.append(f"{c['tool_out']}{text}{R}")
+                            out = _truncate_tool_output(text)
+                            parts.append(f"{c['tool_out']}{out}{R}")
         return "\n".join(parts) if parts else None
 
     return None

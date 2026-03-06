@@ -598,6 +598,24 @@ def test_render_claude_stream_event_tool_result() -> None:
     assert result == "output text here"
 
 
+def test_render_claude_stream_event_tool_result_truncated() -> None:
+    long_output = "\n".join(f"line {i}" for i in range(25))
+    event = {
+        "type": "user",
+        "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "x", "content": long_output}]
+        },
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result is not None
+    lines = result.splitlines()
+    # First 10 content lines + 1 truncation notice
+    assert len(lines) == 11
+    assert "15 more lines" in lines[-1]
+    assert "line 0" in lines[0]
+    assert "line 9" in lines[9]
+
+
 def test_render_claude_stream_event_system_returns_none() -> None:
     assert cli._render_claude_stream_event({"type": "system", "subtype": "init"}) is None
 
