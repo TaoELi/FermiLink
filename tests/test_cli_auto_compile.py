@@ -237,7 +237,7 @@ def test_cli_auto_compile_fail_fast_stops_after_first_failure(
     assert payloads[0]["failed_count"] == 1
 
 
-def test_cli_auto_compile_requires_codex_provider(
+def test_cli_auto_compile_requires_metadata_generation_provider(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
     repo_root = tmp_path / "fermilink-repo"
@@ -264,7 +264,7 @@ def test_cli_auto_compile_requires_codex_provider(
     )
     assert code == 2
     err = capsys.readouterr().err
-    assert "requires Codex provider" in err
+    assert "supports metadata generation" in err
 
 
 def test_cli_auto_compile_forwards_organization_target(

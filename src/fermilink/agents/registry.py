@@ -32,6 +32,9 @@ class AgentRegistry:
     def provider_bin_default_map(self) -> dict[str, str]:
         return {name: agent.default_binary for name, agent in self._agents.items()}
 
+    def all(self) -> tuple[ProviderAgent, ...]:
+        return tuple(self._agents.values())
+
 
 _DEFAULT_AGENT_REGISTRY = AgentRegistry(
     agents=(

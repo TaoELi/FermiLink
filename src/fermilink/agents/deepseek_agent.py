@@ -21,6 +21,9 @@ class DeepseekAgent(ProviderAgent):
     def default_binary(self) -> str:
         return "deepseek"
 
+    def uses_json_stream(self) -> bool:
+        return True
+
     def build_exec_command(
         self,
         *,

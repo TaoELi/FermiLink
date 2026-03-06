@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from fermilink.agent_runtime import DEFAULT_PROVIDER
+from fermilink.agents import get_provider_agent
+
 
 def _cli():
     from fermilink import cli
@@ -56,13 +59,14 @@ def _run_exec_second_guess(
     package_ids: list[str],
     active_package_id: str | None,
     base_package_id: str,
-    provider: str = "codex",
+    provider: str = DEFAULT_PROVIDER,
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
     model: str | None = None,
     reasoning_effort: str | None = None,
 ) -> dict[str, object]:
     cli = _cli()
+    agent = get_provider_agent(provider)
     web_app = cli._load_web_router_module()
     package_catalog = web_app._build_package_catalog(
         package_ids=package_ids,
@@ -86,7 +90,7 @@ def _run_exec_second_guess(
             sandbox_mode=preflight_sandbox_mode,
             model=model,
             reasoning_effort=reasoning_effort,
-            json_output=(provider == "codex"),
+            json_output=agent.uses_json_output_for_second_guess(),
         )
     except NotImplementedError:
         return {
@@ -100,7 +104,7 @@ def _run_exec_second_guess(
     runner_app = cli._load_runner_app_module()
     env = cli.os.environ.copy()
     env = runner_app._sanitize_env(env)
-    env = runner_app._normalize_codex_home(env)
+    env = runner_app._normalize_provider_home(env, provider)
     temp_paths: list[Path] = []
     try:
         env, temp_paths = cli._prepare_provider_runtime_env(
@@ -238,7 +242,7 @@ def _resolve_exec_package_selection(
     scipkg_root: Path,
     repo_dir: Path,
     requested_package_id: str | None,
-    provider: str = "codex",
+    provider: str = DEFAULT_PROVIDER,
     provider_bin: str | None = None,
     sandbox_policy: str = "enforce",
     model: str | None = None,

@@ -415,7 +415,10 @@ def test_run_exec_codex_prompt_uses_runner_sanitized_env(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
@@ -460,7 +463,7 @@ def test_run_exec_codex_prompt_includes_model_override(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: env,
-        _normalize_codex_home=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
@@ -854,7 +857,7 @@ def test_run_exec_codex_prompt_uses_devnull_stdin_for_claude(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: env,
-        _normalize_codex_home=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
@@ -887,7 +890,7 @@ def test_run_exec_codex_prompt_uses_json_stream_for_claude(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: env,
-        _normalize_codex_home=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
@@ -982,7 +985,7 @@ def test_run_exec_codex_prompt_gemini_applies_reasoning_env_and_cleans_temp_file
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: env,
-        _normalize_codex_home=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
@@ -1045,7 +1048,10 @@ def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_load_web_router_module", lambda: object())
@@ -1120,7 +1126,10 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     captured: dict[str, object] = {}
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
@@ -1182,7 +1191,10 @@ def test_run_exec_chat_turn_claude_streams_and_captures_assistant_text(
     captured: dict[str, object] = {}
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
@@ -1245,7 +1257,10 @@ def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
@@ -1297,7 +1312,10 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
 
@@ -1350,7 +1368,10 @@ def test_run_exec_second_guess_claude_provider_runs_subprocess(
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
-        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+        _normalize_provider_home=lambda env, _provider: {
+            **env,
+            "CODEX_HOME_NORMALIZED": "1",
+        },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
 
@@ -1407,7 +1428,7 @@ def test_run_exec_second_guess_gemini_applies_reasoning_env_and_cleans_temp_file
 
     runner_app = SimpleNamespace(
         _sanitize_env=lambda env: env,
-        _normalize_codex_home=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
 

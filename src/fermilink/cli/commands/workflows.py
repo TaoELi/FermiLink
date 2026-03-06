@@ -2627,7 +2627,10 @@ def _run_reproduce_exec_turn(
                 include_hash=False,
             )
 
-    provider_bin = codex_bin if provider == "codex" else None
+    provider_bin = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=codex_bin,
+    )
     selection = cli._resolve_exec_package_selection(
         user_prompt=prompt,
         scipkg_root=scipkg_root,

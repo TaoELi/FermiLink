@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fermilink.agent_runtime import resolve_agent_runtime_policy
+from fermilink.agents import get_default_agent_registry, get_provider_agent
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.cli.workflow_prompts import UNIFIED_MEMORY_PROMPT_PREFIX
 from fermilink.config import resolve_workspaces_root as resolve_default_workspaces_root
@@ -56,10 +57,6 @@ def find_project_root(start: Path) -> Path:
 
 PROJECT_ROOT = find_project_root(Path(__file__))
 PACKAGE_SOFTWARE_ROOT = Path(__file__).resolve().parents[1] / "software"
-PROVIDER_AGENT_MD_ALIASES = {
-    "claude": "CLAUDE.md",
-    "gemini": "GEMINI.md",
-}
 
 
 def _get_int_env(name: str, default: int, minimum: int | None = None) -> int:
@@ -93,7 +90,7 @@ def _get_int_env(name: str, default: int, minimum: int | None = None) -> int:
     return value
 
 
-CODEX_BIN = os.getenv("FERMILINK_CODEX_BIN", "codex")
+DEFAULT_PROVIDER_BINARY_OVERRIDE = os.getenv("FERMILINK_CODEX_BIN", "codex")
 MAX_RUNTIME_SECONDS = int(os.getenv("FERMILINK_RUNNER_MAX_RUNTIME_SECONDS", "600"))
 MAX_PROMPT_CHARS = 10_000
 RUNNER_GLOBAL_CONCURRENT_RUNS = _get_int_env(
@@ -107,12 +104,6 @@ RUNNER_MAX_PENDING_PER_USER = _get_int_env(
     "FERMILINK_RUNNER_MAX_PENDING_PER_USER", 10, minimum=0
 )
 RUNNER_METRICS_TOKEN = os.getenv("FERMILINK_RUNNER_METRICS_TOKEN", "").strip()
-PLACEHOLDER_KEYS = {
-    "YOUR_KEY_HERE",
-    "YOUR_REAL_OPENAI_API_KEY",
-    "YOUR_KEY*HERE",
-    "CHANGEME",
-}
 ALLOWED_REQUEST_SANDBOXES = {"read-only", "workspace-write"}
 
 
@@ -145,7 +136,10 @@ def verify_provider_bin() -> None:
     """
 
     policy = resolve_agent_runtime_policy()
-    provider_bin = resolve_provider_binary(policy.provider, codex_bin=CODEX_BIN)
+    provider_bin = resolve_provider_binary(
+        policy.provider,
+        codex_bin=DEFAULT_PROVIDER_BINARY_OVERRIDE,
+    )
     if shutil.which(provider_bin) is None:
         env_key = provider_bin_env_key(policy.provider)
         raise RuntimeError(
@@ -451,75 +445,6 @@ def _resolve_template_agents_path(source_dir: Path) -> Path | None:
     return None
 
 
-def _ensure_agent_md_alias(repo_dir: Path, alias_name: str) -> None:
-    """Ensure a provider alias file in the workspace repo points to ``AGENTS.md``.
-
-    Creates a symlink ``<alias_name> -> AGENTS.md`` so that provider-native
-    instruction discovery follows the same policy contract as Codex. Falls
-    back to a file copy when symlink creation is unavailable (e.g. some
-    Windows environments). A pre-existing real file is left untouched.
-
-    Parameters
-    ----------
-    repo_dir : Path
-        Workspace repository root that already contains ``AGENTS.md``.
-    alias_name : str
-        Alias filename to point at ``AGENTS.md``.
-    """
-
-    repo_agents = repo_dir / "AGENTS.md"
-    if not repo_agents.is_file():
-        return
-
-    repo_alias = repo_dir / alias_name
-
-    if repo_alias.is_symlink():
-        try:
-            if repo_alias.resolve() == repo_agents.resolve():
-                return
-        except OSError:
-            pass
-        try:
-            repo_alias.unlink()
-        except OSError:
-            return
-    elif repo_alias.exists():
-        # Leave a real provider alias file written by the user untouched.
-        return
-
-    try:
-        os.symlink("AGENTS.md", repo_alias)
-    except OSError:
-        try:
-            shutil.copy2(repo_agents, repo_alias)
-        except OSError:
-            pass
-
-
-def _ensure_claude_md_symlink(repo_dir: Path) -> None:
-    """Ensure ``CLAUDE.md`` in the workspace repo points to ``AGENTS.md``."""
-
-    _ensure_agent_md_alias(repo_dir, "CLAUDE.md")
-
-
-def _ensure_gemini_md_symlink(repo_dir: Path) -> None:
-    """Ensure ``GEMINI.md`` in the workspace repo points to ``AGENTS.md``."""
-
-    _ensure_agent_md_alias(repo_dir, "GEMINI.md")
-
-
-def _remove_agent_md_alias_symlink(repo_dir: Path, alias_name: str) -> None:
-    """Remove a managed provider alias symlink when it is not the active provider."""
-
-    repo_alias = repo_dir / alias_name
-    if not repo_alias.is_symlink():
-        return
-    try:
-        repo_alias.unlink()
-    except OSError:
-        pass
-
-
 def _sync_provider_agent_md_alias(repo_dir: Path) -> None:
     """Provision only the active provider alias for ``AGENTS.md`` in the repo.
 
@@ -529,17 +454,14 @@ def _sync_provider_agent_md_alias(repo_dir: Path) -> None:
     """
 
     policy = resolve_agent_runtime_policy()
-    active_alias = PROVIDER_AGENT_MD_ALIASES.get(policy.provider)
+    active_provider = policy.provider
 
-    for alias_name in PROVIDER_AGENT_MD_ALIASES.values():
-        if alias_name == active_alias:
+    for agent in get_default_agent_registry().all():
+        if agent.provider_id() == active_provider:
             continue
-        _remove_agent_md_alias_symlink(repo_dir, alias_name)
+        agent.remove_workspace_instruction_alias_symlink(repo_dir)
 
-    if active_alias == "CLAUDE.md":
-        _ensure_claude_md_symlink(repo_dir)
-    elif active_alias == "GEMINI.md":
-        _ensure_gemini_md_symlink(repo_dir)
+    get_provider_agent(active_provider).ensure_workspace_instruction_alias(repo_dir)
 
 
 def _ensure_template_agents_file(source_dir: Path, repo_dir: Path) -> None:
@@ -676,7 +598,7 @@ def _sanitize_env(env: dict) -> dict:
     Parameters
     ----------
     env : dict
-        Environment mapping copied for the Codex subprocess.
+        Environment mapping copied for the provider subprocess.
 
     Returns
     -------
@@ -684,77 +606,13 @@ def _sanitize_env(env: dict) -> dict:
         Sanitized environment mapping.
     """
 
-    _promote_prefixed_codex_env(env)
-    auth_mode = (env.get("FERMILINK_CODEX_AUTH_MODE") or "").strip().lower()
-    if auth_mode in {"login", "oauth", "keychain", "stored"}:
-        env.pop("FERMILINK_CODEX_API_KEY", None)
-        env.pop("FERMILINK_OPENAI_API_KEY", None)
-        env.pop("CODEX_API_KEY", None)
-        env.pop("OPENAI_API_KEY", None)
-        return env
-
-    key = env.get("FERMILINK_CODEX_API_KEY") or env.get("FERMILINK_OPENAI_API_KEY")
-    if not key:
-        key = env.get("CODEX_API_KEY") or env.get("OPENAI_API_KEY")
-    if key and key.strip() in PLACEHOLDER_KEYS:
-        env.pop("FERMILINK_CODEX_API_KEY", None)
-        env.pop("FERMILINK_OPENAI_API_KEY", None)
-        env.pop("CODEX_API_KEY", None)
-        env.pop("OPENAI_API_KEY", None)
-    return env
+    return get_provider_agent("codex").sanitize_process_env(env)
 
 
-def _promote_prefixed_codex_env(env: dict) -> None:
-    """Populate Codex-native env names from FermiLink-prefixed inputs."""
+def _normalize_provider_home(env: dict, provider: str) -> dict:
+    """Normalize any provider-specific writable home paths."""
 
-    if env.get("FERMILINK_CODEX_AUTH_MODE") and not env.get("CODEX_AUTH_MODE"):
-        env["CODEX_AUTH_MODE"] = str(env["FERMILINK_CODEX_AUTH_MODE"])
-    if env.get("FERMILINK_CODEX_API_KEY") and not env.get("CODEX_API_KEY"):
-        env["CODEX_API_KEY"] = str(env["FERMILINK_CODEX_API_KEY"])
-    if env.get("FERMILINK_OPENAI_API_KEY") and not env.get("OPENAI_API_KEY"):
-        env["OPENAI_API_KEY"] = str(env["FERMILINK_OPENAI_API_KEY"])
-    if env.get("FERMILINK_CODEX_HOME") and not env.get("CODEX_HOME"):
-        env["CODEX_HOME"] = str(env["FERMILINK_CODEX_HOME"])
-
-
-def _normalize_codex_home(env: dict) -> dict:
-    """Normalize `CODEX_HOME` to a writable directory.
-
-    Parameters
-    ----------
-    env : dict
-        Environment mapping that may include `CODEX_HOME`.
-
-    Returns
-    -------
-    dict
-        Environment mapping with a rewritten `CODEX_HOME` fallback when needed.
-    """
-
-    raw = env.get("FERMILINK_CODEX_HOME") or env.get("CODEX_HOME")
-    if not raw:
-        return env
-
-    path = Path(raw).expanduser()
-    if not path.is_absolute():
-        path = Path.cwd() / path
-
-    if _ensure_dir_safe(path):
-        env["CODEX_HOME"] = str(path)
-        env["FERMILINK_CODEX_HOME"] = str(path)
-        return env
-
-    home_fallback = Path.home() / ".codex"
-    if _ensure_dir_safe(home_fallback):
-        env["CODEX_HOME"] = str(home_fallback)
-        env["FERMILINK_CODEX_HOME"] = str(home_fallback)
-        return env
-
-    local_fallback = Path.cwd() / ".codex"
-    _ensure_dir_safe(local_fallback)
-    env["CODEX_HOME"] = str(local_fallback)
-    env["FERMILINK_CODEX_HOME"] = str(local_fallback)
-    return env
+    return get_provider_agent(provider).normalize_process_home(env)
 
 
 def _resolve_run_user_key(user_id: str | None, session_id: str) -> str:
@@ -840,7 +698,7 @@ async def _read_stream(
             text = line.decode(errors="replace").rstrip("\n")
             if not text:
                 continue
-            if event_type == "codex":
+            if event_type in {"agent", "codex"}:
                 payload = text
             else:
                 payload = json.dumps({"text": text})
@@ -851,7 +709,7 @@ async def _read_stream(
 
 @app.post("/run")
 async def run(req: RunRequest):
-    """Execute a Codex run inside a session workspace and stream SSE events.
+    """Execute one provider run inside a session workspace and stream SSE events.
 
     Parameters
     ----------
@@ -862,7 +720,7 @@ async def run(req: RunRequest):
     Returns
     -------
     StreamingResponse
-        Event-stream response containing runner metadata, Codex output, logs,
+        Event-stream response containing runner metadata, provider output, logs,
         and a final exit event.
 
     Raises
@@ -945,7 +803,10 @@ async def run(req: RunRequest):
         provider, sandbox_policy, sandbox_mode, model, reasoning_effort = (
             _resolve_run_policy(req)
         )
-        provider_bin = resolve_provider_binary(provider, codex_bin=CODEX_BIN)
+        provider_bin = resolve_provider_binary(
+            provider,
+            codex_bin=DEFAULT_PROVIDER_BINARY_OVERRIDE,
+        )
         try:
             cmd = build_exec_command(
                 provider=provider,
@@ -963,7 +824,7 @@ async def run(req: RunRequest):
 
         env = os.environ.copy()
         env = _sanitize_env(env)
-        env = _normalize_codex_home(env)
+        env = _normalize_provider_home(env, provider)
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -974,7 +835,7 @@ async def run(req: RunRequest):
         )
 
         queue: asyncio.Queue = asyncio.Queue()
-        stdout_task = asyncio.create_task(_read_stream(process.stdout, "codex", queue))
+        stdout_task = asyncio.create_task(_read_stream(process.stdout, "agent", queue))
         stderr_task = asyncio.create_task(_read_stream(process.stderr, "log", queue))
         wait_task = asyncio.create_task(process.wait())
     except asyncio.CancelledError:

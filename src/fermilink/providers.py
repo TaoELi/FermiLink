@@ -56,6 +56,46 @@ def resolve_provider_binary(
     return _AGENT_REGISTRY.get(provider).resolve_binary(codex_bin=codex_bin)
 
 
+def resolve_provider_binary_override(
+    provider: str,
+    *,
+    raw_override: str | None = None,
+) -> str | None:
+    """
+    Resolve an optional compatibility binary override for the selected provider.
+
+    Parameters
+    ----------
+    provider : str
+        Provider identifier.
+    raw_override : str | None
+        Raw CLI/config override value preserved for backward compatibility.
+
+    Returns
+    -------
+    str | None
+        Provider-specific override value when the selected agent consumes it.
+    """
+    return _AGENT_REGISTRY.get(provider).resolve_binary_override(raw_override)
+
+
+def provider_supports_auto_compile_metadata_generation(provider: str) -> bool:
+    """
+    Return whether the selected provider supports auto-compile metadata generation.
+    """
+    return _AGENT_REGISTRY.get(provider).supports_auto_compile_metadata_generation()
+
+
+def collect_provider_service_env_overrides(*, cwd: Path) -> dict[str, str]:
+    """
+    Collect provider-specific service env overrides from the current process env.
+    """
+    env: dict[str, str] = {}
+    for agent in _AGENT_REGISTRY.all():
+        env.update(agent.service_env_overrides(cwd=cwd))
+    return env
+
+
 def build_exec_command(
     *,
     provider: str = DEFAULT_PROVIDER,

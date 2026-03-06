@@ -527,7 +527,10 @@ def cmd_chat(args: argparse.Namespace) -> int:
         sandbox_policy = "enforce"
         sandbox_mode = args.sandbox.strip()
 
-    provider_bin = args.codex_bin if provider == "codex" else None
+    provider_bin = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=args.codex_bin,
+    )
     sandbox_text = (
         f"enforce({sandbox_mode})" if sandbox_policy == "enforce" else "bypass"
     )
@@ -756,7 +759,10 @@ def cmd_loop(args: argparse.Namespace) -> int:
         sandbox_policy = "enforce"
         sandbox_mode = args.sandbox.strip()
 
-    provider_bin = args.codex_bin if provider == "codex" else None
+    provider_bin = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=args.codex_bin,
+    )
     selection = cli._resolve_exec_package_selection(
         user_prompt=user_prompt,
         scipkg_root=scipkg_root,
@@ -1190,7 +1196,10 @@ def cmd_exec(args: argparse.Namespace) -> int:
         sandbox_policy = "enforce"
         sandbox_mode = args.sandbox.strip()
 
-    provider_bin = args.codex_bin if provider == "codex" else None
+    provider_bin = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=args.codex_bin,
+    )
     selection = cli._resolve_exec_package_selection(
         user_prompt=user_prompt,
         scipkg_root=scipkg_root,
@@ -1239,7 +1248,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
     )
 
     try:
-        return cli._run_exec_codex_prompt(
+        return cli._run_exec_provider_prompt(
             repo_dir=repo_dir,
             prompt=prompt,
             sandbox=sandbox_mode if sandbox_policy == "enforce" else None,

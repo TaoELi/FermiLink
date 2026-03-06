@@ -11,7 +11,7 @@ def register_gateway_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
     *,
     cmd_gateway: CommandHandler,
-    default_codex_bin: str,
+    default_provider_bin: str,
 ) -> None:
     """
     Register parser arguments for gateway.
@@ -22,8 +22,8 @@ def register_gateway_parser(
         Subparser collection created from the root parser.
     cmd_gateway : CommandHandler
         Command handler for `gateway`.
-    default_codex_bin : str
-        Default provider binary path for codex runs.
+    default_provider_bin : str
+        Default compatibility override value for `--codex-bin`.
 
     Returns
     -------
@@ -85,9 +85,9 @@ def register_gateway_parser(
     )
     gateway_parser.add_argument(
         "--codex-bin",
-        default=default_codex_bin,
+        default=default_provider_bin,
         help=(
-            f"Codex executable path (default: {default_codex_bin}). "
+            f"Codex executable path (default: {default_provider_bin}). "
             "Ignored when provider is not codex."
         ),
     )

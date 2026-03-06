@@ -19,6 +19,7 @@ from typing import Any, Callable
 
 import httpx
 
+from fermilink.agents import get_provider_agent
 from fermilink.config import resolve_runtime_root, resolve_workspaces_root
 
 
@@ -1628,10 +1629,7 @@ def _run_exec_in_workspace(
     )
     assistant_reply = ""
     original_build_exec_command = getattr(cli, "build_exec_command", None)
-    inject_option = getattr(cli, "_inject_exec_option_before_prompt", None)
-    should_capture_last_message = callable(original_build_exec_command) and callable(
-        inject_option
-    )
+    should_capture_last_message = callable(original_build_exec_command)
     previous_cwd = Path.cwd()
     if should_capture_last_message:
         with cli.tempfile.TemporaryDirectory(
@@ -1676,12 +1674,10 @@ def _run_exec_in_workspace(
                         model=model,
                         json_output=json_output,
                     )
-                if json_output or provider != "codex":
-                    return command
-                return inject_option(
+                return get_provider_agent(provider).prepare_final_reply_capture_command(
                     command,
-                    "--output-last-message",
-                    str(last_message_path),
+                    last_message_path=last_message_path,
+                    json_output=json_output,
                 )
 
             try:

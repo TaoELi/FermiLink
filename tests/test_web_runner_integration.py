@@ -79,7 +79,12 @@ def test_web_stream_runner_parses_runner_sse_end_to_end(
 
     async def scenario() -> list[tuple[str, str]]:
         _patch_minimal_runner_env(monkeypatch, tmp_path)
-        monkeypatch.setattr(runner_app, "CODEX_BIN", "python")
+        monkeypatch.setattr(runner_app, "DEFAULT_PROVIDER_BINARY_OVERRIDE", "python")
+        monkeypatch.setattr(
+            runner_app,
+            "_resolve_run_policy",
+            lambda _req: ("codex", "enforce", "read-only", None, None),
+        )
         monkeypatch.setattr(
             runner_app,
             "RUN_ADMISSION_CONTROLLER",
@@ -124,17 +129,17 @@ def test_web_stream_runner_parses_runner_sse_end_to_end(
     event_types = [event_type for event_type, _ in events]
 
     assert event_types[0] == "meta"
-    assert "codex" in event_types
+    assert "agent" in event_types
     assert "log" in event_types
     assert event_types[-1] == "runner.exit"
 
     meta_payload = json.loads(events[0][1])
     assert meta_payload["session_id"] == "session-stream-test"
 
-    codex_payloads = [
-        json.loads(data) for event_type, data in events if event_type == "codex"
+    agent_payloads = [
+        json.loads(data) for event_type, data in events if event_type == "agent"
     ]
-    assert any(payload.get("type") == "agent_message" for payload in codex_payloads)
+    assert any(payload.get("type") == "agent_message" for payload in agent_payloads)
 
     log_payload = json.loads(
         next(data for event_type, data in events if event_type == "log")

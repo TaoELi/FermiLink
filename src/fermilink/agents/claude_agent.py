@@ -31,6 +31,12 @@ class ClaudeAgent(ProviderAgent):
     def default_binary(self) -> str:
         return "claude"
 
+    def uses_json_stream(self) -> bool:
+        return True
+
+    def workspace_instruction_alias_name(self) -> str | None:
+        return "CLAUDE.md"
+
     def build_exec_command(
         self,
         *,

@@ -1635,7 +1635,7 @@ def _should_surface_runner_log(text: str) -> bool:
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    """Handle incoming user messages and stream Codex execution output.
+    """Handle incoming user messages and stream provider execution output.
 
     Parameters
     ----------
@@ -1909,7 +1909,7 @@ async def on_message(message: cl.Message):
                     if snapshot_before is None and repo_root.exists():
                         snapshot_before = _snapshot_repo(repo_root)
 
-            elif event_type == "codex":
+            elif event_type in {"agent", "codex"}:
                 try:
                     event = json.loads(data)
                 except json.JSONDecodeError:

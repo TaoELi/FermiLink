@@ -7,6 +7,8 @@ import re
 import shutil
 from pathlib import Path
 
+from fermilink.agents import get_provider_agent
+
 
 PROFILE_DIR_KEYS = ("docs_dirs", "tutorial_dirs", "test_dirs", "source_dirs")
 SOURCE_EXTENSIONS = {
@@ -3746,7 +3748,7 @@ def _write_compile_report(
     return str(report_path.relative_to(project_root))
 
 
-def _run_codex_compile_pass(
+def _run_compile_provider_pass(
     project_root: Path,
     *,
     prompt: str,
@@ -3756,6 +3758,7 @@ def _run_codex_compile_pass(
     provider_bin: str,
 ) -> dict[str, object]:
     cli = _cli()
+    agent = get_provider_agent(provider)
     sandbox = cli.DEFAULT_COMPILE_SANDBOX
     try:
         cmd = cli.build_exec_command(
@@ -3769,17 +3772,17 @@ def _run_codex_compile_pass(
         )
     except NotImplementedError as exc:
         raise cli.PackageError(
-            f"Compile provider '{provider}' is not implemented yet. "
-            "Switch to codex via `fermilink agent codex`."
+            f"Compile provider '{provider}' is not implemented yet."
         ) from exc
 
     with cli.tempfile.TemporaryDirectory(prefix="fermilink-compile-pass-") as temp_dir:
         last_message_path = Path(temp_dir) / "last_message.txt"
-        if provider == "codex":
-            cmd = cli._inject_exec_option_before_prompt(cmd, "--color", "always")
-            cmd = cli._inject_exec_option_before_prompt(
-                cmd, "--output-last-message", str(last_message_path)
-            )
+        cmd = agent.prepare_one_shot_exec_command(cmd)
+        cmd = agent.prepare_final_reply_capture_command(
+            cmd,
+            last_message_path=last_message_path,
+            json_output=False,
+        )
 
         print(f"[compile] pass {pass_index}/{total_passes}: {provider} exec")
         try:
@@ -3815,3 +3818,9 @@ def _run_codex_compile_pass(
             "return_code": int(completed.returncode),
             "assistant_text": assistant_text,
         }
+
+
+def _run_codex_compile_pass(*args, **kwargs) -> dict[str, object]:
+    """Compatibility wrapper around provider-aware compile execution."""
+
+    return _run_compile_provider_pass(*args, **kwargs)

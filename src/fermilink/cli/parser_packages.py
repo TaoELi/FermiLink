@@ -107,7 +107,7 @@ def register_package_install_compile_parsers(
         "compile",
         help=(
             "Compile a local scientific project into a fermilink package by running "
-            "three Codex passes with a deterministic skills generation+validation "
+            "three provider turns with a deterministic skills generation+validation "
             "pipeline, then install locally."
         ),
     )
@@ -183,7 +183,7 @@ def register_package_install_compile_parsers(
         "recompile",
         help=(
             "Re-audit/update an existing skills folder during package development "
-            "using three Codex passes, then install locally."
+            "using three provider turns, then install locally."
         ),
     )
     add_json_option(recompile_parser)

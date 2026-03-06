@@ -108,6 +108,36 @@ def test_codex_agent_build_exec_command_matches_legacy(tmp_path: Path) -> None:
     ]
 
 
+def test_codex_agent_provider_runtime_hooks(tmp_path: Path) -> None:
+    agent = CodexAgent()
+    last_message_path = tmp_path / "last_message.txt"
+
+    assert agent.uses_json_output_for_second_guess() is True
+    assert agent.prepare_one_shot_exec_command(["codex", "exec", "hello"]) == [
+        "codex",
+        "exec",
+        "--color",
+        "always",
+        "hello",
+    ]
+    assert agent.prepare_final_reply_capture_command(
+        ["codex", "exec", "hello"],
+        last_message_path=last_message_path,
+        json_output=False,
+    ) == [
+        "codex",
+        "exec",
+        "--output-last-message",
+        str(last_message_path),
+        "hello",
+    ]
+    assert agent.prepare_final_reply_capture_command(
+        ["codex", "exec", "hello"],
+        last_message_path=last_message_path,
+        json_output=True,
+    ) == ["codex", "exec", "hello"]
+
+
 def test_non_codex_agents_build_provider_native_commands(tmp_path: Path) -> None:
     claude = ClaudeAgent()
     assert claude.build_exec_command(

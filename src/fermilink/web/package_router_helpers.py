@@ -466,7 +466,7 @@ def _build_second_guess_prompt(
     current_package_id: str | None,
     package_catalog: list[dict[str, Any]],
 ) -> str:
-    """Create routing preflight prompt for Codex second-guess decision."""
+    """Create routing preflight prompt for provider second-guess decisions."""
 
     catalog_json = json.dumps(package_catalog, indent=2, ensure_ascii=False)
     current_label = current_package_id if current_package_id else "none"

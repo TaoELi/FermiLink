@@ -12,7 +12,7 @@ def register_workflow_parsers(
     *,
     cmd_reproduce: CommandHandler,
     cmd_research: CommandHandler,
-    default_codex_bin: str,
+    default_provider_bin: str,
 ) -> None:
     """
     Register parser arguments for workflow.
@@ -25,8 +25,8 @@ def register_workflow_parsers(
         Command handler for `reproduce` subcommands.
     cmd_research : CommandHandler
         Command handler for `research` subcommands.
-    default_codex_bin : str
-        Default Codex executable to prefill parser options.
+    default_provider_bin : str
+        Default compatibility override value for `--codex-bin`.
 
     Returns
     -------
@@ -63,9 +63,9 @@ def register_workflow_parsers(
     )
     reproduce_parser.add_argument(
         "--codex-bin",
-        default=default_codex_bin,
+        default=default_provider_bin,
         help=(
-            f"Codex executable path (default: {default_codex_bin}). "
+            f"Codex executable path (default: {default_provider_bin}). "
             "Ignored when provider is not codex."
         ),
     )
@@ -207,9 +207,9 @@ def register_workflow_parsers(
     )
     research_parser.add_argument(
         "--codex-bin",
-        default=default_codex_bin,
+        default=default_provider_bin,
         help=(
-            f"Codex executable path (default: {default_codex_bin}). "
+            f"Codex executable path (default: {default_provider_bin}). "
             "Ignored when provider is not codex."
         ),
     )

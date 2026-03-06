@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from fermilink.providers import build_exec_command
+from fermilink.providers import (
+    build_exec_command,
+    collect_provider_service_env_overrides,
+    provider_supports_auto_compile_metadata_generation,
+    resolve_provider_binary_override,
+)
 
 
 def test_build_exec_command_codex_enforced_workspace_write(tmp_path: Path) -> None:
@@ -182,3 +187,27 @@ def test_build_exec_command_rejects_unknown_provider(tmp_path: Path) -> None:
             sandbox_mode="workspace-write",
             json_output=True,
         )
+
+
+def test_resolve_provider_binary_override_only_applies_to_codex() -> None:
+    assert (
+        resolve_provider_binary_override("codex", raw_override="codex-explicit")
+        == "codex-explicit"
+    )
+    assert resolve_provider_binary_override("claude", raw_override="claude-explicit") is None
+
+
+def test_provider_metadata_generation_capability_is_agent_defined() -> None:
+    assert provider_supports_auto_compile_metadata_generation("codex") is True
+    assert provider_supports_auto_compile_metadata_generation("claude") is False
+    assert provider_supports_auto_compile_metadata_generation("gemini") is False
+
+
+def test_collect_provider_service_env_overrides_uses_agent_hooks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("FERMILINK_CODEX_HOME", str(Path("relative-codex-home")))
+    env = collect_provider_service_env_overrides(cwd=tmp_path)
+    assert env == {
+        "FERMILINK_CODEX_HOME": str((tmp_path / "relative-codex-home").resolve())
+    }

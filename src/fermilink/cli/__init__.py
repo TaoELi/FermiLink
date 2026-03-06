@@ -135,8 +135,11 @@ from fermilink.packages.package_registry import (
 )
 from fermilink.providers import (
     build_exec_command,
+    collect_provider_service_env_overrides,
+    provider_supports_auto_compile_metadata_generation,
     provider_bin_env_key,
     resolve_provider_binary,
+    resolve_provider_binary_override,
 )
 from fermilink.router_rules import sync_router_rules
 from fermilink.services import (
@@ -153,7 +156,8 @@ DEFAULT_MAX_ZIP_BYTES = int(
 )
 DEFAULT_BOOTSTRAP_PACKAGE_ID = "maxwelllink"
 DEFAULT_BOOTSTRAP_CHANNEL = "skilled-scipkg"
-DEFAULT_COMPILE_CODEX_BIN = os.getenv("FERMILINK_CODEX_BIN", "codex")
+DEFAULT_PROVIDER_BINARY_OVERRIDE = os.getenv("FERMILINK_CODEX_BIN", "codex")
+DEFAULT_COMPILE_CODEX_BIN = DEFAULT_PROVIDER_BINARY_OVERRIDE
 DEFAULT_COMPILE_SANDBOX = os.getenv("FERMILINK_COMPILE_SANDBOX", "workspace-write")
 
 EXEC_ROUTER_ENABLED = os.getenv(
@@ -257,6 +261,10 @@ _should_use_direct_terminal_stream = exec_runtime._should_use_direct_terminal_st
 _run_exec_chat_turn = exec_runtime._run_exec_chat_turn
 _run_exec_codex_prompt = exec_runtime._run_exec_codex_prompt
 
+
+def _run_exec_provider_prompt(*args, **kwargs):
+    return _run_exec_codex_prompt(*args, **kwargs)
+
 # Repo and prompt input helpers
 _ensure_exec_repo_ready = input_repo_helpers._ensure_exec_repo_ready
 _ensure_compile_repo_ready = input_repo_helpers._ensure_compile_repo_ready
@@ -317,6 +325,10 @@ _validate_compiled_skills = compile_helpers._validate_compiled_skills
 _load_previous_source_inventory = compile_helpers._load_previous_source_inventory
 _write_compile_report = compile_helpers._write_compile_report
 _run_codex_compile_pass = compile_helpers._run_codex_compile_pass
+
+
+def _run_compile_provider_pass(*args, **kwargs):
+    return _run_codex_compile_pass(*args, **kwargs)
 
 # Workflow internals moved to fermilink.cli.commands.workflows.
 _utc_now_z = workflow_commands._utc_now_z

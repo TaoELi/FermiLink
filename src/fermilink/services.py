@@ -21,6 +21,7 @@ from fermilink.agent_runtime import (
     load_agent_runtime_policy,
 )
 from fermilink.config import resolve_fermilink_home
+from fermilink.providers import collect_provider_service_env_overrides
 
 
 @dataclass(frozen=True)
@@ -236,15 +237,10 @@ def default_service_specs(*, web_app_path: Path) -> dict[str, ServiceSpec]:
         "FERMILINK_WORKSPACES_ROOT": str(workspaces_root),
     }
 
-    # Do not force a project-local FERMILINK_CODEX_HOME by default; otherwise Codex may
-    # lose existing auth state (often under ~/.codex) and return 401 errors.
-    codex_home_raw = os.getenv("FERMILINK_CODEX_HOME")
-    if codex_home_raw and codex_home_raw.strip():
-        codex_home = Path(codex_home_raw).expanduser()
-        if not codex_home.is_absolute():
-            codex_home = (Path.cwd() / codex_home).resolve()
-        runner_env["FERMILINK_CODEX_HOME"] = str(codex_home)
-        web_env["FERMILINK_CODEX_HOME"] = str(codex_home)
+    provider_service_env = collect_provider_service_env_overrides(cwd=Path.cwd())
+    if provider_service_env:
+        runner_env.update(provider_service_env)
+        web_env.update(provider_service_env)
 
     runtime_policy = load_agent_runtime_policy()
     if ENV_PROVIDER not in os.environ:

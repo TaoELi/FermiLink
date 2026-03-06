@@ -607,7 +607,7 @@ def _normalize_unique_terms(
         terms = terms[:max_items]
     if len(terms) < min_items:
         raise cli.PackageError(
-            f"Codex metadata field `{field_name}` requires at least {min_items} item(s)."
+            f"Generated metadata field `{field_name}` requires at least {min_items} item(s)."
         )
     return terms
 
@@ -663,7 +663,7 @@ def _build_auto_compile_metadata_prompt(
     )
 
 
-def _generate_metadata_with_codex(
+def _generate_metadata_with_provider(
     *,
     metadata_repo_dir: Path,
     package_id: str,
@@ -677,10 +677,12 @@ def _generate_metadata_with_codex(
 ) -> dict[str, object]:
     cli = _cli()
     runtime_policy = cli.resolve_agent_runtime_policy()
-    if runtime_policy.provider != "codex":
+    provider = runtime_policy.provider
+    if not cli.provider_supports_auto_compile_metadata_generation(provider):
         raise cli.PackageError(
-            "auto-compile metadata generation requires Codex provider. "
-            "Run `fermilink agent codex` first."
+            "auto-compile metadata generation is not supported by the current "
+            f"provider '{provider}'. Select a provider whose agent adapter "
+            "enables metadata generation."
         )
 
     prompt = _build_auto_compile_metadata_prompt(
@@ -701,10 +703,14 @@ def _generate_metadata_with_codex(
         repo_dir=metadata_repo_dir,
         prompt=prompt,
         sandbox="read-only",
-        codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN,
-        provider="codex",
+        codex_bin=cli.resolve_provider_binary_override(
+            provider,
+            raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+        ),
+        provider=provider,
         sandbox_policy="enforce",
         model=runtime_policy.model,
+        reasoning_effort=runtime_policy.reasoning_effort,
     )
     return_code_raw = response.get("return_code")
     try:
@@ -714,7 +720,7 @@ def _generate_metadata_with_codex(
     if return_code != 0:
         stderr = str(response.get("stderr") or "").strip()
         detail = stderr or f"exit code {return_code}"
-        raise cli.PackageError(f"Codex metadata generation failed: {detail}")
+        raise cli.PackageError(f"{provider} metadata generation failed: {detail}")
 
     assistant_text = str(response.get("assistant_text") or "")
     payload = cli._extract_tagged_json_payload(
@@ -723,9 +729,15 @@ def _generate_metadata_with_codex(
     )
     if not isinstance(payload, dict):
         raise cli.PackageError(
-            "Failed to parse Codex metadata JSON payload from tagged response."
+            "Failed to parse generated metadata JSON payload from tagged response."
         )
     return payload
+
+
+def _generate_metadata_with_codex(**kwargs) -> dict[str, object]:
+    """Compatibility wrapper around provider-aware metadata generation."""
+
+    return _generate_metadata_with_provider(**kwargs)
 
 
 def _build_curated_entry_from_metadata(
@@ -742,7 +754,7 @@ def _build_curated_entry_from_metadata(
     description_raw = str(metadata_payload.get("description") or "").strip()
     if not title_raw or not description_raw:
         raise cli.PackageError(
-            "Codex metadata is missing required title/description fields."
+            "Generated metadata is missing required title/description fields."
         )
     tags = _normalize_unique_terms(
         metadata_payload.get("tags"),
@@ -1199,7 +1211,7 @@ def _process_auto_compile_package(
             package_id=package_id,
         )
 
-        codex_metadata = _generate_metadata_with_codex(
+        generated_metadata = _generate_metadata_with_provider(
             metadata_repo_dir=clone_dir,
             package_id=package_id,
             upstream_repo_url=canonical_upstream,
@@ -1217,11 +1229,11 @@ def _process_auto_compile_package(
             upstream_homepage=upstream_homepage,
             fork_owner_repo=fork["fork_name"],
             default_branch=fork["default_branch"],
-            metadata_payload=codex_metadata,
+            metadata_payload=generated_metadata,
         )
         family_entry = _build_family_entry_from_metadata(
             package_id=package_id,
-            metadata_payload=codex_metadata,
+            metadata_payload=generated_metadata,
             disambiguation_package_ids=disambiguation_package_ids,
         )
         _validate_curated_entry_shape(
@@ -1281,10 +1293,13 @@ def cmd_auto_compile(args: argparse.Namespace) -> int:
     _ensure_required_commands_available(command_names=("gh", "git"))
 
     runtime_policy = cli.resolve_agent_runtime_policy()
-    if runtime_policy.provider != "codex":
+    if not cli.provider_supports_auto_compile_metadata_generation(
+        runtime_policy.provider
+    ):
         raise cli.PackageError(
-            "auto-compile requires Codex provider for metadata generation. "
-            "Run `fermilink agent codex` first."
+            "auto-compile requires a provider whose agent adapter supports "
+            f"metadata generation. Current provider '{runtime_policy.provider}' "
+            "does not support it."
         )
 
     specs = _load_auto_compile_specs(
@@ -1448,9 +1463,13 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
     runtime_policy = cli.resolve_agent_runtime_policy()
     provider = runtime_policy.provider
+    provider_bin_override = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+    )
     provider_bin = cli.resolve_provider_binary(
         provider,
-        codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN if provider == "codex" else None,
+        codex_bin=provider_bin_override,
     )
 
     tool_dest = project_root / "sci-skills-generator"
@@ -1492,7 +1511,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
             f"Skill plan output file: {cli.COMPILE_SKILL_PLAN_REL_PATH}\n"
             "Read compile memory first and keep this run plan consistent with prior gaps."
         )
-        pass_1 = cli._run_codex_compile_pass(
+        pass_1 = cli._run_compile_provider_pass(
             project_root,
             prompt=pass_1_prompt,
             pass_index=1,
@@ -1557,7 +1576,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
         )
         pass_2_before_snapshot = cli._snapshot_skills_tree(project_root)
 
-        pass_2 = cli._run_codex_compile_pass(
+        pass_2 = cli._run_compile_provider_pass(
             project_root,
             prompt=pass_2_prompt,
             pass_index=2,
@@ -1589,7 +1608,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
         )
         pass_3_before_snapshot = cli._snapshot_skills_tree(project_root)
 
-        pass_3 = cli._run_codex_compile_pass(
+        pass_3 = cli._run_compile_provider_pass(
             project_root,
             prompt=pass_3_prompt,
             pass_index=3,
@@ -1876,9 +1895,13 @@ def cmd_recompile(args: argparse.Namespace) -> int:
 
     runtime_policy = cli.resolve_agent_runtime_policy()
     provider = runtime_policy.provider
+    provider_bin_override = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+    )
     provider_bin = cli.resolve_provider_binary(
         provider,
-        codex_bin=cli.DEFAULT_COMPILE_CODEX_BIN if provider == "codex" else None,
+        codex_bin=provider_bin_override,
     )
 
     tool_dest = project_root / "sci-skills-generator"
@@ -1967,7 +1990,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 f"{suggestion_payload_json}\n"
             )
             pass_1_before_snapshot = cli._snapshot_skills_tree(project_root)
-            pass_1 = cli._run_codex_compile_pass(
+            pass_1 = cli._run_compile_provider_pass(
                 project_root,
                 prompt=pass_1_prompt,
                 pass_index=1,
@@ -2196,7 +2219,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                         f"Compact data manifest file available: {manifest_rel}\n"
                     )
 
-        pass_1 = cli._run_codex_compile_pass(
+        pass_1 = cli._run_compile_provider_pass(
             project_root,
             prompt=pass_1_prompt,
             pass_index=1,
@@ -2365,7 +2388,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 if manifest_full_rel:
                     pass_2_prompt += f"Full manifest file: {manifest_full_rel}\n"
 
-        pass_2 = cli._run_codex_compile_pass(
+        pass_2 = cli._run_compile_provider_pass(
             project_root,
             prompt=pass_2_prompt,
             pass_index=2,
@@ -2457,7 +2480,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                     f"{figure_data_map_text.strip()}\n"
                 )
 
-        pass_3 = cli._run_codex_compile_pass(
+        pass_3 = cli._run_compile_provider_pass(
             project_root,
             prompt=pass_3_prompt,
             pass_index=3,

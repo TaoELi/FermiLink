@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from fermilink.web import chat_helpers, package_session_helpers
 
 
@@ -48,13 +50,16 @@ def _base_second_guess_kwargs():
     }
 
 
-def test_run_package_second_guess_accepts_claude_assistant_events() -> None:
+@pytest.mark.parametrize("event_type", ["agent", "codex"])
+def test_run_package_second_guess_accepts_claude_assistant_events(
+    event_type: str,
+) -> None:
     captured_payload: dict[str, object] = {}
 
     async def fake_stream_runner(payload: dict[str, object]):
         captured_payload.update(payload)
         yield "meta", json.dumps({"session_id": "session-2"})
-        yield "codex", json.dumps(
+        yield event_type, json.dumps(
             {
                 "type": "assistant",
                 "message": {
@@ -84,10 +89,13 @@ def test_run_package_second_guess_accepts_claude_assistant_events() -> None:
     assert "second_guess_keep" in str(result["note"])
 
 
-def test_run_package_second_guess_accepts_direct_json_decision_payload() -> None:
+@pytest.mark.parametrize("event_type", ["agent", "codex"])
+def test_run_package_second_guess_accepts_direct_json_decision_payload(
+    event_type: str,
+) -> None:
     async def fake_stream_runner(_payload: dict[str, object]):
         yield "meta", json.dumps({"session_id": "session-3"})
-        yield "codex", json.dumps(
+        yield event_type, json.dumps(
             {
                 "route": "switch",
                 "package_id": "pkg-b",

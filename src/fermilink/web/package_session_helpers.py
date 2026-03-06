@@ -295,7 +295,7 @@ async def _run_package_second_guess(
                     resolved_session_id = maybe_session
                 continue
 
-            if event_type != "codex":
+            if event_type not in {"agent", "codex"}:
                 continue
             try:
                 event = json.loads(data)
