@@ -30,7 +30,9 @@ What ``exec`` does:
 - overlays the selected package knowledge base into the current repository;
 - syncs the unified ``AGENTS.md``  instructions to the current workspace;
 - initializes/upgrades shared memory at ``projects/memory.md``;
-- runs provider execution and streams output.
+- runs provider execution and streams output (including provider-native
+  stream-json reasoning/tool events for non-codex providers such as
+  ``claude``/``gemini`` when emitted by the provider CLI).
 
 Useful flags:
 
@@ -215,6 +217,7 @@ Use ``fermilink agent`` to set global runtime defaults used by
    fermilink agent --json
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+   fermilink agent gemini --sandbox --model gemini-2.5-pro --reasoning-effort high
    fermilink agent --clear-model
    fermilink agent --clear-reasoning-effort
 

@@ -36,7 +36,7 @@ from fermilink.packages import (
     TEMPLATE_RESERVED_ENTRY_NAMES,
 )
 
-REMOVED_INSTRUCTION_FILENAMES = {"agents.md", "claude.md"}
+REMOVED_INSTRUCTION_FILENAMES = {"agents.md", "claude.md", "gemini.md"}
 REMOVED_ROOT_DIRECTORIES = {"projects"}
 PROGRESS_REFRESH_SECONDS = 0.1
 PROGRESS_BAR_WIDTH = 24

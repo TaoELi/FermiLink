@@ -616,6 +616,37 @@ def test_render_claude_stream_event_tool_result_truncated() -> None:
     assert "line 9" in lines[9]
 
 
+def test_render_claude_stream_event_gemini_message_delta() -> None:
+    event = {
+        "type": "message",
+        "role": "assistant",
+        "content": "partial reply",
+        "delta": True,
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result == "partial reply"
+
+
+def test_render_claude_stream_event_gemini_tool_events() -> None:
+    tool_use = {
+        "type": "tool_use",
+        "tool_name": "run_shell_command",
+        "tool_id": "tool-1",
+        "parameters": {"command": "ls -la"},
+    }
+    tool_result = {
+        "type": "tool_result",
+        "tool_id": "tool-1",
+        "status": "success",
+        "output": "line-1\nline-2",
+    }
+
+    use_rendered = cli._render_claude_stream_event(tool_use, use_color=False)
+    result_rendered = cli._render_claude_stream_event(tool_result, use_color=False)
+    assert use_rendered == "[run_shell_command] ls -la"
+    assert result_rendered == "line-1\nline-2"
+
+
 def test_render_claude_stream_event_system_returns_none() -> None:
     assert cli._render_claude_stream_event({"type": "system", "subtype": "init"}) is None
 
@@ -735,6 +766,46 @@ def test_stream_claude_exec_output_with_capture_renders_and_captures(
     assert "warning-line" in captured.err
 
 
+def test_stream_claude_exec_output_with_capture_gemini_delta_preserves_tags() -> None:
+    events = [
+        json.dumps(
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": "<wait_seconds>",
+                "delta": True,
+            }
+        ),
+        json.dumps(
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": "5",
+                "delta": True,
+            }
+        ),
+        json.dumps(
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": "</wait_seconds>",
+                "delta": True,
+            }
+        ),
+    ]
+    process = SimpleNamespace(
+        stdout=io.StringIO("\n".join(events) + "\n"),
+        stderr=io.StringIO(""),
+        wait=lambda: 0,
+    )
+    return_code, assistant_text, stderr_text = (
+        cli._stream_claude_exec_output_with_capture(process)
+    )
+    assert return_code == 0
+    assert assistant_text == "<wait_seconds>5</wait_seconds>"
+    assert stderr_text == ""
+
+
 def test_stream_claude_exec_output_with_capture_handles_keyboard_interrupt() -> None:
     """KeyboardInterrupt during wait must terminate the child and return 130."""
     terminated: list[bool] = []
@@ -852,6 +923,119 @@ def test_run_exec_codex_prompt_uses_json_stream_for_claude(
     assert "stream-json" in cmd
     captured_out = capsys.readouterr()
     assert "done" in captured_out.out
+
+
+def test_prepare_provider_runtime_env_gemini_thinking_level_and_cleanup() -> None:
+    env, temp_paths = cli._prepare_provider_runtime_env(
+        {"BASE": "1"},
+        provider="gemini",
+        model="gemini-3.0-pro",
+        reasoning_effort="medium",
+    )
+    settings_value = env.get("GEMINI_CLI_SYSTEM_SETTINGS_PATH")
+    assert isinstance(settings_value, str)
+    settings_path = Path(settings_value)
+    assert settings_path.exists()
+    assert temp_paths == [settings_path]
+
+    payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    config = payload["modelConfigs"]["customOverrides"][0]["modelConfig"][
+        "generateContentConfig"
+    ]["thinkingConfig"]
+    assert config["includeThoughts"] is True
+    assert config["thinkingLevel"] == "MEDIUM"
+    assert "thinkingBudget" not in config
+
+    cli._cleanup_temp_paths(temp_paths)
+    assert not settings_path.exists()
+
+
+def test_prepare_provider_runtime_env_gemini_thinking_budget_and_cleanup() -> None:
+    env, temp_paths = cli._prepare_provider_runtime_env(
+        {},
+        provider="gemini",
+        model="gemini-2.5-pro",
+        reasoning_effort="xhigh",
+    )
+    settings_value = env.get("GEMINI_CLI_SYSTEM_SETTINGS_PATH")
+    assert isinstance(settings_value, str)
+    settings_path = Path(settings_value)
+    assert settings_path.exists()
+
+    payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    config = payload["modelConfigs"]["customOverrides"][0]["modelConfig"][
+        "generateContentConfig"
+    ]["thinkingConfig"]
+    assert config["includeThoughts"] is True
+    assert config["thinkingBudget"] == 16384
+    assert "thinkingLevel" not in config
+
+    cli._cleanup_temp_paths(temp_paths)
+    assert not settings_path.exists()
+
+
+def test_run_exec_codex_prompt_gemini_applies_reasoning_env_and_cleans_temp_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    settings_path_holder: dict[str, Path] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_codex_home=lambda env: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+
+    event = json.dumps(
+        {"type": "message", "role": "assistant", "content": "gemini done", "delta": True}
+    )
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        env = kwargs.get("env")
+        captured["env"] = env
+        assert isinstance(env, dict)
+        settings_value = env.get("GEMINI_CLI_SYSTEM_SETTINGS_PATH")
+        assert isinstance(settings_value, str)
+        settings_path = Path(settings_value)
+        settings_path_holder["path"] = settings_path
+        assert settings_path.exists()
+        return SimpleNamespace(
+            stdout=io.StringIO(event + "\n"),
+            stderr=io.StringIO(""),
+            wait=lambda: 0,
+        )
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    code = cli._run_exec_codex_prompt(
+        repo_dir=tmp_path,
+        prompt="hello gemini",
+        sandbox="read-only",
+        codex_bin="gemini",
+        provider="gemini",
+        sandbox_policy="enforce",
+        model="gemini-3.0-pro",
+        reasoning_effort="high",
+    )
+    assert code == 0
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[0] == "gemini"
+    assert "--output-format" in command
+    assert "stream-json" in command
+    assert "--sandbox" in command
+    assert "--approval-mode" in command
+    approval_idx = command.index("--approval-mode")
+    assert command[approval_idx + 1] == "plan"
+    assert "--model" in command
+    model_idx = command.index("--model")
+    assert command[model_idx + 1] == "gemini-3.0-pro"
+
+    settings_path = settings_path_holder["path"]
+    assert isinstance(settings_path, Path)
+    assert not settings_path.exists()
 
 
 def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
@@ -1213,6 +1397,78 @@ def test_run_exec_second_guess_claude_provider_runs_subprocess(
     assert "claude" in cmd[0]
     # plain-text output (no stream-json) for non-codex provider
     assert "--output-format" not in cmd
+
+
+def test_run_exec_second_guess_gemini_applies_reasoning_env_and_cleans_temp_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    settings_path_holder: dict[str, Path] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_codex_home=lambda env: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+
+    web_app = SimpleNamespace(
+        _build_package_catalog=lambda **_kwargs: [{"id": "maxwelllink"}],
+        _build_second_guess_prompt=lambda **_kwargs: "route prompt",
+        _extract_first_json_object=lambda text: json.loads(text),
+        _extract_text=lambda _event: None,
+        _normalize_package_id_safe=lambda value: (
+            value if isinstance(value, str) else None
+        ),
+        _coerce_confidence=lambda value: float(value),
+        PACKAGE_SOURCE_SECOND_GUESS="second_guess",
+    )
+    monkeypatch.setattr(cli, "_load_web_router_module", lambda: web_app)
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        env = kwargs.get("env")
+        captured["env"] = env
+        assert isinstance(env, dict)
+        settings_value = env.get("GEMINI_CLI_SYSTEM_SETTINGS_PATH")
+        assert isinstance(settings_value, str)
+        settings_path = Path(settings_value)
+        settings_path_holder["path"] = settings_path
+        assert settings_path.exists()
+        return SimpleNamespace(
+            returncode=0,
+            stdout='{"route":"keep","package_id":"maxwelllink","confidence":0.95,"reason":"correct"}',
+            stderr="",
+        )
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = cli._run_exec_second_guess(
+        user_text="simulate cavity",
+        repo_dir=tmp_path,
+        scipkg_root=tmp_path / "scientific_packages",
+        package_ids=["maxwelllink", "otherpkg"],
+        active_package_id="maxwelllink",
+        base_package_id="maxwelllink",
+        provider="gemini",
+        provider_bin="gemini",
+        sandbox_policy="enforce",
+        model="gemini-2.5-pro",
+        reasoning_effort="high",
+    )
+    assert result["package_id"] == "maxwelllink"
+    assert result["switched"] is False
+    assert "second_guess_keep" in result["note"]
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[0] == "gemini"
+    assert "--sandbox" in cmd
+    assert "--approval-mode" in cmd
+    approval_idx = cmd.index("--approval-mode")
+    assert cmd[approval_idx + 1] == "plan"
+
+    settings_path = settings_path_holder["path"]
+    assert isinstance(settings_path, Path)
+    assert not settings_path.exists()
 
 
 def test_filter_exec_overlay_package_meta_excludes_public_from_explicit_entries() -> (

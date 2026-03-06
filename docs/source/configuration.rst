@@ -19,7 +19,7 @@ FermiLink resolves provider and sandbox behavior in this order:
    ``FERMILINK_HOME/agent_runtime.json``.
 3. Built-in defaults.
 
-Tested provider options in current docs: ``codex`` and ``claude``.
+Tested provider options in current docs: ``codex``, ``claude``, and ``gemini``.
 
 Set policy via CLI:
 
@@ -29,10 +29,16 @@ Set policy via CLI:
    fermilink agent --bypass-sandbox
    fermilink agent codex
    fermilink agent claude
+   fermilink agent gemini
    fermilink agent --model gpt-5.3-codex
    fermilink agent --clear-model
    fermilink agent --reasoning-effort high
    fermilink agent --clear-reasoning-effort
+
+When provider is ``gemini``, ``--reasoning-effort`` is translated by
+``fermilink exec/chat/loop`` into Gemini ``thinkingConfig`` overrides
+(``thinkingLevel`` on Gemini 3 model families, ``thinkingBudget`` on older
+families) through a temporary system-settings file.
 
 Core path variables
 -------------------
@@ -77,6 +83,9 @@ Common runner/web controls
    * - ``FERMILINK_CLAUDE_BIN``
      - ``claude``
      - Provider binary path for claude runs.
+   * - ``FERMILINK_GEMINI_BIN``
+     - ``gemini``
+     - Provider binary path for gemini runs.
    * - ``FERMILINK_RUNNER_MAX_RUNTIME_SECONDS``
      - ``600``
      - Per-run hard timeout in runner.

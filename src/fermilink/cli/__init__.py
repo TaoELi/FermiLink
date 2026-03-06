@@ -244,6 +244,8 @@ _stream_claude_exec_output = exec_runtime._stream_claude_exec_output
 _stream_claude_exec_output_with_capture = (
     exec_runtime._stream_claude_exec_output_with_capture
 )
+_prepare_provider_runtime_env = exec_runtime._prepare_provider_runtime_env
+_cleanup_temp_paths = exec_runtime._cleanup_temp_paths
 _stream_exec_process_output = exec_runtime._stream_exec_process_output
 _stream_exec_process_output_with_capture = (
     exec_runtime._stream_exec_process_output_with_capture

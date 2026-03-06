@@ -101,121 +101,135 @@ def _run_exec_second_guess(
     env = cli.os.environ.copy()
     env = runner_app._sanitize_env(env)
     env = runner_app._normalize_codex_home(env)
+    temp_paths: list[Path] = []
     try:
-        completed = cli.subprocess.run(
-            cmd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_value,
-            env=env,
-            cwd=str(repo_dir),
+        env, temp_paths = cli._prepare_provider_runtime_env(
+            env,
+            provider=provider,
+            model=model,
+            reasoning_effort=reasoning_effort,
         )
-    except cli.subprocess.TimeoutExpired:
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": "second_guess_timeout",
-        }
-    except FileNotFoundError as exc:
-        env_key = cli.provider_bin_env_key(provider)
-        raise cli.PackageError(
-            f"{provider} CLI not found: {provider_bin_value}. "
-            f"Install the provider CLI or set {env_key}."
-        ) from exc
+    except RuntimeError as exc:
+        raise cli.PackageError(str(exc)) from exc
 
-    if completed.returncode != 0:
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": f"second_guess_error:exit_code_{completed.returncode}",
-        }
-
-    raw_text = cli._collect_second_guess_assistant_text(
-        completed.stdout or "", web_app=web_app
-    )
-    if not raw_text:
-        raw_text = "\n".join(
-            part
-            for part in (
-                (completed.stdout or "").strip(),
-                (completed.stderr or "").strip(),
+    try:
+        try:
+            completed = cli.subprocess.run(
+                cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_value,
+                env=env,
+                cwd=str(repo_dir),
             )
-            if part
+        except cli.subprocess.TimeoutExpired:
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": "second_guess_timeout",
+            }
+        except FileNotFoundError as exc:
+            env_key = cli.provider_bin_env_key(provider)
+            raise cli.PackageError(
+                f"{provider} CLI not found: {provider_bin_value}. "
+                f"Install the provider CLI or set {env_key}."
+            ) from exc
+
+        if completed.returncode != 0:
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": f"second_guess_error:exit_code_{completed.returncode}",
+            }
+
+        raw_text = cli._collect_second_guess_assistant_text(
+            completed.stdout or "", web_app=web_app
         )
-    decision = web_app._extract_first_json_object(raw_text)
-    if not isinstance(decision, dict):
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": "second_guess_invalid_json",
-        }
+        if not raw_text:
+            raw_text = "\n".join(
+                part
+                for part in (
+                    (completed.stdout or "").strip(),
+                    (completed.stderr or "").strip(),
+                )
+                if part
+            )
+        decision = web_app._extract_first_json_object(raw_text)
+        if not isinstance(decision, dict):
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": "second_guess_invalid_json",
+            }
 
-    route_raw = decision.get("route")
-    route = str(route_raw).strip().lower() if route_raw is not None else ""
-    suggested_package = web_app._normalize_package_id_safe(decision.get("package_id"))
-    confidence = web_app._coerce_confidence(decision.get("confidence"))
-    reason_raw = decision.get("reason")
-    reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""
-    reason_short = reason[:240] if reason else ""
-    package_set = set(package_ids)
+        route_raw = decision.get("route")
+        route = str(route_raw).strip().lower() if route_raw is not None else ""
+        suggested_package = web_app._normalize_package_id_safe(decision.get("package_id"))
+        confidence = web_app._coerce_confidence(decision.get("confidence"))
+        reason_raw = decision.get("reason")
+        reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""
+        reason_short = reason[:240] if reason else ""
+        package_set = set(package_ids)
 
-    if route not in {"keep", "switch"}:
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": "second_guess_invalid_route",
-        }
+        if route not in {"keep", "switch"}:
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": "second_guess_invalid_route",
+            }
 
-    if route == "keep":
+        if route == "keep":
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": (
+                    f"second_guess_keep(conf={confidence:.2f}, reason={reason_short})"
+                    if reason_short
+                    else f"second_guess_keep(conf={confidence:.2f})"
+                ),
+            }
+
+        if suggested_package not in package_set:
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": "second_guess_invalid_target",
+            }
+        if suggested_package == base_package_id:
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": "second_guess_same_target",
+            }
+        if confidence < cli.EXEC_SECOND_GUESS_MIN_CONFIDENCE:
+            return {
+                "package_id": base_package_id,
+                "source": "default",
+                "switched": False,
+                "note": f"second_guess_low_confidence({confidence:.2f})",
+            }
+
         return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
+            "package_id": suggested_package,
+            "source": web_app.PACKAGE_SOURCE_SECOND_GUESS,
+            "switched": True,
             "note": (
-                f"second_guess_keep(conf={confidence:.2f}, reason={reason_short})"
+                f"second_guess_switch({base_package_id}->{suggested_package}, "
+                f"conf={confidence:.2f}, reason={reason_short})"
                 if reason_short
-                else f"second_guess_keep(conf={confidence:.2f})"
+                else f"second_guess_switch({base_package_id}->{suggested_package}, conf={confidence:.2f})"
             ),
         }
-
-    if suggested_package not in package_set:
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": "second_guess_invalid_target",
-        }
-    if suggested_package == base_package_id:
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": "second_guess_same_target",
-        }
-    if confidence < cli.EXEC_SECOND_GUESS_MIN_CONFIDENCE:
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": f"second_guess_low_confidence({confidence:.2f})",
-        }
-
-    return {
-        "package_id": suggested_package,
-        "source": web_app.PACKAGE_SOURCE_SECOND_GUESS,
-        "switched": True,
-        "note": (
-            f"second_guess_switch({base_package_id}->{suggested_package}, "
-            f"conf={confidence:.2f}, reason={reason_short})"
-            if reason_short
-            else f"second_guess_switch({base_package_id}->{suggested_package}, conf={confidence:.2f})"
-        ),
-    }
+    finally:
+        cli._cleanup_temp_paths(temp_paths)
 
 
 def _resolve_exec_package_selection(
