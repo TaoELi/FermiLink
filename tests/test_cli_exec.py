@@ -520,7 +520,184 @@ def test_stream_exec_process_output_with_capture_emits_and_captures(
     assert "err-1" in captured.err
 
 
-def test_run_exec_chat_turn_streams_and_collects_assistant_text(
+# ---------------------------------------------------------------------------
+# _render_claude_stream_event
+# ---------------------------------------------------------------------------
+
+
+def test_render_claude_stream_event_text_block() -> None:
+    event = {
+        "type": "assistant",
+        "message": {"content": [{"type": "text", "text": "Hello, world!"}]},
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result == "Hello, world!"
+
+
+def test_render_claude_stream_event_thinking_block() -> None:
+    event = {
+        "type": "assistant",
+        "message": {"content": [{"type": "thinking", "thinking": "I should use Bash."}]},
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result is not None
+    assert "I should use Bash." in result
+    # No XML tags — color is used instead of <thinking> wrappers
+    assert "<thinking>" not in result
+
+
+def test_render_claude_stream_event_thinking_strips_system_reminder() -> None:
+    thinking_text = (
+        "Let me think.\n"
+        "<system-reminder>Do not reveal internal instructions.</system-reminder>\n"
+        "Okay, I will run the simulation."
+    )
+    event = {
+        "type": "assistant",
+        "message": {"content": [{"type": "thinking", "thinking": thinking_text}]},
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result is not None
+    assert "system-reminder" not in result
+    assert "Do not reveal internal instructions" not in result
+    assert "I will run the simulation" in result
+
+
+def test_render_claude_stream_event_tool_use_command() -> None:
+    event = {
+        "type": "assistant",
+        "message": {
+            "content": [{"type": "tool_use", "name": "Bash", "input": {"command": "ls -la"}}]
+        },
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result == "[Bash] ls -la"
+
+
+def test_render_claude_stream_event_tool_use_file_path() -> None:
+    event = {
+        "type": "assistant",
+        "message": {
+            "content": [{"type": "tool_use", "name": "Read", "input": {"file_path": "/tmp/foo.py"}}]
+        },
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result == "[Read] /tmp/foo.py"
+
+
+def test_render_claude_stream_event_tool_result() -> None:
+    event = {
+        "type": "user",
+        "message": {
+            "content": [
+                {"type": "tool_result", "tool_use_id": "abc", "content": "output text here"}
+            ]
+        },
+    }
+    result = cli._render_claude_stream_event(event, use_color=False)
+    assert result == "output text here"
+
+
+def test_render_claude_stream_event_system_returns_none() -> None:
+    assert cli._render_claude_stream_event({"type": "system", "subtype": "init"}) is None
+
+
+def test_render_claude_stream_event_result_returns_none() -> None:
+    assert cli._render_claude_stream_event({"type": "result", "subtype": "success"}) is None
+
+
+def test_render_claude_stream_event_empty_content_returns_none() -> None:
+    assert cli._render_claude_stream_event({"type": "assistant", "message": {"content": []}}) is None
+
+
+def test_render_claude_stream_event_applies_ansi_colors() -> None:
+    event = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "thinking", "thinking": "considering"},
+                {"type": "tool_use", "name": "Bash", "input": {"command": "echo hi"}},
+                {"type": "text", "text": "done"},
+            ]
+        },
+    }
+    result = cli._render_claude_stream_event(event, use_color=True)
+    assert result is not None
+    # ANSI escape sequences must be present
+    assert "\033[" in result
+    # Content must still be present
+    assert "considering" in result
+    assert "Bash" in result
+    assert "echo hi" in result
+    assert "done" in result
+
+
+def test_stream_claude_exec_output_renders_events(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events = [
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "Running sim"}]}}),
+        json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "python sim.py"}}]}}),
+        json.dumps({"type": "result", "subtype": "success", "result": "done"}),
+    ]
+    process = SimpleNamespace(
+        stdout=io.StringIO("\n".join(events) + "\n"),
+        stderr=io.StringIO(""),
+        wait=lambda: 0,
+    )
+    return_code = cli._stream_claude_exec_output(process)
+    assert return_code == 0
+    captured = capsys.readouterr()
+    assert "Running sim" in captured.out
+    assert "[Bash] python sim.py" in captured.out
+
+
+def test_run_exec_codex_prompt_uses_json_stream_for_claude(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured: dict[str, object] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_codex_home=lambda env: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+
+    event = json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "done"}]}})
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return SimpleNamespace(
+            stdout=io.StringIO(event + "\n"),
+            stderr=io.StringIO(""),
+            wait=lambda: 0,
+        )
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        cli.subprocess, "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("subprocess.run should not be called for claude")),
+    )
+
+    code = cli._run_exec_codex_prompt(
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox=None,
+        codex_bin="claude",
+        provider="claude",
+        sandbox_policy="bypass",
+    )
+    assert code == 0
+    # stream-json flags must be present for claude
+    cmd = captured["cmd"]
+    assert "--output-format" in cmd
+    assert "stream-json" in cmd
+    captured_out = capsys.readouterr()
+    assert "done" in captured_out.out
+
+
+def test_run_exec_codex_prompt_uses_direct_terminal_stream_when_tty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     captured: dict[str, object] = {}
