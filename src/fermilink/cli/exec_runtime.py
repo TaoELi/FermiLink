@@ -177,7 +177,7 @@ def _stream_exec_process_output_with_capture(
 # ---------------------------------------------------------------------------
 _ANSI = {
     "reset":      "\033[0m",
-    "thinking":   "\033[2;3;90m",  # dim + italic + dark-gray
+    "thinking":   "\033[3;37m",    # italic + light-gray (near-white, readable)
     "tool_label": "\033[1;32m",    # bold green
     "tool_cmd":   "\033[36m",      # cyan
     "tool_out":   "\033[90m",      # dark gray
