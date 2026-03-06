@@ -43,7 +43,7 @@ Runner and web
 
 - ``src/fermilink/runner/app.py``: FastAPI backend and SSE run execution; workspace/env setup delegates to ``agents/``, and provider stdout streams under a generic ``agent`` event label.
 - ``src/fermilink/runner/admission.py``: admission queue and concurrency limits.
-- ``src/fermilink/web/app.py``: Chainlit entrypoint and orchestration.
+- ``src/fermilink/web/app.py``: Chainlit entrypoint and orchestration, including isolated package second-guess preflight sessions so routing probes cannot leak provider conversation state into the visible chat turn.
 - ``src/fermilink/web/*_helpers.py``: routing, auth, storage, runner, and activity helpers; runner events are consumed in a provider-agnostic way with legacy ``codex`` compatibility where needed.
 
 Tests and docs

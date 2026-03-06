@@ -94,17 +94,15 @@ Troubleshooting (common first-run issues)
     fermilink install <package_id> --activate
 
 - **Runner fails with a provider error**:
-  ensure the active provider CLI (``codex``) is on ``PATH`` and
-  authenticated, then restart. You can check
-  or change provider selection with ``fermilink agent``::
+  ensure the active provider CLI (``codex``, ``claude``, or ``gemini``) is on
+  ``PATH`` and authenticated, then restart. You can check or change provider
+  selection with ``fermilink agent``::
 
     fermilink agent --json
     fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
+    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+    fermilink agent gemini --sandbox --model auto-gemini-3 --reasoning-effort high
     fermilink restart
-
-.. note::
-
-   The web UI currently only supports the ``codex`` provider. The ``claude`` and ``gemini`` options are not yet supported in this mode.
 
 - **Ports already in use**:
   stop the conflicting process, or override the commands (see below).
@@ -132,6 +130,9 @@ Notes:
 - Auto routing is per-chat; it can switch packages between turns when enabled.
 - Manual ``/package use ...`` pins always take precedence until you clear them.
 - If you see "no packages", install one with ``fermilink install <id> --activate``.
+- Generated figures/documents are attached from either referenced paths in the
+  assistant reply or detected created/updated files under the workspace artifact
+  directories.
 
 Advanced: override ports/hosts (optional)
 -----------------------------------------

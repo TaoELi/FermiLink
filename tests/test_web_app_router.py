@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
@@ -108,3 +109,56 @@ def test_should_surface_runner_log_respects_flag_and_filters(monkeypatch) -> Non
     )
     assert web_app._should_surface_runner_log(suppressed) is False
     assert web_app._should_surface_runner_log("tool failed with exit code 1") is True
+
+
+def test_run_package_second_guess_uses_isolated_workspace_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured_session_ids: list[str] = []
+    workspaces_root = tmp_path / "workspaces"
+
+    async def fake_second_guess(**kwargs):
+        session_id = str(kwargs["session_id"])
+        captured_session_ids.append(session_id)
+        workspace = workspaces_root / session_id
+        workspace.mkdir(parents=True, exist_ok=True)
+        return {
+            "package_id": kwargs["selected_package_id"],
+            "source": kwargs["selected_source"],
+            "switched": False,
+            "session_id": session_id,
+            "consulted": True,
+            "note": "second_guess_keep(conf=1.00)",
+        }
+
+    monkeypatch.setattr(web_app, "_resolve_workspaces_root", lambda: workspaces_root)
+    monkeypatch.setattr(
+        web_app.package_session_helpers,
+        "_run_package_second_guess",
+        fake_second_guess,
+    )
+
+    result = asyncio.run(
+        web_app._run_package_second_guess(
+            user_text="route this request",
+            session_id="main-session",
+            user_id="user-1",
+            selected_package_id="maxwelllink",
+            selected_source="auto",
+        )
+    )
+
+    assert len(captured_session_ids) == 1
+    assert captured_session_ids[0] != "main-session"
+    assert result["session_id"] == "main-session"
+    assert not (workspaces_root / captured_session_ids[0]).exists()
+
+
+def test_pending_snapshot_artifact_paths_includes_modified_and_skips_text_attached() -> None:
+    pending = web_app._pending_snapshot_artifact_paths(
+        created_files=["outputs/report.md", "outputs/figure.png"],
+        modified_files=["outputs/figure.png", "outputs/figure-2.png"],
+        text_attached_files=["outputs/report.md"],
+    )
+
+    assert pending == ["outputs/figure.png", "outputs/figure-2.png"]

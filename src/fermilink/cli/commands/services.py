@@ -117,20 +117,6 @@ def _start_sequence(
     return results, rollback, failed
 
 
-def _check_web_mode_provider() -> int | None:
-    cli = _cli()
-    policy = cli.load_agent_runtime_policy()
-    if policy.provider != "codex":
-        import sys
-
-        print(
-            "currently the fermilink web mode supports only codex well; use `fermilink agent codex` to select the codex provider for best experience",
-            file=sys.stderr,
-        )
-        return 1
-    return None
-
-
 def cmd_start(args: argparse.Namespace) -> int:
     """
     Execute the `start` CLI subcommand.
@@ -145,9 +131,6 @@ def cmd_start(args: argparse.Namespace) -> int:
     int
         Process exit code (`0` on success, non-zero on failure).
     """
-    rc = _check_web_mode_provider()
-    if rc is not None:
-        return rc
     cli = _cli()
     runtime_root = cli.resolve_runtime_root()
     names, specs = cli._resolve_specs(args.components)
@@ -214,9 +197,6 @@ def cmd_restart(args: argparse.Namespace) -> int:
     int
         Process exit code (`0` on success, non-zero on failure).
     """
-    rc = _check_web_mode_provider()
-    if rc is not None:
-        return rc
     cli = _cli()
     runtime_root = cli.resolve_runtime_root()
     names, specs = cli._resolve_specs(args.components)

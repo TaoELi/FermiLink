@@ -231,14 +231,11 @@ def _format_transparency_report(
     return "\n".join(lines)
 
 
-async def _attach_artifacts_from_text(
-    text: str,
-    session_id: str | None,
+async def _send_resolved_files(
+    resolved_files: list[tuple[Path, Path]],
+    repo_root: Path,
     message: Any,
     *,
-    resolve_workspaces_root: Callable[[], Path],
-    extract_candidate_paths: Callable[[str], list[str]],
-    resolve_artifact_path: Callable[[Path, str], tuple[Path, Path] | None],
     element_for_path: Callable[[Path, Path], Any],
     max_attachment_bytes: int,
     image_exts: set[str],
@@ -246,40 +243,7 @@ async def _attach_artifacts_from_text(
     cl_module: Any,
     logger: Any,
 ) -> None:
-    """Attach artifacts referenced in assistant text to a Chainlit message."""
-
-    if not session_id:
-        return
-    repo_dir = resolve_workspaces_root() / session_id / "repo"
-    if not repo_dir.exists():
-        return
-    repo_root = repo_dir.resolve()
-    candidates = extract_candidate_paths(text)
-    if not candidates:
-        return
-    seen: set[str] = set()
-    resolved_files: list[tuple[Path, Path]] = []
-    for token in candidates:
-        resolved = resolve_artifact_path(repo_root, token)
-        if not resolved:
-            continue
-        path, relative = resolved
-        key = str(path)
-        if key in seen:
-            continue
-        seen.add(key)
-        if max_attachment_bytes > 0:
-            try:
-                size = path.stat().st_size
-            except OSError:
-                continue
-            if size > max_attachment_bytes:
-                logger.info("Skipping large artifact %s (%d bytes)", path, size)
-                continue
-        resolved_files.append((path, relative))
-
-    if not resolved_files:
-        return
+    """Zip (if enough files) and send resolved file elements to a Chainlit message."""
 
     image_files: list[tuple[Path, Path]] = []
     for path, relative in resolved_files:
@@ -321,3 +285,127 @@ async def _attach_artifacts_from_text(
     for path, relative in resolved_files:
         element = element_for_path(path, relative)
         await element.send(for_id=message.id)
+
+
+async def _attach_artifacts_from_text(
+    text: str,
+    session_id: str | None,
+    message: Any,
+    *,
+    resolve_workspaces_root: Callable[[], Path],
+    extract_candidate_paths: Callable[[str], list[str]],
+    resolve_artifact_path: Callable[[Path, str], tuple[Path, Path] | None],
+    element_for_path: Callable[[Path, Path], Any],
+    max_attachment_bytes: int,
+    image_exts: set[str],
+    zip_min_count: int,
+    cl_module: Any,
+    logger: Any,
+) -> list[str]:
+    """Attach artifacts referenced in assistant text to a Chainlit message.
+
+    Returns repo-relative artifact paths that were attached from text.
+    """
+
+    if not session_id:
+        return []
+    repo_dir = resolve_workspaces_root() / session_id / "repo"
+    if not repo_dir.exists():
+        return []
+    repo_root = repo_dir.resolve()
+    candidates = extract_candidate_paths(text)
+    if not candidates:
+        return []
+    seen: set[str] = set()
+    resolved_files: list[tuple[Path, Path]] = []
+    for token in candidates:
+        resolved = resolve_artifact_path(repo_root, token)
+        if not resolved:
+            continue
+        path, relative = resolved
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if max_attachment_bytes > 0:
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size > max_attachment_bytes:
+                logger.info("Skipping large artifact %s (%d bytes)", path, size)
+                continue
+        resolved_files.append((path, relative))
+
+    if not resolved_files:
+        return []
+
+    await _send_resolved_files(
+        resolved_files,
+        repo_root,
+        message,
+        element_for_path=element_for_path,
+        max_attachment_bytes=max_attachment_bytes,
+        image_exts=image_exts,
+        zip_min_count=zip_min_count,
+        cl_module=cl_module,
+        logger=logger,
+    )
+    return [relative.as_posix() for _, relative in resolved_files]
+
+
+async def _attach_artifacts_from_snapshot(
+    repo_root: Path,
+    changed_rel_paths: list[str],
+    message: Any,
+    *,
+    artifact_prefixes: tuple[str, ...],
+    element_for_path: Callable[[Path, Path], Any],
+    max_attachment_bytes: int,
+    image_exts: set[str],
+    zip_min_count: int,
+    cl_module: Any,
+    logger: Any,
+) -> None:
+    """Attach created or modified artifacts from snapshot diff to a Chainlit message.
+
+    Used as a fallback when text-based extraction finds no artifacts (e.g. for
+    claude/gemini providers that do not echo file paths in their final output).
+    """
+
+    if not changed_rel_paths or not repo_root.exists():
+        return
+
+    resolved_files: list[tuple[Path, Path]] = []
+    for rel_str in changed_rel_paths:
+        relative = Path(rel_str)
+        if artifact_prefixes:
+            if not relative.parts or relative.parts[0] not in artifact_prefixes:
+                continue
+        path = (repo_root / relative).resolve(strict=False)
+        if not path.is_file():
+            continue
+        if max_attachment_bytes > 0:
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size > max_attachment_bytes:
+                logger.info("Skipping large artifact %s (%d bytes)", path, size)
+                continue
+        resolved_files.append((path, relative))
+
+    if not resolved_files:
+        return
+
+    await _send_resolved_files(
+        resolved_files,
+        repo_root,
+        message,
+        element_for_path=element_for_path,
+        max_attachment_bytes=max_attachment_bytes,
+        image_exts=image_exts,
+        zip_min_count=zip_min_count,
+        cl_module=cl_module,
+        logger=logger,
+    )

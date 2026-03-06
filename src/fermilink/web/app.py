@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -506,6 +507,28 @@ def _coerce_confidence(value: Any) -> float:
     return package_router_helpers._coerce_confidence(value)
 
 
+def _build_second_guess_session_id(session_id: str | None) -> str:
+    """Create an isolated runner session id for one package preflight."""
+
+    base = (session_id or "web").strip()
+    if not base:
+        base = "web"
+    base = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-") or "web"
+    return f"{base}-pkgsg-{secrets.token_hex(6)}"
+
+
+def _cleanup_workspace_session(session_id: str | None) -> None:
+    """Best-effort deletion of one runner workspace session root."""
+
+    if not isinstance(session_id, str) or not session_id.strip():
+        return
+    workspace_root = _resolve_workspaces_root() / session_id.strip()
+    try:
+        shutil.rmtree(workspace_root, ignore_errors=True)
+    except OSError:
+        return
+
+
 async def _run_package_second_guess(
     *,
     user_text: str,
@@ -514,31 +537,42 @@ async def _run_package_second_guess(
     selected_package_id: str | None,
     selected_source: str,
 ) -> dict[str, Any]:
-    return await package_session_helpers._run_package_second_guess(
-        user_text=user_text,
-        session_id=session_id,
-        user_id=user_id,
-        selected_package_id=selected_package_id,
-        selected_source=selected_source,
-        package_second_guess_enabled=PACKAGE_SECOND_GUESS_ENABLED,
-        package_source_manual=PACKAGE_SOURCE_MANUAL,
-        package_source_second_guess=PACKAGE_SOURCE_SECOND_GUESS,
-        package_second_guess_timeout_seconds=PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS,
-        package_second_guess_min_confidence=PACKAGE_SECOND_GUESS_MIN_CONFIDENCE,
-        resolve_package_registry=_resolve_package_registry,
-        load_router_config=_load_router_config,
-        resolve_default_package_id=_resolve_default_package_id,
-        build_package_catalog=_build_package_catalog,
-        build_second_guess_prompt=_build_second_guess_prompt,
-        resolve_agent_runtime_policy=resolve_agent_runtime_policy,
-        stream_runner=_stream_runner,
-        is_assistant_stream_event=_is_assistant_stream_event,
-        extract_text=_extract_text,
-        extract_first_json_object=_extract_first_json_object,
-        normalize_package_id_safe=_normalize_package_id_safe,
-        coerce_confidence=_coerce_confidence,
-        logger=LOGGER,
-    )
+    preflight_session_id = _build_second_guess_session_id(session_id)
+    _cleanup_workspace_session(preflight_session_id)
+    try:
+        result = await package_session_helpers._run_package_second_guess(
+            user_text=user_text,
+            session_id=preflight_session_id,
+            user_id=user_id,
+            selected_package_id=selected_package_id,
+            selected_source=selected_source,
+            package_second_guess_enabled=PACKAGE_SECOND_GUESS_ENABLED,
+            package_source_manual=PACKAGE_SOURCE_MANUAL,
+            package_source_second_guess=PACKAGE_SOURCE_SECOND_GUESS,
+            package_second_guess_timeout_seconds=PACKAGE_SECOND_GUESS_TIMEOUT_SECONDS,
+            package_second_guess_min_confidence=PACKAGE_SECOND_GUESS_MIN_CONFIDENCE,
+            resolve_package_registry=_resolve_package_registry,
+            load_router_config=_load_router_config,
+            resolve_default_package_id=_resolve_default_package_id,
+            build_package_catalog=_build_package_catalog,
+            build_second_guess_prompt=_build_second_guess_prompt,
+            resolve_agent_runtime_policy=resolve_agent_runtime_policy,
+            stream_runner=_stream_runner,
+            is_assistant_stream_event=_is_assistant_stream_event,
+            extract_text=_extract_text,
+            extract_first_json_object=_extract_first_json_object,
+            normalize_package_id_safe=_normalize_package_id_safe,
+            coerce_confidence=_coerce_confidence,
+            logger=LOGGER,
+        )
+    finally:
+        _cleanup_workspace_session(preflight_session_id)
+
+    if isinstance(result, dict):
+        normalized = dict(result)
+        normalized["session_id"] = session_id
+        return normalized
+    return result
 
 
 def _resolve_package_alias(raw_target: str, package_ids: list[str]) -> str | None:
@@ -1549,8 +1583,8 @@ def _format_transparency_report(
 
 async def _attach_artifacts_from_text(
     text: str, session_id: str | None, message: cl.Message
-) -> None:
-    await artifact_helpers._attach_artifacts_from_text(
+) -> list[str]:
+    return await artifact_helpers._attach_artifacts_from_text(
         text,
         session_id,
         message,
@@ -1564,6 +1598,34 @@ async def _attach_artifacts_from_text(
         cl_module=cl,
         logger=LOGGER,
     )
+
+
+async def _attach_artifacts_from_snapshot(
+    repo_root: Path, changed_rel_paths: list[str], message: cl.Message
+) -> None:
+    await artifact_helpers._attach_artifacts_from_snapshot(
+        repo_root,
+        changed_rel_paths,
+        message,
+        artifact_prefixes=ARTIFACT_PREFIXES,
+        element_for_path=_element_for_path,
+        max_attachment_bytes=MAX_ATTACHMENT_BYTES,
+        image_exts=IMAGE_EXTS,
+        zip_min_count=ZIP_MIN_COUNT,
+        cl_module=cl,
+        logger=LOGGER,
+    )
+
+
+def _pending_snapshot_artifact_paths(
+    *,
+    created_files: list[str],
+    modified_files: list[str],
+    text_attached_files: list[str],
+) -> list[str]:
+    attached_set = set(text_attached_files)
+    changed_files = _dedupe_preserve([*created_files, *modified_files])
+    return [path for path in changed_files if path not in attached_set]
 
 
 async def _stream_runner(payload: dict):
@@ -2083,15 +2145,24 @@ async def on_message(message: cl.Message):
         cl.user_session.set(SESSION_PACKAGE_ID_KEY, active_package_id)
         if selected_source == PACKAGE_SOURCE_NONE:
             cl.user_session.set(SESSION_PACKAGE_SOURCE_KEY, PACKAGE_SOURCE_DEFAULT)
-    await _attach_artifacts_from_text(assistant_buffer, session_id, assistant_msg)
+    text_attached_files = await _attach_artifacts_from_text(
+        assistant_buffer, session_id, assistant_msg
+    )
+    created_files: list[str] = []
+    modified_files: list[str] = []
+    if repo_root is not None and snapshot_before is not None and repo_root.exists():
+        snapshot_after = _snapshot_repo(repo_root)
+        created_files, modified_files = _diff_snapshots(snapshot_before, snapshot_after)
+    snapshot_artifact_paths = _pending_snapshot_artifact_paths(
+        created_files=created_files,
+        modified_files=modified_files,
+        text_attached_files=text_attached_files,
+    )
+    if repo_root is not None and snapshot_artifact_paths:
+        await _attach_artifacts_from_snapshot(
+            repo_root, snapshot_artifact_paths, assistant_msg
+        )
     if TRANSPARENCY_ENABLED:
-        created_files: list[str] = []
-        modified_files: list[str] = []
-        if repo_root is not None and snapshot_before is not None and repo_root.exists():
-            snapshot_after = _snapshot_repo(repo_root)
-            created_files, modified_files = _diff_snapshots(
-                snapshot_before, snapshot_after
-            )
         report = _format_transparency_report(
             active_package_id,
             _dedupe_preserve(tool_calls),

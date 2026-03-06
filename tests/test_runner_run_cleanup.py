@@ -164,6 +164,68 @@ def test_cancel_streaming_response_releases_admission_slot(
     asyncio.run(scenario())
 
 
+def test_timeout_cleanup_ignores_already_exited_signal_race(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class RaceProcess:
+        def __init__(self) -> None:
+            self.returncode = None
+            self.stdout = asyncio.StreamReader()
+            self.stderr = asyncio.StreamReader()
+            self.stdout.feed_eof()
+            self.stderr.feed_eof()
+            self._done = asyncio.Event()
+
+        async def wait(self) -> int:
+            await self._done.wait()
+            if self.returncode is None:
+                self.returncode = 0
+            return self.returncode
+
+        def terminate(self) -> None:
+            self.returncode = 0
+            self._done.set()
+            raise ProcessLookupError("already exited")
+
+        def kill(self) -> None:
+            self.returncode = 0
+            self._done.set()
+            raise ProcessLookupError("already exited")
+
+    async def scenario() -> None:
+        _patch_minimal_runner_env(monkeypatch, tmp_path)
+        controller = RunAdmissionController(
+            global_limit=1, per_user_limit=1, max_queue_size=10
+        )
+        monkeypatch.setattr(runner_app, "RUN_ADMISSION_CONTROLLER", controller)
+        monkeypatch.setattr(runner_app, "MAX_RUNTIME_SECONDS", 0)
+
+        async def fake_create_subprocess_exec(*_a, **_k):
+            return RaceProcess()
+
+        monkeypatch.setattr(
+            runner_app.asyncio, "create_subprocess_exec", fake_create_subprocess_exec
+        )
+
+        req = runner_app.RunRequest(
+            session_id="s-signal-race",
+            user_id="alice",
+            user_prompt="hello",
+            sandbox="read-only",
+        )
+        response = await runner_app.run(req)
+        chunks = [chunk async for chunk in response.body_iterator]
+
+        assert any("event: meta" in chunk for chunk in chunks)
+        assert any("event: runner.exit" in chunk for chunk in chunks)
+
+        snapshot = await controller.snapshot()
+        assert snapshot["active_total"] == 0
+        assert snapshot["pending_total"] == 0
+
+    asyncio.run(scenario())
+
+
 def test_resolve_source_dir_prefers_packaged_software(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

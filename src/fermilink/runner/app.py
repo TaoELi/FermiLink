@@ -104,6 +104,9 @@ RUNNER_MAX_PENDING_PER_USER = _get_int_env(
     "FERMILINK_RUNNER_MAX_PENDING_PER_USER", 10, minimum=0
 )
 RUNNER_METRICS_TOKEN = os.getenv("FERMILINK_RUNNER_METRICS_TOKEN", "").strip()
+RUNNER_SUBPROCESS_STREAM_LIMIT = _get_int_env(
+    "FERMILINK_RUNNER_SUBPROCESS_STREAM_LIMIT", 1024 * 1024, minimum=64 * 1024
+)
 ALLOWED_REQUEST_SANDBOXES = {"read-only", "workspace-write"}
 
 
@@ -342,6 +345,42 @@ def _format_prometheus_metrics(payload: dict[str, object]) -> str:
             ]
         )
     return "\n".join(lines) + "\n"
+
+
+async def _iter_stream_lines(
+    stream: asyncio.StreamReader, *, chunk_size: int = 64 * 1024
+):
+    """Yield logical lines from a subprocess stream without line-length limits."""
+
+    pending = bytearray()
+
+    while True:
+        chunk = await stream.read(chunk_size)
+        if not chunk:
+            if pending:
+                yield bytes(pending)
+            break
+
+        pending.extend(chunk)
+        while True:
+            newline_index = pending.find(b"\n")
+            if newline_index < 0:
+                break
+            line = bytes(pending[: newline_index + 1])
+            del pending[: newline_index + 1]
+            yield line
+
+
+def _signal_process_safely(process: asyncio.subprocess.Process, signal_name: str) -> None:
+    """Best-effort subprocess signaling that ignores already-exited races."""
+
+    signal_fn = getattr(process, signal_name, None)
+    if not callable(signal_fn):
+        return
+    try:
+        signal_fn()
+    except (OSError, ProcessLookupError):
+        return
 
 
 def _ensure_dir(path: Path) -> Path:
@@ -691,10 +730,7 @@ async def _read_stream(
     """
 
     try:
-        while True:
-            line = await stream.readline()
-            if not line:
-                break
+        async for line in _iter_stream_lines(stream):
             text = line.decode(errors="replace").rstrip("\n")
             if not text:
                 continue
@@ -832,6 +868,7 @@ async def run(req: RunRequest):
             stderr=asyncio.subprocess.PIPE,
             env=env,
             cwd=str(repo_dir),
+            limit=RUNNER_SUBPROCESS_STREAM_LIMIT,
         )
 
         queue: asyncio.Queue = asyncio.Queue()
@@ -876,7 +913,7 @@ async def run(req: RunRequest):
                 if time.monotonic() - start > MAX_RUNTIME_SECONDS:
                     timed_out = True
                     if process.returncode is None:
-                        process.terminate()
+                        _signal_process_safely(process, "terminate")
                     break
 
                 try:
@@ -899,7 +936,7 @@ async def run(req: RunRequest):
                 try:
                     await asyncio.wait_for(wait_task, timeout=5)
                 except asyncio.TimeoutError:
-                    process.kill()
+                    _signal_process_safely(process, "kill")
                     try:
                         await asyncio.wait_for(wait_task, timeout=5)
                     except asyncio.TimeoutError:
@@ -912,11 +949,11 @@ async def run(req: RunRequest):
         finally:
             try:
                 if process.returncode is None:
-                    process.terminate()
+                    _signal_process_safely(process, "terminate")
                     try:
                         await asyncio.wait_for(wait_task, timeout=5)
                     except asyncio.TimeoutError:
-                        process.kill()
+                        _signal_process_safely(process, "kill")
                         try:
                             await asyncio.wait_for(wait_task, timeout=5)
                         except asyncio.TimeoutError:

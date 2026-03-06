@@ -152,3 +152,80 @@ def test_web_stream_runner_parses_runner_sse_end_to_end(
     exit_payload = json.loads(events[-1][1])
     assert exit_payload["reason"] == "completed"
     assert exit_payload["return_code"] == 0
+
+
+def test_web_stream_runner_handles_large_provider_json_line(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    large_text = "x" * 70_000
+    large_event = json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": large_text}]},
+        }
+    )
+
+    class _LargeLineProcess:
+        def __init__(self) -> None:
+            self.returncode = 0
+            self.stdout = _line_reader([large_event])
+            self.stderr = _line_reader([])
+
+        async def wait(self) -> int:
+            await asyncio.sleep(0)
+            return self.returncode
+
+        def terminate(self) -> None:
+            self.returncode = -15
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+    async def scenario() -> list[tuple[str, str]]:
+        _patch_minimal_runner_env(monkeypatch, tmp_path)
+        monkeypatch.setattr(runner_app, "DEFAULT_PROVIDER_BINARY_OVERRIDE", "python")
+        monkeypatch.setattr(
+            runner_app,
+            "_resolve_run_policy",
+            lambda _req: ("claude", "enforce", "read-only", None, None),
+        )
+        monkeypatch.setattr(
+            runner_app,
+            "RUN_ADMISSION_CONTROLLER",
+            RunAdmissionController(global_limit=2, per_user_limit=1, max_queue_size=2),
+        )
+
+        async def fake_create_subprocess_exec(*_cmd, **_kwargs):
+            return _LargeLineProcess()
+
+        monkeypatch.setattr(
+            runner_app.asyncio, "create_subprocess_exec", fake_create_subprocess_exec
+        )
+
+        class _ASGIClient(httpx.AsyncClient):
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("base_url", "http://runner")
+                kwargs.setdefault("transport", httpx.ASGITransport(app=runner_app.app))
+                super().__init__(*args, **kwargs)
+
+        monkeypatch.setattr(web_app.httpx, "AsyncClient", _ASGIClient)
+        monkeypatch.setattr(web_app, "RUNNER_URL", "http://runner")
+
+        events: list[tuple[str, str]] = []
+        async for event_type, data in web_app._stream_runner(
+            {
+                "session_id": "session-large-line-test",
+                "user_prompt": "hello from web",
+                "sandbox": "read-only",
+            }
+        ):
+            events.append((event_type, data))
+        return events
+
+    events = asyncio.run(scenario())
+    agent_payload = next(
+        json.loads(data) for event_type, data in events if event_type == "agent"
+    )
+
+    assert agent_payload["message"]["content"][0]["text"] == large_text
+    assert json.loads(events[-1][1])["reason"] == "completed"
