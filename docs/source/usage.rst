@@ -228,7 +228,7 @@ Use ``fermilink agent`` to set global runtime defaults used by
    fermilink agent --json
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
-   fermilink agent gemini --sandbox --model gemini-2.5-pro --reasoning-effort high
+   fermilink agent gemini --sandbox --model auto-gemini-3 --reasoning-effort high
    fermilink agent --clear-model
    fermilink agent --clear-reasoning-effort
 
@@ -236,7 +236,7 @@ Use ``fermilink agent`` to set global runtime defaults used by
 See also
 --------
 
-- :doc:`installation` for initial setup (provider auth for Codex/Claude, first package install).
+- :doc:`installation` for initial setup (provider auth for Codex/Claude/Gemini, first package install).
 - :doc:`configuration` for runtime variables and provider/sandbox policy.
 - :doc:`architecture` for the request flow and streaming contracts.
 - :doc:`scientific_packages` for install/compile/recompile workflows.

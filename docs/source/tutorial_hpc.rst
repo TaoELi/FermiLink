@@ -9,7 +9,7 @@ more detailed references if you want them.
 What you will set up:
 
 - A user-local Python + Node.js environment
-- FermiLink + provider CLI authentication (Codex or Claude)
+- FermiLink + provider CLI authentication (Codex, Claude, Gemini)
 - One or more scientific packages (knowledge bases)
 - An ``hpc_profile.json`` so FermiLink submits and monitors SLURM jobs
 - Example runs with ``exec``, ``loop``, ``research``, and ``reproduce``
@@ -52,7 +52,7 @@ The most significant storage is for workspaces, which might generate large runti
 Step 2. Install provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently documents tested provider support for Codex and Claude.
+FermiLink currently documents tested provider support for Codex, Claude and Gemini.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -354,7 +354,7 @@ Troubleshooting quick checks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - **Provider CLI not found**: confirm install/PATH for the selected provider
-  (``codex`` or ``claude``), then run the corresponding login command.
+  (``codex``, ``claude``, ``gemini``), then run the corresponding login command.
 - **Jobs run locally instead of SLURM**: ensure you passed ``--hpc-profile`` and
   the JSON file path is correct.
 - **``sbatch`` not found**: you are not on a SLURM-enabled node or SLURM tools

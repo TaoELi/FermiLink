@@ -17,7 +17,7 @@ With [an official package channel](https://github.com/skilled-scipkg), **FermiLi
 After receiving the user's request, **FermiLink** utilizes a **four-layer progressive disclosure** mechansim to efficiently perform multidomain computational tasks. Specially designed for modern HPC simulations, it can run a set of computational tasks for days or even weeks in HPC clusters without human interference.
 
 ## Quick Start
-Ensure `codex` or `claude` CLI is installed in your machine. Then,
+Ensure `codex` or `claude` or `gemini` CLI is installed in your machine. Then,
 ```bash
 # 1. Install
 pip install .
@@ -25,13 +25,16 @@ pip install .
 # 2. Install at least one scientific package as the knowledge database
 fermilink install meep
 
-# 3.1. Use command-line tool to do autonomous scientific research
+# 3. set up the agent provider 
+fermilink agent codex/claude/gemini
+
+# 4.1. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
 
-# 3.2. Start web UI service for ChatGPT-like experience
+# 4.2. Start web UI service for ChatGPT-like experience
 fermilink start
 
-# 3.3. Start the gateway for supporting Chatbots via Telegram
+# 4.3. Start the gateway for supporting Chatbots via Telegram
 export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
 export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 fermilink gateway

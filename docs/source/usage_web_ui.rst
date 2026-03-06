@@ -94,14 +94,17 @@ Troubleshooting (common first-run issues)
     fermilink install <package_id> --activate
 
 - **Runner fails with a provider error**:
-  ensure the active provider CLI (``codex`` or ``claude``) is on ``PATH`` and
+  ensure the active provider CLI (``codex``) is on ``PATH`` and
   authenticated, then restart. You can check
   or change provider selection with ``fermilink agent``::
 
     fermilink agent --json
-    # optional: switch provider
-    fermilink agent claude
+    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
     fermilink restart
+
+.. note::
+
+   We have disabled the ``claude`` and ``gemini`` options in web UI mode, as they are not yet fully supported in web UI. 
 
 - **Ports already in use**:
   stop the conflicting process, or override the commands (see below).

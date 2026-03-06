@@ -13,7 +13,7 @@ This tutorial uses the default FermiLink runtime location:
 What you will set up:
 
 - A local Python environment
-- Provider CLI authentication (Codex or Claude)
+- Provider CLI authentication (Codex, Claude, or Gemini)
 - FermiLink installation
 - One scientific package knowledge base (example: ``qutip``)
 - Example runs with ``exec``, ``chat``, and the Web UI (``start``)
@@ -48,7 +48,7 @@ Use conda environment so your laptop test does not modify your system Python:
 Step 2. Install provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently documents tested provider support for Codex and Claude.
+FermiLink currently documents tested provider support for Codex, Claude, and Gemini.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash

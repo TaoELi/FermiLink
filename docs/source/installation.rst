@@ -50,13 +50,13 @@ FermiLink assumes a standard local developer environment:
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
 - Node.js + ``npm`` (commonly used for local provider CLIs) or ``homebrew`` installed for Mac
-- Supported provider CLI on ``PATH``: Codex (``codex``) or Claude (``claude``)
+- Supported provider CLI on ``PATH``: Codex (``codex``) or Claude (``claude``) or Gemini (``gemini``)
 
 .. note::
 
    For HPC users without sudo access, you need to install Node.js and ``npm`` locally first.
 
-Install provider CLI (Codex or Claude)
+Install provider CLI (Codex or Claude or Gemini)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
@@ -64,12 +64,12 @@ Install provider CLI (Codex or Claude)
    # Codex option
    npm i -g @openai/codex  # Use ``brew install codex`` for Mac
    # Claude option
-   # install Claude CLI from its official distribution
+   # install Claude / Gemini CLI from its official distribution
 
 Provider authentication
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently documents tested agent-provider support for Codex and Claude.
+FermiLink currently documents tested agent-provider support for Codex, Claude and Gemini.
 Authenticate the provider you selected **before** starting web UI services or running
 ``fermilink exec/chat/loop/research/reproduce``.
 
