@@ -10,11 +10,11 @@
 
 # FermiLink: AI Agent for Autonomous Scientific Simulations
 
-**FermiLink** is a unified agent framework for autonomous scientific simulations. It can be used in personal laptops, HPC clusters, or cellphones. Apart from providing a set of powerful **command-line tools**, **FermiLink** also supports a **web UI** for ChatGPT-like experience plus **chatting bots** in Telegram for OpenClaw-like experience. 
+**FermiLink** is a unified agent framework for autonomous scientific simulations. It runs on personal laptops, HPC clusters, or even your phone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
 
-With [an official package channel](https://github.com/skilled-scipkg), **FermiLink** has built-in support for more than 65 scientific packages. Additionally, users can easily use the command-line tools in **FermiLink** to create knowledge database for arbitrary scientific packages, publications, or secret simulation receipes locally. 
+With [an official package channel](https://github.com/skilled-scipkg), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any scientific package, publication, or custom simulation recipe.
 
-After receiving the user's request, **FermiLink** utilizes a **four-layer progressive disclosure** mechansim to efficiently perform multidomain computational tasks. Specially designed for modern HPC simulations, it can run a set of computational tasks for days or even weeks in HPC clusters without human interference.
+Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously. It is designed to sustain long-running computational jobs for days or weeks without human intervention.
 
 ## Quick Start
 Ensure `codex` or `claude` or `gemini` CLI is installed in your machine. Then,
@@ -22,7 +22,7 @@ Ensure `codex` or `claude` or `gemini` CLI is installed in your machine. Then,
 # 1. Install
 pip install .
 
-# 2. Install at least one scientific package as the knowledge database
+# 2. Install at least one scientific package
 fermilink install meep
 
 # 3. set up the agent provider 

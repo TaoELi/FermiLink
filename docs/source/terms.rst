@@ -16,7 +16,7 @@ FermiLink is an AI-assisted scientific simulation service. It can:
 
 - accept your prompts and files through a web interface;
 - route requests to a scientific package based on keyword matching and model-based checks;
-- execute Codex-driven workflows in a per-session workspace repository;
+- execute agent-driven workflows in a per-session workspace repository;
 - generate outputs such as scripts, logs, figures, and other artifacts.
 
 Unless explicitly stated otherwise by the operator, the Service is provided for research and educational use.

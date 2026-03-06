@@ -104,7 +104,7 @@ Troubleshooting (common first-run issues)
 
 .. note::
 
-   We have disabled the ``claude`` and ``gemini`` options in web UI mode, as they are not yet fully supported in web UI. 
+   The web UI currently only supports the ``codex`` provider. The ``claude`` and ``gemini`` options are not yet supported in this mode.
 
 - **Ports already in use**:
   stop the conflicting process, or override the commands (see below).

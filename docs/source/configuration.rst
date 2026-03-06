@@ -1,11 +1,11 @@
 Advanced Configuration
 ======================
 
-This page summarizes the highest-impact settings for reliable local and shared
+This page summarizes the most important settings for local and shared
 FermiLink deployments.
 
-Agent runtime policy 
-------------------------
+Agent runtime policy
+--------------------
 
 FermiLink resolves provider and sandbox behavior in this order:
 
@@ -19,7 +19,7 @@ FermiLink resolves provider and sandbox behavior in this order:
    ``FERMILINK_HOME/agent_runtime.json``.
 3. Built-in defaults.
 
-Tested provider options in current docs: ``codex``, ``claude``, and ``gemini``.
+Supported providers: ``codex``, ``claude``, and ``gemini``.
 
 Set policy via CLI:
 
@@ -35,10 +35,10 @@ Set policy via CLI:
    fermilink agent --reasoning-effort high
    fermilink agent --clear-reasoning-effort
 
-When provider is ``gemini``, ``--reasoning-effort`` is translated by
+When the provider is ``gemini``, ``--reasoning-effort`` is translated by
 ``fermilink exec/chat/loop`` into Gemini ``thinkingConfig`` overrides
-(``thinkingLevel`` on Gemini 3 model families, ``thinkingBudget`` on older
-families) through a temporary system-settings file.
+(``thinkingLevel`` for Gemini 3 model families, ``thinkingBudget`` for older
+families) via a temporary system-settings file.
 
 Core path variables
 -------------------

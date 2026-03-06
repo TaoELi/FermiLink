@@ -42,6 +42,6 @@ A **suggested advanced workflow** for configuring your local package:
 
 See also:
 
-- :doc:`usage_advanced_configuration` for adding package skills using publised paper or group secrets.
+- :doc:`usage_advanced_configuration` for adding package skills using published papers or group secrets.
 - :doc:`scientific_packages` for curated channel install.
 - :doc:`usage` for broader command-line workflows.

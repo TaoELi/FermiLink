@@ -1,12 +1,12 @@
 Contributing
 ============
 
-When contributing to FermiLink, follow the guidelines below:
+Follow these guidelines when contributing to FermiLink.
 
 Development setup
 -----------------
 
-First, we need to set up the development environment. Run:
+Start by setting up the development environment:
 
 .. code-block:: bash
 
@@ -15,20 +15,20 @@ First, we need to set up the development environment. Run:
    pip install -e ".[dev,docs]"
 
 Documentation
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
-After code contribution, write documentation in ``docs/source/`` and update the table of contents in ``docs/source/index.rst`` if necessary.
+After making code changes, update the documentation in ``docs/source/`` and the table of contents in ``docs/source/index.rst`` if necessary.
 
-The documentation website can be built locally with (at the repo root):
+Build the documentation website locally with (from the repo root):
 
 .. code-block:: bash
 
    make doc html
 
 Unit tests
-~~~~~~~~~~~~~~
+~~~~~~~~~~
 
-Before a pull request, make sure to run the quality gates and unit tests below.
+Before opening a pull request, run the quality checks and unit tests:
 
 .. code-block:: bash
 

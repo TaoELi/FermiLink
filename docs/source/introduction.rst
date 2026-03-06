@@ -4,13 +4,13 @@ Introduction
 **FermiLink** is a unified AI agent framework for autonomous scientific
 computing on **laptops**, **workstations**, **HPC clusters**, and **cellphones**.
 It combines scientific package management, workflows at different scales, and
-multiple interaction intefaces in one consistent system.
+multiple interaction interfaces in one consistent system.
 
 What makes FermiLink practical
 ------------------------------
 
-Many scientific-agent systems break when you switch computation tools or scale up task
-complexity. FermiLink is designed to avoid that drift:
+Many scientific-agent systems break down when you switch tools or scale up task
+complexity. FermiLink is designed to stay consistent:
 
 - **one uniform package-selection layer** automatically routes requests to the most suitable installed scientific packages;
 - **one unified short-term/long-term memory model** for iterative and long-running work in the same workspace;
@@ -50,11 +50,11 @@ Package management workflow
 
 FermiLink uses **Agent Skills** to compress knowledge for agent reasoning. It has a built-in **Curated Computational Packages** channel 
 which stores the full source-code tree + **Agent Skills** containing the entry-level tutorials and the informative file map of this source-code tree. This design allows AI agents
-to **efficiently locate and access the most relavent documentation, tutorials, and source code functions** in the source code tree **for reasoning**. Common pitfalls for using the package are also highlighted in **Agent Skills**. 
+to **efficiently locate and access the most relevant documentation, tutorials, and source code functions** in the source code tree **for reasoning**. Common pitfalls for using the package are also highlighted in **Agent Skills**. 
 This GitHub channel now supports more than 150 scientific packages across multiple domains.
 
 Users can also easily use the command line tools in FermiLink to add their own local packages. Additionally, users can add pipelines in research papers, database, or unpublished secrets 
-as additional **Agent Skills** for one specific package. This package knowledge base, onced installed, is used across all jobs in FermiLink globally.
+as additional **Agent Skills** for one specific package. This package knowledge base, once installed, is used across all jobs in FermiLink globally.
 
 How to choose your starting point
 ---------------------------------

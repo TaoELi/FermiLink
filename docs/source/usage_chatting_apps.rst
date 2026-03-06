@@ -6,9 +6,9 @@ This gives you an "agent in your pocket" workflow: you chat on your phone, but
 the actual computation happens on the machine running ``fermilink gateway``
 (your laptop/workstation/HPC).
 
-Unlike the Web UI (which streams the chain of thoughts), the gateway is optimized for
-remote control: it acks queued requests quickly and sends a final completion
-message (plus files/figures) when a run finishes. It never actively bothers users with internal thinking.
+Unlike the Web UI (which streams the agent's chain of thought), the gateway is optimized for
+remote control: it acknowledges queued requests immediately and sends a final completion
+message (plus files/figures) when a run finishes. Internal reasoning steps are not forwarded to the user.
 
 Step-by-Step Setup
 -----------------------

@@ -12,7 +12,7 @@ The most powerful way to use FermiLink is through the **command line interface (
 ---------------------------------------------------
 
 Use ``exec`` when you want one prompt & one run followed by package routing in
-your current working directory. This is the most fundamental way to use FermiLink and is suitable for calculations within 30 minutes.
+your current working directory. This is the most direct way to use FermiLink and is well suited for tasks that complete within about 30 minutes.
 
 .. code-block:: bash
 
@@ -63,7 +63,7 @@ A sample HPC profile (``hpc_profile.json``) looks like this:
 ``chat``:  Interactive terminal chat
 --------------------------------------
 
-Use ``chat`` for multi-turn conversation in the terminal, which is similar to the web UI mode (less user-friendly but with more information available).
+Use ``chat`` for multi-turn conversation in the terminal. It works like the web UI but runs entirely in the terminal, with live provider output visible at each turn.
 
 .. code-block:: bash
 
@@ -153,7 +153,7 @@ Notes:
 
 .. note:: 
    
-   Because FermiLink supports a unified memory model across worflows, users can start with
+   Because FermiLink supports a unified memory model across workflows, users can start with
 
    .. code-block:: bash
       
@@ -200,7 +200,7 @@ Notes:
 
 .. note:: 
    
-   Because FermiLink supports a unified memory model across worflows, users can start with
+   Because FermiLink supports a unified memory model across workflows, users can start with
 
    .. code-block:: bash
       

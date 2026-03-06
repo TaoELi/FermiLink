@@ -76,7 +76,7 @@ Step 3. Install FermiLink
 
 .. code-block:: bash
 
-   git clone https:://github.com/TaoELi/FermiLink.git
+   git clone https://github.com/TaoELi/FermiLink.git
    cd FermiLink/
    pip install .
 
@@ -111,7 +111,7 @@ least one package before you run anything:
    simulator. Make sure the actual solver (e.g., Meep, LAMMPS) is installed in
    your environment or available via modules. 
 
-   Of course, agent can install this package for you if it finds it is not installed, but it is better to have it ready beforehand for smoother runs.
+   Of course, the agent can install this package for you if it finds it is not installed, but it is better to have it ready beforehand for smoother runs.
 
 
 Step 5. Set agent runtime policy (sandbox)
@@ -294,7 +294,7 @@ start sending jobs.
 
    Read :doc:`usage_chatting_apps` for the full Telegram gateway guide and more details about flags and usage tips.
 
-Then, if everything works, you can submit the gateway itself as a long-running SLRUM job (1 CPU) so it can accept commands whenever you need it.
+Then, if everything works, you can submit the gateway itself as a long-running SLURM job (1 CPU) so it can accept commands whenever you need it.
 
 .. code-block:: bash
 

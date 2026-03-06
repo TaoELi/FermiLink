@@ -1,7 +1,7 @@
 Architecture
 ============
 
-This page describes how FermiLink is structured and how its subsystems coordinate. 
+This page describes how FermiLink is structured and how its subsystems coordinate.
 
 Integrated repository map
 -------------------------
@@ -17,9 +17,9 @@ Root
 Core package (``src/fermilink``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``agent_runtime.py``: persisted runtime provider/sandbox/model/reasoning-effort policy.
-- ``agents/``: provider-agent base contract, per-provider adapters, shared provider runtime behavior (stream rendering/extraction, runtime env tweaks, workspace instruction aliases, command adjustments), and provider registry.
-- ``providers.py``: stable provider wrappers that delegate binary resolution, compatibility override selection, capability queries, service-env collection, and command assembly to the agent registry, so command/runner code stays provider-generic without codex-named exec/compile shims.
+- ``agent_runtime.py``: persisted runtime policy (provider, sandbox mode, model, reasoning effort).
+- ``agents/``: provider-agent base contract, per-provider adapters, and shared provider runtime behavior (stream rendering/extraction, runtime env setup, workspace instruction aliases, command adjustments), plus provider registry.
+- ``providers.py``: stable provider wrappers that delegate binary resolution, capability queries, service-env collection, and command assembly to the agent registry, keeping command/runner code provider-generic.
 - ``config.py``: runtime path resolution.
 - ``services.py``: runner/web process lifecycle helpers.
 - ``router_rules.py``: package router rule synchronization.
@@ -34,17 +34,17 @@ Packages subsystem (``src/fermilink/packages``)
 CLI subsystem (``src/fermilink/cli``)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ``commands/*``: implementations for package/service/session/workflow commands, with provider-specific execution, metadata-generation, and final-reply capture quirks delegated to ``agents/`` hooks and provider-wrapper helpers.
-- ``parser_*`` modules: parser registration by command family, without provider-specific binary override flags in command surfaces.
-- ``exec_runtime.py`` and helpers: subprocess execution and shared CLI behavior, with provider-specific runtime details delegated to ``agents/``.
+- ``commands/*``: implementations for package/service/session/workflow commands; provider-specific execution, metadata-generation, and final-reply capture are delegated to ``agents/`` hooks and provider-wrapper helpers.
+- ``parser_*`` modules: parser registration by command family.
+- ``exec_runtime.py`` and helpers: subprocess execution and shared CLI behavior; provider-specific runtime details are delegated to ``agents/``.
 
 Runner and web
 ^^^^^^^^^^^^^^
 
-- ``src/fermilink/runner/app.py``: FastAPI backend and SSE run execution; workspace alias/env provider specifics delegate to ``agents/``, and provider stdout now streams under a generic ``agent`` event label.
-- ``src/fermilink/runner/admission.py``: admission queue and limits.
+- ``src/fermilink/runner/app.py``: FastAPI backend and SSE run execution; workspace/env setup delegates to ``agents/``, and provider stdout streams under a generic ``agent`` event label.
+- ``src/fermilink/runner/admission.py``: admission queue and concurrency limits.
 - ``src/fermilink/web/app.py``: Chainlit entrypoint and orchestration.
-- ``src/fermilink/web/*_helpers.py``: routing, auth, storage, runner, and activity helpers, including provider-agnostic consumption of ``agent`` runner events with legacy ``codex`` compatibility where needed.
+- ``src/fermilink/web/*_helpers.py``: routing, auth, storage, runner, and activity helpers; runner events are consumed in a provider-agnostic way with legacy ``codex`` compatibility where needed.
 
 Tests and docs
 ^^^^^^^^^^^^^^

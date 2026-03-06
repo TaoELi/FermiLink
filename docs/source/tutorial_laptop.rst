@@ -170,7 +170,7 @@ What ``exec`` does:
 - initializes or updates ``projects/memory.md``
 - runs the agent locally (no SLURM / no ``--hpc-profile``)
 
-If ``--init-git`` is provided, FermiLink will skipping prompt you to initialize a git repo for better memory management. You can also use ``--no-init-git`` to skip this step and run without git.
+Pass ``--init-git`` to initialize a git repo in the current directory for better memory management. Use ``--no-init-git`` to skip this step.
 
 
 Step 7. Interactive terminal chat (``chat``)

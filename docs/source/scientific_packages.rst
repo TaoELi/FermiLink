@@ -3,7 +3,7 @@
 
 One central idea of FermiLink is to provide the full source code tree for agent reasoning, instead of only providing API-level documentation. This allows agents to have more context and flexibility in using the scientific packages, which is crucial for complex scientific simulations.
 
-However, because the source code trees of scientific packages can be very large, FermiLink builds an **Agent Skills** layer on top of the source code tree, which provides an entry point for agent reasoning. This design allows agents to efficiently locate and access the most relevant documentation, tutorials, and source code functions in the source code tree for reasoning. Common pitfalls for using the package are also highlighted in **Agent Skills**.
+However, because the source code trees of scientific packages can be very large, FermiLink builds an **Agent Skills** layer on top of the source code tree, which provides an entry point for agent reasoning. This design allows agents to efficiently locate and access the most relevant documentation, tutorials, and source code functions for reasoning. Common pitfalls for using the package are also highlighted in **Agent Skills**.
 
 FermiLink package management controls which scientific knowledge base is available
 at execution time and how that context is overlaid into workspaces.
@@ -57,7 +57,7 @@ Package lifecycle commands
    fermilink delete maxwelllink
    fermilink delete maxwelllink --keep-files
    
-In some cases, you want to **expose multiple packages simutaneously for agents** to reasoning.
+In some cases, you want to **expose multiple packages simultaneously for agents** to use.
 For example, when doing LAMMPS MD simulations (the main package for agent reasoning), the agent might also need to use Packmol (a common package for preparing molecular initial geometry) for the pre-processing step. In this situation, use:
 
 .. code-block:: bash
@@ -98,5 +98,5 @@ The curated channel (Github: ``skilled-scipkg``) is maintained by FermiLink deve
 See also:
 
 - :doc:`usage_configure_your_package` for compiling your own packages.
-- :doc:`usage_advanced_configuration` for adding package skills using publised paper or group secrets.
+- :doc:`usage_advanced_configuration` for adding package skills using published papers or group secrets.
 - :doc:`usage` for broader command-line workflows.
