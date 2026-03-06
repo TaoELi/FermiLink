@@ -447,8 +447,54 @@ def _resolve_template_agents_path(source_dir: Path) -> Path | None:
     return None
 
 
+def _ensure_claude_md_symlink(repo_dir: Path) -> None:
+    """Ensure ``CLAUDE.md`` in the workspace repo points to ``AGENTS.md``.
+
+    Creates a symlink ``CLAUDE.md -> AGENTS.md`` so that Claude's native
+    instruction-discovery follows the same policy contract as Codex.  Falls
+    back to a file copy when symlink creation is unavailable (e.g. some
+    Windows environments).  A pre-existing real file is left untouched.
+
+    Parameters
+    ----------
+    repo_dir : Path
+        Workspace repository root that already contains ``AGENTS.md``.
+    """
+
+    repo_agents = repo_dir / "AGENTS.md"
+    if not repo_agents.is_file():
+        return
+
+    repo_claude = repo_dir / "CLAUDE.md"
+
+    if repo_claude.is_symlink():
+        try:
+            if repo_claude.resolve() == repo_agents.resolve():
+                return
+        except OSError:
+            pass
+        try:
+            repo_claude.unlink()
+        except OSError:
+            return
+    elif repo_claude.exists():
+        # Leave a real CLAUDE.md written by the user untouched.
+        return
+
+    try:
+        os.symlink("AGENTS.md", repo_claude)
+    except OSError:
+        try:
+            shutil.copy2(repo_agents, repo_claude)
+        except OSError:
+            pass
+
+
 def _ensure_template_agents_file(source_dir: Path, repo_dir: Path) -> None:
     """Synchronize `AGENTS.md` into the workspace repository root.
+
+    Also ensures ``CLAUDE.md`` is a symlink to ``AGENTS.md`` so that
+    Claude-native instruction discovery follows the same policy contract.
 
     Parameters
     ----------
@@ -479,6 +525,7 @@ def _ensure_template_agents_file(source_dir: Path, repo_dir: Path) -> None:
             return
 
     shutil.copy2(template_agents, repo_agents)
+    _ensure_claude_md_symlink(repo_dir)
 
 
 def _ensure_repo_memory_file(repo_dir: Path, user_prompt: str) -> None:

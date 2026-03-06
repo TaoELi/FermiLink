@@ -763,13 +763,40 @@ def test_run_exec_second_guess_uses_runner_sanitized_env(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
 
-def test_run_exec_second_guess_skips_non_codex_provider(
+def test_run_exec_second_guess_claude_provider_runs_subprocess(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    def fail_run(*_args, **_kwargs):
-        raise AssertionError("subprocess.run should not execute for non-codex")
+    captured: dict[str, object] = {}
 
-    monkeypatch.setattr(cli.subprocess, "run", fail_run)
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: {**env, "SANITIZED": "1"},
+        _normalize_codex_home=lambda env: {**env, "CODEX_HOME_NORMALIZED": "1"},
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+
+    web_app = SimpleNamespace(
+        _build_package_catalog=lambda **_kwargs: [{"id": "maxwelllink"}],
+        _build_second_guess_prompt=lambda **_kwargs: "route prompt",
+        _extract_first_json_object=lambda text: json.loads(text),
+        _extract_text=lambda _event: None,
+        _normalize_package_id_safe=lambda value: (
+            value if isinstance(value, str) else None
+        ),
+        _coerce_confidence=lambda value: float(value),
+        PACKAGE_SOURCE_SECOND_GUESS="second_guess",
+    )
+    monkeypatch.setattr(cli, "_load_web_router_module", lambda: web_app)
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["env"] = kwargs.get("env")
+        return SimpleNamespace(
+            returncode=0,
+            stdout='{"route":"keep","package_id":"maxwelllink","confidence":0.95,"reason":"correct"}',
+            stderr="",
+        )
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
 
     result = cli._run_exec_second_guess(
         user_text="simulate cavity",
@@ -782,12 +809,14 @@ def test_run_exec_second_guess_skips_non_codex_provider(
         provider_bin="claude",
         sandbox_policy="bypass",
     )
-    assert result == {
-        "package_id": "maxwelllink",
-        "source": "default",
-        "switched": False,
-        "note": "second_guess_provider_not_implemented",
-    }
+    assert result["package_id"] == "maxwelllink"
+    assert result["switched"] is False
+    assert "second_guess_keep" in result["note"]
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert "claude" in cmd[0]
+    # plain-text output (no stream-json) for non-codex provider
+    assert "--output-format" not in cmd
 
 
 def test_filter_exec_overlay_package_meta_excludes_public_from_explicit_entries() -> (

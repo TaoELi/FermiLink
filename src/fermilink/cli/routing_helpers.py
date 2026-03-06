@@ -63,13 +63,6 @@ def _run_exec_second_guess(
     reasoning_effort: str | None = None,
 ) -> dict[str, object]:
     cli = _cli()
-    if provider != "codex":
-        return {
-            "package_id": base_package_id,
-            "source": "default",
-            "switched": False,
-            "note": "second_guess_provider_not_implemented",
-        }
     web_app = cli._load_web_router_module()
     package_catalog = web_app._build_package_catalog(
         package_ids=package_ids,
@@ -93,7 +86,7 @@ def _run_exec_second_guess(
             sandbox_mode=preflight_sandbox_mode,
             model=model,
             reasoning_effort=reasoning_effort,
-            json_output=True,
+            json_output=(provider == "codex"),
         )
     except NotImplementedError:
         return {
