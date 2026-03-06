@@ -335,9 +335,25 @@ def _stream_claude_exec_output(process) -> int:
     stderr_thread = cli.threading.Thread(target=_pump_stderr, args=(process.stderr,), daemon=True)
     stdout_thread.start()
     stderr_thread.start()
-    return_code = _wait_process_with_optional_stop(process)
-    stdout_thread.join()
-    stderr_thread.join()
+    return_code = 130
+    try:
+        return_code = _wait_process_with_optional_stop(process)
+    except KeyboardInterrupt:
+        # Ctrl+C: send SIGTERM, wait up to 5 s, then SIGKILL.
+        try:
+            process.terminate()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=5.0)
+        except Exception:
+            try:
+                process.kill()
+            except OSError:
+                pass
+        return_code = 130
+    stdout_thread.join(timeout=2.0)
+    stderr_thread.join(timeout=2.0)
     return int(return_code)
 
 
@@ -529,6 +545,7 @@ def _run_exec_codex_prompt(
         process = cli.subprocess.Popen(
             cmd,
             cwd=str(repo_dir),
+            stdin=cli.subprocess.DEVNULL,
             stdout=cli.subprocess.PIPE,
             stderr=cli.subprocess.PIPE,
             text=True,

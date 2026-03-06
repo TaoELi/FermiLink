@@ -670,6 +670,79 @@ def test_stream_claude_exec_output_renders_events(
     assert "[Bash] python sim.py" in captured.out
 
 
+def test_stream_claude_exec_output_handles_keyboard_interrupt() -> None:
+    """KeyboardInterrupt during wait must terminate the child and return 130."""
+    terminated: list[bool] = []
+    waited: list[bool] = []
+
+    class FakeProcess:
+        stdout = io.StringIO("")
+        stderr = io.StringIO("")
+
+        def poll(self):
+            # Never finish on its own — simulates a hanging process.
+            return None
+
+        def terminate(self):
+            terminated.append(True)
+
+        def wait(self, timeout=None):
+            waited.append(True)
+            return 130
+
+        def kill(self):
+            pass
+
+    import fermilink.cli.exec_runtime as _rt
+
+    original_wait = _rt._wait_process_with_optional_stop
+
+    def _raise_keyboard_interrupt(process, **_kwargs):
+        raise KeyboardInterrupt
+
+    _rt._wait_process_with_optional_stop = _raise_keyboard_interrupt
+    try:
+        return_code = cli._stream_claude_exec_output(FakeProcess())
+    finally:
+        _rt._wait_process_with_optional_stop = original_wait
+
+    assert return_code == 130
+    assert terminated == [True]
+
+
+def test_run_exec_codex_prompt_uses_devnull_stdin_for_claude(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_codex_home=lambda env: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+
+    def fake_popen(cmd, **kwargs):
+        captured["stdin"] = kwargs.get("stdin")
+        return SimpleNamespace(
+            stdout=io.StringIO(""),
+            stderr=io.StringIO(""),
+            wait=lambda: 0,
+        )
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    cli._run_exec_codex_prompt(
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox=None,
+        codex_bin="claude",
+        provider="claude",
+        sandbox_policy="bypass",
+    )
+    assert captured["stdin"] is cli.subprocess.DEVNULL
+
+
 def test_run_exec_codex_prompt_uses_json_stream_for_claude(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
