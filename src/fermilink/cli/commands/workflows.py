@@ -8,6 +8,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -83,6 +84,77 @@ def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
         temp_path.replace(path)
     except OSError as exc:
         raise cli.PackageError(f"Failed to write file: {path}: {exc}") from exc
+
+
+def _workflow_pre_task_commit(
+    *,
+    repo_dir: Path,
+    workflow_name: str,
+    run_id: str,
+    task_id: str,
+    run_number: int,
+) -> dict[str, str]:
+    """Create a best-effort git checkpoint before each workflow task run."""
+
+    payload = {
+        "status": "noop",
+        "sha": "",
+        "error": "",
+    }
+    git_bin = shutil.which("git")
+    if not git_bin:
+        payload["status"] = "failed"
+        payload["error"] = "git binary not found on PATH"
+        return payload
+
+    def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [git_bin, *args],
+            cwd=str(repo_dir),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def _detail(proc: subprocess.CompletedProcess[str]) -> str:
+        text = (proc.stderr or proc.stdout or "").strip()
+        if not text:
+            text = f"git command failed with exit code {proc.returncode}"
+        return text[:500]
+
+    add_proc = _run_git(["add", "-A"])
+    if add_proc.returncode != 0:
+        payload["status"] = "failed"
+        payload["error"] = _detail(add_proc)
+        return payload
+
+    staged_proc = _run_git(["diff", "--cached", "--quiet"])
+    if staged_proc.returncode == 0:
+        return payload
+    if staged_proc.returncode != 1:
+        payload["status"] = "failed"
+        payload["error"] = _detail(staged_proc)
+        return payload
+
+    commit_message = (
+        f"fermilink {workflow_name}: pre-task checkpoint "
+        f"{task_id} run {run_number} ({run_id})"
+    )
+    commit_proc = _run_git(["commit", "-m", commit_message])
+    if commit_proc.returncode != 0:
+        payload["status"] = "failed"
+        payload["error"] = _detail(commit_proc)
+        return payload
+
+    sha_proc = _run_git(["rev-parse", "--verify", "HEAD"])
+    if sha_proc.returncode != 0:
+        payload["status"] = "failed"
+        payload["error"] = _detail(sha_proc)
+        return payload
+
+    payload["status"] = "committed"
+    payload["sha"] = (sha_proc.stdout or "").strip()
+    return payload
 
 
 DEFAULT_DATA_MAX_FILES = 4000
@@ -5625,6 +5697,13 @@ def cmd_plan_workflow(
                 f"{task_id} run {run_number}/{task_max_runs}"
             ),
         )
+        pre_task_commit = _workflow_pre_task_commit(
+            repo_dir=repo_dir,
+            workflow_name=workflow_name,
+            run_id=str(state.get("run_id") or run_dir.name),
+            task_id=task_id,
+            run_number=run_number,
+        )
 
         def _workflow_loop_iteration_hook(
             iteration: int, max_loop_iterations: int
@@ -5741,6 +5820,15 @@ def cmd_plan_workflow(
                         "loop_status": loop_status,
                         "loop_reason": loop_reason,
                         "provider_exit_code": provider_exit_code,
+                        "pre_task_commit_status": str(
+                            pre_task_commit.get("status") or ""
+                        ),
+                        "pre_task_commit_sha": str(
+                            pre_task_commit.get("sha") or ""
+                        ),
+                        "pre_task_commit_error": str(
+                            pre_task_commit.get("error") or ""
+                        ),
                     },
                     indent=2,
                 )

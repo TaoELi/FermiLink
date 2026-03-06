@@ -308,6 +308,17 @@ def test_reproduce_executes_tasks_with_retries(
     loop_calls: list[Path] = []
     loop_preambles: list[str] = []
     run_results = [1, 0, 0]
+    pre_task_commit_calls: list[tuple[str, int, str]] = []
+
+    def fake_pre_task_commit(**kwargs) -> dict[str, str]:
+        pre_task_commit_calls.append(
+            (
+                str(kwargs.get("task_id") or ""),
+                int(kwargs.get("run_number") or 0),
+                str(kwargs.get("workflow_name") or ""),
+            )
+        )
+        return {"status": "noop", "sha": "", "error": ""}
 
     def fake_loop(loop_args) -> int:
         prompt_values = getattr(loop_args, "prompt", [])
@@ -316,6 +327,11 @@ def test_reproduce_executes_tasks_with_retries(
         loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
         return run_results[len(loop_calls) - 1]
 
+    monkeypatch.setattr(
+        workflow_commands,
+        "_workflow_pre_task_commit",
+        fake_pre_task_commit,
+    )
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
     monkeypatch.setattr(
         cli,
@@ -330,6 +346,11 @@ def test_reproduce_executes_tasks_with_retries(
     code = cli.main(["reproduce", "paper.md", "--task-max-runs", "3"])
     assert code == 0
     assert len(loop_calls) == 3
+    assert pre_task_commit_calls == [
+        ("task_001", 1, "reproduce"),
+        ("task_001", 2, "reproduce"),
+        ("task_002", 1, "reproduce"),
+    ]
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
@@ -869,6 +890,9 @@ def test_reproduce_does_not_retry_provider_failure_exit_code_one(
     )
     assert run_log["loop_status"] == "provider_failure"
     assert run_log["provider_exit_code"] == 1
+    assert run_log["pre_task_commit_status"] in {"committed", "noop", "failed"}
+    assert "pre_task_commit_sha" in run_log
+    assert "pre_task_commit_error" in run_log
 
 
 def test_finalize_workflow_report_uses_run_scoped_report_path(

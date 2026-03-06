@@ -132,6 +132,9 @@ Notes:
 
 - At workflow entry (except ``--report-only``), ``reproduce`` resets only the
   short-term memory section while preserving long-term memory content.
+- Before each task run attempt, ``reproduce`` performs a best-effort repository
+  checkpoint commit; if no staged change exists or commit fails, task execution
+  continues and commit status is recorded in task run logs.
 - The workflow generates orchestration scripts (for example ``00_run_all.sh``)
   under the run directory to support reruns and staged execution.
 - Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
@@ -174,6 +177,9 @@ Notes:
 
 - Like ``reproduce``, ``research`` resets only short-term memory at workflow
   entry (except ``--report-only``) and preserves long-term memory.
+- Before each task run attempt, ``research`` performs a best-effort repository
+  checkpoint commit; if no staged change exists or commit fails, task execution
+  continues and commit status is recorded in task run logs.
 - ``--report-only`` skips planning/task execution and runs only report
   finalization from the saved run context.
 - Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
