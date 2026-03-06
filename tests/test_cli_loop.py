@@ -176,6 +176,71 @@ def test_loop_parser_supports_package_pin_and_git_flags() -> None:
     assert args.hpc_profile is None
 
 
+def test_loop_attempts_completion_checkpoint_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "pkg-a",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 0,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_exec_chat_turn",
+        lambda **_kwargs: {
+            "assistant_text": f"{cli.LOOP_DONE_TOKEN}\n",
+            "return_code": 0,
+            "stderr": "",
+        },
+    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    completion_calls: list[tuple[Path, str]] = []
+    monkeypatch.setattr(
+        cli,
+        "_workflow_completion_commit",
+        lambda *, repo_dir, mode_name: completion_calls.append(
+            (Path(repo_dir), str(mode_name))
+        )
+        or {"status": "noop", "sha": "", "error": ""},
+    )
+
+    code = cli.main(["loop", "finish it"])
+    assert code == 0
+    assert completion_calls == [(repo_dir, "loop")]
+
+
 def test_loop_parser_accepts_hpc_profile() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(

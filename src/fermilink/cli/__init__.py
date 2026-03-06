@@ -350,6 +350,7 @@ _extract_loop_slurm_job_numbers = workflow_commands._extract_loop_slurm_job_numb
 _materialize_mode_plan = workflow_commands._materialize_mode_plan
 _maybe_sync_mode_plan_from_disk = workflow_commands._maybe_sync_mode_plan_from_disk
 _finalize_workflow_report = workflow_commands._finalize_workflow_report
+_workflow_completion_commit = workflow_commands._workflow_completion_commit
 
 # Command entrypoint aliases
 _cmd_chat = session_commands.cmd_chat

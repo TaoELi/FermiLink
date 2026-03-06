@@ -195,6 +195,52 @@ def test_chat_enforces_sandbox_override_for_session(
     assert "projects/memory.md" in str(captured.get("prompt"))
 
 
+def test_chat_attempts_completion_checkpoint_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_load_web_router_module",
+        lambda: SimpleNamespace(
+            _build_prompt=lambda history, text: text,
+            _append_history=lambda history, role, content: history + [(role, content)],
+        ),
+    )
+    user_inputs = iter(["exit"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(user_inputs))
+
+    completion_calls: list[tuple[Path, str]] = []
+    monkeypatch.setattr(
+        cli,
+        "_workflow_completion_commit",
+        lambda *, repo_dir, mode_name: completion_calls.append(
+            (Path(repo_dir), str(mode_name))
+        )
+        or {"status": "noop", "sha": "", "error": ""},
+    )
+
+    code = cli.main(["chat"])
+    assert code == 0
+    assert completion_calls == [(repo_dir, "chat")]
+
+
 def test_chat_parser_supports_package_pin_and_git_flags() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(

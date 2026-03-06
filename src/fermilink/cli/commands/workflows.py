@@ -86,21 +86,20 @@ def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
         raise cli.PackageError(f"Failed to write file: {path}: {exc}") from exc
 
 
-def _workflow_pre_task_commit(
+def _workflow_checkpoint_commit(
     *,
     repo_dir: Path,
-    workflow_name: str,
-    run_id: str,
-    task_id: str,
-    run_number: int,
+    commit_message: str,
 ) -> dict[str, str]:
-    """Create a best-effort git checkpoint before each workflow task run."""
+    """Create a best-effort git checkpoint commit for workflow/session surfaces."""
 
     payload = {
         "status": "noop",
         "sha": "",
         "error": "",
     }
+    if not (repo_dir / ".git").exists():
+        return payload
     git_bin = shutil.which("git")
     if not git_bin:
         payload["status"] = "failed"
@@ -122,6 +121,10 @@ def _workflow_pre_task_commit(
             text = f"git command failed with exit code {proc.returncode}"
         return text[:500]
 
+    repo_check = _run_git(["rev-parse", "--is-inside-work-tree"])
+    if repo_check.returncode != 0:
+        return payload
+
     add_proc = _run_git(["add", "-A"])
     if add_proc.returncode != 0:
         payload["status"] = "failed"
@@ -136,10 +139,6 @@ def _workflow_pre_task_commit(
         payload["error"] = _detail(staged_proc)
         return payload
 
-    commit_message = (
-        f"fermilink {workflow_name}: pre-task checkpoint "
-        f"{task_id} run {run_number} ({run_id})"
-    )
     commit_proc = _run_git(["commit", "-m", commit_message])
     if commit_proc.returncode != 0:
         payload["status"] = "failed"
@@ -155,6 +154,41 @@ def _workflow_pre_task_commit(
     payload["status"] = "committed"
     payload["sha"] = (sha_proc.stdout or "").strip()
     return payload
+
+
+def _workflow_pre_task_commit(
+    *,
+    repo_dir: Path,
+    workflow_name: str,
+    run_id: str,
+    task_id: str,
+    run_number: int,
+) -> dict[str, str]:
+    """Create a best-effort git checkpoint before each workflow task run."""
+
+    commit_message = (
+        f"fermilink {workflow_name}: pre-task checkpoint "
+        f"{task_id} run {run_number} ({run_id})"
+    )
+    return _workflow_checkpoint_commit(
+        repo_dir=repo_dir,
+        commit_message=commit_message,
+    )
+
+
+def _workflow_completion_commit(
+    *,
+    repo_dir: Path,
+    mode_name: str,
+) -> dict[str, str]:
+    """Create a best-effort repository checkpoint when a mode finishes."""
+
+    mode_label = str(mode_name or "").strip() or "unknown"
+    commit_message = f"fermilink {mode_label}: completion checkpoint {_utc_now_z()}"
+    return _workflow_checkpoint_commit(
+        repo_dir=repo_dir,
+        commit_message=commit_message,
+    )
 
 
 DEFAULT_DATA_MAX_FILES = 4000
@@ -5730,6 +5764,7 @@ def cmd_plan_workflow(
             no_init_git=args.no_init_git,
             workflow_prompt_preamble=workflow_prompt_preamble,
             _fermilink_loop_iteration_hook=_workflow_loop_iteration_hook,
+            _fermilink_disable_completion_commit=True,
         )
         data_guard_before_scan: dict[str, object] | None = None
         if (
@@ -5886,12 +5921,23 @@ def cmd_reproduce(args: argparse.Namespace) -> int:
     """
 
     cli = _cli()
-    return cmd_plan_workflow(
-        args,
-        workflow_name="reproduce",
-        runs_dir_name=cli.REPRODUCE_RUNS_DIR,
-        generate_plan=cli._generate_reproduce_plan,
-    )
+    repo_dir = Path.cwd().resolve()
+    try:
+        return cmd_plan_workflow(
+            args,
+            workflow_name="reproduce",
+            runs_dir_name=cli.REPRODUCE_RUNS_DIR,
+            generate_plan=cli._generate_reproduce_plan,
+        )
+    finally:
+        if not bool(getattr(args, "_fermilink_disable_completion_commit", False)):
+            try:
+                cli._workflow_completion_commit(
+                    repo_dir=repo_dir,
+                    mode_name="reproduce",
+                )
+            except Exception:
+                pass
 
 
 def cmd_research(args: argparse.Namespace) -> int:
@@ -5903,9 +5949,20 @@ def cmd_research(args: argparse.Namespace) -> int:
     """
 
     cli = _cli()
-    return cmd_plan_workflow(
-        args,
-        workflow_name="research",
-        runs_dir_name=cli.RESEARCH_RUNS_DIR,
-        generate_plan=cli._generate_research_plan,
-    )
+    repo_dir = Path.cwd().resolve()
+    try:
+        return cmd_plan_workflow(
+            args,
+            workflow_name="research",
+            runs_dir_name=cli.RESEARCH_RUNS_DIR,
+            generate_plan=cli._generate_research_plan,
+        )
+    finally:
+        if not bool(getattr(args, "_fermilink_disable_completion_commit", False)):
+            try:
+                cli._workflow_completion_commit(
+                    repo_dir=repo_dir,
+                    mode_name="research",
+                )
+            except Exception:
+                pass

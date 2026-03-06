@@ -234,6 +234,54 @@ def test_research_loop_preamble_enforces_simulation_execution(
     assert "dry_run" not in state
 
 
+def test_research_attempts_completion_checkpoint_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    completion_calls: list[tuple[Path, str]] = []
+    monkeypatch.setattr(
+        cli,
+        "_workflow_completion_commit",
+        lambda *, repo_dir, mode_name: completion_calls.append(
+            (Path(repo_dir), str(mode_name))
+        )
+        or {"status": "noop", "sha": "", "error": ""},
+    )
+
+    code = cli.main(["research", "idea.md", "--plan-only"])
+    assert code == 0
+    assert completion_calls == [(repo_dir, "research")]
+
+
 def test_research_executes_tasks_with_retries(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -283,6 +331,7 @@ def test_research_executes_tasks_with_retries(
     def fake_loop(loop_args) -> int:
         prompt_values = getattr(loop_args, "prompt", [])
         assert isinstance(prompt_values, list)
+        assert getattr(loop_args, "_fermilink_disable_completion_commit", False) is True
         loop_calls.append(Path(str(prompt_values[0])))
         loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
         return run_results[len(loop_calls) - 1]

@@ -32,7 +32,9 @@ What ``exec`` does:
 - initializes/upgrades shared memory at ``projects/memory.md``;
 - runs provider execution and streams output (including provider-native
   stream-json reasoning/tool events for non-codex providers such as
-  ``claude``/``gemini`` when emitted by the provider CLI).
+  ``claude``/``gemini`` when emitted by the provider CLI);
+- after ``exec`` finishes, attempts a best-effort repository checkpoint commit
+  (``git add -A`` + conditional commit).
 
 Useful flags:
 
@@ -75,6 +77,9 @@ Per turn, ``chat``:
 - streams provider stdout/stderr live;
 - appends the assistant reply to session history.
 
+When a ``chat`` session exits, FermiLink also attempts a best-effort repository
+checkpoint commit (``git add -A`` + conditional commit).
+
 Useful flags:
 
 - ``--package <id>``: pin a package for the whole session.
@@ -110,7 +115,9 @@ Loop behavior:
 - stops early when output includes ``<promise>DONE</promise>``;
 - supports job-aware waiting via ``<pid_number>...</pid_number>`` and
   ``<slurm_job_number>...</slurm_job_number>`` tags and polls until completion
-  (bounded by ``--max-wait-seconds``).
+  (bounded by ``--max-wait-seconds``);
+- after ``loop`` finishes, attempts a best-effort repository checkpoint commit
+  (``git add -A`` + conditional commit).
 
 ``reproduce``: Reproduce workflows
 -----------------------------------
@@ -138,6 +145,8 @@ Notes:
 - Before each task run attempt, ``reproduce`` performs a best-effort repository
   checkpoint commit; if no staged change exists or commit fails, task execution
   continues and commit status is recorded in task run logs.
+- When the ``reproduce`` command finishes, it also attempts a best-effort
+  completion checkpoint commit in the repository.
 - The workflow generates orchestration scripts (for example ``00_run_all.sh``)
   under the run directory to support reruns and staged execution.
 - Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
@@ -183,6 +192,8 @@ Notes:
 - Before each task run attempt, ``research`` performs a best-effort repository
   checkpoint commit; if no staged change exists or commit fails, task execution
   continues and commit status is recorded in task run logs.
+- When the ``research`` command finishes, it also attempts a best-effort
+  completion checkpoint commit in the repository.
 - ``--report-only`` skips planning/task execution and runs only report
   finalization from the saved run context.
 - Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.

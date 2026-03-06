@@ -16,6 +16,25 @@ def _cli():
     return cli
 
 
+def _attempt_mode_completion_commit(
+    *,
+    repo_dir: Path,
+    args: argparse.Namespace,
+    mode_name: str,
+) -> None:
+    if bool(getattr(args, "_fermilink_disable_completion_commit", False)):
+        return
+    cli = _cli()
+    try:
+        cli._workflow_completion_commit(
+            repo_dir=repo_dir,
+            mode_name=mode_name,
+        )
+    except Exception:
+        # Keep command completion resilient if best-effort commit fails unexpectedly.
+        return
+
+
 def _pid_is_alive(pid: int) -> bool:
     if pid <= 0:
         return False
@@ -516,6 +535,14 @@ def cmd_chat(args: argparse.Namespace) -> int:
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
 
+    def _return_with_completion(code: int) -> int:
+        _attempt_mode_completion_commit(
+            repo_dir=repo_dir,
+            args=args,
+            mode_name="chat",
+        )
+        return code
+
     scipkg_root = cli.resolve_scipkg_root()
     runtime_policy = cli.resolve_agent_runtime_policy()
     provider = runtime_policy.provider
@@ -547,10 +574,10 @@ def cmd_chat(args: argparse.Namespace) -> int:
             user_text = input(cli._chat_input_prompt())
         except EOFError:
             print()
-            return 0
+            return _return_with_completion(0)
         except KeyboardInterrupt:
             print()
-            return 0
+            return _return_with_completion(0)
         cli._chat_prompt_spacing_after_input()
 
         prompt_text = user_text.strip()
@@ -558,7 +585,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             continue
         lowered = prompt_text.lower()
         if lowered in {"exit", "quit", "/exit", "/quit"}:
-            return 0
+            return _return_with_completion(0)
 
         cli._ensure_loop_memory(
             repo_dir=repo_dir,
@@ -695,6 +722,12 @@ def cmd_loop(args: argparse.Namespace) -> int:
 
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
+    completion_requested = False
+
+    def _return_with_completion(code: int) -> int:
+        nonlocal completion_requested
+        completion_requested = True
+        return code
 
     cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
     hpc_constraints_block = _build_hpc_execution_constraints_block(
@@ -819,7 +852,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
     try:
         for iteration in range(1, max_iterations + 1):
             if _stop_requested():
-                return _stop_requested_notice()
+                return _return_with_completion(_stop_requested_notice())
             iteration_hook = getattr(args, "_fermilink_loop_iteration_hook", None)
             if callable(iteration_hook):
                 try:
@@ -840,7 +873,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
             )
 
             if bool(run_result.get("stopped_by_user")) or _stop_requested():
-                return _stop_requested_notice()
+                return _return_with_completion(_stop_requested_notice())
 
             assistant_text = str(run_result.get("assistant_text") or "")
             done = any(
@@ -850,7 +883,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
             if done:
                 _record_loop_outcome(status="done", reason="done_token")
                 print(cli.LOOP_DONE_TOKEN)
-                return 0
+                return _return_with_completion(0)
 
             return_code = int(run_result.get("return_code") or 0)
             if return_code != 0:
@@ -859,7 +892,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
                     reason=f"provider_exit_code_{return_code}",
                     provider_exit_code=return_code,
                 )
-                return return_code
+                return _return_with_completion(return_code)
 
             if iteration < max_iterations:
                 pid_numbers = cli._extract_loop_pid_numbers(assistant_text)
@@ -960,7 +993,9 @@ def cmd_loop(args: argparse.Namespace) -> int:
                         slurm_issue_caused_early_continue = False
                         while alive or pending_slurm_jobs:
                             if _stop_requested():
-                                return _stop_requested_notice()
+                                return _return_with_completion(
+                                    _stop_requested_notice()
+                                )
                             now_monotonic = time.monotonic()
                             elapsed = now_monotonic - started
                             remaining = max_wait_seconds - elapsed
@@ -1004,7 +1039,9 @@ def cmd_loop(args: argparse.Namespace) -> int:
                                     slept = 0.0
                                     while slept < sleep_seconds:
                                         if _stop_requested():
-                                            return _stop_requested_notice()
+                                            return _return_with_completion(
+                                                _stop_requested_notice()
+                                            )
                                         chunk = min(0.25, sleep_seconds - slept)
                                         time.sleep(chunk)
                                         slept += chunk
@@ -1135,7 +1172,9 @@ def cmd_loop(args: argparse.Namespace) -> int:
                         slept = 0.0
                         while slept < effective_wait:
                             if _stop_requested():
-                                return _stop_requested_notice()
+                                return _return_with_completion(
+                                    _stop_requested_notice()
+                                )
                             chunk = min(0.25, effective_wait - slept)
                             time.sleep(chunk)
                             slept += chunk
@@ -1143,6 +1182,12 @@ def cmd_loop(args: argparse.Namespace) -> int:
                         time.sleep(effective_wait)
     finally:
         cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+        if completion_requested:
+            _attempt_mode_completion_commit(
+                repo_dir=repo_dir,
+                args=args,
+                mode_name="loop",
+            )
 
     cli._print_tagged(
         "loop",
@@ -1153,7 +1198,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
         status="incomplete_max_iterations",
         reason="max_iterations_reached",
     )
-    return 1
+    return _return_with_completion(1)
 
 
 def cmd_exec(args: argparse.Namespace) -> int:
@@ -1168,6 +1213,15 @@ def cmd_exec(args: argparse.Namespace) -> int:
 
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
+
+    def _return_with_completion(code: int) -> int:
+        _attempt_mode_completion_commit(
+            repo_dir=repo_dir,
+            args=args,
+            mode_name="exec",
+        )
+        return code
+
     hpc_constraints_block = _build_hpc_execution_constraints_block(
         repo_dir=repo_dir,
         args=args,
@@ -1248,7 +1302,7 @@ def cmd_exec(args: argparse.Namespace) -> int:
     )
 
     try:
-        return cli._run_exec_provider_prompt(
+        return_code = cli._run_exec_provider_prompt(
             repo_dir=repo_dir,
             prompt=prompt,
             sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
@@ -1260,3 +1314,5 @@ def cmd_exec(args: argparse.Namespace) -> int:
         )
     finally:
         cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
+
+    return _return_with_completion(return_code)
