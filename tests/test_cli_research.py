@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -269,12 +270,12 @@ def test_research_attempts_completion_checkpoint_commit(
 
     completion_calls: list[tuple[Path, str]] = []
     monkeypatch.setattr(
-        cli,
+        workflow_commands,
         "_workflow_completion_commit",
         lambda *, repo_dir, mode_name: completion_calls.append(
             (Path(repo_dir), str(mode_name))
         )
-        or {"status": "noop", "sha": "", "error": ""},
+        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
     )
 
     code = cli.main(["research", "idea.md", "--plan-only"])
@@ -316,31 +317,24 @@ def test_research_executes_tasks_with_retries(
     loop_calls: list[Path] = []
     loop_preambles: list[str] = []
     run_results = [1, 0, 0]
-    pre_task_commit_calls: list[tuple[str, int, str]] = []
-
-    def fake_pre_task_commit(**kwargs) -> dict[str, str]:
-        pre_task_commit_calls.append(
-            (
-                str(kwargs.get("task_id") or ""),
-                int(kwargs.get("run_number") or 0),
-                str(kwargs.get("workflow_name") or ""),
-            )
-        )
-        return {"status": "noop", "sha": "", "error": ""}
 
     def fake_loop(loop_args) -> int:
         prompt_values = getattr(loop_args, "prompt", [])
         assert isinstance(prompt_values, list)
-        assert getattr(loop_args, "_fermilink_disable_completion_commit", False) is True
+        setattr(
+            loop_args,
+            "_fermilink_completion_commit",
+            {
+                "status": "noop",
+                "sha": "",
+                "error": "",
+                "memory_only": "false",
+            },
+        )
         loop_calls.append(Path(str(prompt_values[0])))
         loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
         return run_results[len(loop_calls) - 1]
 
-    monkeypatch.setattr(
-        workflow_commands,
-        "_workflow_pre_task_commit",
-        fake_pre_task_commit,
-    )
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
     monkeypatch.setattr(
         cli,
@@ -355,11 +349,6 @@ def test_research_executes_tasks_with_retries(
     code = cli.main(["research", "idea.md", "--task-max-runs", "3"])
     assert code == 0
     assert len(loop_calls) == 3
-    assert pre_task_commit_calls == [
-        ("task_001", 1, "research"),
-        ("task_001", 2, "research"),
-        ("task_002", 1, "research"),
-    ]
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
@@ -378,6 +367,13 @@ def test_research_executes_tasks_with_retries(
     assert f"projects/research/{latest_run}/plan.json" in loop_preambles[0]
     assert "latest archived memory" not in loop_preambles[2]
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    run_log = json.loads(
+        (run_dir / "logs" / "task_001_run_01.json").read_text(encoding="utf-8")
+    )
+    assert run_log["completion_commit_status"] == "noop"
+    assert run_log["completion_commit_sha"] == ""
+    assert run_log["completion_commit_error"] == ""
+    assert run_log["completion_commit_memory_only"] == "false"
     assert state["status"] == "completed"
     assert state["current_task_index"] == 2
     assert list((run_dir / "archive").glob("memory_*.md")) == []
@@ -793,3 +789,148 @@ def test_research_report_only_uses_saved_hpc_context_without_mode_match(
     )
     assert cli.main(["research", "idea.md", "--report-only"]) == 0
     assert captured_hpc_context.get("enabled") is True
+
+
+def test_workflow_checkpoint_commit_stages_all_changes_under_limits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / ".git").mkdir()
+    (repo_dir / "notes.txt").write_text("hello\n", encoding="utf-8")
+
+    git_calls: list[tuple[str, ...]] = []
+
+    def fake_run(cmd, **kwargs):
+        assert kwargs["cwd"] == str(repo_dir)
+        git_args = tuple(cmd[1:])
+        git_calls.append(git_args)
+        if git_args == ("rev-parse", "--is-inside-work-tree"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
+        if git_args == ("status", "--porcelain"):
+            return subprocess.CompletedProcess(cmd, 0, stdout=" M notes.txt\n", stderr="")
+        if git_args == ("add", "-A"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if git_args == ("diff", "--cached", "--quiet"):
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+        if git_args == ("commit", "-m", "checkpoint message"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if git_args == ("rev-parse", "--verify", "HEAD"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="abc123\n", stderr="")
+        raise AssertionError(f"unexpected git args: {git_args}")
+
+    monkeypatch.setattr(workflow_commands.shutil, "which", lambda name: "/usr/bin/git")
+    monkeypatch.setattr(workflow_commands.subprocess, "run", fake_run)
+
+    payload = workflow_commands._workflow_checkpoint_commit(
+        repo_dir=repo_dir,
+        commit_message="checkpoint message",
+    )
+
+    assert payload == {
+        "status": "committed",
+        "sha": "abc123",
+        "error": "",
+        "memory_only": "false",
+    }
+    assert ("add", "-A") in git_calls
+
+
+def test_workflow_checkpoint_commit_falls_back_to_memory_only_when_limits_exceeded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / ".git").mkdir()
+    (repo_dir / "large.bin").write_bytes(b"x" * 8)
+    memory_path = (
+        repo_dir / workflow_commands.LOOP_MEMORY_DIRNAME / workflow_commands.LOOP_MEMORY_FILENAME
+    )
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    memory_path.write_text("memory\n", encoding="utf-8")
+
+    git_calls: list[tuple[str, ...]] = []
+    expected_memory_rel = f"{workflow_commands.LOOP_MEMORY_DIRNAME}/{workflow_commands.LOOP_MEMORY_FILENAME}"
+
+    def fake_run(cmd, **kwargs):
+        assert kwargs["cwd"] == str(repo_dir)
+        git_args = tuple(cmd[1:])
+        git_calls.append(git_args)
+        if git_args == ("rev-parse", "--is-inside-work-tree"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
+        if git_args == ("status", "--porcelain"):
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout=f" M large.bin\n M {expected_memory_rel}\n",
+                stderr="",
+            )
+        if git_args == ("add", "--", expected_memory_rel):
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if git_args == ("diff", "--cached", "--quiet"):
+            return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="")
+        if len(git_args) == 3 and git_args[:2] == ("commit", "-m"):
+            assert git_args[2].startswith("checkpoint message [memory-only:")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if git_args == ("rev-parse", "--verify", "HEAD"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="def456\n", stderr="")
+        raise AssertionError(f"unexpected git args: {git_args}")
+
+    monkeypatch.setattr(workflow_commands.shutil, "which", lambda name: "/usr/bin/git")
+    monkeypatch.setattr(workflow_commands.subprocess, "run", fake_run)
+    monkeypatch.setattr(workflow_commands, "_GIT_COMMIT_MAX_BYTES", 1)
+
+    payload = workflow_commands._workflow_checkpoint_commit(
+        repo_dir=repo_dir,
+        commit_message="checkpoint message",
+    )
+
+    assert payload == {
+        "status": "committed",
+        "sha": "def456",
+        "error": "",
+        "memory_only": "true",
+    }
+    assert ("add", "--", expected_memory_rel) in git_calls
+    assert ("add", "-A") not in git_calls
+
+
+def test_workflow_checkpoint_commit_returns_noop_when_limits_exceeded_without_memory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / ".git").mkdir()
+    (repo_dir / "large.bin").write_bytes(b"x" * 8)
+
+    git_calls: list[tuple[str, ...]] = []
+
+    def fake_run(cmd, **kwargs):
+        assert kwargs["cwd"] == str(repo_dir)
+        git_args = tuple(cmd[1:])
+        git_calls.append(git_args)
+        if git_args == ("rev-parse", "--is-inside-work-tree"):
+            return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
+        if git_args == ("status", "--porcelain"):
+            return subprocess.CompletedProcess(cmd, 0, stdout=" M large.bin\n", stderr="")
+        raise AssertionError(f"unexpected git args: {git_args}")
+
+    monkeypatch.setattr(workflow_commands.shutil, "which", lambda name: "/usr/bin/git")
+    monkeypatch.setattr(workflow_commands.subprocess, "run", fake_run)
+    monkeypatch.setattr(workflow_commands, "_GIT_COMMIT_MAX_BYTES", 1)
+
+    payload = workflow_commands._workflow_checkpoint_commit(
+        repo_dir=repo_dir,
+        commit_message="checkpoint message",
+    )
+
+    assert payload == {
+        "status": "noop",
+        "sha": "",
+        "error": "",
+        "memory_only": "false",
+    }
+    assert git_calls == [
+        ("rev-parse", "--is-inside-work-tree"),
+        ("status", "--porcelain"),
+    ]

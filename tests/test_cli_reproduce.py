@@ -308,31 +308,24 @@ def test_reproduce_executes_tasks_with_retries(
     loop_calls: list[Path] = []
     loop_preambles: list[str] = []
     run_results = [1, 0, 0]
-    pre_task_commit_calls: list[tuple[str, int, str]] = []
-
-    def fake_pre_task_commit(**kwargs) -> dict[str, str]:
-        pre_task_commit_calls.append(
-            (
-                str(kwargs.get("task_id") or ""),
-                int(kwargs.get("run_number") or 0),
-                str(kwargs.get("workflow_name") or ""),
-            )
-        )
-        return {"status": "noop", "sha": "", "error": ""}
 
     def fake_loop(loop_args) -> int:
         prompt_values = getattr(loop_args, "prompt", [])
         assert isinstance(prompt_values, list)
-        assert getattr(loop_args, "_fermilink_disable_completion_commit", False) is True
+        setattr(
+            loop_args,
+            "_fermilink_completion_commit",
+            {
+                "status": "noop",
+                "sha": "",
+                "error": "",
+                "memory_only": "false",
+            },
+        )
         loop_calls.append(Path(str(prompt_values[0])))
         loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
         return run_results[len(loop_calls) - 1]
 
-    monkeypatch.setattr(
-        workflow_commands,
-        "_workflow_pre_task_commit",
-        fake_pre_task_commit,
-    )
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
     monkeypatch.setattr(
         cli,
@@ -347,11 +340,6 @@ def test_reproduce_executes_tasks_with_retries(
     code = cli.main(["reproduce", "paper.md", "--task-max-runs", "3"])
     assert code == 0
     assert len(loop_calls) == 3
-    assert pre_task_commit_calls == [
-        ("task_001", 1, "reproduce"),
-        ("task_001", 2, "reproduce"),
-        ("task_002", 1, "reproduce"),
-    ]
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_001.md"
     assert loop_calls[2].name == "task_002.md"
@@ -370,6 +358,13 @@ def test_reproduce_executes_tasks_with_retries(
     assert f"projects/reproduce/{latest_run}/plan.json" in loop_preambles[0]
     assert "latest archived memory" not in loop_preambles[2]
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    run_log = json.loads(
+        (run_dir / "logs" / "task_001_run_01.json").read_text(encoding="utf-8")
+    )
+    assert run_log["completion_commit_status"] == "noop"
+    assert run_log["completion_commit_sha"] == ""
+    assert run_log["completion_commit_error"] == ""
+    assert run_log["completion_commit_memory_only"] == "false"
     assert state["status"] == "completed"
     assert state["current_task_index"] == 2
     assert list((run_dir / "archive").glob("memory_*.md")) == []
@@ -516,12 +511,12 @@ def test_reproduce_attempts_completion_checkpoint_commit(
 
     completion_calls: list[tuple[Path, str]] = []
     monkeypatch.setattr(
-        cli,
+        workflow_commands,
         "_workflow_completion_commit",
         lambda *, repo_dir, mode_name: completion_calls.append(
             (Path(repo_dir), str(mode_name))
         )
-        or {"status": "noop", "sha": "", "error": ""},
+        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
     )
 
     code = cli.main(["reproduce", "paper.md", "--plan-only"])
@@ -939,9 +934,10 @@ def test_reproduce_does_not_retry_provider_failure_exit_code_one(
     )
     assert run_log["loop_status"] == "provider_failure"
     assert run_log["provider_exit_code"] == 1
-    assert run_log["pre_task_commit_status"] in {"committed", "noop", "failed"}
-    assert "pre_task_commit_sha" in run_log
-    assert "pre_task_commit_error" in run_log
+    assert run_log["completion_commit_status"] in {"committed", "noop", "failed"}
+    assert "completion_commit_sha" in run_log
+    assert "completion_commit_error" in run_log
+    assert "completion_commit_memory_only" in run_log
 
 
 def test_finalize_workflow_report_uses_run_scoped_report_path(

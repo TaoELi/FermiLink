@@ -142,9 +142,9 @@ Notes:
 
 - At workflow entry (except ``--report-only``), ``reproduce`` resets only the
   short-term memory section while preserving long-term memory content.
-- Before each task run attempt, ``reproduce`` performs a best-effort repository
-  checkpoint commit; if no staged change exists or commit fails, task execution
-  continues and commit status is recorded in task run logs.
+- Each ``reproduce`` task run records the nested ``loop`` completion checkpoint
+  outcome in its task log using the same best-effort repository commit helper as
+  other FermiLink modes.
 - When the ``reproduce`` command finishes, it also attempts a best-effort
   completion checkpoint commit in the repository.
 - The workflow generates orchestration scripts (for example ``00_run_all.sh``)
@@ -189,9 +189,9 @@ Notes:
 
 - Like ``reproduce``, ``research`` resets only short-term memory at workflow
   entry (except ``--report-only``) and preserves long-term memory.
-- Before each task run attempt, ``research`` performs a best-effort repository
-  checkpoint commit; if no staged change exists or commit fails, task execution
-  continues and commit status is recorded in task run logs.
+- Each ``research`` task run records the nested ``loop`` completion checkpoint
+  outcome in its task log using the same best-effort repository commit helper as
+  other FermiLink modes.
 - When the ``research`` command finishes, it also attempts a best-effort
   completion checkpoint commit in the repository.
 - ``--report-only`` skips planning/task execution and runs only report

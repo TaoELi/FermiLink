@@ -16,23 +16,7 @@ def _cli():
     return cli
 
 
-def _attempt_mode_completion_commit(
-    *,
-    repo_dir: Path,
-    args: argparse.Namespace,
-    mode_name: str,
-) -> None:
-    if bool(getattr(args, "_fermilink_disable_completion_commit", False)):
-        return
-    cli = _cli()
-    try:
-        cli._workflow_completion_commit(
-            repo_dir=repo_dir,
-            mode_name=mode_name,
-        )
-    except Exception:
-        # Keep command completion resilient if best-effort commit fails unexpectedly.
-        return
+from fermilink.cli.commands.workflows import _attempt_mode_completion_commit
 
 
 def _pid_is_alive(pid: int) -> bool:
@@ -723,6 +707,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
     repo_dir = Path.cwd().resolve()
     cli._ensure_exec_repo_ready(repo_dir, args)
     completion_requested = False
+    setattr(args, "_fermilink_completion_commit", None)
 
     def _return_with_completion(code: int) -> int:
         nonlocal completion_requested
@@ -1183,10 +1168,14 @@ def cmd_loop(args: argparse.Namespace) -> int:
     finally:
         cli._cleanup_exec_overlay_symlinks(repo_dir=repo_dir, workspace_root=repo_dir)
         if completion_requested:
-            _attempt_mode_completion_commit(
-                repo_dir=repo_dir,
-                args=args,
-                mode_name="loop",
+            setattr(
+                args,
+                "_fermilink_completion_commit",
+                _attempt_mode_completion_commit(
+                    repo_dir=repo_dir,
+                    args=args,
+                    mode_name="loop",
+                ),
             )
 
     cli._print_tagged(

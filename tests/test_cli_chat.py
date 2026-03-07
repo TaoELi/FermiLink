@@ -7,6 +7,7 @@ import pytest
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli.commands import workflows as workflow_commands
 
 
 def test_chat_runs_multiround_with_history_and_package_switch(
@@ -228,12 +229,12 @@ def test_chat_attempts_completion_checkpoint_commit(
 
     completion_calls: list[tuple[Path, str]] = []
     monkeypatch.setattr(
-        cli,
+        workflow_commands,
         "_workflow_completion_commit",
         lambda *, repo_dir, mode_name: completion_calls.append(
             (Path(repo_dir), str(mode_name))
         )
-        or {"status": "noop", "sha": "", "error": ""},
+        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
     )
 
     code = cli.main(["chat"])

@@ -228,12 +228,12 @@ def test_loop_attempts_completion_checkpoint_commit(
 
     completion_calls: list[tuple[Path, str]] = []
     monkeypatch.setattr(
-        cli,
+        workflow_commands,
         "_workflow_completion_commit",
         lambda *, repo_dir, mode_name: completion_calls.append(
             (Path(repo_dir), str(mode_name))
         )
-        or {"status": "noop", "sha": "", "error": ""},
+        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
     )
 
     code = cli.main(["loop", "finish it"])
