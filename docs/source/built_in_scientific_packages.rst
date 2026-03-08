@@ -3,8 +3,8 @@
 Built-in Supported Scientific Packages
 ======================================
 
-- Last curated update: ``2026-03-04 23:15:03 EST``
-- Total built-in packages: ``161``
+- Last curated update: ``2026-03-08 07:06:23 EST``
+- Total built-in packages: ``163``
 
 .. list-table:: Built-in package catalog
    :header-rows: 1
@@ -115,6 +115,9 @@ Built-in Supported Scientific Packages
    * - ``dd4hep``
      - DD4hep Detector Description Toolkit
      - `skilled-scipkg/DD4hep <https://github.com/skilled-scipkg/DD4hep>`_
+   * - ``dealii``
+     - deal.II Finite Element Library
+     - `skilled-scipkg/dealii <https://github.com/skilled-scipkg/dealii>`_
    * - ``deepchem``
      - DeepChem Molecular Machine Learning Toolkit
      - `skilled-scipkg/deepchem <https://github.com/skilled-scipkg/deepchem>`_
@@ -433,6 +436,9 @@ Built-in Supported Scientific Packages
    * - ``sisl``
      - sisl Electronic Structure Toolkit
      - `skilled-scipkg/sisl <https://github.com/skilled-scipkg/sisl>`_
+   * - ``smilei``
+     - Smilei Plasma PIC Simulator
+     - `skilled-scipkg/Smilei <https://github.com/skilled-scipkg/Smilei>`_
    * - ``snakemake``
      - Snakemake Workflow Manager
      - `skilled-scipkg/snakemake <https://github.com/skilled-scipkg/snakemake>`_
