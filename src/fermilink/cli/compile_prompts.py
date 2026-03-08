@@ -165,6 +165,7 @@ RECOMPILE_MEMORY_PROMPT_1_PLAN = (
     "`### Suggested skills updates` entries extracted from `projects/memory.md` files. "
     "Use only suggestions for the target package id.\n\n"
     "Planning rules:\n"
+    "- Respect the active memory scope supplied in the invocation metadata below; do not include out-of-scope operations.\n"
     "- Convert machine-specific issues (env/import/lib/hpc/path/local machine setup) into "
     "`skills/user-specific-settings/SKILL.md`.\n"
     "- Convert package-specific issues into the most suitable existing package skill "
@@ -180,6 +181,7 @@ RECOMPILE_MEMORY_PROMPT_1_PLAN = (
     '  "version": 1,\n'
     '  "mode": "recompile_memory_plan",\n'
     '  "package_id": "target package id",\n'
+    '  "memory_scope": "all | package-specific | machine-specific",\n'
     '  "summary": "short summary",\n'
     '  "operations": [\n'
     "    {\n"

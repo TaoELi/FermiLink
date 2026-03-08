@@ -69,7 +69,14 @@ Use ``recompile --memory`` to **convert unified-memory suggestions** in the work
    fermilink recompile <package_id> \
      --memory ./projects
 
+   # keep only machine-independent/shareable updates
+   fermilink recompile <package_id> \
+     --memory ./projects \
+     --memory-scope package-specific
+
 If ``./projects`` is provided, FermiLink will recursively scan all ``memory.md`` files under this directory and extract all entries with the header format of ``### Suggested skills updates`` matching this package. 
+
+By default, ``recompile --memory`` applies both machine-specific and package-specific suggestions. Use ``--memory-scope package-specific`` when you want only machine-independent/shareable updates, or ``--memory-scope machine-specific`` when you want only local-machine troubleshooting guidance.
 
 
 

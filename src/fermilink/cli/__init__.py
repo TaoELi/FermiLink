@@ -279,6 +279,10 @@ _list_skill_ids = compile_helpers._list_skill_ids
 _ensure_compile_memory = compile_helpers._ensure_compile_memory
 _reset_compile_memory_short_term = compile_helpers._reset_compile_memory_short_term
 _record_compile_memory_run = compile_helpers._record_compile_memory_run
+_normalize_recompile_memory_scope = (
+    compile_helpers._normalize_recompile_memory_scope
+)
+_render_recompile_memory_scope = compile_helpers._render_recompile_memory_scope
 _collect_recompile_memory_suggestions = (
     compile_helpers._collect_recompile_memory_suggestions
 )

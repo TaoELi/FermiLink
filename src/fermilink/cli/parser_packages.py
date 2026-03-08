@@ -207,6 +207,23 @@ def register_package_install_compile_parsers(
         ),
     )
     recompile_parser.add_argument(
+        "--memory-scope",
+        default=None,
+        choices=(
+            "all",
+            "package-specific",
+            "machine-specific",
+            "machine-independent",
+        ),
+        help=(
+            "Scope filter for --memory suggestions: `all` (default), "
+            "`package-specific` for machine-independent/shareable updates only, "
+            "`machine-specific` for local-machine guidance only. "
+            "`machine-independent` is accepted as an alias of `package-specific`. "
+            "Requires --memory."
+        ),
+    )
+    recompile_parser.add_argument(
         "--doc",
         default=None,
         help=(

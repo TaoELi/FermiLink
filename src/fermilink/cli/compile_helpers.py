@@ -180,6 +180,12 @@ RECOMPILE_MEMORY_MACHINE_HINTS = {
     "soname",
     "venv",
 }
+RECOMPILE_MEMORY_SCOPE_ALIASES = {
+    "all": "all",
+    "package-specific": "package_specific",
+    "machine-independent": "package_specific",
+    "machine-specific": "machine_specific",
+}
 
 COMPILE_MEMORY_LONG_TERM_BLOCK = (
     f"{COMPILE_MEMORY_LONG_TERM_HEADING}\n"
@@ -1502,6 +1508,47 @@ def _classify_memory_suggested_update(
     return "package_specific"
 
 
+def _normalize_recompile_memory_classification(raw_classification: object) -> str:
+    token = str(raw_classification or "").strip().lower()
+    token = re.sub(r"[-\s]+", "_", token)
+    if token in {"machine_specific", "package_specific"}:
+        return token
+    return ""
+
+
+def _normalize_recompile_memory_scope(raw_scope: object) -> str:
+    cli = _cli()
+    token = str(raw_scope or "").strip().lower()
+    token = re.sub(r"[_\s]+", "-", token)
+    if not token:
+        return "all"
+    normalized = RECOMPILE_MEMORY_SCOPE_ALIASES.get(token)
+    if normalized:
+        return normalized
+    allowed = ", ".join(sorted(RECOMPILE_MEMORY_SCOPE_ALIASES))
+    raise cli.PackageError(
+        f"Unsupported --memory-scope `{raw_scope}`. Expected one of: {allowed}."
+    )
+
+
+def _render_recompile_memory_scope(memory_scope: object) -> str:
+    return _normalize_recompile_memory_scope(memory_scope).replace("_", "-")
+
+
+def _memory_classification_matches_scope(
+    *,
+    classification: str,
+    memory_scope: object,
+) -> bool:
+    normalized_scope = _normalize_recompile_memory_scope(memory_scope)
+    if normalized_scope == "all":
+        return True
+    normalized_classification = _normalize_recompile_memory_classification(
+        classification
+    )
+    return normalized_classification == normalized_scope
+
+
 def _collect_memory_source_files(memory_path: Path) -> list[Path]:
     cli = _cli()
     resolved = memory_path.expanduser().resolve()
@@ -1524,15 +1571,18 @@ def _collect_recompile_memory_suggestions(
     *,
     package_id: str,
     memory_path: Path,
+    memory_scope: str = "all",
 ) -> dict[str, object]:
     cli = _cli()
     target_package_id = cli.normalize_package_id(package_id)
+    normalized_scope = _normalize_recompile_memory_scope(memory_scope)
     memory_sources = _collect_memory_source_files(memory_path)
     collected: list[dict[str, object]] = []
     seen: set[tuple[str, str, str, str]] = set()
     scanned_entries = 0
     matched_entries = 0
     skipped_closed_entries = 0
+    skipped_scope_entries = 0
 
     for source_path in memory_sources:
         source_rel = _safe_relative_path(source_path, project_root)
@@ -1572,6 +1622,12 @@ def _collect_recompile_memory_suggestions(
                 proposed_skill_update=proposed_skill_update,
                 evidence=evidence,
             )
+            if not _memory_classification_matches_scope(
+                classification=classification,
+                memory_scope=normalized_scope,
+            ):
+                skipped_scope_entries += 1
+                continue
             dedupe_key = (
                 issue_pattern.lower(),
                 proposed_skill_update.lower(),
@@ -1596,12 +1652,15 @@ def _collect_recompile_memory_suggestions(
     return {
         "package_id": target_package_id,
         "memory_input": _safe_relative_path(memory_path, project_root),
+        "memory_scope": _render_recompile_memory_scope(normalized_scope),
         "memory_sources": [
             _safe_relative_path(path, project_root) for path in memory_sources
         ],
         "scanned_entries": scanned_entries,
         "matched_entries": matched_entries,
         "skipped_closed_entries": skipped_closed_entries,
+        "skipped_scope_entries": skipped_scope_entries,
+        "selected_entries": len(collected),
         "suggestions": collected,
     }
 
@@ -1662,7 +1721,9 @@ def _default_recompile_memory_plan(
     package_id: str,
     suggestions: list[dict[str, object]],
     available_skill_ids: list[str],
+    memory_scope: str = "all",
 ) -> dict[str, object]:
+    normalized_scope = _normalize_recompile_memory_scope(memory_scope)
     operations: list[dict[str, object]] = []
     for suggestion in suggestions:
         classification = str(suggestion.get("classification") or "package_specific")
@@ -1711,6 +1772,7 @@ def _default_recompile_memory_plan(
         "version": 1,
         "mode": "recompile_memory_plan",
         "package_id": package_id,
+        "memory_scope": _render_recompile_memory_scope(normalized_scope),
         "summary": (
             f"Planned append-only updates for {len(operations)} suggested memory entries."
         ),
@@ -1793,15 +1855,19 @@ def _normalize_recompile_memory_plan(
     package_id: str,
     suggestions: list[dict[str, object]],
     available_skill_ids: list[str],
+    memory_scope: str = "all",
 ) -> dict[str, object]:
     cli = _cli()
     if not isinstance(raw_plan, dict):
         raise cli.PackageError("Memory update plan must be a JSON object.")
+    normalized_scope = _normalize_recompile_memory_scope(memory_scope)
+    rendered_scope = _render_recompile_memory_scope(normalized_scope)
 
     normalized = _default_recompile_memory_plan(
         package_id=package_id,
         suggestions=suggestions,
         available_skill_ids=available_skill_ids,
+        memory_scope=normalized_scope,
     )
     warnings: list[str] = []
     version_raw = raw_plan.get("version")
@@ -1812,6 +1878,7 @@ def _normalize_recompile_memory_plan(
     normalized["version"] = max(version, 1)
     normalized["package_id"] = package_id
     normalized["mode"] = "recompile_memory_plan"
+    normalized["memory_scope"] = rendered_scope
     summary = " ".join(str(raw_plan.get("summary") or "").split()).strip()
     if summary:
         normalized["summary"] = summary
@@ -1834,13 +1901,23 @@ def _normalize_recompile_memory_plan(
                         f"Unsupported change_type '{change_type}' replaced with append."
                     )
                 change_type = "append"
-            classification = str(item.get("classification") or "").strip().lower()
-            if classification not in {"machine_specific", "package_specific"}:
+            classification = _normalize_recompile_memory_classification(
+                item.get("classification")
+            )
+            if not classification:
                 classification = _classify_memory_suggested_update(
                     issue_pattern=str(item.get("issue_pattern") or ""),
                     proposed_skill_update=str(item.get("proposed_skill_update") or ""),
                     evidence=str(item.get("evidence") or ""),
                 )
+            if not _memory_classification_matches_scope(
+                classification=classification,
+                memory_scope=normalized_scope,
+            ):
+                warnings.append(
+                    f"Dropped out-of-scope memory operation for `{rendered_scope}` scope."
+                )
+                continue
 
             issue_pattern = " ".join(
                 str(item.get("issue_pattern") or "").split()
@@ -1961,8 +2038,11 @@ def _apply_recompile_memory_plan(
     *,
     package_id: str,
     memory_plan: dict[str, object],
+    memory_scope: str = "all",
 ) -> dict[str, object]:
     cli = _cli()
+    normalized_scope = _normalize_recompile_memory_scope(memory_scope)
+    rendered_scope = _render_recompile_memory_scope(normalized_scope)
     operations_raw = memory_plan.get("operations")
     operations = operations_raw if isinstance(operations_raw, list) else []
     available_skill_ids = _list_skill_ids(project_root)
@@ -1985,13 +2065,24 @@ def _apply_recompile_memory_plan(
             )
             continue
 
-        classification = str(operation.get("classification") or "").strip().lower()
-        if classification not in {"machine_specific", "package_specific"}:
+        classification = _normalize_recompile_memory_classification(
+            operation.get("classification")
+        )
+        if not classification:
             classification = _classify_memory_suggested_update(
                 issue_pattern=str(operation.get("issue_pattern") or ""),
                 proposed_skill_update=str(operation.get("proposed_skill_update") or ""),
                 evidence=str(operation.get("evidence") or ""),
             )
+        if not _memory_classification_matches_scope(
+            classification=classification,
+            memory_scope=normalized_scope,
+        ):
+            skipped_count += 1
+            warnings.append(
+                f"Skipped memory operation #{index}: outside `{rendered_scope}` scope."
+            )
+            continue
 
         issue_pattern = " ".join(
             str(operation.get("issue_pattern") or "").split()

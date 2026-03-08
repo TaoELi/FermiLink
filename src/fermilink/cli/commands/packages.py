@@ -1782,10 +1782,14 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     git_repo_initialized = cli._ensure_compile_repo_ready(project_root)
 
     raw_memory_path = str(getattr(args, "memory", "") or "").strip()
+    raw_memory_scope_value = getattr(args, "memory_scope", None)
+    raw_memory_scope = str(raw_memory_scope_value or "all").strip()
     raw_doc_path = str(getattr(args, "doc", "") or "").strip()
     raw_data_dir = str(getattr(args, "data_dir", "") or "").strip()
     comment_text = " ".join(str(getattr(args, "comment", "") or "").split()).strip()
     memory_mode_enabled = bool(raw_memory_path)
+    memory_scope = cli._normalize_recompile_memory_scope(raw_memory_scope)
+    memory_scope_label = cli._render_recompile_memory_scope(memory_scope)
     install_off = bool(getattr(args, "install_off", False)) or memory_mode_enabled
     scipkg_root: Path | None = None
     if not install_off:
@@ -1797,6 +1801,8 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     resolved_memory_path: Path | None = None
     resolved_doc_path: Path | None = None
     resolved_data_dir: Path | None = None
+    if not memory_mode_enabled and raw_memory_scope_value is not None:
+        raise cli.PackageError("--memory-scope requires --memory.")
     if memory_mode_enabled and (raw_doc_path or raw_data_dir or comment_text):
         raise cli.PackageError(
             "--memory cannot be combined with --doc/--data-dir/--comment."
@@ -1912,7 +1918,15 @@ def cmd_recompile(args: argparse.Namespace) -> int:
     )
     run_id = _build_compile_run_id("recompile")
     run_goal = (
-        "Generate append-only skills update plan from unified memory suggestions."
+        (
+            "Generate append-only package-specific skills update plan from unified memory suggestions."
+            if memory_scope == "package_specific"
+            else (
+                "Generate append-only machine-specific skills update plan from unified memory suggestions."
+                if memory_scope == "machine_specific"
+                else "Generate append-only skills update plan from unified memory suggestions."
+            )
+        )
         if memory_mode_enabled
         else (
             "Recompile paper tutorial and refresh package skills."
@@ -1960,6 +1974,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 project_root,
                 package_id=package_id,
                 memory_path=resolved_memory_path,
+                memory_scope=memory_scope,
             )
             available_skill_ids = cli._list_skill_ids(project_root)
             suggestions = (
@@ -1972,14 +1987,27 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 suggestion_items[:80],
                 indent=2,
             )
+            memory_scope_rule = (
+                "Scope rule: include only package-specific machine-independent/shareable updates; "
+                "do not create or modify `skills/user-specific-settings/SKILL.md`.\n"
+                if memory_scope == "package_specific"
+                else (
+                    "Scope rule: include only machine-specific updates; route accepted items to "
+                    "`skills/user-specific-settings/SKILL.md`.\n"
+                    if memory_scope == "machine_specific"
+                    else "Scope rule: include both package-specific and machine-specific updates.\n"
+                )
+            )
             pass_1_prompt = (
                 f"{cli.RECOMPILE_MEMORY_PROMPT_1_PLAN}\n\n"
                 f"Package id: {package_id}\n"
+                f"Memory scope: {memory_scope_label}\n"
                 f"Compile memory file: {compile_memory_path}\n"
                 f"Memory-plan output file: {cli.RECOMPILE_MEMORY_PLAN_REL_PATH}\n"
                 f"Memory input path: {resolved_memory_path}\n"
                 f"Memory source files: {json.dumps(memory_suggestions_payload.get('memory_sources', []), indent=2)}\n"
                 f"Existing skill ids: {json.dumps(available_skill_ids, indent=2)}\n"
+                f"{memory_scope_rule}"
                 f"Filtered suggested updates payload ({len(suggestion_items)} entries; truncated to 80 below):\n"
                 f"{suggestion_payload_json}\n"
             )
@@ -2007,6 +2035,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 package_id=package_id,
                 suggestions=suggestion_items,
                 available_skill_ids=available_skill_ids,
+                memory_scope=memory_scope,
             )
             pass_1_after_snapshot = cli._snapshot_skills_tree(project_root)
             pass_1_diff = cli._diff_skills_tree_snapshot(
@@ -2028,6 +2057,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                 project_root,
                 package_id=package_id,
                 memory_plan=memory_plan_payload,
+                memory_scope=memory_scope,
             )
             plan_apply_after_snapshot = cli._snapshot_skills_tree(project_root)
             plan_apply_diff = cli._diff_skills_tree_snapshot(
@@ -2064,6 +2094,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
                     "project_root": str(project_root),
                     "compile_memory_path": compile_memory_path,
                     "memory_input": str(resolved_memory_path),
+                    "memory_scope": memory_scope_label,
                     "memory_suggestions": memory_suggestions_payload,
                     "memory_plan": memory_plan_payload,
                     "memory_plan_path": memory_plan_path,
@@ -2124,6 +2155,7 @@ def cmd_recompile(args: argparse.Namespace) -> int:
             "run_mode": run_mode,
             "memory_mode": True,
             "memory_input_path": str(resolved_memory_path),
+            "memory_scope": memory_scope_label,
             "compile_memory": compile_memory_path,
             "compile_memory_update": memory_update_payload,
             "memory_suggestions": memory_suggestions_payload,
@@ -2143,7 +2175,8 @@ def cmd_recompile(args: argparse.Namespace) -> int:
         }
         lines = [
             f"Generated recompile memory update plan for '{package_id}' from {project_root}.",
-            f"Collected {suggestions_total} matching suggested skills updates from memory files.",
+            f"Memory scope: {memory_scope_label}.",
+            f"Collected {suggestions_total} matching suggested skills updates from memory files after scope filtering.",
             f"Planned {operations_total} append-only skill updates in {memory_plan_path or cli.RECOMPILE_MEMORY_PLAN_REL_PATH}.",
             f"Applied {applied_total} append-only updates across {modified_files_total} skill file(s).",
             "Install step skipped for memory-plan mode; package registry/install were not modified.",
