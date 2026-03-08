@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-05T04:15:03.641131Z",
+  "updated_at": "2026-03-08T12:06:23.193471Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -6234,6 +6234,81 @@
         "calculix",
         "cirq",
         "cp2k"
+      ]
+    },
+    "smilei": {
+      "description": "Route requests about electromagnetic particle-in-cell methods, kinetic plasma modeling, and laser-plasma or accelerator simulation workflows to this package.",
+      "strong_keywords": [
+        "smilei",
+        "electromagnetic particle-in-cell",
+        "kinetic plasma simulation",
+        "laser-plasma interaction",
+        "accelerator physics simulation",
+        "space plasma simulation",
+        "astrophysical plasma simulation",
+        "high-performance plasma pic"
+      ],
+      "keywords": [
+        "pic code",
+        "maxwell solver plasma",
+        "charged particle pushing",
+        "relativistic plasma dynamics",
+        "laser wakefield acceleration",
+        "beam-plasma interaction",
+        "supercomputing plasma physics",
+        "plasma kinetics",
+        "electromagnetic plasma modeling",
+        "plasma physics tutorials"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cantera",
+        "acts",
+        "alamode"
+      ]
+    },
+    "dealii": {
+      "description": "Use for intents about adaptive finite element PDE solvers, mesh refinement, and high-performance scientific computing workflows in the deal.II ecosystem.",
+      "strong_keywords": [
+        "dealii",
+        "deal.ii",
+        "finite element method",
+        "adaptive mesh refinement",
+        "partial differential equations",
+        "hp finite elements",
+        "matrix free",
+        "multiphysics"
+      ],
+      "keywords": [
+        "dofhandler",
+        "triangulation",
+        "linear elasticity",
+        "poisson equation",
+        "stokes flow",
+        "multigrid solvers",
+        "discontinuous galerkin",
+        "error estimators",
+        "parallel finite elements",
+        "computational mechanics",
+        "numerical pde"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "aiida-core",
+        "acts",
+        "cantera",
+        "cirq"
       ]
     }
   }

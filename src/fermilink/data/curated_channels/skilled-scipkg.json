@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-03-05T04:15:03.641131Z",
+  "updated_at": "2026-03-08T12:06:23.193471Z",
   "packages": [
     {
       "package_id": "abinit",
@@ -939,6 +939,34 @@
         "readout",
         "simulation",
         "reconstruction"
+      ]
+    },
+    {
+      "package_id": "dealii",
+      "title": "deal.II Finite Element Library",
+      "description": "deal.II is a C++ library for solving partial differential equations with adaptive finite elements, supporting scalable multiphysics simulations on serial and distributed-memory architectures.",
+      "upstream_repo_url": "https://github.com/dealii/dealii",
+      "homepage_url": "https://dealii.org",
+      "zip_url": "https://github.com/skilled-scipkg/dealii/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/dealii/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "finite-elements",
+        "pde",
+        "adaptive-mesh",
+        "computational-mechanics",
+        "multiphysics",
+        "hpc"
       ]
     },
     {
@@ -3862,6 +3890,33 @@
         "negf",
         "quantum-transport",
         "materials-simulation"
+      ]
+    },
+    {
+      "package_id": "smilei",
+      "title": "Smilei Plasma PIC Simulator",
+      "description": "Smilei is an open-source electromagnetic particle-in-cell code for kinetic plasma simulations, supporting laser-plasma, accelerator, space, and astrophysical applications on modern supercomputers.",
+      "upstream_repo_url": "https://github.com/SmileiPIC/Smilei",
+      "homepage_url": "https://smileipic.github.io/Smilei",
+      "zip_url": "https://github.com/skilled-scipkg/Smilei/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/Smilei/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "plasma-physics",
+        "particle-in-cell",
+        "electromagnetics",
+        "computational-physics",
+        "hpc"
       ]
     },
     {
