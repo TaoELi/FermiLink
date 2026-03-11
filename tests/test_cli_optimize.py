@@ -44,11 +44,13 @@ def _write_mock_benchmark_files(repo_dir: Path) -> Path:
             "    metric = 10.0\n"
             "    if 'FAST' in solver_text:\n"
             "        metric = 8.0\n"
+            "    elif 'BROKEN' in solver_text:\n"
+            "        metric = 7.0\n"
             "    elif 'SLOW' in solver_text:\n"
             "        metric = 12.0\n"
             "    payload = {\n"
             "        'benchmark_id': 'mock-solver',\n"
-            "        'correctness_ok': True,\n"
+            "        'correctness_ok': 'BROKEN' not in solver_text,\n"
             "        'summary_metrics': {\n"
             "            'weighted_median_wall_seconds': metric,\n"
             "            'weighted_median_scf_iterations': 5.0,\n"
@@ -58,10 +60,11 @@ def _write_mock_benchmark_files(repo_dir: Path) -> Path:
             "        'cases': [\n"
             "            {\n"
             "                'id': 'case-1',\n"
-            "                'converged': True,\n"
-            "                'total_energy_hartree': -1.0,\n"
-            "                'density_matrix': [1.0, 0.0],\n"
-            "                'mo_energies': [-0.5, 0.2],\n"
+            "                'converged': 'BROKEN' not in solver_text,\n"
+            "                'total_energy_hartree': -1.0 if 'BROKEN' not in solver_text else -0.8,\n"
+            "                'density_matrix': [1.0, 0.0] if 'BROKEN' not in solver_text else [0.0, 1.0],\n"
+            "                'mo_energies': [-0.5, 0.2] if 'BROKEN' not in solver_text else [0.2, -0.5],\n"
+            "                'error': '' if 'BROKEN' not in solver_text else 'forced correctness failure',\n"
             "            }\n"
             "        ],\n"
             "    }\n"
@@ -207,7 +210,28 @@ def test_optimize_accepts_better_candidate(
         ),
     )
 
+    calls: list[str] = []
+
     def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            memory_path = repo_dir / ".fermilink-optimize" / "memory.md"
+            memory_path.write_text(
+                memory_path.read_text(encoding="utf-8")
+                + "\n### Iteration 1\n- lesson: fast path worked\n- next_hypothesis: refine it\n",
+                encoding="utf-8",
+            )
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>clear benchmark win</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker")
         (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
         return {
             "assistant_text": "<experiment_description>fast path</experiment_description>",
@@ -232,6 +256,7 @@ def test_optimize_accepts_better_candidate(
     )
 
     assert code == 0
+    assert calls == ["worker", "controller"]
     assert "FAST" in (repo_dir / "solver.py").read_text(encoding="utf-8")
     state = json.loads(
         (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
@@ -247,6 +272,11 @@ def test_optimize_accepts_better_candidate(
     assert "\tbaseline\t" in results_text
     assert "\taccepted\t" in results_text
     assert "fast path" in results_text
+    assert "clear benchmark win" in results_text
+    memory_text = (repo_dir / ".fermilink-optimize" / "memory.md").read_text(
+        encoding="utf-8"
+    )
+    assert "lesson: fast path worked" in memory_text
     assert _git(repo_dir, "log", "--format=%s", "-1") == (
         "fermilink optimize iter 1: fast path"
     )
@@ -267,7 +297,28 @@ def test_optimize_rejects_worse_candidate_and_restores_repo(
         ),
     )
 
+    calls: list[str] = []
+
     def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            memory_path = repo_dir / ".fermilink-optimize" / "memory.md"
+            memory_path.write_text(
+                memory_path.read_text(encoding="utf-8")
+                + "\n### Iteration 1\n- lesson: slower than incumbent\n- next_hypothesis: avoid extra overhead\n",
+                encoding="utf-8",
+            )
+            return {
+                "assistant_text": (
+                    "<decision>REJECTED</decision>\n"
+                    "<controller_summary>slower without compensating benefit</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker")
         (repo_dir / "solver.py").write_text("MODE = 'SLOW'\n", encoding="utf-8")
         return {
             "assistant_text": "<experiment_description>slow path</experiment_description>",
@@ -292,6 +343,7 @@ def test_optimize_rejects_worse_candidate_and_restores_repo(
     )
 
     assert code == 0
+    assert calls == ["worker", "controller"]
     assert (repo_dir / "solver.py").read_text(encoding="utf-8") == "MODE = 'BASELINE'\n"
     state = json.loads(
         (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
@@ -304,10 +356,91 @@ def test_optimize_rejects_worse_candidate_and_restores_repo(
     )
     assert "- status: baseline" in memory_text
     assert "slow path" in memory_text
+    assert "lesson: slower than incumbent" in memory_text
     results_text = (repo_dir / ".fermilink-optimize" / "results.tsv").read_text(
         encoding="utf-8"
     )
     assert "\trejected\t" in results_text
+    assert "slower without compensating benefit" in results_text
+
+
+def test_optimize_hard_reject_overrides_controller_accept(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    calls: list[str] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            memory_path = repo_dir / ".fermilink-optimize" / "memory.md"
+            memory_path.write_text(
+                memory_path.read_text(encoding="utf-8")
+                + "\n### Iteration 1\n- lesson: benchmark correctness failed\n- next_hypothesis: keep the speed idea but preserve physics\n",
+                encoding="utf-8",
+            )
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>thought the speedup looked promising</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker")
+        (repo_dir / "solver.py").write_text("MODE = 'BROKEN'\n", encoding="utf-8")
+        return {
+            "assistant_text": "<experiment_description>broken fast path</experiment_description>",
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["worker", "controller"]
+    assert (repo_dir / "solver.py").read_text(encoding="utf-8") == "MODE = 'BASELINE'\n"
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 0
+    assert state["rejected_count"] == 1
+    assert state["incumbent_commit"] == state["baseline_commit"]
+    results_text = (repo_dir / ".fermilink-optimize" / "results.tsv").read_text(
+        encoding="utf-8"
+    )
+    assert "\tcorrectness_failure\t" in results_text
+    memory_text = (repo_dir / ".fermilink-optimize" / "memory.md").read_text(
+        encoding="utf-8"
+    )
+    assert "lesson: benchmark correctness failed" in memory_text
 
 
 def test_optimize_channel_bootstraps_skills(

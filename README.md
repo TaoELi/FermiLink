@@ -16,8 +16,9 @@ With [an official package channel](https://github.com/skilled-scipkg), **FermiLi
 
 FermiLink now also includes a separate benchmark-gated optimization mode,
 ``fermilink optimize``, for iterative code optimization inside a scientific
-package source tree using fixed ``skills/`` context plus controller-owned
-accept/reject benchmarking.
+package source tree using fixed ``skills/`` context, a worker agent for code
+changes, a controller agent for reflective decision/memory updates, and hard
+scientific benchmark validation.
 
 Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously. It is designed to sustain long-running computational jobs for days or weeks without human intervention.
 

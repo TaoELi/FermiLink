@@ -585,27 +585,77 @@ def _compare_correctness(
     }
 
 
-def _evaluate_candidate(
+def _metric_value(metrics: dict[str, Any], metric_name: str) -> float | None:
+    summary = metrics.get("summary_metrics")
+    if not isinstance(summary, dict):
+        return None
+    value = summary.get(metric_name)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _relative_change(
+    *,
+    previous: float | None,
+    current: float | None,
+    direction: str,
+) -> float | None:
+    if previous is None or current is None:
+        return None
+    if direction == "maximize":
+        delta = current - previous
+    else:
+        delta = previous - current
+    scale = abs(previous) if previous != 0 else 1.0
+    return delta / scale
+
+
+def _condense_metrics_for_controller(metrics: dict[str, Any]) -> dict[str, Any]:
+    summary_metrics = metrics.get("summary_metrics")
+    rendered_summary = summary_metrics if isinstance(summary_metrics, dict) else {}
+    cases = metrics.get("cases")
+    rendered_cases: list[dict[str, Any]] = []
+    if isinstance(cases, list):
+        for item in cases:
+            if not isinstance(item, dict):
+                continue
+            rendered_cases.append(
+                {
+                    "id": str(item.get("id") or ""),
+                    "converged": bool(item.get("converged")),
+                    "wall_seconds": item.get("wall_seconds"),
+                    "scf_iterations": item.get("scf_iterations"),
+                    "total_energy_hartree": item.get("total_energy_hartree"),
+                    "error": str(item.get("error") or ""),
+                }
+            )
+    return {
+        "status": metrics.get("status"),
+        "correctness_ok": bool(metrics.get("correctness_ok")),
+        "summary_metrics": rendered_summary,
+        "cases": rendered_cases,
+    }
+
+
+def _hard_validate_candidate(
     benchmark_payload: dict[str, Any],
     *,
-    baseline_metrics: dict[str, Any],
     incumbent_metrics: dict[str, Any],
     candidate_metrics: dict[str, Any],
 ) -> dict[str, Any]:
     objective = _objective_config(benchmark_payload)
     primary_metric = str(objective.get("primary_metric") or "").strip()
-    direction = str(objective.get("direction") or "minimize").strip().lower()
-    min_relative_improvement = float(objective.get("min_relative_improvement") or 0.0)
 
     if not primary_metric:
         return {
-            "accepted": False,
+            "hard_reject": True,
             "status": "missing_metrics",
             "reason": "missing primary metric",
         }
     if not bool(candidate_metrics.get("correctness_ok")):
         return {
-            "accepted": False,
+            "hard_reject": True,
             "status": "correctness_failure",
             "reason": "candidate benchmark reported correctness failure",
         }
@@ -617,7 +667,7 @@ def _evaluate_candidate(
     )
     if not correctness.get("ok"):
         return {
-            "accepted": False,
+            "hard_reject": True,
             "status": "correctness_failure",
             "reason": "; ".join(correctness.get("errors") or []),
             "correctness": correctness,
@@ -625,79 +675,32 @@ def _evaluate_candidate(
 
     incumbent_summary = incumbent_metrics.get("summary_metrics")
     candidate_summary = candidate_metrics.get("summary_metrics")
-    baseline_summary = baseline_metrics.get("summary_metrics")
     if not isinstance(incumbent_summary, dict) or not isinstance(
         candidate_summary, dict
     ):
         return {
-            "accepted": False,
+            "hard_reject": True,
             "status": "missing_metrics",
             "reason": "missing summary_metrics",
+            "correctness": correctness,
         }
+
     incumbent_primary = incumbent_summary.get(primary_metric)
     candidate_primary = candidate_summary.get(primary_metric)
     if not isinstance(incumbent_primary, (int, float)) or not isinstance(
         candidate_primary, (int, float)
     ):
         return {
-            "accepted": False,
+            "hard_reject": True,
             "status": "missing_metrics",
             "reason": primary_metric,
-        }
-
-    incumbent_primary = float(incumbent_primary)
-    candidate_primary = float(candidate_primary)
-    if direction == "maximize":
-        improvement = candidate_primary - incumbent_primary
-    else:
-        improvement = incumbent_primary - candidate_primary
-    scale = abs(incumbent_primary) if incumbent_primary != 0 else 1.0
-    relative_improvement = improvement / scale
-    if relative_improvement < min_relative_improvement:
-        return {
-            "accepted": False,
-            "status": "rejected",
-            "reason": (
-                f"{primary_metric} did not improve enough "
-                f"(relative improvement {relative_improvement:.6f})"
-            ),
             "correctness": correctness,
         }
 
-    secondary = _controller_config(benchmark_payload).get("secondary_objectives")
-    if isinstance(secondary, list) and isinstance(baseline_summary, dict):
-        for item in secondary:
-            if not isinstance(item, dict):
-                continue
-            metric_name = str(item.get("metric") or "").strip()
-            soft_limit = item.get("soft_limit_relative_to_baseline")
-            if not metric_name or not isinstance(soft_limit, (int, float)):
-                continue
-            baseline_value = baseline_summary.get(metric_name)
-            candidate_value = candidate_summary.get(metric_name)
-            if not isinstance(baseline_value, (int, float)) or not isinstance(
-                candidate_value, (int, float)
-            ):
-                continue
-            if float(candidate_value) > float(baseline_value) * float(soft_limit):
-                return {
-                    "accepted": False,
-                    "status": "rejected",
-                    "reason": (
-                        f"{metric_name} exceeded soft limit "
-                        f"relative to baseline ({candidate_value} > "
-                        f"{float(baseline_value) * float(soft_limit):.6g})"
-                    ),
-                    "correctness": correctness,
-                }
-
     return {
-        "accepted": True,
-        "status": "accepted",
-        "reason": (
-            f"{primary_metric} improved from {incumbent_primary:.12g} to "
-            f"{candidate_primary:.12g}"
-        ),
+        "hard_reject": False,
+        "status": "ok",
+        "reason": "",
         "correctness": correctness,
     }
 
@@ -738,6 +741,19 @@ def _description_or_default(assistant_text: str, *, iteration: int) -> str:
     if value:
         return value
     return f"optimize iteration {iteration}"
+
+
+def _write_run_text(run_dir: Path, filename: str, text: str) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / filename).write_text(str(text or ""), encoding="utf-8")
+
+
+def _write_run_json(run_dir: Path, filename: str, payload: dict[str, Any]) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / filename).write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
@@ -986,6 +1002,8 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
         iteration += 1
         start_sha = optimize_git.head_sha(project_root)
+        run_dir = optimize_state.runs_root(project_root) / f"iter_{iteration:04d}"
+        run_rel = optimize_state.safe_relative(run_dir, project_root)
         recent_results = optimize_state.recent_results_text(results_path)
         prompt = optimize_prompts.build_optimize_prompt(
             benchmark_payload=benchmark_payload,
@@ -997,6 +1015,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             state_payload=state_payload,
             editable_paths=editable_paths,
         )
+        _write_run_text(run_dir, "worker_prompt.txt", prompt)
         cli._print_tagged("optimize", f"iteration {iteration}")
         with optimize_git.temporary_optimize_agents(
             project_root,
@@ -1015,6 +1034,15 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             )
 
         assistant_text = str(run_result.get("assistant_text") or "")
+        _write_run_json(
+            run_dir,
+            "worker_result.json",
+            {
+                "assistant_text": assistant_text,
+                "return_code": int(run_result.get("return_code") or 0),
+                "stderr": str(run_result.get("stderr") or ""),
+            },
+        )
         description = _description_or_default(assistant_text, iteration=iteration)
         changed_entries = optimize_git.list_changed_paths(project_root)
         cleanup_untracked = [
@@ -1031,181 +1059,290 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             if not _matches_any(entry.get("path", ""), editable_paths)
         ]
 
+        incumbent_metrics = (
+            state_payload.get("incumbent_metrics")
+            if isinstance(state_payload.get("incumbent_metrics"), dict)
+            else {}
+        )
+        baseline_metrics = (
+            state_payload.get("baseline_metrics")
+            if isinstance(state_payload.get("baseline_metrics"), dict)
+            else {}
+        )
+        objective = _objective_config(benchmark_payload)
+        objective_direction = (
+            str(objective.get("direction") or "minimize").strip().lower()
+        )
+        incumbent_primary = _metric_value(incumbent_metrics, primary_metric_name)
+        baseline_primary = _metric_value(baseline_metrics, primary_metric_name)
+
+        candidate_commit: str | None = None
+        candidate_metrics: dict[str, Any] = {}
+        controller_summary: str | None = None
+        controller_decision: str | None = None
+        hard_reject = False
+        hard_status = "rejected"
+        hard_reason = ""
+        candidate_primary: float | None = None
+
+        evaluation_context: dict[str, Any] = {
+            "worker_return_code": int(run_result.get("return_code") or 0),
+            "candidate_description": description,
+            "changed_paths": [entry.get("path", "") for entry in changed_entries],
+            "editable_changed_paths": editable_changed,
+            "forbidden_changed_paths": forbidden_changed,
+            "primary_metric_name": primary_metric_name,
+            "objective_direction": objective_direction,
+            "baseline_commit": str(state_payload.get("baseline_commit") or ""),
+            "baseline_primary_metric": baseline_primary,
+            "incumbent_commit": str(state_payload.get("incumbent_commit") or ""),
+            "incumbent_primary_metric": incumbent_primary,
+            "benchmark_status": "not_run",
+            "candidate_commit": None,
+            "hard_reject": False,
+            "hard_reject_reason": "",
+            "hard_reject_status": "",
+        }
+
         if forbidden_changed:
-            optimize_git.reset_to_commit(
+            hard_reject = True
+            hard_status = "rejected"
+            hard_reason = (
+                f"modified forbidden paths: {', '.join(forbidden_changed[:4])}"
+            )
+        elif int(run_result.get("return_code") or 0) != 0:
+            hard_reject = True
+            hard_status = "rejected"
+            hard_reason = "worker agent exited non-zero"
+        elif not editable_changed:
+            hard_reject = True
+            hard_status = "rejected"
+            hard_reason = "worker agent did not leave an editable code change"
+        else:
+            candidate_commit = optimize_git.commit_paths(
                 project_root,
-                commit_sha=start_sha,
-                cleanup_paths=cleanup_untracked,
+                paths=editable_changed,
+                message=f"fermilink optimize iter {iteration}: {description}",
             )
-            rejected_count += 1
-            consecutive_rejections += 1
-            optimize_state.append_result(
-                results_path,
-                iteration=iteration,
-                commit=start_sha[:12],
-                status="rejected",
-                primary_metric_name=primary_metric_name,
-                primary_metric_value="nan",
-                description=f"{description} [forbidden paths: {', '.join(forbidden_changed[:4])}]",
-            )
-            optimize_state.record_campaign_event(
-                memory_path,
-                commit=start_sha[:12],
-                primary_metric_name=primary_metric_name,
-                primary_metric_value="nan",
-                status="rejected",
-                description=f"{description} [forbidden paths]",
-            )
-            state_payload["iteration"] = iteration
-            state_payload["rejected_count"] = rejected_count
-            state_payload["consecutive_rejections"] = consecutive_rejections
-            optimize_state.write_state(state_path, state_payload)
-            continue
-
-        if int(run_result.get("return_code") or 0) != 0 or not editable_changed:
-            optimize_git.reset_to_commit(
+            evaluation_context["candidate_commit"] = candidate_commit
+            diff_stat = optimize_git.run_git(
                 project_root,
-                commit_sha=start_sha,
-                cleanup_paths=cleanup_untracked,
+                ["diff", "--stat", f"{start_sha}..{candidate_commit}"],
             )
-            rejected_count += 1
-            consecutive_rejections += 1
-            optimize_state.append_result(
-                results_path,
-                iteration=iteration,
-                commit=start_sha[:12],
-                status="rejected",
-                primary_metric_name=primary_metric_name,
-                primary_metric_value="nan",
-                description=description,
+            _write_run_text(run_dir, "candidate_diff_stat.txt", diff_stat.stdout or "")
+            diff_full = optimize_git.run_git(
+                project_root,
+                ["diff", f"{start_sha}..{candidate_commit}"],
             )
-            optimize_state.record_campaign_event(
-                memory_path,
-                commit=start_sha[:12],
-                primary_metric_name=primary_metric_name,
-                primary_metric_value="nan",
-                status="rejected",
-                description=description,
+            _write_run_text(run_dir, "candidate.diff", diff_full.stdout or "")
+            candidate_metrics = _run_benchmark_suite(
+                project_root,
+                benchmark_path=benchmark_path,
+                benchmark_payload=benchmark_payload,
+                run_dir=run_dir,
+                timeout_seconds=timeout_seconds,
             )
-            state_payload["iteration"] = iteration
-            state_payload["rejected_count"] = rejected_count
-            state_payload["consecutive_rejections"] = consecutive_rejections
-            optimize_state.write_state(state_path, state_payload)
-            continue
+            evaluation_context["benchmark_status"] = str(
+                candidate_metrics.get("status") or "unknown"
+            )
+            evaluation_context["candidate_metrics"] = _condense_metrics_for_controller(
+                candidate_metrics
+            )
+            candidate_primary = _metric_value(candidate_metrics, primary_metric_name)
+            evaluation_context["candidate_primary_metric"] = candidate_primary
+            evaluation_context["relative_change_vs_incumbent"] = _relative_change(
+                previous=incumbent_primary,
+                current=candidate_primary,
+                direction=objective_direction,
+            )
+            evaluation_context["relative_change_vs_baseline"] = _relative_change(
+                previous=baseline_primary,
+                current=candidate_primary,
+                direction=objective_direction,
+            )
 
-        commit_sha = optimize_git.commit_paths(
-            project_root,
-            paths=editable_changed,
-            message=f"fermilink optimize iter {iteration}: {description}",
+            if candidate_metrics.get("status") in {"timeout", "crash"}:
+                hard_reject = True
+                hard_status = str(candidate_metrics.get("status") or "rejected")
+                hard_reason = f"benchmark {hard_status}"
+            else:
+                hard_validation = _hard_validate_candidate(
+                    benchmark_payload,
+                    incumbent_metrics=incumbent_metrics,
+                    candidate_metrics=candidate_metrics,
+                )
+                if hard_validation.get("correctness"):
+                    evaluation_context["correctness"] = hard_validation.get(
+                        "correctness"
+                    )
+                if bool(hard_validation.get("hard_reject")):
+                    hard_reject = True
+                    hard_status = str(hard_validation.get("status") or "rejected")
+                    hard_reason = str(hard_validation.get("reason") or hard_status)
+
+        evaluation_context["hard_reject"] = hard_reject
+        evaluation_context["hard_reject_reason"] = hard_reason
+        evaluation_context["hard_reject_status"] = hard_status if hard_reject else ""
+        _write_run_json(run_dir, "review_context.json", evaluation_context)
+
+        controller_agents_md = optimize_prompts.build_controller_agents_md(
+            benchmark_rel=benchmark_rel,
+            program_rel=program_rel,
+            memory_rel=memory_rel,
+            results_rel=results_rel,
+            run_rel=run_rel,
         )
-        run_dir = optimize_state.runs_root(project_root) / f"iter_{iteration:04d}"
-        candidate_metrics = _run_benchmark_suite(
-            project_root,
-            benchmark_path=benchmark_path,
+        controller_prompt = optimize_prompts.build_controller_prompt(
             benchmark_payload=benchmark_payload,
-            run_dir=run_dir,
-            timeout_seconds=timeout_seconds,
+            benchmark_rel=benchmark_rel,
+            program_rel=program_rel,
+            memory_rel=memory_rel,
+            results_rel=results_rel,
+            run_rel=run_rel,
+            recent_results_text=recent_results,
+            iteration=iteration,
+            incumbent_commit=str(state_payload.get("incumbent_commit") or ""),
+            candidate_commit=candidate_commit,
+            worker_description=description,
+            changed_paths=editable_changed
+            or [entry.get("path", "") for entry in changed_entries],
+            evaluation_context=evaluation_context,
         )
-        if candidate_metrics.get("status") in {"timeout", "crash"}:
-            optimize_git.reset_to_commit(
-                project_root, commit_sha=start_sha, cleanup_paths=[]
+        _write_run_text(run_dir, "controller_prompt.txt", controller_prompt)
+        with optimize_git.temporary_optimize_agents(
+            project_root,
+            provider=provider,
+            content=controller_agents_md,
+        ):
+            controller_result = cli._run_exec_chat_turn(
+                repo_dir=project_root,
+                prompt=controller_prompt,
+                sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+                provider_bin_override=provider_bin_override,
+                provider=provider,
+                sandbox_policy=sandbox_policy,
+                model=model,
+                reasoning_effort=reasoning_effort,
             )
-            rejected_count += 1
-            consecutive_rejections += 1
-            optimize_state.append_result(
-                results_path,
-                iteration=iteration,
-                commit=commit_sha[:12],
-                status=str(candidate_metrics.get("status") or "rejected"),
-                primary_metric_name=primary_metric_name,
-                primary_metric_value="nan",
-                description=description,
-            )
-            optimize_state.record_campaign_event(
-                memory_path,
-                commit=commit_sha[:12],
-                primary_metric_name=primary_metric_name,
-                primary_metric_value="nan",
-                status=str(candidate_metrics.get("status") or "rejected"),
-                description=description,
-            )
-            state_payload["iteration"] = iteration
-            state_payload["rejected_count"] = rejected_count
-            state_payload["consecutive_rejections"] = consecutive_rejections
-            optimize_state.write_state(state_path, state_payload)
-            continue
 
-        verdict = _evaluate_candidate(
-            benchmark_payload,
-            baseline_metrics=(
-                state_payload.get("baseline_metrics")
-                if isinstance(state_payload.get("baseline_metrics"), dict)
-                else {}
-            ),
-            incumbent_metrics=(
-                state_payload.get("incumbent_metrics")
-                if isinstance(state_payload.get("incumbent_metrics"), dict)
-                else {}
-            ),
-            candidate_metrics=candidate_metrics,
+        controller_text = str(controller_result.get("assistant_text") or "")
+        controller_decision = optimize_prompts.extract_decision(controller_text)
+        controller_summary = optimize_prompts.extract_controller_summary(
+            controller_text
         )
-        candidate_primary = (
-            candidate_metrics.get("summary_metrics", {}).get(primary_metric_name)
-            if isinstance(candidate_metrics.get("summary_metrics"), dict)
-            else None
+        _write_run_json(
+            run_dir,
+            "controller_result.json",
+            {
+                "assistant_text": controller_text,
+                "decision": controller_decision,
+                "controller_summary": controller_summary,
+                "return_code": int(controller_result.get("return_code") or 0),
+                "stderr": str(controller_result.get("stderr") or ""),
+            },
         )
-        if verdict.get("accepted"):
+
+        if candidate_commit is not None:
+            post_controller_changes = optimize_git.list_changed_paths(project_root)
+            if post_controller_changes:
+                hard_reject = True
+                hard_status = "rejected"
+                hard_reason = "controller review left tracked repository changes"
+                evaluation_context["hard_reject"] = True
+                evaluation_context["hard_reject_reason"] = hard_reason
+                evaluation_context["hard_reject_status"] = hard_status
+                evaluation_context["post_controller_changes"] = post_controller_changes
+                _write_run_json(run_dir, "review_context.json", evaluation_context)
+
+        final_status = "rejected"
+        if int(controller_result.get("return_code") or 0) != 0:
+            controller_decision = "REJECTED"
+            if not controller_summary:
+                controller_summary = "controller agent exited non-zero"
+        elif controller_decision not in {"ACCEPTED", "REJECTED"}:
+            controller_decision = "REJECTED"
+            if not controller_summary:
+                controller_summary = (
+                    "controller agent did not emit a valid decision tag"
+                )
+
+        if hard_reject:
+            final_status = hard_status or "rejected"
+            if controller_decision == "ACCEPTED" and not controller_summary:
+                controller_summary = "controller acceptance overridden by hard guard"
+        elif controller_decision == "ACCEPTED" and candidate_commit:
+            final_status = "accepted"
+        else:
+            final_status = "rejected"
+
+        event_description = description
+        if controller_summary:
+            event_description = f"{description} [{controller_summary}]"
+
+        if final_status == "accepted" and candidate_commit:
             accepted_count += 1
             consecutive_rejections = 0
-            state_payload["incumbent_commit"] = commit_sha
+            state_payload["incumbent_commit"] = candidate_commit
             state_payload["incumbent_metrics"] = candidate_metrics
             optimize_state.append_result(
                 results_path,
                 iteration=iteration,
-                commit=commit_sha[:12],
+                commit=candidate_commit[:12],
                 status="accepted",
                 primary_metric_name=primary_metric_name,
                 primary_metric_value=(
                     candidate_primary if candidate_primary is not None else "nan"
                 ),
-                description=description,
+                description=event_description,
             )
             optimize_state.record_campaign_event(
                 memory_path,
-                commit=commit_sha[:12],
+                commit=candidate_commit[:12],
                 primary_metric_name=primary_metric_name,
                 primary_metric_value=(
                     candidate_primary if candidate_primary is not None else "nan"
                 ),
                 status="accepted",
-                description=description,
+                description=event_description,
             )
         else:
-            optimize_git.reset_to_commit(
-                project_root, commit_sha=start_sha, cleanup_paths=[]
-            )
+            if candidate_commit is not None:
+                optimize_git.reset_to_commit(
+                    project_root,
+                    commit_sha=start_sha,
+                    cleanup_paths=[],
+                )
+            else:
+                optimize_git.reset_to_commit(
+                    project_root,
+                    commit_sha=start_sha,
+                    cleanup_paths=cleanup_untracked,
+                )
             rejected_count += 1
             consecutive_rejections += 1
+            recorded_commit = (
+                candidate_commit[:12] if candidate_commit else start_sha[:12]
+            )
             optimize_state.append_result(
                 results_path,
                 iteration=iteration,
-                commit=commit_sha[:12],
-                status=str(verdict.get("status") or "rejected"),
+                commit=recorded_commit,
+                status=final_status,
                 primary_metric_name=primary_metric_name,
                 primary_metric_value=(
                     candidate_primary if candidate_primary is not None else "nan"
                 ),
-                description=description,
+                description=event_description,
             )
             optimize_state.record_campaign_event(
                 memory_path,
-                commit=commit_sha[:12],
+                commit=recorded_commit,
                 primary_metric_name=primary_metric_name,
                 primary_metric_value=(
                     candidate_primary if candidate_primary is not None else "nan"
                 ),
-                status=str(verdict.get("status") or "rejected"),
-                description=f"{description} [{verdict.get('reason')}]",
+                status=final_status,
+                description=event_description,
             )
 
         state_payload["iteration"] = iteration

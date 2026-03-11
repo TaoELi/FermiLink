@@ -245,8 +245,11 @@ Notes:
 Use ``optimize`` inside a scientific package source tree when you want FermiLink
 to search for faster code changes against a fixed benchmark contract. Unlike
 ``exec``/``chat``/``loop``, this mode does not route packages dynamically. It
-expects one concrete package repo, a static local ``skills/`` folder, and a
-controller-owned benchmark decision.
+expects one concrete package repo, a static local ``skills/`` folder, a worker
+agent that proposes one code change at a time, and a controller agent that
+reviews benchmark outcomes and updates optimize memory before emitting an
+``ACCEPTED`` or ``REJECTED`` decision. Hard scientific failures still override
+controller acceptance.
 
 .. code-block:: bash
 
@@ -264,8 +267,9 @@ Optimize behavior:
 - creates and maintains campaign state under ``.fermilink-optimize/``;
 - writes a human-editable ``program.md`` plus persistent ``memory.md`` and append-only ``results.tsv``;
 - runs one baseline benchmark before any optimization iteration;
-- asks the agent to propose exactly one code experiment per iteration using a dedicated optimize-only ``AGENTS.md`` contract;
-- accepts or rejects each candidate strictly from benchmark results, correctness checks, and editable-path policy;
+- asks a worker agent to propose exactly one code experiment per iteration using a dedicated optimize-only ``AGENTS.md`` contract;
+- benchmarks the committed candidate and then runs a second controller-agent review turn that updates ``memory.md`` and emits a tagged decision;
+- still force-rejects forbidden edits, benchmark crashes/timeouts, malformed metrics, and correctness failures even if the controller agent tries to accept them;
 - keeps ``skills/`` fixed during the campaign after the initial bootstrap step.
 
 Useful flags:
