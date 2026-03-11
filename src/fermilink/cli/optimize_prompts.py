@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 
+from fermilink.cli.workflow_prompts import LOOP_DONE_TOKEN
+
 
 EXPERIMENT_DESCRIPTION_TAG = "experiment_description"
 DECISION_TAG = "decision"
@@ -56,12 +58,13 @@ def build_optimize_agents_md(
     *,
     benchmark_rel: str,
     program_rel: str,
-    memory_rel: str,
+    controller_memory_rel: str,
+    worker_memory_rel: str,
     results_rel: str,
     editable_paths: list[str],
     immutable_paths: list[str],
 ) -> str:
-    """Return temporary AGENTS instructions for optimize-mode turns."""
+    """Return temporary AGENTS instructions for optimize worker-loop turns."""
 
     editable_block = "\n".join(f"- `{item}`" for item in editable_paths) or "- `(none)`"
     immutable_block = (
@@ -75,27 +78,36 @@ def build_optimize_agents_md(
         "Read these first:\n"
         f"- `{benchmark_rel}`\n"
         f"- `{program_rel}`\n"
-        f"- `{memory_rel}`\n"
+        f"- `{controller_memory_rel}`\n"
+        f"- `{worker_memory_rel}`\n"
         f"- `{results_rel}`\n"
         "- `skills/`\n"
         "\n"
         "Edit scope:\n"
         f"{editable_block}\n"
+        f"- `{worker_memory_rel}`\n"
         "\n"
         "Never edit:\n"
         f"{immutable_block}\n"
         "- `skills/`\n"
-        "- `.fermilink-optimize/`\n"
+        f"- `{controller_memory_rel}`\n"
+        f"- `{results_rel}`\n"
+        "- `.fermilink-optimize/state.json`\n"
+        "- `.fermilink-optimize/runs/`\n"
         "\n"
         "Rules:\n"
-        "- Make exactly one candidate experiment per turn.\n"
+        "- Use the worker memory as tactical loop memory and update existing headings in place.\n"
+        "- Make exactly one candidate experiment across the whole worker loop.\n"
         "- Do not weaken tolerances or special-case benchmark cases.\n"
         "- Do not add dependencies.\n"
         "- Do not run the authoritative benchmark command from the benchmark contract.\n"
         "- Quick local checks are allowed when cheap and directly relevant.\n"
+        "- Long worker jobs may be launched and monitored with the standard loop wait tags.\n"
         "\n"
-        "When finished, reply with exactly one short tag block and no long summary:\n"
+        "When the candidate is genuinely ready for the controller's authoritative benchmark, reply with:\n"
         f"<{EXPERIMENT_DESCRIPTION_TAG}>short description of the experiment</{EXPERIMENT_DESCRIPTION_TAG}>\n"
+        f"{LOOP_DONE_TOKEN}\n"
+        "If you are still waiting on background work, emit `<pid_number>`, `<slurm_job_number>`, and/or `<wait_seconds>` tags instead.\n"
     )
 
 
@@ -147,13 +159,15 @@ def build_optimize_prompt(
     benchmark_payload: dict[str, object],
     benchmark_rel: str,
     program_rel: str,
-    memory_rel: str,
+    controller_memory_rel: str,
+    worker_memory_rel: str,
     results_rel: str,
     recent_results_text: str,
     state_payload: dict[str, object],
     editable_paths: list[str],
+    hpc_constraints_block: str = "",
 ) -> str:
-    """Build the one-shot optimize prompt."""
+    """Build the optimize worker-loop prompt."""
 
     benchmark_id = str(benchmark_payload.get("benchmark_id") or "benchmark")
     objective = (
@@ -176,12 +190,17 @@ def build_optimize_prompt(
         else "unknown"
     )
     editable_json = json.dumps(editable_paths, indent=2)
+    execution_target_block = (
+        f"{hpc_constraints_block}\n\n" if hpc_constraints_block.strip() else ""
+    )
     return (
-        "You are running in **FermiLink optimize mode**.\n"
+        "You are running in **FermiLink optimize worker-loop mode**.\n"
         "\n"
+        f"{execution_target_block}"
         f"Benchmark contract: `{benchmark_rel}`\n"
         f"Optimize program: `{program_rel}`\n"
-        f"Persistent memory: `{memory_rel}`\n"
+        f"Controller memory: `{controller_memory_rel}`\n"
+        f"Worker memory: `{worker_memory_rel}`\n"
         f"Results ledger: `{results_rel}`\n"
         "\n"
         f"Benchmark id: {benchmark_id}\n"
@@ -189,10 +208,13 @@ def build_optimize_prompt(
         f"Current incumbent {primary_metric}: {latest_metric_text}\n"
         f"Objective direction: {direction}\n"
         "\n"
-        "You must propose exactly one candidate experiment.\n"
+        "This worker loop must prepare exactly one candidate experiment.\n"
+        "At the start of every turn: read the benchmark, program, controller memory, worker memory, results, and skills.\n"
+        "Maintain `worker_memory.md` in place with a checklist under `### Plan` and factual entries under `### Progress log`.\n"
         "Only edit benchmark-approved source files.\n"
-        "Do not edit `skills/`, `.fermilink-optimize/`, or the benchmark files.\n"
+        "Only `worker_memory.md` may be edited under `.fermilink-optimize/`; do not edit controller memory, results, state, run archives, `skills/`, or the benchmark files.\n"
         "Do not run the authoritative benchmark command; the controller will do that.\n"
+        "Quick smoke tests are allowed. Long local/HPC worker jobs are allowed when needed.\n"
         "\n"
         "Editable path globs:\n"
         f"{editable_json}\n"
@@ -202,9 +224,14 @@ def build_optimize_prompt(
         f"{recent_results_text.strip() or '(no prior results)'}\n"
         "RESULTS>>>\n"
         "\n"
-        "Read the optimize program and skills first, then make one concrete code change.\n"
-        "When done, reply with exactly one tag block:\n"
+        "Use the standard loop wait tags unchanged when background work is still in progress:\n"
+        "- `<wait_seconds>NUMBER</wait_seconds>`\n"
+        "- `<pid_number>NUMBER</pid_number>`\n"
+        "- `<slurm_job_number>NUMBER</slurm_job_number>`\n"
+        "\n"
+        "When, and only when, the candidate is ready for authoritative benchmark evaluation, reply with exactly:\n"
         f"<{EXPERIMENT_DESCRIPTION_TAG}>short description</{EXPERIMENT_DESCRIPTION_TAG}>\n"
+        f"{LOOP_DONE_TOKEN}\n"
     )
 
 

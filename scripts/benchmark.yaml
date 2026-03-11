@@ -30,6 +30,12 @@ campaign:
   max_iterations: 200
   stop_on_consecutive_rejections: 40
 
+worker:
+  max_iterations: 8
+  wait_seconds: 1
+  max_wait_seconds: 6000
+  pid_stall_seconds: 900
+
 controller:
   timeout_seconds: 900
   warmup_runs: 1

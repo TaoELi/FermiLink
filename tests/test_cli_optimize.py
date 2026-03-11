@@ -9,6 +9,8 @@ import pytest
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli.commands import sessions as session_commands
+from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
 
 
@@ -155,6 +157,16 @@ def test_optimize_parser_supports_core_flags() -> None:
             "skilled-scipkg",
             "--max-iterations",
             "5",
+            "--worker-max-iterations",
+            "7",
+            "--worker-wait-seconds",
+            "2.5",
+            "--worker-max-wait-seconds",
+            "20",
+            "--worker-pid-stall-seconds",
+            "30",
+            "--hpc-profile",
+            "scripts/hpc_profile_anvil.json",
             "--forever",
         ]
     )
@@ -165,6 +177,11 @@ def test_optimize_parser_supports_core_flags() -> None:
     assert args.skills_source == "channel"
     assert args.channel == "skilled-scipkg"
     assert args.max_iterations == 5
+    assert args.worker_max_iterations == 7
+    assert args.worker_wait_seconds == 2.5
+    assert args.worker_max_wait_seconds == 20
+    assert args.worker_pid_stall_seconds == 30
+    assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
     assert args.forever is True
 
 
@@ -234,7 +251,10 @@ def test_optimize_accepts_better_candidate(
         calls.append("worker")
         (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
         return {
-            "assistant_text": "<experiment_description>fast path</experiment_description>",
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
             "return_code": 0,
             "stderr": "",
         }
@@ -321,7 +341,10 @@ def test_optimize_rejects_worse_candidate_and_restores_repo(
         calls.append("worker")
         (repo_dir / "solver.py").write_text("MODE = 'SLOW'\n", encoding="utf-8")
         return {
-            "assistant_text": "<experiment_description>slow path</experiment_description>",
+            "assistant_text": (
+                "<experiment_description>slow path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
             "return_code": 0,
             "stderr": "",
         }
@@ -403,7 +426,10 @@ def test_optimize_hard_reject_overrides_controller_accept(
         calls.append("worker")
         (repo_dir / "solver.py").write_text("MODE = 'BROKEN'\n", encoding="utf-8")
         return {
-            "assistant_text": "<experiment_description>broken fast path</experiment_description>",
+            "assistant_text": (
+                "<experiment_description>broken fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
             "return_code": 0,
             "stderr": "",
         }
@@ -512,3 +538,494 @@ def test_optimize_channel_bootstraps_skills(
     assert (repo_dir / "skills" / "README.md").read_text(encoding="utf-8") == (
         "managed skills"
     )
+
+
+def test_optimize_worker_loop_can_fix_candidate_before_benchmark(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    calls: list[str] = []
+    worker_turn = {"count": 0}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>worker fixed the bug before benchmark</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        worker_turn["count"] += 1
+        if worker_turn["count"] == 1:
+            calls.append("worker1")
+            (repo_dir / "solver.py").write_text("MODE = 'BROKEN'\n", encoding="utf-8")
+            return {
+                "assistant_text": (
+                    "<experiment_description>initial buggy fast path</experiment_description>\n"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker2")
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fixed fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-max-iterations",
+            "3",
+            "--worker-wait-seconds",
+            "0",
+            "--worker-max-wait-seconds",
+            "0",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["worker1", "worker2", "controller"]
+    assert "FAST" in (repo_dir / "solver.py").read_text(encoding="utf-8")
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 1
+    assert state["rejected_count"] == 0
+
+
+def test_optimize_rejects_incomplete_worker_without_controller(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    calls: list[str] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        calls.append("worker")
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>needs another debugging turn</experiment_description>\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-max-iterations",
+            "1",
+            "--worker-wait-seconds",
+            "0",
+            "--worker-max-wait-seconds",
+            "0",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["worker"]
+    assert (repo_dir / "solver.py").read_text(encoding="utf-8") == "MODE = 'BASELINE'\n"
+    results_text = (repo_dir / ".fermilink-optimize" / "results.tsv").read_text(
+        encoding="utf-8"
+    )
+    assert "\tworker_incomplete\t" in results_text
+
+
+def test_optimize_archives_worker_memory_and_skips_routing_overlay_and_completion_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("optimize should not route packages through session logic")
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("optimize should not apply session overlay logic")
+        ),
+    )
+
+    completion_calls: list[tuple[Path, str]] = []
+    monkeypatch.setattr(
+        workflow_commands,
+        "_workflow_completion_commit",
+        lambda *, repo_dir, mode_name: completion_calls.append(
+            (Path(repo_dir), str(mode_name))
+        )
+        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
+    )
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert completion_calls == []
+    assert (repo_dir / ".fermilink-optimize" / "worker_memory.md").exists()
+    assert (
+        repo_dir
+        / ".fermilink-optimize"
+        / "runs"
+        / "iter_0001"
+        / "worker_memory.md"
+    ).exists()
+
+
+def test_optimize_worker_hpc_profile_appends_execution_target_constraints(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    (repo_dir / "hpc_profile.json").write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1",
+                "slurm_resource_policy": "Use single-node defaults unless MPI is required",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        captured["prompt"] = prompt
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--hpc-profile",
+            str(repo_dir / "hpc_profile.json"),
+            "--allow-dirty",
+        ]
+    )
+
+    assert code == 0
+    prompt = str(captured.get("prompt") or "")
+    assert "Execution target constraints:" in prompt
+    assert "execution_target: HPC SLURM." in prompt
+    assert "slurm_default_partition: `shared`." in prompt
+
+
+def test_optimize_worker_loop_handles_pid_waits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    calls: list[str] = []
+    worker_turn = {"count": 0}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>pid wait completed</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        worker_turn["count"] += 1
+        if worker_turn["count"] == 1:
+            calls.append("worker1")
+            proc = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(0.2)"]
+            )
+            return {
+                "assistant_text": (
+                    f"submitted\n<pid_number>{proc.pid}</pid_number>\n"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker2")
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path after local wait</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-max-iterations",
+            "3",
+            "--worker-wait-seconds",
+            "0.05",
+            "--worker-max-wait-seconds",
+            "5",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["worker1", "worker2", "controller"]
+
+
+def test_optimize_worker_loop_handles_slurm_waits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(session_commands, "_slurm_wait_tools_available", lambda: True)
+
+    slurm_polls = {"count": 0}
+
+    def fake_refresh_slurm_monitors(
+        slurm_job_numbers: list[str],
+        monitors: dict[str, object],
+        *,
+        now_monotonic: float,
+        unknown_poll_limit: int,
+    ) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, object]]:
+        slurm_polls["count"] += 1
+        if slurm_polls["count"] == 1:
+            return list(slurm_job_numbers), [], [], {"12345": object()}
+        return [], [], [], {}
+
+    monkeypatch.setattr(
+        session_commands,
+        "_refresh_slurm_monitors",
+        fake_refresh_slurm_monitors,
+    )
+
+    calls: list[str] = []
+    worker_turn = {"count": 0}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>slurm wait completed</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        worker_turn["count"] += 1
+        if worker_turn["count"] == 1:
+            calls.append("worker1")
+            return {
+                "assistant_text": (
+                    "submitted\n<slurm_job_number>12345</slurm_job_number>\n"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker2")
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path after slurm wait</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-max-iterations",
+            "3",
+            "--worker-wait-seconds",
+            "0.01",
+            "--worker-max-wait-seconds",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["worker1", "worker2", "controller"]

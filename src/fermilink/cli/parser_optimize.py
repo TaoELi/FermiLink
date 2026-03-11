@@ -109,6 +109,51 @@ def register_optimize_parser(
         help="Override the benchmark timeout for each run.",
     )
     optimize_parser.add_argument(
+        "--worker-max-iterations",
+        type=int,
+        default=None,
+        help=(
+            "Override the inner optimize-worker loop iteration cap. Defaults to "
+            "the benchmark worker.max_iterations setting or an internal default."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--worker-wait-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Override inner worker-loop fallback sleep and pid/slurm poll interval "
+            "seconds. Defaults to benchmark worker.wait_seconds or loop defaults."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--worker-max-wait-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Override the per-worker-iteration hard cap on pid/slurm polling and "
+            "agent wait hints."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--worker-pid-stall-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Override the worker-loop local pid CPU-progress stall threshold "
+            "before continuing for debug/resubmit."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--hpc-profile",
+        default=None,
+        help=(
+            "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
+            "and `slurm_resource_policy`; when set, the optimize worker-loop prompt "
+            "is constrained to this HPC profile."
+        ),
+    )
+    optimize_parser.add_argument(
         "--forever",
         action="store_true",
         help="Run indefinitely until interrupted instead of stopping at the cap.",

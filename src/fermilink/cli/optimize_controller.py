@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import fnmatch
 import json
 import math
@@ -113,6 +114,431 @@ def _correctness_config(benchmark: dict[str, Any]) -> dict[str, Any]:
 def _controller_config(benchmark: dict[str, Any]) -> dict[str, Any]:
     controller = benchmark.get("controller")
     return controller if isinstance(controller, dict) else {}
+
+
+def _normalize_worker_loop_timing_options(
+    *,
+    wait_seconds_raw: object,
+    max_wait_seconds_raw: object,
+    pid_stall_seconds_raw: object,
+) -> tuple[float, float, float]:
+    cli = _cli()
+    try:
+        wait_seconds = float(wait_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError("--worker-wait-seconds must be a number.") from exc
+    if wait_seconds < 0:
+        raise cli.PackageError("--worker-wait-seconds must be >= 0.")
+
+    try:
+        max_wait_seconds = float(max_wait_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError("--worker-max-wait-seconds must be a number.") from exc
+    if max_wait_seconds < 0:
+        raise cli.PackageError("--worker-max-wait-seconds must be >= 0.")
+
+    try:
+        pid_stall_seconds = float(pid_stall_seconds_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError("--worker-pid-stall-seconds must be a number.") from exc
+    if pid_stall_seconds < 0:
+        raise cli.PackageError("--worker-pid-stall-seconds must be >= 0.")
+
+    effective_pid_stall_seconds = pid_stall_seconds
+    if max_wait_seconds > 0 and effective_pid_stall_seconds > max_wait_seconds:
+        effective_pid_stall_seconds = max_wait_seconds
+    return wait_seconds, max_wait_seconds, effective_pid_stall_seconds
+
+
+def _run_optimize_worker_loop(
+    *,
+    prompt: str,
+    max_iterations: int,
+    wait_seconds: float,
+    max_wait_seconds: float,
+    pid_stall_seconds: float,
+    run_turn: Callable[[int, int, str], dict[str, object]],
+) -> dict[str, object]:
+    cli = _cli()
+    from fermilink.cli.commands import sessions as session_commands
+
+    last_run_result: dict[str, object] = {}
+    last_assistant_text = ""
+    last_provider_return_code = 0
+
+    for iteration in range(1, max_iterations + 1):
+        cli._print_tagged("optimize", f"iteration {iteration}/{max_iterations}")
+        run_result = run_turn(iteration, max_iterations, prompt)
+        last_run_result = run_result
+
+        assistant_text = str(run_result.get("assistant_text") or "")
+        last_assistant_text = assistant_text
+        if any(line.strip() == cli.LOOP_DONE_TOKEN for line in assistant_text.splitlines()):
+            return {
+                "status": "done",
+                "reason": "done_token",
+                "exit_code": 0,
+                "iteration": iteration,
+                "assistant_text": assistant_text,
+                "provider_return_code": int(run_result.get("return_code") or 0),
+                "run_result": run_result,
+            }
+
+        return_code = int(run_result.get("return_code") or 0)
+        last_provider_return_code = return_code
+        if return_code != 0:
+            return {
+                "status": "provider_failure",
+                "reason": f"provider_exit_code_{return_code}",
+                "exit_code": return_code,
+                "iteration": iteration,
+                "assistant_text": assistant_text,
+                "provider_return_code": return_code,
+                "run_result": run_result,
+            }
+
+        if iteration >= max_iterations:
+            continue
+
+        pid_numbers = cli._extract_loop_pid_numbers(assistant_text)
+        slurm_job_numbers = cli._extract_loop_slurm_job_numbers(assistant_text)
+        if pid_numbers or slurm_job_numbers:
+            poll_interval = wait_seconds if wait_seconds > 0 else 1.0
+            poll_started = session_commands.time.monotonic()
+            alive, pid_monitors, initially_dead_pids = (
+                session_commands._initialize_pid_monitors(
+                    pid_numbers,
+                    now_monotonic=poll_started,
+                )
+            )
+            pending_slurm_jobs = list(slurm_job_numbers)
+            slurm_monitors: dict[str, object] = {}
+            if pending_slurm_jobs and not session_commands._slurm_wait_tools_available():
+                slurm_text = ", ".join(pending_slurm_jobs)
+                cli._print_tagged(
+                    "optimize",
+                    (
+                        "cannot poll slurm job(s) without `sacct` or `squeue`; "
+                        f"continuing without slurm wait (jobs: {slurm_text})"
+                    ),
+                    stderr=True,
+                )
+                pending_slurm_jobs = []
+            if initially_dead_pids:
+                dead_text = ", ".join(str(pid) for pid in initially_dead_pids)
+                cli._print_tagged(
+                    "optimize",
+                    (
+                        "detected non-running pid(s) before wait; "
+                        "continuing next iteration for debug/resubmit "
+                        f"(pid(s): {dead_text})"
+                    ),
+                    stderr=True,
+                )
+                continue
+            if pending_slurm_jobs:
+                (
+                    pending_slurm_jobs,
+                    failed_slurm_jobs,
+                    slurm_issues,
+                    slurm_monitors,
+                ) = session_commands._refresh_slurm_monitors(
+                    pending_slurm_jobs,
+                    slurm_monitors,
+                    now_monotonic=poll_started,
+                    unknown_poll_limit=session_commands.SLURM_UNKNOWN_CONSECUTIVE_LIMIT,
+                )
+                if failed_slurm_jobs:
+                    failed_text = ", ".join(
+                        f"{job_id}:{state}" for job_id, state in failed_slurm_jobs
+                    )
+                    cli._print_tagged(
+                        "optimize",
+                        (
+                            "slurm job(s) reached non-success terminal state; "
+                            f"continuing (jobs: {failed_text})"
+                        ),
+                        stderr=True,
+                    )
+                if slurm_issues:
+                    issue_text = session_commands._format_slurm_issues(slurm_issues)
+                    cli._print_tagged(
+                        "optimize",
+                        (
+                            "detected slurm polling issue; "
+                            "continuing next iteration for debug/resubmit "
+                            f"({issue_text})"
+                        ),
+                        stderr=True,
+                    )
+                    continue
+            if alive or pending_slurm_jobs:
+                wait_targets = session_commands._format_waiting_targets(
+                    alive=alive,
+                    pending_slurm_jobs=pending_slurm_jobs,
+                )
+                stall_text = (
+                    f"{pid_stall_seconds:.1f}s"
+                    if pid_stall_seconds > 0
+                    else "disabled"
+                )
+                cli._print_tagged(
+                    "optimize",
+                    (
+                        "polling jobs until completion "
+                        f"({wait_targets}, poll: {poll_interval:.1f}s, "
+                        f"max wait: {max_wait_seconds:.1f}s, pid stall: {stall_text})"
+                    ),
+                )
+                started = poll_started
+                next_status_log = started + session_commands.POLL_STATUS_HEARTBEAT_SECONDS
+                pid_issue_caused_early_continue = False
+                slurm_issue_caused_early_continue = False
+                while alive or pending_slurm_jobs:
+                    now_monotonic = session_commands.time.monotonic()
+                    elapsed = now_monotonic - started
+                    remaining = max_wait_seconds - elapsed
+                    if now_monotonic >= next_status_log:
+                        remaining_text = max(0.0, remaining)
+                        cli._print_tagged(
+                            "optimize",
+                            (
+                                "polling status @ "
+                                f"{session_commands._utc_now_timestamp()} "
+                                f"(elapsed: {elapsed:.1f}s, remaining: {remaining_text:.1f}s, "
+                                "waiting on: "
+                                + session_commands._format_waiting_targets(
+                                    alive=alive,
+                                    pending_slurm_jobs=pending_slurm_jobs,
+                                )
+                                + ")"
+                            ),
+                        )
+                        next_status_log = (
+                            now_monotonic
+                            + session_commands.POLL_STATUS_HEARTBEAT_SECONDS
+                        )
+                    if remaining <= 0:
+                        cli._print_tagged(
+                            "optimize",
+                            (
+                                "job polling reached max wait "
+                                f"({max_wait_seconds:.1f}s); continuing "
+                                "with still-running targets: "
+                                + session_commands._format_waiting_targets(
+                                    alive=alive,
+                                    pending_slurm_jobs=pending_slurm_jobs,
+                                )
+                            ),
+                            stderr=True,
+                        )
+                        break
+                    sleep_seconds = min(poll_interval, remaining)
+                    if sleep_seconds > 0:
+                        session_commands.time.sleep(sleep_seconds)
+                    now_monotonic = session_commands.time.monotonic()
+                    alive, pid_monitors, pid_issues = (
+                        session_commands._refresh_pid_monitors(
+                            pid_numbers,
+                            pid_monitors,
+                            now_monotonic=now_monotonic,
+                            stall_seconds=pid_stall_seconds,
+                        )
+                    )
+                    if pid_issues:
+                        issue_text = session_commands._format_pid_issues(pid_issues)
+                        still_waiting_on: list[str] = []
+                        if alive:
+                            still_waiting_on.append(
+                                "still-running pid(s): "
+                                + ", ".join(str(pid) for pid in alive)
+                            )
+                        if pending_slurm_jobs:
+                            still_waiting_on.append(
+                                "pending slurm job(s): "
+                                + ", ".join(pending_slurm_jobs)
+                            )
+                        suffix = (
+                            f"; {'; '.join(still_waiting_on)}"
+                            if still_waiting_on
+                            else ""
+                        )
+                        cli._print_tagged(
+                            "optimize",
+                            (
+                                "detected pid issue during polling; "
+                                "continuing next iteration for debug/resubmit "
+                                f"({issue_text}{suffix})"
+                            ),
+                            stderr=True,
+                        )
+                        pid_issue_caused_early_continue = True
+                        break
+                    if pending_slurm_jobs:
+                        (
+                            pending_slurm_jobs,
+                            failed_slurm_jobs,
+                            slurm_issues,
+                            slurm_monitors,
+                        ) = session_commands._refresh_slurm_monitors(
+                            pending_slurm_jobs,
+                            slurm_monitors,
+                            now_monotonic=now_monotonic,
+                            unknown_poll_limit=session_commands.SLURM_UNKNOWN_CONSECUTIVE_LIMIT,
+                        )
+                        if failed_slurm_jobs:
+                            failed_text = ", ".join(
+                                f"{job_id}:{state}"
+                                for job_id, state in failed_slurm_jobs
+                            )
+                            cli._print_tagged(
+                                "optimize",
+                                (
+                                    "slurm job(s) reached non-success terminal state; "
+                                    f"continuing (jobs: {failed_text})"
+                                ),
+                                stderr=True,
+                            )
+                        if slurm_issues:
+                            issue_text = session_commands._format_slurm_issues(slurm_issues)
+                            waiting_on: list[str] = []
+                            if alive:
+                                waiting_on.append(
+                                    "still-running pid(s): "
+                                    + ", ".join(str(pid) for pid in alive)
+                                )
+                            suffix = (
+                                f"; {'; '.join(waiting_on)}" if waiting_on else ""
+                            )
+                            cli._print_tagged(
+                                "optimize",
+                                (
+                                    "detected slurm polling issue; "
+                                    "continuing next iteration for debug/resubmit "
+                                    f"({issue_text}{suffix})"
+                                ),
+                                stderr=True,
+                            )
+                            slurm_issue_caused_early_continue = True
+                            break
+                if pid_issue_caused_early_continue or slurm_issue_caused_early_continue:
+                    continue
+                if not alive and not pending_slurm_jobs:
+                    waited = session_commands.time.monotonic() - started
+                    cli._print_tagged(
+                        "optimize",
+                        f"job polling complete after {waited:.1f}s.",
+                    )
+            continue
+
+        suggested_wait = cli._extract_loop_wait_seconds(assistant_text)
+        wait_source = "agent" if suggested_wait is not None else "default"
+        requested_wait = suggested_wait if suggested_wait is not None else wait_seconds
+        effective_wait = min(requested_wait, max_wait_seconds)
+        if effective_wait > 0:
+            if requested_wait > max_wait_seconds:
+                cli._print_tagged(
+                    "optimize",
+                    (
+                        "sleeping "
+                        f"{effective_wait:.1f}s before next iteration "
+                        f"(source: {wait_source}, capped by --worker-max-wait-seconds)"
+                    ),
+                )
+            else:
+                cli._print_tagged(
+                    "optimize",
+                    (
+                        "sleeping "
+                        f"{effective_wait:.1f}s before next iteration "
+                        f"(source: {wait_source})"
+                    ),
+                )
+            session_commands.time.sleep(effective_wait)
+
+    cli._print_tagged(
+        "optimize",
+        f"max iterations reached ({max_iterations}) without {cli.LOOP_DONE_TOKEN}.",
+        stderr=True,
+    )
+    return {
+        "status": "incomplete_max_iterations",
+        "reason": "max_iterations_reached",
+        "exit_code": 1,
+        "iteration": max_iterations,
+        "assistant_text": last_assistant_text,
+        "provider_return_code": last_provider_return_code,
+        "run_result": last_run_result,
+    }
+
+
+def _worker_config(benchmark: dict[str, Any]) -> dict[str, Any]:
+    worker = benchmark.get("worker")
+    if worker is None:
+        return {}
+    if not isinstance(worker, dict):
+        raise _cli().PackageError("Benchmark worker block must be an object.")
+    return worker
+
+
+def _resolve_worker_loop_config(
+    args: argparse.Namespace,
+    benchmark_payload: dict[str, Any],
+) -> dict[str, float | int]:
+    cli = _cli()
+    worker = _worker_config(benchmark_payload)
+    max_iterations_raw = (
+        getattr(args, "worker_max_iterations", None)
+        if getattr(args, "worker_max_iterations", None) is not None
+        else worker.get("max_iterations", 8)
+    )
+    try:
+        max_iterations = int(max_iterations_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError("--worker-max-iterations must be an integer.") from exc
+    if max_iterations < 1:
+        raise cli.PackageError("--worker-max-iterations must be >= 1.")
+
+    wait_seconds, max_wait_seconds, pid_stall_seconds = (
+        _normalize_worker_loop_timing_options(
+            wait_seconds_raw=(
+                getattr(args, "worker_wait_seconds", None)
+                if getattr(args, "worker_wait_seconds", None) is not None
+                else worker.get("wait_seconds", 1.0)
+            ),
+            max_wait_seconds_raw=(
+                getattr(args, "worker_max_wait_seconds", None)
+                if getattr(args, "worker_max_wait_seconds", None) is not None
+                else worker.get("max_wait_seconds", 6000.0)
+            ),
+            pid_stall_seconds_raw=(
+                getattr(args, "worker_pid_stall_seconds", None)
+                if getattr(args, "worker_pid_stall_seconds", None) is not None
+                else worker.get("pid_stall_seconds", 900.0)
+            ),
+        )
+    )
+    return {
+        "max_iterations": max_iterations,
+        "wait_seconds": wait_seconds,
+        "max_wait_seconds": max_wait_seconds,
+        "pid_stall_seconds": pid_stall_seconds,
+    }
+
+
+def _build_optimize_hpc_constraints_block(
+    project_root: Path,
+    *,
+    args: argparse.Namespace,
+) -> str:
+    cli = _cli()
+    hpc_context = cli._resolve_invocation_hpc_context(repo_dir=project_root, args=args)
+    if not isinstance(hpc_context, dict) or not bool(hpc_context.get("enabled")):
+        return ""
+    prompt_lines = cli._build_hpc_prompt_lines(hpc_context)
+    if not isinstance(prompt_lines, list) or not prompt_lines:
+        return ""
+    return "Execution target constraints:\n" + "\n".join(prompt_lines)
 
 
 def _aggregation_for_metric(name: str, aggregation: dict[str, str]) -> str:
@@ -744,13 +1170,15 @@ def _description_or_default(assistant_text: str, *, iteration: int) -> str:
 
 
 def _write_run_text(run_dir: Path, filename: str, text: str) -> None:
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / filename).write_text(str(text or ""), encoding="utf-8")
+    target_path = run_dir / filename
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(str(text or ""), encoding="utf-8")
 
 
 def _write_run_json(run_dir: Path, filename: str, payload: dict[str, Any]) -> None:
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / filename).write_text(
+    target_path = run_dir / filename
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -807,9 +1235,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     results_path = optimize_state.results_path(project_root)
     optimize_state.ensure_results_file(results_path)
     memory_path = optimize_state.memory_path(project_root)
+    worker_memory_path = optimize_state.worker_memory_path(project_root)
     benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
     program_rel = optimize_state.safe_relative(program_path, project_root)
     memory_rel = optimize_state.safe_relative(memory_path, project_root)
+    worker_memory_rel = optimize_state.safe_relative(worker_memory_path, project_root)
     results_rel = optimize_state.safe_relative(results_path, project_root)
     optimize_state.ensure_memory_file(
         memory_path,
@@ -962,10 +1392,16 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     )
     editable_paths = _benchmark_editable_paths(benchmark_payload)
     immutable_paths = _benchmark_immutable_paths(benchmark_payload)
+    worker_loop_config = _resolve_worker_loop_config(args, benchmark_payload)
+    hpc_constraints_block = _build_optimize_hpc_constraints_block(
+        project_root,
+        args=args,
+    )
     agents_md = optimize_prompts.build_optimize_agents_md(
         benchmark_rel=benchmark_rel,
         program_rel=program_rel,
-        memory_rel=memory_rel,
+        controller_memory_rel=memory_rel,
+        worker_memory_rel=worker_memory_rel,
         results_rel=results_rel,
         editable_paths=editable_paths,
         immutable_paths=immutable_paths,
@@ -1005,26 +1441,39 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         run_dir = optimize_state.runs_root(project_root) / f"iter_{iteration:04d}"
         run_rel = optimize_state.safe_relative(run_dir, project_root)
         recent_results = optimize_state.recent_results_text(results_path)
+        optimize_state.reset_worker_memory_file(
+            worker_memory_path,
+            package_id=package_id,
+            benchmark_id=str(benchmark_payload.get("benchmark_id") or "benchmark"),
+            benchmark_rel=benchmark_rel,
+            program_rel=program_rel,
+            controller_memory_rel=memory_rel,
+            results_rel=results_rel,
+            worker_iteration=iteration,
+        )
         prompt = optimize_prompts.build_optimize_prompt(
             benchmark_payload=benchmark_payload,
             benchmark_rel=benchmark_rel,
             program_rel=program_rel,
-            memory_rel=memory_rel,
+            controller_memory_rel=memory_rel,
+            worker_memory_rel=worker_memory_rel,
             results_rel=results_rel,
             recent_results_text=recent_results,
             state_payload=state_payload,
             editable_paths=editable_paths,
+            hpc_constraints_block=hpc_constraints_block,
         )
         _write_run_text(run_dir, "worker_prompt.txt", prompt)
         cli._print_tagged("optimize", f"iteration {iteration}")
-        with optimize_git.temporary_optimize_agents(
-            project_root,
-            provider=provider,
-            content=agents_md,
-        ):
-            run_result = cli._run_exec_chat_turn(
+
+        def _run_worker_turn(
+            loop_iteration: int,
+            _loop_max_iterations: int,
+            prompt_text: str,
+        ) -> dict[str, object]:
+            result = cli._run_exec_chat_turn(
                 repo_dir=project_root,
-                prompt=prompt,
+                prompt=prompt_text,
                 sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
                 provider_bin_override=provider_bin_override,
                 provider=provider,
@@ -1032,15 +1481,55 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 model=model,
                 reasoning_effort=reasoning_effort,
             )
+            _write_run_json(
+                run_dir,
+                f"worker_turns/turn_{loop_iteration:04d}.json",
+                {
+                    "assistant_text": str(result.get("assistant_text") or ""),
+                    "return_code": int(result.get("return_code") or 0),
+                    "stderr": str(result.get("stderr") or ""),
+                },
+            )
+            return result
 
-        assistant_text = str(run_result.get("assistant_text") or "")
+        with optimize_git.temporary_optimize_agents(
+            project_root,
+            provider=provider,
+            content=agents_md,
+        ):
+            worker_loop_result = _run_optimize_worker_loop(
+                prompt=prompt,
+                max_iterations=int(worker_loop_config["max_iterations"]),
+                wait_seconds=float(worker_loop_config["wait_seconds"]),
+                max_wait_seconds=float(worker_loop_config["max_wait_seconds"]),
+                pid_stall_seconds=float(worker_loop_config["pid_stall_seconds"]),
+                run_turn=_run_worker_turn,
+            )
+
+        archived_worker_memory = optimize_state.archive_worker_memory(
+            worker_memory_path,
+            run_dir,
+        )
+        assistant_text = str(worker_loop_result.get("assistant_text") or "")
+        final_worker_turn = worker_loop_result.get("run_result")
+        final_worker_turn = final_worker_turn if isinstance(final_worker_turn, dict) else {}
         _write_run_json(
             run_dir,
-            "worker_result.json",
+            "worker_loop_result.json",
             {
+                "status": str(worker_loop_result.get("status") or ""),
+                "reason": str(worker_loop_result.get("reason") or ""),
+                "iteration_count": int(worker_loop_result.get("iteration") or 0),
+                "exit_code": int(worker_loop_result.get("exit_code") or 0),
+                "provider_return_code": int(
+                    worker_loop_result.get("provider_return_code") or 0
+                ),
                 "assistant_text": assistant_text,
-                "return_code": int(run_result.get("return_code") or 0),
-                "stderr": str(run_result.get("stderr") or ""),
+                "stderr": str(final_worker_turn.get("stderr") or ""),
+                "archived_worker_memory": (
+                    str(archived_worker_memory) if archived_worker_memory else ""
+                ),
+                "worker_loop_config": worker_loop_config,
             },
         )
         description = _description_or_default(assistant_text, iteration=iteration)
@@ -1080,13 +1569,20 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         candidate_metrics: dict[str, Any] = {}
         controller_summary: str | None = None
         controller_decision: str | None = None
+        controller_result: dict[str, object] = {}
         hard_reject = False
         hard_status = "rejected"
         hard_reason = ""
         candidate_primary: float | None = None
+        benchmark_ran = False
 
         evaluation_context: dict[str, Any] = {
-            "worker_return_code": int(run_result.get("return_code") or 0),
+            "worker_loop_status": str(worker_loop_result.get("status") or ""),
+            "worker_loop_reason": str(worker_loop_result.get("reason") or ""),
+            "worker_loop_iteration_count": int(worker_loop_result.get("iteration") or 0),
+            "worker_return_code": int(
+                worker_loop_result.get("provider_return_code") or 0
+            ),
             "candidate_description": description,
             "changed_paths": [entry.get("path", "") for entry in changed_entries],
             "editable_changed_paths": editable_changed,
@@ -1104,20 +1600,23 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             "hard_reject_status": "",
         }
 
-        if forbidden_changed:
+        if str(worker_loop_result.get("status") or "") != "done":
             hard_reject = True
-            hard_status = "rejected"
+            hard_status = "worker_incomplete"
+            hard_reason = (
+                "worker loop did not finish cleanly: "
+                f"{worker_loop_result.get('status') or 'unknown'}"
+            )
+        elif forbidden_changed:
+            hard_reject = True
+            hard_status = "invalid_scope"
             hard_reason = (
                 f"modified forbidden paths: {', '.join(forbidden_changed[:4])}"
             )
-        elif int(run_result.get("return_code") or 0) != 0:
-            hard_reject = True
-            hard_status = "rejected"
-            hard_reason = "worker agent exited non-zero"
         elif not editable_changed:
             hard_reject = True
             hard_status = "rejected"
-            hard_reason = "worker agent did not leave an editable code change"
+            hard_reason = "worker loop finished without an editable code change"
         else:
             candidate_commit = optimize_git.commit_paths(
                 project_root,
@@ -1135,6 +1634,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 ["diff", f"{start_sha}..{candidate_commit}"],
             )
             _write_run_text(run_dir, "candidate.diff", diff_full.stdout or "")
+            benchmark_ran = True
             candidate_metrics = _run_benchmark_suite(
                 project_root,
                 benchmark_path=benchmark_path,
@@ -1185,64 +1685,63 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         evaluation_context["hard_reject_status"] = hard_status if hard_reject else ""
         _write_run_json(run_dir, "review_context.json", evaluation_context)
 
-        controller_agents_md = optimize_prompts.build_controller_agents_md(
-            benchmark_rel=benchmark_rel,
-            program_rel=program_rel,
-            memory_rel=memory_rel,
-            results_rel=results_rel,
-            run_rel=run_rel,
-        )
-        controller_prompt = optimize_prompts.build_controller_prompt(
-            benchmark_payload=benchmark_payload,
-            benchmark_rel=benchmark_rel,
-            program_rel=program_rel,
-            memory_rel=memory_rel,
-            results_rel=results_rel,
-            run_rel=run_rel,
-            recent_results_text=recent_results,
-            iteration=iteration,
-            incumbent_commit=str(state_payload.get("incumbent_commit") or ""),
-            candidate_commit=candidate_commit,
-            worker_description=description,
-            changed_paths=editable_changed
-            or [entry.get("path", "") for entry in changed_entries],
-            evaluation_context=evaluation_context,
-        )
-        _write_run_text(run_dir, "controller_prompt.txt", controller_prompt)
-        with optimize_git.temporary_optimize_agents(
-            project_root,
-            provider=provider,
-            content=controller_agents_md,
-        ):
-            controller_result = cli._run_exec_chat_turn(
-                repo_dir=project_root,
-                prompt=controller_prompt,
-                sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-                provider_bin_override=provider_bin_override,
-                provider=provider,
-                sandbox_policy=sandbox_policy,
-                model=model,
-                reasoning_effort=reasoning_effort,
+        if benchmark_ran and candidate_commit is not None:
+            controller_agents_md = optimize_prompts.build_controller_agents_md(
+                benchmark_rel=benchmark_rel,
+                program_rel=program_rel,
+                memory_rel=memory_rel,
+                results_rel=results_rel,
+                run_rel=run_rel,
             )
+            controller_prompt = optimize_prompts.build_controller_prompt(
+                benchmark_payload=benchmark_payload,
+                benchmark_rel=benchmark_rel,
+                program_rel=program_rel,
+                memory_rel=memory_rel,
+                results_rel=results_rel,
+                run_rel=run_rel,
+                recent_results_text=recent_results,
+                iteration=iteration,
+                incumbent_commit=str(state_payload.get("incumbent_commit") or ""),
+                candidate_commit=candidate_commit,
+                worker_description=description,
+                changed_paths=editable_changed
+                or [entry.get("path", "") for entry in changed_entries],
+                evaluation_context=evaluation_context,
+            )
+            _write_run_text(run_dir, "controller_prompt.txt", controller_prompt)
+            with optimize_git.temporary_optimize_agents(
+                project_root,
+                provider=provider,
+                content=controller_agents_md,
+            ):
+                controller_result = cli._run_exec_chat_turn(
+                    repo_dir=project_root,
+                    prompt=controller_prompt,
+                    sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+                    provider_bin_override=provider_bin_override,
+                    provider=provider,
+                    sandbox_policy=sandbox_policy,
+                    model=model,
+                    reasoning_effort=reasoning_effort,
+                )
 
-        controller_text = str(controller_result.get("assistant_text") or "")
-        controller_decision = optimize_prompts.extract_decision(controller_text)
-        controller_summary = optimize_prompts.extract_controller_summary(
-            controller_text
-        )
-        _write_run_json(
-            run_dir,
-            "controller_result.json",
-            {
-                "assistant_text": controller_text,
-                "decision": controller_decision,
-                "controller_summary": controller_summary,
-                "return_code": int(controller_result.get("return_code") or 0),
-                "stderr": str(controller_result.get("stderr") or ""),
-            },
-        )
-
-        if candidate_commit is not None:
+            controller_text = str(controller_result.get("assistant_text") or "")
+            controller_decision = optimize_prompts.extract_decision(controller_text)
+            controller_summary = optimize_prompts.extract_controller_summary(
+                controller_text
+            )
+            _write_run_json(
+                run_dir,
+                "controller_result.json",
+                {
+                    "assistant_text": controller_text,
+                    "decision": controller_decision,
+                    "controller_summary": controller_summary,
+                    "return_code": int(controller_result.get("return_code") or 0),
+                    "stderr": str(controller_result.get("stderr") or ""),
+                },
+            )
             post_controller_changes = optimize_git.list_changed_paths(project_root)
             if post_controller_changes:
                 hard_reject = True
@@ -1253,26 +1752,36 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 evaluation_context["hard_reject_status"] = hard_status
                 evaluation_context["post_controller_changes"] = post_controller_changes
                 _write_run_json(run_dir, "review_context.json", evaluation_context)
+        elif hard_reason and not controller_summary:
+            controller_summary = hard_reason
 
         final_status = "rejected"
-        if int(controller_result.get("return_code") or 0) != 0:
-            controller_decision = "REJECTED"
-            if not controller_summary:
-                controller_summary = "controller agent exited non-zero"
-        elif controller_decision not in {"ACCEPTED", "REJECTED"}:
-            controller_decision = "REJECTED"
-            if not controller_summary:
-                controller_summary = (
-                    "controller agent did not emit a valid decision tag"
-                )
+        if benchmark_ran and candidate_commit is not None:
+            if int(controller_result.get("return_code") or 0) != 0:
+                controller_decision = "REJECTED"
+                if not controller_summary:
+                    controller_summary = "controller agent exited non-zero"
+            elif controller_decision not in {"ACCEPTED", "REJECTED"}:
+                controller_decision = "REJECTED"
+                if not controller_summary:
+                    controller_summary = (
+                        "controller agent did not emit a valid decision tag"
+                    )
+        elif controller_summary is None and hard_reject:
+            controller_summary = hard_reason
 
         if hard_reject:
             final_status = hard_status or "rejected"
-            if controller_decision == "ACCEPTED" and not controller_summary:
+            if (
+                benchmark_ran
+                and controller_decision == "ACCEPTED"
+                and not controller_summary
+            ):
                 controller_summary = "controller acceptance overridden by hard guard"
-        elif controller_decision == "ACCEPTED" and candidate_commit:
+        elif benchmark_ran and controller_decision == "ACCEPTED" and candidate_commit:
             final_status = "accepted"
         else:
+            controller_decision = "REJECTED"
             final_status = "rejected"
 
         event_description = description

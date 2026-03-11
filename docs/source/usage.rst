@@ -246,10 +246,10 @@ Use ``optimize`` inside a scientific package source tree when you want FermiLink
 to search for faster code changes against a fixed benchmark contract. Unlike
 ``exec``/``chat``/``loop``, this mode does not route packages dynamically. It
 expects one concrete package repo, a static local ``skills/`` folder, a worker
-agent that proposes one code change at a time, and a controller agent that
-reviews benchmark outcomes and updates optimize memory before emitting an
-``ACCEPTED`` or ``REJECTED`` decision. Hard scientific failures still override
-controller acceptance.
+worker loop that iterates on one candidate at a time, and a controller agent
+that reviews authoritative benchmark outcomes and updates optimize memory before
+emitting an ``ACCEPTED`` or ``REJECTED`` decision. Hard scientific failures
+still override controller acceptance.
 
 .. code-block:: bash
 
@@ -265,10 +265,12 @@ controller acceptance.
 Optimize behavior:
 
 - creates and maintains campaign state under ``.fermilink-optimize/``;
-- writes a human-editable ``program.md`` plus persistent ``memory.md`` and append-only ``results.tsv``;
+- writes a human-editable ``program.md`` plus persistent controller ``memory.md``, tactical ``worker_memory.md``, and append-only ``results.tsv``;
 - runs one baseline benchmark before any optimization iteration;
-- asks a worker agent to propose exactly one code experiment per iteration using a dedicated optimize-only ``AGENTS.md`` contract;
-- benchmarks the committed candidate and then runs a second controller-agent review turn that updates ``memory.md`` and emits a tagged decision;
+- runs an embedded optimize-worker loop before the benchmark, reusing the same wait-tag protocol as ``fermilink loop`` (``<wait_seconds>``, ``<pid_number>``, ``<slurm_job_number>``, ``<promise>DONE</promise>``) so the worker can debug iteratively and wait on long local or SLURM jobs;
+- archives the final worker memory for each outer iteration at ``.fermilink-optimize/runs/iter_XXXX/worker_memory.md``;
+- benchmarks the committed candidate only after the worker loop emits ``<promise>DONE</promise>``, then runs a second controller-agent review turn that updates controller ``memory.md`` and emits a tagged decision;
+- rejects incomplete worker loops before benchmarking without invoking package routing, overlay, or loop completion commits;
 - still force-rejects forbidden edits, benchmark crashes/timeouts, malformed metrics, and correctness failures even if the controller agent tries to accept them;
 - keeps ``skills/`` fixed during the campaign after the initial bootstrap step.
 
@@ -277,13 +279,17 @@ Useful flags:
 - ``--plan-only``: validate the repo and benchmark, initialize ``.fermilink-optimize/``, and stop before benchmarking.
 - ``--baseline-only``: run only the incumbent baseline benchmark.
 - ``--max-iterations <n>``: cap iterations for one command invocation.
+- ``--worker-max-iterations <n>``: cap inner worker-loop turns per outer optimize iteration.
+- ``--worker-wait-seconds <n>`` / ``--worker-max-wait-seconds <n>`` / ``--worker-pid-stall-seconds <n>``: control inner worker-loop wait and polling behavior.
+- ``--hpc-profile <json>``: forward the same lightweight SLURM prompt constraints used by ``exec``/``loop`` into the optimize worker loop.
 - ``--forever``: keep iterating until interrupted or a rejection stop rule fires.
 - ``--allow-dirty``: bypass the clean-worktree startup requirement.
 
 The benchmark contract is a YAML file that defines editable paths, the
-authoritative benchmark command, aggregation policy, and correctness thresholds.
-See ``scripts/benchmark.yaml`` in this repository for a PySCF SCF example and
-``scripts/pyscf_scf_bench.py`` for the matching benchmark runner template.
+authoritative benchmark command, aggregation policy, correctness thresholds,
+and optional ``worker`` loop defaults. See ``scripts/benchmark.yaml`` in this
+repository for a PySCF SCF example and ``scripts/pyscf_scf_bench.py`` for the
+matching benchmark runner template.
 
 
 Global agent runtime policy

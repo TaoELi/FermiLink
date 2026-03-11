@@ -10,6 +10,7 @@ OPTIMIZE_DIRNAME = ".fermilink-optimize"
 STATE_FILENAME = "state.json"
 RESULTS_FILENAME = "results.tsv"
 MEMORY_FILENAME = "memory.md"
+WORKER_MEMORY_FILENAME = "worker_memory.md"
 PROGRAM_FILENAME = "program.md"
 RUNS_DIRNAME = "runs"
 
@@ -38,6 +39,10 @@ def results_path(project_root: Path) -> Path:
 
 def memory_path(project_root: Path) -> Path:
     return optimize_root(project_root) / MEMORY_FILENAME
+
+
+def worker_memory_path(project_root: Path) -> Path:
+    return optimize_root(project_root) / WORKER_MEMORY_FILENAME
 
 
 def runs_root(project_root: Path) -> Path:
@@ -121,6 +126,66 @@ def ensure_memory_file(
     )
     path.write_text(initial, encoding="utf-8")
     return True
+
+
+def reset_worker_memory_file(
+    path: Path,
+    *,
+    package_id: str,
+    benchmark_id: str,
+    benchmark_rel: str,
+    program_rel: str,
+    controller_memory_rel: str,
+    results_rel: str,
+    worker_iteration: int,
+) -> None:
+    now = utc_now_z()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    initial = (
+        "# FermiLink Optimize Worker Memory\n"
+        "\n"
+        f"- package_id: {package_id}\n"
+        f"- benchmark_id: {benchmark_id}\n"
+        f"- benchmark_path: {benchmark_rel}\n"
+        f"- program_path: {program_rel}\n"
+        f"- controller_memory_path: {controller_memory_rel}\n"
+        f"- results_path: {results_rel}\n"
+        f"- worker_iteration: {worker_iteration}\n"
+        f"- reset_at_utc: {now}\n"
+        "\n"
+        "This file is reset at the start of each outer optimize iteration and "
+        "archived under `.fermilink-optimize/runs/iter_XXXX/worker_memory.md`.\n"
+        "\n"
+        "## Short-Term Memory (Operational)\n"
+        "### Current objective\n"
+        "- Prepare exactly one candidate that is ready for authoritative benchmark evaluation.\n"
+        "### Plan\n"
+        "- Read benchmark/program/controller memory/results/skills.\n"
+        "- Inspect the current implementation and pick one optimization hypothesis.\n"
+        "- Apply focused edits only within benchmark-approved paths.\n"
+        "- Run quick local checks or launch/poll long-running worker jobs if needed.\n"
+        "- Update this memory with progress and finish only when the candidate is benchmark-ready.\n"
+        "### Progress log\n"
+        "- Worker iteration initialized.\n"
+        "\n"
+        "## Tactical Notes\n"
+        "### Job tracking\n"
+        "- none yet\n"
+        "### Candidate summary\n"
+        "- pending\n"
+        "### Debug notes\n"
+        "- none yet\n"
+    )
+    path.write_text(initial, encoding="utf-8")
+
+
+def archive_worker_memory(source_path: Path, run_dir: Path) -> Path | None:
+    if not source_path.is_file():
+        return None
+    run_dir.mkdir(parents=True, exist_ok=True)
+    target_path = run_dir / WORKER_MEMORY_FILENAME
+    target_path.write_text(source_path.read_text(encoding="utf-8"), encoding="utf-8")
+    return target_path
 
 
 def load_state(path: Path) -> dict[str, Any] | None:
