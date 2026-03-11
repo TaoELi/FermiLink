@@ -17,7 +17,25 @@ With [an official package channel](https://github.com/skilled-scipkg), **FermiLi
 Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously. It is designed to sustain long-running computational jobs for days or weeks without human intervention.
 
 ## Quick Start
-Ensure `codex` or `claude` or `gemini` CLI is installed in your machine. Then,
+For beginners, start with:
+
+```bash
+pip install .
+fermilink
+```
+
+Running ``fermilink`` with no subcommand opens a guided setup flow in an
+interactive terminal. It checks provider availability, installed scientific
+packages, web/runner status, Telegram configuration, and optional HPC profile
+setup, then routes you to the right next step. The same beginner menu also
+includes guided advanced entrypoints for ``fermilink compile`` and
+``fermilink recompile`` when you need to onboard a local package or patch
+installed package skills from a manuscript or workspace memory. On the first
+interactive entry it also prints a terminal hero banner before entering the
+setup flow.
+
+You can also use the manual workflow directly:
+
 ```bash
 # 1. Install
 pip install .

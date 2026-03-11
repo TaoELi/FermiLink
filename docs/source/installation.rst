@@ -11,7 +11,11 @@ Fast path
    # 1. Install FermiLink (from this repo root)
    pip install .
 
-   # 2. Install and authenticate one supported agent provider CLI (Codex or Claude)
+   # 2. Start the guided beginner entrypoint
+   fermilink
+
+   # 3. Or, follow the manual setup path below:
+   # Install and authenticate one supported agent provider CLI (Codex or Claude)
    # Codex option:
    npm i -g @openai/codex   # Use ``brew install codex`` for Mac
    codex login
@@ -19,19 +23,28 @@ Fast path
    # install Claude CLI from its official distribution, then:
    claude login
 
-   # 3. Install at least one scientific package
+   # 4. Install at least one scientific package
    fermilink install meep --activate
 
-   # 4.1. Command line execution (most powerful)
+   # 5.1. Command line execution (most powerful)
    fermilink exec/loop/research/reproduce "..."
 
-   # 4.2. Start the web UI for chatgpt-like experience (laptops and workstations)
+   # 5.2. Start the web UI for chatgpt-like experience (laptops and workstations)
    fermilink start
 
-   # 4.3. Connect to Telegram chatbot (suitable for HPC with no sudo access)
+   # 5.3. Connect to Telegram chatbot (suitable for HPC with no sudo access)
    export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
    fermilink gateway
+
+The zero-argument ``fermilink`` entrypoint is intended for beginners. In an
+interactive terminal it performs a deterministic machine scan and guides the
+user through provider selection, first package install, web UI startup, Telegram
+setup, optional default HPC profile creation, guided local-package compile, and
+guided recompile updates from manuscripts or workspace memory before any agent
+run is started. Each interactive zero-arg invocation also shows a startup
+terminal hero banner, and the command now renders machine status as a compact
+terminal table.
 
 
 See also :doc:`usage`, :doc:`usage_web_ui`, and :doc:`usage_chatting_apps` for more details about three user interfaces.

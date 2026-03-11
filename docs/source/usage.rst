@@ -3,6 +3,29 @@ Command Line Tools
 
 The most powerful way to use FermiLink is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. The CLI supports multiple modes of operation, including one-shot execution, interactive chat, autonomous loops, and reproduction/research workflows. Below is a comprehensive reference for using the CLI effectively.
 
+Beginner entrypoint
+-------------------
+
+In an interactive terminal, running ``fermilink`` with **no subcommand**
+launches a deterministic onboarding assistant. It:
+
+- shows a terminal welcome banner at startup for each interactive invocation;
+- scans for supported provider CLIs and the current default runtime policy;
+- checks whether any scientific packages are installed;
+- reports runner/web service status;
+- checks Telegram gateway environment variables;
+- discovers an optional default HPC profile from ``FERMILINK_DEFAULT_HPC_PROFILE``,
+  ``./hpc_profile.json``, or ``~/.fermilink/hpc_profile.json``;
+- offers advanced guided entrypoints for ``compile`` and ``recompile`` when the
+  user needs to onboard a local package or patch package skills from a
+  manuscript or workspace memory;
+- routes the user into setup, package installation, web UI startup, Telegram
+  setup, or a guided simulation launch through a structured terminal status
+  table and menu.
+
+In non-interactive contexts, ``fermilink`` with no subcommand prints a concise
+status summary and exits without launching the assistant.
+
 .. figure:: _static/img/major_modes_workflow.svg
    :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
    :align: center

@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from fermilink import cli
+from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli import zero_arg
 from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
 from fermilink.packages.package_registry import load_registry
 
@@ -232,3 +234,355 @@ def test_cli_install_multiple_packages_rejects_activate(
 
     err = capsys.readouterr().err
     assert "--activate" in err
+
+
+def _make_zero_arg_state(
+    *,
+    selected_provider: str | None = "codex",
+    provider_setup_needed: bool = False,
+    has_packages: bool = True,
+) -> dict[str, object]:
+    return {
+        "runtime_policy": AgentRuntimePolicy(provider="codex"),
+        "selected_provider": selected_provider,
+        "provider_setup_needed": provider_setup_needed,
+        "provider_scan": {
+            "codex": {
+                "binary_found": selected_provider == "codex",
+                "auth_state": "ready",
+            },
+            "claude": {"binary_found": False, "auth_state": "missing"},
+            "gemini": {"binary_found": False, "auth_state": "missing"},
+            "deepseek": {"binary_found": False, "auth_state": "missing"},
+        },
+        "packages": {
+            "count": 1 if has_packages else 0,
+            "has_packages": has_packages,
+            "active_package": "maxwelllink" if has_packages else None,
+            "scipkg_root": "/tmp/scientific_packages",
+        },
+        "services": {
+            "runner": {"running": False},
+            "web": {"running": False},
+        },
+        "telegram": {
+            "token_present": False,
+            "allowlist_present": False,
+        },
+        "hpc": {
+            "profile_path": None,
+            "profile_valid": False,
+            "profile_error": None,
+            "slurm_submit_available": False,
+            "slurm_wait_available": False,
+        },
+    }
+
+
+def test_cli_no_args_noninteractive_prints_status(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+    monkeypatch.setattr(zero_arg, "_interactive_tty", lambda: False)
+    monkeypatch.setattr(
+        zero_arg, "_probe_zero_arg_state", lambda: _make_zero_arg_state()
+    )
+
+    code = cli.main([])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "FermiLink Status" in out
+    assert "| Component" in out
+    assert "Web UI" in out
+    assert "Run in an interactive terminal for guided setup" in out
+
+
+def test_cli_no_args_interactive_quit_from_main_menu(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+    monkeypatch.setattr(zero_arg, "_interactive_tty", lambda: True)
+    monkeypatch.setattr(
+        zero_arg, "_probe_zero_arg_state", lambda: _make_zero_arg_state()
+    )
+    answers = iter(["10"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    code = cli.main([])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "FFFFF  EEEEE  RRRR" in out
+    assert "FermiLink Status" in out
+    assert "Run a simulation" in out
+    assert "Advanced: Compile a local package for FermiLink" in out
+    assert "Show system status" in out
+
+
+def test_cli_no_args_runs_provider_setup_before_menu(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+    monkeypatch.setattr(zero_arg, "_interactive_tty", lambda: True)
+    states = iter(
+        [
+            _make_zero_arg_state(selected_provider=None, provider_setup_needed=True),
+            _make_zero_arg_state(
+                selected_provider="codex", provider_setup_needed=False
+            ),
+            _make_zero_arg_state(
+                selected_provider="codex", provider_setup_needed=False
+            ),
+        ]
+    )
+    monkeypatch.setattr(zero_arg, "_probe_zero_arg_state", lambda: next(states))
+    calls: list[str] = []
+    monkeypatch.setattr(
+        zero_arg,
+        "_run_zero_arg_provider_setup",
+        lambda state: calls.append(str(state.get("selected_provider"))),
+    )
+    answers = iter(["10"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    code = cli.main([])
+
+    assert code == 0
+    assert calls == ["None"]
+
+
+def test_cli_no_args_hero_banner_shows_on_each_invocation(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+    monkeypatch.setattr(zero_arg, "_interactive_tty", lambda: True)
+    monkeypatch.setattr(
+        zero_arg, "_probe_zero_arg_state", lambda: _make_zero_arg_state()
+    )
+
+    answers_first = iter(["10"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers_first))
+    first_code = cli.main([])
+    first_out = capsys.readouterr().out
+
+    answers_second = iter(["10"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers_second))
+    second_code = cli.main([])
+    second_out = capsys.readouterr().out
+
+    assert first_code == 0
+    assert second_code == 0
+    assert "FFFFF  EEEEE  RRRR" in first_out
+    assert "FFFFF  EEEEE  RRRR" in second_out
+
+
+def test_cli_no_args_hero_banner_only_once_within_single_run(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+    monkeypatch.setattr(zero_arg, "_interactive_tty", lambda: True)
+    monkeypatch.setattr(
+        zero_arg, "_probe_zero_arg_state", lambda: _make_zero_arg_state()
+    )
+    answers = iter(["9", "10"])
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    code = cli.main([])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert out.count("FFFFF  EEEEE  RRRR") == 1
+
+
+def test_zero_arg_provider_status_row_is_concise() -> None:
+    state = _make_zero_arg_state()
+    state["provider_scan"] = {
+        "codex": {"binary_found": True, "auth_state": "unknown"},
+        "claude": {"binary_found": True, "auth_state": "unknown"},
+        "gemini": {"binary_found": True, "auth_state": "unknown"},
+        "deepseek": {"binary_found": True, "auth_state": "unknown"},
+    }
+
+    row = zero_arg._zero_arg_provider_status_row(state)
+
+    assert row == (
+        "Providers",
+        "codex pending",
+        "default=codex; detected=codex, claude, gemini, deepseek",
+    )
+
+
+def test_zero_arg_compile_setup_executes_compile_command(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "local-package"
+    project_root.mkdir()
+    state = _make_zero_arg_state()
+    executed: list[list[str]] = []
+    monkeypatch.setattr(
+        zero_arg,
+        "_execute_cli_argv",
+        lambda argv: executed.append(argv) or 0,
+    )
+    monkeypatch.setattr(
+        zero_arg,
+        "_confirm_provider_login_if_needed",
+        lambda _state: True,
+    )
+    answers = iter(
+        [
+            "my-local-package",
+            str(project_root),
+            "n",
+            "y",
+            "y",
+            "y",
+            "y",
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    code = zero_arg._run_zero_arg_compile_setup(state)
+
+    assert code == 0
+    assert executed == [
+        [
+            "compile",
+            "my-local-package",
+            str(project_root),
+            "--docs-only",
+            "--strict-compile-validation",
+            "--activate",
+        ]
+    ]
+
+
+def test_zero_arg_recompile_setup_executes_paper_mode_command(
+    monkeypatch, tmp_path: Path
+) -> None:
+    project_root = tmp_path / "package-dev"
+    project_root.mkdir()
+    doc_path = tmp_path / "workflow.md"
+    doc_path.write_text("# workflow", encoding="utf-8")
+    data_dir = tmp_path / "supplementary"
+    data_dir.mkdir()
+    state = _make_zero_arg_state()
+    executed: list[list[str]] = []
+    monkeypatch.setattr(
+        zero_arg,
+        "_execute_cli_argv",
+        lambda argv: executed.append(argv) or 0,
+    )
+    monkeypatch.setattr(
+        zero_arg,
+        "_confirm_provider_login_if_needed",
+        lambda _state: True,
+    )
+    answers = iter(
+        [
+            "mypkg",
+            str(project_root),
+            "1",
+            str(doc_path),
+            str(data_dir),
+            "focus on spectra and validation",
+            "y",
+            "y",
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    code = zero_arg._run_zero_arg_recompile_setup(state)
+
+    assert code == 0
+    assert executed == [
+        [
+            "recompile",
+            "mypkg",
+            str(project_root),
+            "--doc",
+            str(doc_path),
+            "--data-dir",
+            str(data_dir),
+            "--comment",
+            "focus on spectra and validation",
+            "--activate",
+        ]
+    ]
+
+
+def test_zero_arg_recompile_setup_executes_memory_mode_command(
+    monkeypatch, tmp_path: Path
+) -> None:
+    memory_root = tmp_path / "projects"
+    memory_root.mkdir()
+    state = _make_zero_arg_state()
+    executed: list[list[str]] = []
+    monkeypatch.setattr(
+        zero_arg,
+        "_execute_cli_argv",
+        lambda argv: executed.append(argv) or 0,
+    )
+    monkeypatch.setattr(
+        zero_arg,
+        "_confirm_provider_login_if_needed",
+        lambda _state: True,
+    )
+    answers = iter(
+        [
+            "mypkg",
+            "",
+            "2",
+            str(memory_root),
+            "2",
+            "y",
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt="": next(answers))
+
+    code = zero_arg._run_zero_arg_recompile_setup(state)
+
+    assert code == 0
+    assert executed == [
+        [
+            "recompile",
+            "mypkg",
+            "--memory",
+            str(memory_root),
+            "--memory-scope",
+            "package-specific",
+        ]
+    ]
+
+
+def test_zero_arg_mode_inference_prefers_reproduce_then_research_then_loop() -> None:
+    assert (
+        zero_arg._infer_zero_arg_mode("reproduce figures 1-4 from paper.pdf")
+        == "reproduce"
+    )
+    assert (
+        zero_arg._infer_zero_arg_mode("design and optimize a cavity QED workflow")
+        == "research"
+    )
+    assert (
+        zero_arg._infer_zero_arg_mode("monitor a long-running slurm job overnight")
+        == "loop"
+    )
+    assert zero_arg._infer_zero_arg_mode("simulate a single cavity mode") == "exec"
+
+
+def test_zero_arg_hpc_probe_does_not_require_cli_resolve_fermilink_home(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("FERMILINK_DEFAULT_HPC_PROFILE", raising=False)
+    monkeypatch.delattr(cli, "resolve_fermilink_home", raising=False)
+    monkeypatch.setattr(cli, "_resolve_project_path", lambda raw: Path(raw).resolve())
+    monkeypatch.setattr(
+        zero_arg,
+        "resolve_fermilink_home",
+        lambda: tmp_path / ".fermilink",
+    )
+
+    state = zero_arg._probe_zero_arg_hpc_state()
+
+    assert state["profile_path"] is None
+    assert state["profile_valid"] is False

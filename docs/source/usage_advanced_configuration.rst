@@ -3,6 +3,12 @@
 
 Here we introduce ``fermilink recompile``, a powerful command for refreshing package agent skills and knowledge based on paper pipelines or memory-driven suggestions. This command is designed to help users keep their package knowledge base up-to-date and relevant to their research and simulations.
 
+If you prefer a guided flow, run bare ``fermilink`` in an interactive terminal
+and choose ``Advanced: Update package skills with research pipelines / memory``.
+The zero-arg assistant asks for the package id plus the relevant ``--doc`` /
+``--data-dir`` or ``--memory`` path inputs, then dispatches the real
+``fermilink recompile`` command.
+
 When to use ``recompile``
 -------------------------
 

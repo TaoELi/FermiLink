@@ -9,7 +9,6 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.error
 
 from fermilink.cli import (
     compile_helpers,
@@ -20,6 +19,11 @@ from fermilink.cli import (
     routing_helpers,
     runtime_loaders,
     shared_helpers,
+)
+from fermilink.cli.zero_arg import (
+    _effective_argv,
+    _execute_cli_argv,
+    _run_zero_arg_entrypoint,
 )
 from fermilink.cli.commands import agent as agent_commands
 from fermilink.cli.commands import gateway as gateway_commands
@@ -279,9 +283,7 @@ _list_skill_ids = compile_helpers._list_skill_ids
 _ensure_compile_memory = compile_helpers._ensure_compile_memory
 _reset_compile_memory_short_term = compile_helpers._reset_compile_memory_short_term
 _record_compile_memory_run = compile_helpers._record_compile_memory_run
-_normalize_recompile_memory_scope = (
-    compile_helpers._normalize_recompile_memory_scope
-)
+_normalize_recompile_memory_scope = compile_helpers._normalize_recompile_memory_scope
 _render_recompile_memory_scope = compile_helpers._render_recompile_memory_scope
 _collect_recompile_memory_suggestions = (
     compile_helpers._collect_recompile_memory_suggestions
@@ -411,27 +413,10 @@ def main(argv: list[str] | None = None) -> int:
     int
         Process exit code (`0` on success).
     """
-    parser = _build_parser()
-    try:
-        args = parser.parse_args(argv)
-    except SystemExit as exc:
-        if isinstance(exc.code, int):
-            return exc.code
-        return 1
-
-    try:
-        return args.func(args)
-    except urllib.error.URLError as exc:
-        print(f"Download failed: {exc}", file=sys.stderr)
-        return 2
-    except (
-        PackageError,
-        PackageNotFoundError,
-        PackageValidationError,
-        ValueError,
-    ) as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
+    effective_argv = _effective_argv(argv)
+    if not effective_argv:
+        return _run_zero_arg_entrypoint()
+    return _execute_cli_argv(effective_argv)
 
 
 if __name__ == "__main__":  # pragma: no cover
