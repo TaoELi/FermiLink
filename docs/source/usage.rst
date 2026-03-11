@@ -239,12 +239,54 @@ Notes:
 
    Note that **if a different prompt or file is provided in the second command, it will trigger a new planning stage.**
 
+``optimize``: Benchmark-gated package code optimization
+-------------------------------------------------------
+
+Use ``optimize`` inside a scientific package source tree when you want FermiLink
+to search for faster code changes against a fixed benchmark contract. Unlike
+``exec``/``chat``/``loop``, this mode does not route packages dynamically. It
+expects one concrete package repo, a static local ``skills/`` folder, and a
+controller-owned benchmark decision.
+
+.. code-block:: bash
+
+   # use an existing local skills/ folder
+   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml --skills-source existing
+
+   # bootstrap missing skills/ from the curated channel first
+   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml --skills-source channel
+
+   # bootstrap missing skills/ by running one local compile pass
+   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml --skills-source compile
+
+Optimize behavior:
+
+- creates and maintains campaign state under ``.fermilink-optimize/``;
+- writes a human-editable ``program.md`` plus persistent ``memory.md`` and append-only ``results.tsv``;
+- runs one baseline benchmark before any optimization iteration;
+- asks the agent to propose exactly one code experiment per iteration using a dedicated optimize-only ``AGENTS.md`` contract;
+- accepts or rejects each candidate strictly from benchmark results, correctness checks, and editable-path policy;
+- keeps ``skills/`` fixed during the campaign after the initial bootstrap step.
+
+Useful flags:
+
+- ``--plan-only``: validate the repo and benchmark, initialize ``.fermilink-optimize/``, and stop before benchmarking.
+- ``--baseline-only``: run only the incumbent baseline benchmark.
+- ``--max-iterations <n>``: cap iterations for one command invocation.
+- ``--forever``: keep iterating until interrupted or a rejection stop rule fires.
+- ``--allow-dirty``: bypass the clean-worktree startup requirement.
+
+The benchmark contract is a YAML file that defines editable paths, the
+authoritative benchmark command, aggregation policy, and correctness thresholds.
+See ``scripts/benchmark.yaml`` in this repository for a PySCF SCF example and
+``scripts/pyscf_scf_bench.py`` for the matching benchmark runner template.
+
 
 Global agent runtime policy
 ---------------------------
 
 Use ``fermilink agent`` to set global runtime defaults used by
-``exec/chat/loop/research/reproduce`` and the web runner path.
+``exec/chat/loop/research/reproduce/optimize`` and the web runner path.
 
 .. code-block:: bash
 

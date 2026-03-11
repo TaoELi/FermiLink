@@ -1,0 +1,234 @@
+# Example benchmark contract for `fermilink optimize`.
+# Example target: PySCF SCF optimization in a local PySCF source checkout.
+
+schema_version: 1
+benchmark_id: pyscf-scf-rhf-uhf-diis
+title: PySCF SCF optimization benchmark
+package_id: pyscf
+domain: quantum-chemistry
+mode: code-optimization
+description: >
+  Fixed-machine benchmark for optimizing PySCF SCF implementation details while
+  preserving convergence behavior and total energies. The controller, not the
+  agent, decides whether a candidate patch is accepted.
+
+repo:
+  root: .
+  editable_paths:
+    - pyscf/scf/**
+    - pyscf/lib/diis.py
+  immutable_paths:
+    - scripts/benchmark.yaml
+    - scripts/pyscf_scf_bench.py
+    - pyproject.toml
+  disallow_new_dependencies: true
+
+campaign:
+  baseline_branch: main
+  incumbent_branch: fermilink-optimize/pyscf-scf
+  candidate_branch_prefix: fermilink-optimize/candidate
+  max_iterations: 200
+  stop_on_consecutive_rejections: 40
+
+controller:
+  timeout_seconds: 900
+  warmup_runs: 1
+  measured_runs: 3
+  aggregation:
+    timing: median
+    memory: max
+    iterations: median
+  objective:
+    primary_metric: weighted_median_wall_seconds
+    direction: minimize
+    min_relative_improvement: 0.02
+    tie_relative_tolerance: 0.005
+  secondary_objectives:
+    - metric: weighted_median_scf_iterations
+      direction: minimize
+    - metric: peak_rss_mb
+      direction: minimize
+      soft_limit_relative_to_baseline: 1.15
+  reject_on:
+    - crash
+    - timeout
+    - missing_metrics
+    - correctness_failure
+    - modified_immutable_path
+
+correctness:
+  reference_policy: incumbent_branch_first_success
+  require_all_cases_converged: true
+  max_abs_energy_delta_hartree: 5.0e-9
+  max_abs_dm_rms_delta: 1.0e-6
+  max_abs_mo_energy_rms_delta: 1.0e-5
+  allow_fewer_iterations_than_reference: true
+  forbid_relaxed_tolerances: true
+
+runtime:
+  command:
+    - python
+    - scripts/pyscf_scf_bench.py
+    - --benchmark
+    - scripts/benchmark.yaml
+    - --emit-json
+  expected_stdout_format: json
+  env:
+    OMP_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    NUMEXPR_NUM_THREADS: "1"
+    PYSCF_MAX_MEMORY: "4000"
+    PYTHONHASHSEED: "0"
+
+artifacts:
+  run_root: .fermilink-optimize
+  results_tsv: .fermilink-optimize/results.tsv
+  memory_md: .fermilink-optimize/memory.md
+  latest_metrics_json: .fermilink-optimize/latest_metrics.json
+  latest_stdout_log: .fermilink-optimize/latest_stdout.log
+  latest_stderr_log: .fermilink-optimize/latest_stderr.log
+  run_archive_dir: .fermilink-optimize/runs
+
+agent_contract:
+  read_first:
+    - scripts/benchmark.yaml
+    - .fermilink-optimize/program.md
+    - .fermilink-optimize/results.tsv
+    - .fermilink-optimize/memory.md
+    - skills/
+  edit_only:
+    - pyscf/scf/**
+    - pyscf/lib/diis.py
+  never_edit:
+    - scripts/benchmark.yaml
+    - scripts/pyscf_scf_bench.py
+    - .fermilink-optimize/results.tsv
+  notes:
+    - Do not weaken convergence thresholds to improve apparent speed.
+    - Do not special-case benchmark molecules by name or geometry.
+    - Prefer simpler changes when objective gains are statistically marginal.
+
+cases:
+  - id: h2o_sto3g_rhf
+    weight: 1.0
+    tags: [easy, closed-shell, rhf]
+    molecule: |
+      O  0.0000000000  0.0000000000  0.0000000000
+      H  0.0000000000 -0.7571600000  0.5862600000
+      H  0.0000000000  0.7571600000  0.5862600000
+    charge: 0
+    spin: 0
+    basis: sto-3g
+    scf:
+      method: RHF
+      max_cycle: 50
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 8
+
+  - id: nh3_631g_rhf
+    weight: 1.0
+    tags: [easy, closed-shell, rhf]
+    molecule: |
+      N  0.0000000000  0.0000000000  0.1166710000
+      H  0.0000000000  0.9397310000 -0.2722320000
+      H  0.8138310000 -0.4698650000 -0.2722320000
+      H -0.8138310000 -0.4698650000 -0.2722320000
+    charge: 0
+    spin: 0
+    basis: 6-31g
+    scf:
+      method: RHF
+      max_cycle: 60
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 8
+
+  - id: hf_631gss_rhf
+    weight: 1.1
+    tags: [moderate, closed-shell, rhf, polar]
+    molecule: |
+      H  0.0000000000  0.0000000000  0.0000000000
+      F  0.0000000000  0.0000000000  0.9168000000
+    charge: 0
+    spin: 0
+    basis: 6-31g**
+    scf:
+      method: RHF
+      max_cycle: 70
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 10
+
+  - id: co2_631gss_rhf
+    weight: 1.2
+    tags: [moderate, closed-shell, rhf, linear]
+    molecule: |
+      O  0.0000000000  0.0000000000 -1.1600000000
+      C  0.0000000000  0.0000000000  0.0000000000
+      O  0.0000000000  0.0000000000  1.1600000000
+    charge: 0
+    spin: 0
+    basis: 6-31g**
+    scf:
+      method: RHF
+      max_cycle: 80
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 10
+
+  - id: n2_stretched_ccpvdz_rhf
+    weight: 1.5
+    tags: [hard, closed-shell, rhf, stretched-bond]
+    molecule: |
+      N  0.0000000000  0.0000000000 -1.0500000000
+      N  0.0000000000  0.0000000000  1.0500000000
+    charge: 0
+    spin: 0
+    basis: cc-pvdz
+    scf:
+      method: RHF
+      max_cycle: 120
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: atom
+      diis_space: 12
+      level_shift: 0.1
+
+  - id: o2_631g_uhf
+    weight: 1.6
+    tags: [hard, open-shell, uhf]
+    molecule: |
+      O  0.0000000000  0.0000000000 -0.6050000000
+      O  0.0000000000  0.0000000000  0.6050000000
+    charge: 0
+    spin: 2
+    basis: 6-31g
+    scf:
+      method: UHF
+      max_cycle: 120
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: atom
+      diis_space: 12
+      level_shift: 0.1
+
+reporting:
+  per_case_metrics:
+    - converged
+    - wall_seconds
+    - scf_iterations
+    - total_energy_hartree
+    - dm_rms
+    - mo_energy_rms
+    - peak_rss_mb
+  summary_metrics:
+    - weighted_median_wall_seconds
+    - weighted_median_scf_iterations
+    - peak_rss_mb
+    - total_failures

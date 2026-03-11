@@ -14,6 +14,11 @@
 
 With [an official package channel](https://github.com/skilled-scipkg), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any scientific package, publication, or custom simulation recipe.
 
+FermiLink now also includes a separate benchmark-gated optimization mode,
+``fermilink optimize``, for iterative code optimization inside a scientific
+package source tree using fixed ``skills/`` context plus controller-owned
+accept/reject benchmarking.
+
 Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously. It is designed to sustain long-running computational jobs for days or weeks without human intervention.
 
 ## Quick Start
@@ -48,6 +53,9 @@ fermilink agent codex/claude/gemini
 
 # 4.1. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
+
+# 4.1b. Run benchmark-gated code optimization inside a package repo
+fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml
 
 # 4.2. Start web UI service for ChatGPT-like experience
 fermilink start

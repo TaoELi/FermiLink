@@ -20,6 +20,7 @@ dependencies = [
   "SQLAlchemy>=2.0",
   "aiosqlite>=0.19",
   "greenlet>=3.0",
+  "PyYAML>=6.0",
   "maxwelllink",
 ]
 

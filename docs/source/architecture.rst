@@ -36,6 +36,7 @@ CLI subsystem (``src/fermilink/cli``)
 
 - ``commands/*``: implementations for package/service/session/workflow commands; provider-specific execution, metadata-generation, and final-reply capture are delegated to ``agents/`` hooks and provider-wrapper helpers.
 - ``parser_*`` modules: parser registration by command family.
+- ``optimize_*.py`` plus ``commands/optimize.py``: standalone benchmark-gated code-optimization mode with its own parser, prompts, campaign state, and git-control helpers, intentionally separated from package-routing and workflow prompt stacks.
 - ``zero_arg.py``: deterministic zero-argument beginner entrypoint, startup welcome-banner rendering, terminal status-table rendering, setup menu flow, guided mode selection for bare ``fermilink``, and thin guided wrappers around ``compile``/``recompile``.
 - ``exec_runtime.py`` and helpers: subprocess execution and shared CLI behavior; provider-specific runtime details are delegated to ``agents/``.
 
