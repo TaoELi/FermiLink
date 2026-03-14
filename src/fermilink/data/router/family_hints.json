@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-08T12:06:23.193471Z",
+  "updated_at": "2026-03-14T14:03:10.076742Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -3180,6 +3180,43 @@
         "astropy",
         "anndata",
         "biopython"
+      ]
+    },
+    "openmx": {
+      "description": "Use this family for localized-basis DFT materials simulations in OpenMX, including large-scale MPI or hybrid MPI/OpenMP electronic-structure calculations for bulk, surface, interface, liquid, and low-dimensional systems.",
+      "strong_keywords": [
+        "openmx",
+        "open source package for material explorer",
+        "density functional theory",
+        "localized basis dft",
+        "pseudo-atomic localized basis functions",
+        "norm-conserving pseudopotentials",
+        "electronic structure",
+        "mpi openmp hybrid parallelism"
+      ],
+      "keywords": [
+        "ab initio materials simulation",
+        "band structure",
+        "density of states",
+        "geometry optimization",
+        "magnetic properties",
+        "dielectric properties",
+        "electric transport properties",
+        "surfaces and interfaces",
+        "low-dimensional materials",
+        "order n method"
+      ],
+      "negative_keywords": [
+        "cp2k",
+        "espresso",
+        "abinit",
+        "lammps",
+        "gromacs",
+        "hoomd-blue",
+        "astropy",
+        "anndata",
+        "biopython",
+        "qutip"
       ]
     },
     "kwant": {
