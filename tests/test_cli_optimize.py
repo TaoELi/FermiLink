@@ -9,6 +9,7 @@ import pytest
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli import optimize_git
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
@@ -1029,3 +1030,212 @@ def test_optimize_worker_loop_handles_slurm_waits(
 
     assert code == 0
     assert calls == ["worker1", "worker2", "controller"]
+
+
+def test_optimize_rejected_candidate_cleans_new_untracked_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    artifact_path = repo_dir / "controller_reject_artifact.tmp"
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            artifact_path.write_text("reject artifact", encoding="utf-8")
+            return {
+                "assistant_text": (
+                    "<decision>REJECTED</decision>\n"
+                    "<controller_summary>reject candidate</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        (repo_dir / "solver.py").write_text("MODE = 'SLOW'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>slow path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert not artifact_path.exists()
+
+
+def test_optimize_accepted_candidate_cleans_new_untracked_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    artifact_path = repo_dir / "controller_accept_artifact.tmp"
+    real_list_untracked_paths = optimize_git.list_untracked_paths
+    untracked_calls = {"count": 0}
+
+    def fake_list_untracked_paths(repo_path: Path) -> list[str]:
+        untracked_calls["count"] += 1
+        if untracked_calls["count"] == 2:
+            artifact_path.write_text("accept artifact", encoding="utf-8")
+        return real_list_untracked_paths(repo_path)
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accept candidate</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(
+        optimize_git,
+        "list_untracked_paths",
+        fake_list_untracked_paths,
+    )
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert "FAST" in (repo_dir / "solver.py").read_text(encoding="utf-8")
+    assert not artifact_path.exists()
+
+
+def test_optimize_cleanup_preserves_preexisting_untracked_entries(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    untracked_calls = {"count": 0}
+
+    def fake_list_untracked_paths(_repo_dir: Path) -> list[str]:
+        untracked_calls["count"] += 1
+        if untracked_calls["count"] == 1:
+            return ["preexisting.tmp"]
+        return ["preexisting.tmp", "new_artifact.tmp"]
+
+    cleanup_calls: list[list[str]] = []
+
+    monkeypatch.setattr(
+        optimize_git,
+        "list_untracked_paths",
+        fake_list_untracked_paths,
+    )
+    monkeypatch.setattr(
+        optimize_git,
+        "cleanup_paths",
+        lambda _repo_dir, paths: cleanup_calls.append(list(paths)),
+    )
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--allow-dirty",
+        ]
+    )
+
+    assert code == 0
+    assert cleanup_calls == [["new_artifact.tmp"]]

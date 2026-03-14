@@ -134,6 +134,47 @@ def list_changed_paths(repo_dir: Path) -> list[dict[str, str]]:
     return entries
 
 
+def list_untracked_paths(repo_dir: Path) -> list[str]:
+    completed = run_git(
+        repo_dir,
+        ["ls-files", "--others", "--exclude-standard", "-z"],
+    )
+    entries: set[str] = set()
+    for item in (completed.stdout or "").split("\0"):
+        path_text = str(item or "").strip().replace("\\", "/")
+        if path_text:
+            entries.add(path_text)
+    return sorted(entries)
+
+
+def _cleanup_targets(repo_dir: Path, paths: list[str]) -> list[Path]:
+    repo_root = repo_dir.resolve()
+    targets: list[Path] = []
+    for rel_path in sorted({item for item in paths if str(item or "").strip()}):
+        raw = str(rel_path).strip()
+        candidate_rel = Path(raw)
+        if candidate_rel.is_absolute():
+            continue
+        target = (repo_root / candidate_rel).resolve()
+        try:
+            target.relative_to(repo_root)
+        except ValueError:
+            continue
+        targets.append(target)
+    return targets
+
+
+def cleanup_paths(repo_dir: Path, paths: list[str]) -> None:
+    for target in _cleanup_targets(repo_dir, paths):
+        try:
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            else:
+                target.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
 def commit_paths(repo_dir: Path, *, paths: list[str], message: str) -> str:
     if not paths:
         raise _cli().PackageError("No paths were provided for optimize commit.")
@@ -164,17 +205,9 @@ def commit_paths(repo_dir: Path, *, paths: list[str], message: str) -> str:
 
 
 def reset_to_commit(
-    repo_dir: Path, *, commit_sha: str, cleanup_paths: list[str]
+    repo_dir: Path, *, commit_sha: str, cleanup_paths_list: list[str]
 ) -> None:
-    for rel_path in sorted({item for item in cleanup_paths if str(item or "").strip()}):
-        target = repo_dir / rel_path
-        try:
-            if target.is_dir() and not target.is_symlink():
-                shutil.rmtree(target)
-            else:
-                target.unlink(missing_ok=True)
-        except OSError:
-            pass
+    cleanup_paths(repo_dir, cleanup_paths_list)
     run_git(repo_dir, ["reset", "--hard", commit_sha], check=True, capture_output=True)
 
 

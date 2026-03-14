@@ -1438,6 +1438,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
         iteration += 1
         start_sha = optimize_git.head_sha(project_root)
+        pre_iteration_untracked = set(optimize_git.list_untracked_paths(project_root))
         run_dir = optimize_state.runs_root(project_root) / f"iter_{iteration:04d}"
         run_rel = optimize_state.safe_relative(run_dir, project_root)
         recent_results = optimize_state.recent_results_text(results_path)
@@ -1534,9 +1535,6 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         )
         description = _description_or_default(assistant_text, iteration=iteration)
         changed_entries = optimize_git.list_changed_paths(project_root)
-        cleanup_untracked = [
-            entry["path"] for entry in changed_entries if entry.get("status") == "??"
-        ]
         editable_changed = [
             entry["path"]
             for entry in changed_entries
@@ -1755,6 +1753,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         elif hard_reason and not controller_summary:
             controller_summary = hard_reason
 
+        post_iteration_untracked = set(optimize_git.list_untracked_paths(project_root))
+        cleanup_untracked = sorted(post_iteration_untracked - pre_iteration_untracked)
+
         final_status = "rejected"
         if benchmark_ran and candidate_commit is not None:
             if int(controller_result.get("return_code") or 0) != 0:
@@ -1793,6 +1794,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             consecutive_rejections = 0
             state_payload["incumbent_commit"] = candidate_commit
             state_payload["incumbent_metrics"] = candidate_metrics
+            optimize_git.cleanup_paths(project_root, cleanup_untracked)
             optimize_state.append_result(
                 results_path,
                 iteration=iteration,
@@ -1815,18 +1817,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 description=event_description,
             )
         else:
-            if candidate_commit is not None:
-                optimize_git.reset_to_commit(
-                    project_root,
-                    commit_sha=start_sha,
-                    cleanup_paths=[],
-                )
-            else:
-                optimize_git.reset_to_commit(
-                    project_root,
-                    commit_sha=start_sha,
-                    cleanup_paths=cleanup_untracked,
-                )
+            optimize_git.reset_to_commit(
+                project_root,
+                commit_sha=start_sha,
+                cleanup_paths_list=cleanup_untracked,
+            )
             rejected_count += 1
             consecutive_rejections += 1
             recorded_commit = (
