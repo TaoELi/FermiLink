@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-14T14:03:10.076742Z",
+  "updated_at": "2026-03-14T22:20:27.016608Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -6346,6 +6346,121 @@
         "acts",
         "cantera",
         "cirq"
+      ]
+    },
+    "sunny-jl": {
+      "description": "Use this family for computational magnetism tasks involving spin Hamiltonians, spin-wave calculations, thermal spin dynamics, and magnetic scattering comparisons to experiments.",
+      "strong_keywords": [
+        "sunny-jl",
+        "sunny.jl",
+        "quantum spin dynamics",
+        "magnetic materials modeling",
+        "spin-wave theory",
+        "landau-lifshitz dynamics",
+        "neutron scattering simulation",
+        "symmetry-aware spin hamiltonians"
+      ],
+      "keywords": [
+        "frustrated magnets",
+        "multipolar spin couplings",
+        "single-ion anisotropy",
+        "langevin thermal bath",
+        "parallel tempering monte carlo",
+        "self-consistent gaussian approximation",
+        "scga",
+        "ewald dipole-dipole interactions",
+        "incommensurate spiral order",
+        "magnon band fitting",
+        "diffuse scattering intensity",
+        "x-ray scattering"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "anndata",
+        "cirq",
+        "brian2",
+        "cellrank"
+      ]
+    },
+    "vampire": {
+      "description": "Routes queries about atomistic magnetism, spin Hamiltonians, and finite-temperature magnetic dynamics in solid-state materials to this package.",
+      "strong_keywords": [
+        "vampire",
+        "vampire simulation",
+        "atomistic spin dynamics",
+        "magnetic materials",
+        "spin hamiltonian",
+        "finite-temperature magnetism",
+        "landau-lifshitz-gilbert",
+        "hysteresis loops"
+      ],
+      "keywords": [
+        "exchange interactions",
+        "anisotropy",
+        "heisenberg model",
+        "curie temperature",
+        "magnetization reversal",
+        "ultrafast demagnetization",
+        "spin torque",
+        "domain walls",
+        "multiscale magnetism",
+        "atomistic magnetization",
+        "magnetic nanoparticles",
+        "ferrimagnet simulation"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "cp2k",
+        "aiida-core",
+        "atomate2",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "cantera",
+        "acts",
+        "alamode"
+      ]
+    },
+    "mumax3": {
+      "description": "Use this family for computational magnetism tasks focused on micromagnetic time evolution, ferromagnetic nanostructures, and GPU-based spin dynamics simulation.",
+      "strong_keywords": [
+        "mumax3",
+        "mumax",
+        "micromagnetic simulation",
+        "landau lifshitz gilbert",
+        "magnetization dynamics",
+        "gpu micromagnetics",
+        "spintronics",
+        "skyrmion dynamics"
+      ],
+      "keywords": [
+        "ferromagnetic nanostructures",
+        "domain wall motion",
+        "spin wave propagation",
+        "demagnetizing field",
+        "exchange interaction",
+        "magnetic anisotropy",
+        "dipolar interactions",
+        "nanomagnetics",
+        "mumax3 script",
+        "oommf alternative"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "anndata",
+        "arbor",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cp2k"
       ]
     }
   }
