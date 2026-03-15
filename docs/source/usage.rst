@@ -285,6 +285,7 @@ Optimize behavior:
 - benchmarks the committed candidate only after the worker loop emits ``<promise>DONE</promise>``, then runs a second controller-agent review turn that updates controller ``memory.md`` and emits a tagged decision;
 - rejects incomplete worker loops before benchmarking without invoking package routing, overlay, or loop completion commits;
 - still force-rejects forbidden edits, benchmark crashes/timeouts, malformed metrics, and correctness failures even if the controller agent tries to accept them;
+- treats benchmark-reported ``guardrail_errors`` as hard performance regressions (recorded as status ``rejected`` with explicit performance-regression reasoning, not ``correctness_failure``);
 - keeps ``skills/`` fixed during the campaign after the initial bootstrap step.
 
 Useful flags:

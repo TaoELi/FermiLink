@@ -2152,13 +2152,35 @@ def _aggregate_benchmark_runs(
     if not isinstance(representative_cases, list):
         representative_cases = []
     correctness_ok = all(bool(run.get("correctness_ok")) for run in measured_runs)
-    return {
+    guardrail_errors: list[str] = []
+    seen_guardrail_errors: set[str] = set()
+    include_run_prefix = len(measured_runs) > 1
+    for run_index, run in enumerate(measured_runs, start=1):
+        run_errors = run.get("guardrail_errors")
+        if not isinstance(run_errors, list):
+            continue
+        for raw_error in run_errors:
+            message = str(raw_error or "").strip()
+            if not message:
+                continue
+            rendered = (
+                f"measured_{run_index}: {message}" if include_run_prefix else message
+            )
+            if rendered in seen_guardrail_errors:
+                continue
+            seen_guardrail_errors.add(rendered)
+            guardrail_errors.append(rendered)
+
+    payload: dict[str, Any] = {
         "summary_metrics": summary_metrics,
         "cases": representative_cases,
         "raw_runs": measured_runs,
         "correctness_ok": correctness_ok,
         "status": "ok",
     }
+    if guardrail_errors:
+        payload["guardrail_errors"] = guardrail_errors
+    return payload
 
 
 def _run_benchmark_suite(
@@ -2431,7 +2453,47 @@ def _condense_metrics_for_controller(metrics: dict[str, Any]) -> dict[str, Any]:
         "correctness_ok": bool(metrics.get("correctness_ok")),
         "summary_metrics": rendered_summary,
         "cases": rendered_cases,
+        "guardrail_errors": (
+            list(metrics.get("guardrail_errors"))
+            if isinstance(metrics.get("guardrail_errors"), list)
+            else []
+        ),
     }
+
+
+def _collect_guardrail_errors(metrics: dict[str, Any]) -> list[str]:
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    direct_errors = metrics.get("guardrail_errors")
+    if isinstance(direct_errors, list):
+        for raw in direct_errors:
+            message = str(raw or "").strip()
+            if not message or message in seen:
+                continue
+            seen.add(message)
+            collected.append(message)
+
+    raw_runs = metrics.get("raw_runs")
+    if isinstance(raw_runs, list):
+        for run_index, run in enumerate(raw_runs, start=1):
+            if not isinstance(run, dict):
+                continue
+            run_errors = run.get("guardrail_errors")
+            if not isinstance(run_errors, list):
+                continue
+            for raw in run_errors:
+                message = str(raw or "").strip()
+                if not message:
+                    continue
+                if len(raw_runs) > 1:
+                    message = f"measured_{run_index}: {message}"
+                if message in seen:
+                    continue
+                seen.add(message)
+                collected.append(message)
+
+    return collected
 
 
 def _hard_validate_candidate(
@@ -2467,6 +2529,20 @@ def _hard_validate_candidate(
             "status": "correctness_failure",
             "reason": "; ".join(correctness.get("errors") or []),
             "correctness": correctness,
+        }
+
+    guardrail_errors = _collect_guardrail_errors(candidate_metrics)
+    if guardrail_errors:
+        return {
+            "hard_reject": True,
+            "status": "rejected",
+            "reason": "performance_regression: " + "; ".join(guardrail_errors),
+            "correctness": correctness,
+            "category": "performance_regression",
+            "performance_regression": {
+                "count": len(guardrail_errors),
+                "errors": guardrail_errors,
+            },
         }
 
     incumbent_summary = incumbent_metrics.get("summary_metrics")
@@ -3979,6 +4055,14 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                     evaluation_context["correctness"] = hard_validation.get(
                         "correctness"
                     )
+                if hard_validation.get("performance_regression"):
+                    evaluation_context["performance_regression"] = hard_validation.get(
+                        "performance_regression"
+                    )
+                if hard_validation.get("category"):
+                    evaluation_context["hard_reject_category"] = str(
+                        hard_validation.get("category") or ""
+                    )
                 if bool(hard_validation.get("hard_reject")):
                     hard_reject = True
                     hard_status = str(hard_validation.get("status") or "rejected")
@@ -4079,6 +4163,12 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
         if hard_reject:
             final_status = hard_status or "rejected"
+            if hard_reason:
+                if controller_summary:
+                    if hard_reason not in controller_summary:
+                        controller_summary = f"{controller_summary}; {hard_reason}"
+                else:
+                    controller_summary = hard_reason
             if (
                 benchmark_ran
                 and controller_decision == "ACCEPTED"

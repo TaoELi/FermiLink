@@ -679,10 +679,8 @@ def _run_benchmark(benchmark: dict[str, Any]) -> dict[str, Any]:
         1.0 if benchmark.get("performance_guardrails") else 0.0
     )
 
-    correctness_ok = (
-        failures == 0
-        and all(bool(item.get("converged")) for item in payload_cases)
-        and not guardrail_errors
+    correctness_ok = failures == 0 and all(
+        bool(item.get("converged")) for item in payload_cases
     )
     payload: dict[str, Any] = {
         "benchmark_id": str(benchmark.get("benchmark_id") or "benchmark"),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -78,3 +79,75 @@ def test_geometric_mean_behaviour() -> None:
     module = _load_bench_module()
     assert module._geometric_mean([2.0, 8.0]) == pytest.approx(4.0)
     assert module._geometric_mean([0.0, 8.0]) == float("inf")
+
+
+def test_guardrail_regression_keeps_correctness_true_when_cases_converge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_bench_module()
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "incumbent_metrics": {
+                    "summary_metrics": {
+                        "weighted_median_wall_seconds": 10.0,
+                    }
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    benchmark = {
+        "benchmark_id": "mock",
+        "cases": [
+            {
+                "id": "case-1",
+                "weight": 1.0,
+                "execution_profile": "single",
+                "pair_key": "pair-1",
+                "scf": {"method": "RHF"},
+            }
+        ],
+        "performance_guardrails": {
+            "enabled": True,
+            "state_json_path": str(state_path),
+            "max_relative_regression": {
+                "weighted_median_wall_seconds": 0.01,
+            },
+        },
+    }
+
+    original = module._run_case_subprocess
+
+    def fake_run_case_subprocess(_case, *, threads):
+        return {
+            "id": "case-1",
+            "converged": True,
+            "wall_seconds": 12.0,
+            "scf_iterations": 7,
+            "total_energy_hartree": -1.0,
+            "density_matrix": [1.0],
+            "mo_energies": [0.1],
+            "peak_rss_mb": 42.0,
+            "method": "RHF",
+            "method_family": "hf",
+            "execution_profile": "single",
+            "thread_profile": "single_cpu",
+            "threads": int(threads),
+            "pair_key": "pair-1",
+            "error": "",
+        }
+
+    module._run_case_subprocess = fake_run_case_subprocess
+    try:
+        payload = module._run_benchmark(benchmark)
+    finally:
+        module._run_case_subprocess = original
+
+    assert payload["correctness_ok"] is True
+    assert payload.get("guardrail_errors")
+    summary = payload["summary_metrics"]
+    assert summary["performance_guardrail_failures"] == pytest.approx(1.0)

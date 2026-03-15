@@ -52,12 +52,16 @@ def _write_mock_benchmark_files(
             "    repo_dir = Path(__file__).resolve().parent.parent\n"
             "    solver_text = (repo_dir / 'solver.py').read_text(encoding='utf-8')\n"
             "    metric = 10.0\n"
+            "    guardrail_errors = []\n"
             "    if 'FAST' in solver_text:\n"
             "        metric = 8.0\n"
             "    elif 'BROKEN' in solver_text:\n"
             "        metric = 7.0\n"
             "    elif 'SLOW' in solver_text:\n"
             "        metric = 12.0\n"
+            "    elif 'REGRESS' in solver_text:\n"
+            "        metric = 11.0\n"
+            "        guardrail_errors = ['weighted_median_wall_seconds regressed vs incumbent']\n"
             "    payload = {\n"
             "        'benchmark_id': 'mock-solver',\n"
             "        'correctness_ok': 'BROKEN' not in solver_text,\n"
@@ -78,6 +82,8 @@ def _write_mock_benchmark_files(
             "            }\n"
             "        ],\n"
             "    }\n"
+            "    if guardrail_errors:\n"
+            "        payload['guardrail_errors'] = guardrail_errors\n"
             "    print(json.dumps(payload, sort_keys=True))\n"
             "    return 0\n"
             "\n"
@@ -102,13 +108,17 @@ def _write_mock_benchmark_files(
                 "def _payload(repo_dir: Path) -> dict[str, object]:\n"
                 "    solver_text = (repo_dir / 'solver.py').read_text(encoding='utf-8')\n"
                 "    metric = 10.0\n"
+                "    guardrail_errors = []\n"
                 "    if 'FAST' in solver_text:\n"
                 "        metric = 8.0\n"
                 "    elif 'BROKEN' in solver_text:\n"
                 "        metric = 7.0\n"
                 "    elif 'SLOW' in solver_text:\n"
                 "        metric = 12.0\n"
-                "    return {\n"
+                "    elif 'REGRESS' in solver_text:\n"
+                "        metric = 11.0\n"
+                "        guardrail_errors = ['weighted_median_wall_seconds regressed vs incumbent']\n"
+                "    payload = {\n"
                 "        'benchmark_id': 'mock-solver',\n"
                 "        'correctness_ok': 'BROKEN' not in solver_text,\n"
                 "        'summary_metrics': {\n"
@@ -128,6 +138,9 @@ def _write_mock_benchmark_files(
                 "            }\n"
                 "        ],\n"
                 "    }\n"
+                "    if guardrail_errors:\n"
+                "        payload['guardrail_errors'] = guardrail_errors\n"
+                "    return payload\n"
                 "\n"
                 "\n"
                 "def main() -> int:\n"
@@ -857,6 +870,89 @@ def test_optimize_hard_reject_overrides_controller_accept(
         encoding="utf-8"
     )
     assert "lesson: benchmark correctness failed" in memory_text
+
+
+def test_optimize_guardrail_regression_reports_performance_rejection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    calls: list[str] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>controller would accept if no hard guards</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        calls.append("worker")
+        (repo_dir / "solver.py").write_text("MODE = 'REGRESS'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>regressing candidate</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["worker", "controller"]
+    assert (repo_dir / "solver.py").read_text(encoding="utf-8") == "MODE = 'BASELINE'\n"
+
+    results_text = (repo_dir / ".fermilink-optimize" / "results.tsv").read_text(
+        encoding="utf-8"
+    )
+    assert "\trejected\t" in results_text
+    assert "\tcorrectness_failure\t" not in results_text
+    assert "performance_regression" in results_text
+
+    review_context = json.loads(
+        (
+            repo_dir
+            / ".fermilink-optimize"
+            / "runs"
+            / "iter_0001"
+            / "review_context.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert review_context.get("hard_reject") is True
+    assert review_context.get("hard_reject_status") == "rejected"
+    assert review_context.get("hard_reject_category") == "performance_regression"
+    assert "performance_regression" in str(review_context.get("hard_reject_reason") or "")
 
 
 def test_optimize_channel_bootstraps_skills(
