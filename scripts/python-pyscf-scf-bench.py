@@ -141,6 +141,33 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _state_json_path(benchmark: dict[str, Any]) -> Path:
+    guardrails = benchmark.get("performance_guardrails")
+    raw_state_path = ""
+    if isinstance(guardrails, dict):
+        raw_state_path = str(guardrails.get("state_json_path") or "").strip()
+    if not raw_state_path:
+        raw_state_path = ".fermilink-optimize/state.json"
+    state_path = Path(raw_state_path).expanduser()
+    if not state_path.is_absolute():
+        state_path = (Path.cwd() / state_path).resolve()
+    return state_path
+
+
+def _load_incumbent_metrics_payload(benchmark: dict[str, Any]) -> dict[str, Any]:
+    state_path = _state_json_path(benchmark)
+    if not state_path.is_file():
+        return {}
+    try:
+        state_payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    incumbent_metrics = state_payload.get("incumbent_metrics")
+    if not isinstance(incumbent_metrics, dict):
+        return {}
+    return incumbent_metrics
+
+
 def _method_and_family(case: dict[str, Any]) -> tuple[str, str]:
     scf_cfg = case.get("scf")
     scf_cfg = scf_cfg if isinstance(scf_cfg, dict) else {}
@@ -460,22 +487,8 @@ def _load_incumbent_summary_metrics(
     guardrails = benchmark.get("performance_guardrails")
     if not isinstance(guardrails, dict) or not bool(guardrails.get("enabled")):
         return {}
-    raw_state_path = str(
-        guardrails.get("state_json_path") or ".fermilink-optimize/state.json"
-    ).strip()
-    if not raw_state_path:
-        return {}
-    state_path = Path(raw_state_path).expanduser()
-    if not state_path.is_absolute():
-        state_path = (Path.cwd() / state_path).resolve()
-    if not state_path.is_file():
-        return {}
-    try:
-        state_payload = json.loads(state_path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    incumbent_metrics = state_payload.get("incumbent_metrics")
-    if not isinstance(incumbent_metrics, dict):
+    incumbent_metrics = _load_incumbent_metrics_payload(benchmark)
+    if not incumbent_metrics:
         return {}
     summary = incumbent_metrics.get("summary_metrics")
     if not isinstance(summary, dict):
@@ -486,6 +499,27 @@ def _load_incumbent_summary_metrics(
         if numeric is not None:
             normalized[str(key)] = numeric
     return normalized
+
+
+def _incumbent_case_wall_map(benchmark: dict[str, Any]) -> dict[str, float]:
+    incumbent_metrics = _load_incumbent_metrics_payload(benchmark)
+    cases = incumbent_metrics.get("cases") if isinstance(incumbent_metrics, dict) else None
+    if not isinstance(cases, list):
+        return {}
+    mapped: dict[str, float] = {}
+    for item in cases:
+        if not isinstance(item, dict):
+            continue
+        case_id = str(item.get("id") or "").strip()
+        if not case_id:
+            continue
+        if "converged" in item and not bool(item.get("converged")):
+            continue
+        wall = _finite_number(item.get("wall_seconds"))
+        if wall is None or wall <= 0.0:
+            continue
+        mapped[case_id] = wall
+    return mapped
 
 
 def _evaluate_performance_guardrails(
@@ -674,6 +708,39 @@ def _run_benchmark(benchmark: dict[str, Any]) -> dict[str, Any]:
     paired_geomean_speedup = _geometric_mean(speedups) if speedups else 0.0
     paired_min_speedup = min(speedups) if speedups else 0.0
 
+    incumbent_case_walls = _incumbent_case_wall_map(benchmark)
+    ratio_values: list[float] = []
+    if incumbent_case_walls:
+        for item in payload_cases:
+            case_id = str(item.get("id") or "").strip()
+            incumbent_wall = _finite_number(incumbent_case_walls.get(case_id))
+            if incumbent_wall is not None and incumbent_wall > 0.0:
+                item["incumbent_wall_seconds"] = incumbent_wall
+            current_wall = _finite_number(item.get("wall_seconds"))
+            if (
+                bool(item.get("converged"))
+                and current_wall is not None
+                and incumbent_wall is not None
+                and current_wall > 0.0
+                and incumbent_wall > 0.0
+            ):
+                ratio = current_wall / incumbent_wall
+            else:
+                ratio = float("inf")
+            item["wall_ratio_vs_incumbent"] = ratio
+            ratio_values.append(ratio)
+    else:
+        for item in payload_cases:
+            item["wall_ratio_vs_incumbent"] = 1.0
+        ratio_values = [1.0 for _ in payload_cases]
+
+    mean_wall_ratio_vs_incumbent = (
+        sum(ratio_values) / len(ratio_values) if ratio_values else float("inf")
+    )
+    geomean_wall_ratio_vs_incumbent = (
+        _geometric_mean(ratio_values) if ratio_values else float("inf")
+    )
+
     summary_metrics: dict[str, float] = {
         "weighted_median_wall_seconds": weighted_median_wall_seconds,
         "weighted_median_scf_iterations": weighted_median_scf_iterations,
@@ -687,6 +754,9 @@ def _run_benchmark(benchmark: dict[str, Any]) -> dict[str, Any]:
         "paired_geomean_smp_speedup": paired_geomean_speedup,
         "paired_min_smp_speedup": paired_min_speedup,
         "paired_speedup_count": float(len(speedups)),
+        "mean_wall_ratio_vs_incumbent": mean_wall_ratio_vs_incumbent,
+        "geomean_wall_ratio_vs_incumbent": geomean_wall_ratio_vs_incumbent,
+        "wall_ratio_case_count_vs_incumbent": float(len(ratio_values)),
         "peak_rss_mb": max(
             (float(item.get("peak_rss_mb") or 0.0) for item in payload_cases),
             default=0.0,

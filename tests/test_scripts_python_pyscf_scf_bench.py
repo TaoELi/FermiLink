@@ -151,3 +151,89 @@ def test_guardrail_regression_keeps_correctness_true_when_cases_converge(
     assert payload.get("guardrail_errors")
     summary = payload["summary_metrics"]
     assert summary["performance_guardrail_failures"] == pytest.approx(1.0)
+
+
+def test_incumbent_normalized_wall_ratio_metrics(tmp_path: Path) -> None:
+    module = _load_bench_module()
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "incumbent_metrics": {
+                    "cases": [
+                        {"id": "case-a", "converged": True, "wall_seconds": 10.0},
+                        {"id": "case-b", "converged": True, "wall_seconds": 20.0},
+                    ]
+                }
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    benchmark = {
+        "benchmark_id": "mock-ratio",
+        "cases": [
+            {
+                "id": "case-a",
+                "weight": 1.0,
+                "execution_profile": "single",
+                "pair_key": "pair-a",
+                "scf": {"method": "RHF"},
+            },
+            {
+                "id": "case-b",
+                "weight": 1.0,
+                "execution_profile": "single",
+                "pair_key": "pair-b",
+                "scf": {"method": "RHF"},
+            },
+        ],
+        "performance_guardrails": {
+            "enabled": False,
+            "state_json_path": str(state_path),
+        },
+    }
+
+    def fake_run_case_subprocess(case, *, threads):
+        case_id = str(case.get("id") or "")
+        if case_id == "case-a":
+            wall = 5.0
+        elif case_id == "case-b":
+            wall = 40.0
+        else:
+            wall = 10.0
+        return {
+            "id": case_id,
+            "converged": True,
+            "wall_seconds": wall,
+            "scf_iterations": 7,
+            "total_energy_hartree": -1.0,
+            "density_matrix": [1.0],
+            "mo_energies": [0.1],
+            "s2": 0.0,
+            "peak_rss_mb": 42.0,
+            "method": "RHF",
+            "method_family": "hf",
+            "execution_profile": "single",
+            "thread_profile": "single_cpu",
+            "threads": int(threads),
+            "pair_key": f"pair-{case_id}",
+            "error": "",
+        }
+
+    original = module._run_case_subprocess
+    module._run_case_subprocess = fake_run_case_subprocess
+    try:
+        payload = module._run_benchmark(benchmark)
+    finally:
+        module._run_case_subprocess = original
+
+    summary = payload["summary_metrics"]
+    assert summary["wall_ratio_case_count_vs_incumbent"] == pytest.approx(2.0)
+    assert summary["mean_wall_ratio_vs_incumbent"] == pytest.approx(1.25)
+    assert summary["geomean_wall_ratio_vs_incumbent"] == pytest.approx(1.0)
+    cases = payload["cases"]
+    assert isinstance(cases, list) and len(cases) == 2
+    ratio_by_case = {str(item["id"]): float(item["wall_ratio_vs_incumbent"]) for item in cases}
+    assert ratio_by_case["case-a"] == pytest.approx(0.5)
+    assert ratio_by_case["case-b"] == pytest.approx(2.0)

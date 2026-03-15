@@ -52,11 +52,18 @@ controller:
     memory: max
     iterations: median
   objective:
-    primary_metric: robust_composite_wall_seconds
+    primary_metric: geomean_wall_ratio_vs_incumbent
+    # This metric is normalized against the current incumbent, so the
+    # optimize controller should use incumbent as ratio=1.0 reference.
+    incumbent_relative_primary: true
     direction: minimize
     min_relative_improvement: 0.01
     tie_relative_tolerance: 0.003
   secondary_objectives:
+    - metric: mean_wall_ratio_vs_incumbent
+      direction: minimize
+    - metric: robust_composite_wall_seconds
+      direction: minimize
     - metric: single_weighted_median_wall_seconds
       direction: minimize
     - metric: smp_weighted_median_wall_seconds
@@ -410,6 +417,9 @@ reporting:
     - threads
     - peak_rss_mb
   summary_metrics:
+    - mean_wall_ratio_vs_incumbent
+    - geomean_wall_ratio_vs_incumbent
+    - wall_ratio_case_count_vs_incumbent
     - weighted_median_wall_seconds
     - weighted_median_scf_iterations
     - single_weighted_median_wall_seconds

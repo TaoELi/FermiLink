@@ -15,7 +15,7 @@ Benchmark examples follow `language-pkg-goal` naming:
 - `hpc_profile_anvil.json`: sample HPC profile for Purdue Anvil.
 
 - `python-pyscf-scf-benchmark.yaml`: Python/PySCF SCF optimize benchmark contract example with composite single+SMP and HF+DFT objectives plus incumbent no-regression guardrails; correctness now uses `mode: field_tolerances` for energy/MO-energy/`s2` checks (no density-matrix correctness gate).
-- `python-pyscf-scf-bench.py`: Python benchmark runner matching the PySCF contract, including per-case thread-profile execution, composite summary metrics, and per-case `s2` output for correctness checks.
+- `python-pyscf-scf-bench.py`: Python benchmark runner matching the PySCF contract, including per-case thread-profile execution, composite summary metrics, per-case `s2` output for correctness checks, and incumbent-normalized wall-time ratio metrics (`mean_wall_ratio_vs_incumbent`, `geomean_wall_ratio_vs_incumbent`) for average speedup scoring across cases.
 
 - `cpp-lammps-tip4p-force-eval-benchmark.yaml`: C++/LAMMPS TIP4P force-evaluation optimize contract example using `correctness.mode: field_tolerances`.
 - `cpp-lammps-tip4p-force-eval-bench.sh`: Bash benchmark runner matching the LAMMPS contract, emitting per-case energy/temperature values used by field-tolerance checks.

@@ -310,12 +310,10 @@ or ``artifacts.latest_metrics_json``). When ``--hpc-profile`` is provided, submi
 benchmarks can auto-plan and cache controller launchers, then retry planner+launcher
 on infrastructure failures. See these case-specific script pairs:
 
-Correctness policy supports three modes:
+Correctness policy supports two modes:
 
 - ``mode: runner_only``: generic validation of case presence and (optionally) case convergence.
 - ``mode: field_tolerances``: generic per-case field drift checks with thresholds such as ``abs_delta``, ``rms_delta``, or ``relative_delta``.
-- ``mode: scf``: legacy electronic-structure SCF checks (`energy`, `density_matrix`, `mo_energies`) for SCF-focused packages.
-- Backward compatibility: benchmarks that omit ``mode`` but define SCF threshold keys are inferred as ``scf``.
 
 - ``scripts/python-pyscf-scf-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
 - ``scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml`` + ``scripts/cpp-lammps-tip4p-force-eval-bench.sh``

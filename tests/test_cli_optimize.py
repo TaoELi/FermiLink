@@ -220,10 +220,8 @@ def _write_mock_benchmark_files(
             "  max_iterations: 1\n"
             "  stop_on_consecutive_rejections: 1\n"
             "correctness:\n"
+            "  mode: runner_only\n"
             "  require_all_cases_converged: true\n"
-            "  max_abs_energy_delta_hartree: 1.0e-9\n"
-            "  max_abs_dm_rms_delta: 1.0e-9\n"
-            "  max_abs_mo_energy_rms_delta: 1.0e-9\n"
             f"{runtime_block}"
         ),
         encoding="utf-8",
@@ -357,6 +355,35 @@ def test_load_benchmark_rejects_unknown_correctness_mode(tmp_path: Path) -> None
         optimize_controller._load_benchmark(benchmark_path)
 
 
+def test_load_benchmark_rejects_legacy_scf_correctness_keys(tmp_path: Path) -> None:
+    benchmark_path = tmp_path / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: mock\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - src/**\n"
+            "controller:\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "correctness:\n"
+            "  require_all_cases_converged: true\n"
+            "  max_abs_energy_delta_hartree: 1.0e-8\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - -c\n"
+            "    - print('ok')\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(cli.PackageError, match="Legacy SCF correctness keys"):
+        optimize_controller._load_benchmark(benchmark_path)
+
+
 def test_compare_correctness_runner_only_uses_generic_case_checks() -> None:
     benchmark_payload = {
         "correctness": {
@@ -436,6 +463,40 @@ def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None
     assert passing["ok"] is True
     assert failing["ok"] is False
     assert "force_norm abs_delta exceeds threshold" in "; ".join(failing["errors"])
+
+
+def test_incumbent_relative_primary_metric_normalization_helpers() -> None:
+    benchmark_payload = {
+        "controller": {
+            "objective": {
+                "primary_metric": "geomean_wall_ratio_vs_incumbent",
+                "direction": "minimize",
+                "incumbent_relative_primary": True,
+            }
+        }
+    }
+    metrics = {
+        "summary_metrics": {
+            "geomean_wall_ratio_vs_incumbent": 0.94,
+            "weighted_median_wall_seconds": 2.0,
+        },
+        "cases": [{"id": "case-1"}],
+    }
+    normalized = optimize_controller._normalize_incumbent_metrics_for_state(
+        benchmark_payload,
+        primary_metric_name="geomean_wall_ratio_vs_incumbent",
+        metrics=metrics,
+    )
+    assert normalized["summary_metrics"]["geomean_wall_ratio_vs_incumbent"] == pytest.approx(
+        1.0
+    )
+    assert normalized["summary_metrics"]["weighted_median_wall_seconds"] == pytest.approx(2.0)
+    context_primary = optimize_controller._objective_primary_for_context(
+        benchmark_payload,
+        incumbent_metrics=normalized,
+        primary_metric_name="geomean_wall_ratio_vs_incumbent",
+    )
+    assert context_primary == pytest.approx(1.0)
 
 
 def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

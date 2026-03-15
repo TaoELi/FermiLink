@@ -55,14 +55,12 @@ QUICK_DEFAULT_WORKER_PID_STALL_SECONDS = 300
 QUICK_DEFAULT_TIMEOUT_SECONDS = 900
 QUICK_DEFAULT_MIN_RELATIVE_IMPROVEMENT = 0.01
 CORRECTNESS_MODE_RUNNER_ONLY = "runner_only"
-CORRECTNESS_MODE_SCF = "scf"
 CORRECTNESS_MODE_FIELD_TOLERANCES = "field_tolerances"
 CORRECTNESS_MODE_VALUES = {
     CORRECTNESS_MODE_RUNNER_ONLY,
-    CORRECTNESS_MODE_SCF,
     CORRECTNESS_MODE_FIELD_TOLERANCES,
 }
-SCF_CORRECTNESS_KEYS = {
+LEGACY_SCF_CORRECTNESS_KEYS = {
     "max_abs_energy_delta_hartree",
     "max_abs_dm_rms_delta",
     "max_abs_mo_energy_rms_delta",
@@ -280,8 +278,6 @@ def _resolve_correctness_mode(correctness: dict[str, Any]) -> str:
     explicit = _normalize_correctness_mode(correctness.get("mode"))
     if explicit:
         return explicit
-    if any(key in correctness for key in SCF_CORRECTNESS_KEYS):
-        return CORRECTNESS_MODE_SCF
     field_tolerances = correctness.get("field_tolerances")
     if isinstance(field_tolerances, list) and field_tolerances:
         return CORRECTNESS_MODE_FIELD_TOLERANCES
@@ -346,20 +342,7 @@ def _quick_correctness_from_template(
             template_correctness.get("require_all_cases_converged", True)
         ),
     }
-    if mode == CORRECTNESS_MODE_SCF:
-        correctness["max_abs_energy_delta_hartree"] = _safe_non_negative_float(
-            template_correctness.get("max_abs_energy_delta_hartree"),
-            default=1.0,
-        )
-        correctness["max_abs_dm_rms_delta"] = _safe_non_negative_float(
-            template_correctness.get("max_abs_dm_rms_delta"),
-            default=1.0,
-        )
-        correctness["max_abs_mo_energy_rms_delta"] = _safe_non_negative_float(
-            template_correctness.get("max_abs_mo_energy_rms_delta"),
-            default=1.0,
-        )
-    elif mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
+    if mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
         tolerances = _quick_default_field_tolerances(
             template_correctness.get("field_tolerances")
         )
@@ -511,6 +494,15 @@ def _validate_correctness_schema(payload: dict[str, Any]) -> None:
             "Benchmark correctness.mode must be one of: "
             f"{allowed}."
         )
+    legacy_scf_keys = sorted(
+        key for key in LEGACY_SCF_CORRECTNESS_KEYS if key in correctness
+    )
+    if legacy_scf_keys:
+        keys_text = ", ".join(legacy_scf_keys)
+        raise cli.PackageError(
+            "Legacy SCF correctness keys are no longer supported "
+            f"({keys_text}). Use correctness.mode=field_tolerances instead."
+        )
     mode = mode_explicit or _resolve_correctness_mode(correctness)
 
     require_all = correctness.get("require_all_cases_converged")
@@ -518,24 +510,6 @@ def _validate_correctness_schema(payload: dict[str, Any]) -> None:
         raise cli.PackageError(
             "Benchmark correctness.require_all_cases_converged must be true/false."
         )
-
-    if mode == CORRECTNESS_MODE_SCF:
-        _validate_optional_number(
-            raw=correctness.get("max_abs_energy_delta_hartree"),
-            label="Benchmark correctness.max_abs_energy_delta_hartree",
-            allow_zero=True,
-        )
-        _validate_optional_number(
-            raw=correctness.get("max_abs_dm_rms_delta"),
-            label="Benchmark correctness.max_abs_dm_rms_delta",
-            allow_zero=True,
-        )
-        _validate_optional_number(
-            raw=correctness.get("max_abs_mo_energy_rms_delta"),
-            label="Benchmark correctness.max_abs_mo_energy_rms_delta",
-            allow_zero=True,
-        )
-        return
 
     if mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
         _validate_field_tolerances_config(
@@ -682,6 +656,39 @@ def _objective_config(benchmark: dict[str, Any]) -> dict[str, Any]:
         return {}
     objective = controller.get("objective")
     return objective if isinstance(objective, dict) else {}
+
+
+def _objective_incumbent_relative_primary(benchmark: dict[str, Any]) -> bool:
+    objective = _objective_config(benchmark)
+    return bool(objective.get("incumbent_relative_primary"))
+
+
+def _objective_primary_for_context(
+    benchmark: dict[str, Any],
+    *,
+    incumbent_metrics: dict[str, Any],
+    primary_metric_name: str,
+) -> float | None:
+    if not _objective_incumbent_relative_primary(benchmark):
+        return _metric_value(incumbent_metrics, primary_metric_name)
+    return 1.0 if incumbent_metrics else None
+
+
+def _normalize_incumbent_metrics_for_state(
+    benchmark: dict[str, Any],
+    *,
+    primary_metric_name: str,
+    metrics: dict[str, Any],
+) -> dict[str, Any]:
+    if not _objective_incumbent_relative_primary(benchmark):
+        return metrics
+    normalized = copy.deepcopy(metrics)
+    summary = normalized.get("summary_metrics")
+    if not isinstance(summary, dict):
+        summary = {}
+        normalized["summary_metrics"] = summary
+    summary[primary_metric_name] = 1.0
+    return normalized
 
 
 def _campaign_config(benchmark: dict[str, Any]) -> dict[str, Any]:
@@ -1235,39 +1242,6 @@ def _field_tolerance_threshold(spec: dict[str, Any], metric_name: str) -> float 
         if isinstance(value, (int, float)):
             return max(0.0, float(value))
     return None
-
-
-def _scf_case_correctness_errors(
-    *,
-    case_id: str,
-    incumbent_case: dict[str, Any],
-    candidate_case: dict[str, Any],
-    correctness: dict[str, Any],
-) -> list[str]:
-    max_abs_energy_delta = float(correctness.get("max_abs_energy_delta_hartree") or 0.0)
-    max_abs_dm_rms_delta = float(correctness.get("max_abs_dm_rms_delta") or 0.0)
-    max_abs_mo_energy_rms_delta = float(
-        correctness.get("max_abs_mo_energy_rms_delta") or 0.0
-    )
-    errors: list[str] = []
-    incumbent_energy = incumbent_case.get("total_energy_hartree")
-    candidate_energy = candidate_case.get("total_energy_hartree")
-    if isinstance(incumbent_energy, (int, float)) and isinstance(candidate_energy, (int, float)):
-        if abs(float(candidate_energy) - float(incumbent_energy)) > max_abs_energy_delta:
-            errors.append(f"case {case_id} energy drift exceeds threshold")
-    dm_diff = _rms_difference(
-        incumbent_case.get("density_matrix"),
-        candidate_case.get("density_matrix"),
-    )
-    if dm_diff > max_abs_dm_rms_delta:
-        errors.append(f"case {case_id} density-matrix drift exceeds threshold")
-    mo_diff = _rms_difference(
-        incumbent_case.get("mo_energies"),
-        candidate_case.get("mo_energies"),
-    )
-    if mo_diff > max_abs_mo_energy_rms_delta:
-        errors.append(f"case {case_id} MO-energy drift exceeds threshold")
-    return errors
 
 
 def _field_tolerance_case_errors(
@@ -2717,16 +2691,7 @@ def _compare_correctness(
         if require_all_cases_converged and not bool(candidate_case.get("converged")):
             errors.append(f"case {case_id} did not converge")
             continue
-        if mode == CORRECTNESS_MODE_SCF:
-            errors.extend(
-                _scf_case_correctness_errors(
-                    case_id=case_id,
-                    incumbent_case=incumbent_case,
-                    candidate_case=candidate_case,
-                    correctness=correctness,
-                )
-            )
-        elif mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
+        if mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
             errors.extend(
                 _field_tolerance_case_errors(
                     case_id=case_id,
@@ -3700,10 +3665,10 @@ def read_campaign_status(args: argparse.Namespace) -> dict[str, Any]:
         if isinstance(incumbent_metrics, dict)
         else {}
     )
-    incumbent_primary = (
-        incumbent_summary.get(primary_metric_name)
-        if isinstance(incumbent_summary, dict)
-        else None
+    incumbent_primary = _objective_primary_for_context(
+        benchmark_payload,
+        incumbent_metrics=incumbent_metrics,
+        primary_metric_name=primary_metric_name,
     )
     lock_pid = 0
     try:
@@ -4042,7 +4007,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         state_payload["baseline_commit"] = baseline_commit
         state_payload["baseline_metrics"] = baseline_metrics
         state_payload["incumbent_commit"] = baseline_commit
-        state_payload["incumbent_metrics"] = baseline_metrics
+        state_payload["incumbent_metrics"] = _normalize_incumbent_metrics_for_state(
+            benchmark_payload,
+            primary_metric_name=primary_metric_name,
+            metrics=baseline_metrics,
+        )
         baseline_primary = (
             baseline_metrics.get("summary_metrics", {}).get(primary_metric_name)
             if isinstance(baseline_metrics.get("summary_metrics"), dict)
@@ -4078,6 +4047,15 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             if isinstance(incumbent_metrics, dict)
             else {}
         )
+        incumbent_primary = (
+            _objective_primary_for_context(
+                benchmark_payload,
+                incumbent_metrics=(
+                    incumbent_metrics if isinstance(incumbent_metrics, dict) else {}
+                ),
+                primary_metric_name=primary_metric_name,
+            )
+        )
         return {
             "package_id": package_id,
             "branch": branch_name,
@@ -4089,9 +4067,13 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             "results_path": str(results_path),
             "incumbent_commit": str(state_payload.get("incumbent_commit") or ""),
             "incumbent_primary_metric": (
-                incumbent_summary.get(primary_metric_name)
-                if isinstance(incumbent_summary, dict)
-                else None
+                incumbent_primary
+                if incumbent_primary is not None
+                else (
+                    incumbent_summary.get(primary_metric_name)
+                    if isinstance(incumbent_summary, dict)
+                    else None
+                )
             ),
             "primary_metric_name": primary_metric_name,
             "accepted_count": int(state_payload.get("accepted_count") or 0),
@@ -4265,7 +4247,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         objective_direction = (
             str(objective.get("direction") or "minimize").strip().lower()
         )
-        incumbent_primary = _metric_value(incumbent_metrics, primary_metric_name)
+        incumbent_primary = _objective_primary_for_context(
+            benchmark_payload,
+            incumbent_metrics=incumbent_metrics,
+            primary_metric_name=primary_metric_name,
+        )
         baseline_primary = _metric_value(baseline_metrics, primary_metric_name)
 
         candidate_commit: str | None = None
@@ -4528,7 +4514,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             accepted_count += 1
             consecutive_rejections = 0
             state_payload["incumbent_commit"] = candidate_commit
-            state_payload["incumbent_metrics"] = candidate_metrics
+            state_payload["incumbent_metrics"] = _normalize_incumbent_metrics_for_state(
+                benchmark_payload,
+                primary_metric_name=primary_metric_name,
+                metrics=candidate_metrics,
+            )
             optimize_git.cleanup_paths(project_root, cleanup_untracked)
             optimize_state.append_result(
                 results_path,
@@ -4596,6 +4586,13 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         if isinstance(incumbent_metrics, dict)
         else {}
     )
+    incumbent_primary = _objective_primary_for_context(
+        benchmark_payload,
+        incumbent_metrics=(
+            incumbent_metrics if isinstance(incumbent_metrics, dict) else {}
+        ),
+        primary_metric_name=primary_metric_name,
+    )
     return {
         "package_id": package_id,
         "branch": branch_name,
@@ -4608,9 +4605,13 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         "results_path": str(results_path),
         "incumbent_commit": str(state_payload.get("incumbent_commit") or ""),
         "incumbent_primary_metric": (
-            incumbent_summary.get(primary_metric_name)
-            if isinstance(incumbent_summary, dict)
-            else None
+            incumbent_primary
+            if incumbent_primary is not None
+            else (
+                incumbent_summary.get(primary_metric_name)
+                if isinstance(incumbent_summary, dict)
+                else None
+            )
         ),
         "primary_metric_name": primary_metric_name,
         "accepted_count": accepted_count,
