@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,14 @@ MEMORY_FILENAME = "memory.md"
 WORKER_MEMORY_FILENAME = "worker_memory.md"
 PROGRAM_FILENAME = "program.md"
 RUNS_DIRNAME = "runs"
+AUTOGEN_DIRNAME = "autogen"
+RUN_LOCK_FILENAME = "run.lock.json"
+QUICK_MANIFEST_FILENAME = "quick_mode.json"
+QUICK_BENCHMARK_FILENAME = "benchmark.yaml"
+QUICK_RUNNER_FILENAME = "benchmark_runner.py"
+QUICK_SUBMIT_FILENAME = "submit_poll_launcher.py"
+QUICK_SETUP_FILENAME = "setup_env.sh"
+QUICK_RUN_SCRIPT_FILENAME = "run_optimize.sh"
 
 RESULTS_HEADER = "iteration\tcommit\tstatus\tprimary_metric_name\tprimary_metric_value\tdescription\n"
 
@@ -49,6 +58,38 @@ def runs_root(project_root: Path) -> Path:
     return optimize_root(project_root) / RUNS_DIRNAME
 
 
+def autogen_root(project_root: Path) -> Path:
+    return optimize_root(project_root) / AUTOGEN_DIRNAME
+
+
+def run_lock_path(project_root: Path) -> Path:
+    return optimize_root(project_root) / RUN_LOCK_FILENAME
+
+
+def quick_manifest_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / QUICK_MANIFEST_FILENAME
+
+
+def quick_benchmark_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / QUICK_BENCHMARK_FILENAME
+
+
+def quick_runner_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / QUICK_RUNNER_FILENAME
+
+
+def quick_submit_launcher_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / QUICK_SUBMIT_FILENAME
+
+
+def quick_setup_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / QUICK_SETUP_FILENAME
+
+
+def quick_run_script_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / QUICK_RUN_SCRIPT_FILENAME
+
+
 def default_program_path(project_root: Path) -> Path:
     return optimize_root(project_root) / PROGRAM_FILENAME
 
@@ -57,6 +98,12 @@ def ensure_optimize_root(project_root: Path) -> Path:
     root = optimize_root(project_root)
     root.mkdir(parents=True, exist_ok=True)
     runs_root(project_root).mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def ensure_autogen_root(project_root: Path) -> Path:
+    root = autogen_root(project_root)
+    root.mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -81,6 +128,66 @@ def ensure_results_file(path: Path) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(RESULTS_HEADER, encoding="utf-8")
     return True
+
+
+def write_json_file(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(path)
+
+
+def load_json_file(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def write_run_lock(path: Path, payload: dict[str, Any]) -> None:
+    write_json_file(path, payload)
+
+
+def load_run_lock(path: Path) -> dict[str, Any] | None:
+    return load_json_file(path)
+
+
+def clear_run_lock(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def ensure_executable(path: Path) -> None:
+    try:
+        mode = path.stat().st_mode
+    except OSError:
+        return
+    if mode & 0o111:
+        return
+    try:
+        path.chmod(mode | 0o111)
+    except OSError:
+        return
 
 
 def ensure_memory_file(
@@ -189,24 +296,11 @@ def archive_worker_memory(source_path: Path, run_dir: Path) -> Path | None:
 
 
 def load_state(path: Path) -> dict[str, Any] | None:
-    if not path.is_file():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    return payload
+    return load_json_file(path)
 
 
 def write_state(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(path.suffix + ".tmp")
-    temp_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    temp_path.replace(path)
+    write_json_file(path, payload)
 
 
 def append_result(

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import copy
 from collections.abc import Callable
 import fnmatch
+import hashlib
 import json
 import math
 import os
@@ -10,6 +12,7 @@ import re
 import shlex
 import statistics
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -43,6 +46,254 @@ BENCHMARK_INFRA_FAILURE_STATUSES = {
     "result_collect_crash",
 }
 DEFAULT_BENCHMARK_LAUNCHER_MAX_ATTEMPTS = 3
+QUICK_DEFAULT_MAX_ITERATIONS = 30
+QUICK_DEFAULT_STOP_ON_CONSECUTIVE_REJECTIONS = 8
+QUICK_DEFAULT_WORKER_MAX_ITERATIONS = 8
+QUICK_DEFAULT_WORKER_WAIT_SECONDS = 1
+QUICK_DEFAULT_WORKER_MAX_WAIT_SECONDS = 900
+QUICK_DEFAULT_WORKER_PID_STALL_SECONDS = 300
+QUICK_DEFAULT_TIMEOUT_SECONDS = 900
+QUICK_DEFAULT_MIN_RELATIVE_IMPROVEMENT = 0.01
+QUICK_SOURCE_CODE_EXTENSIONS = (
+    ".py",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".f",
+    ".f90",
+    ".f95",
+    ".f03",
+    ".f08",
+    ".go",
+    ".rs",
+    ".java",
+    ".jl",
+    ".m",
+    ".r",
+    ".lua",
+)
+QUICK_REFERENCE_EXAMPLES = {
+    "python": (
+        "python-pyscf-scf-benchmark.yaml",
+        "python-pyscf-scf-bench.py",
+    ),
+    "cpp": (
+        "cpp-lammps-tip4p-force-eval-benchmark.yaml",
+        "cpp-lammps-tip4p-force-eval-bench.sh",
+    ),
+    "cmake": (
+        "cpp-lammps-tip4p-force-eval-benchmark.yaml",
+        "cpp-lammps-tip4p-force-eval-bench.sh",
+    ),
+    "fortran": (
+        "fortran-quantum-espresso-scf-benchmark.yaml",
+        "fortran-quantum-espresso-scf-bench.sh",
+    ),
+}
+
+
+def _dict_clone(payload: object) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    return copy.deepcopy(payload)
+
+
+def _normalize_runtime_env(raw_env: object) -> dict[str, str]:
+    if not isinstance(raw_env, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for raw_key, raw_value in raw_env.items():
+        key = str(raw_key or "").strip()
+        if not key:
+            continue
+        normalized[key] = str(raw_value if raw_value is not None else "")
+    return normalized
+
+
+def _safe_positive_int(raw: object, *, default: int, allow_zero: bool = False) -> int:
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    if allow_zero:
+        return value if value >= 0 else default
+    return value if value > 0 else default
+
+
+def _safe_non_negative_float(raw: object, *, default: float) -> float:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+    if value < 0:
+        return default
+    return value
+
+
+def _quick_reference_search_roots(project_root: Path) -> list[Path]:
+    roots: list[Path] = []
+    seen: set[str] = set()
+    candidates = [
+        project_root / "scripts",
+        Path(__file__).resolve().parents[3] / "scripts",
+    ]
+    for candidate in candidates:
+        try:
+            key = str(candidate.resolve())
+        except OSError:
+            key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(candidate)
+    return roots
+
+
+def _load_quick_reference_template(
+    project_root: Path,
+    *,
+    language: str,
+) -> dict[str, Any]:
+    reference = QUICK_REFERENCE_EXAMPLES.get(language)
+    if not reference:
+        return {}
+    benchmark_name, runner_name = reference
+    project_scripts_root = project_root / "scripts"
+    for scripts_root in _quick_reference_search_roots(project_root):
+        benchmark_path = scripts_root / benchmark_name
+        runner_path = scripts_root / runner_name
+        if not benchmark_path.is_file():
+            continue
+        try:
+            benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(benchmark_payload, dict):
+            continue
+        source = "project"
+        try:
+            if scripts_root.resolve() != project_scripts_root.resolve():
+                source = "builtin"
+        except OSError:
+            if str(scripts_root) != str(project_scripts_root):
+                source = "builtin"
+        return {
+            "source": source,
+            "language": language,
+            "benchmark_path": str(benchmark_path),
+            "runner_path": str(runner_path),
+            "benchmark_rel": optimize_state.safe_relative(benchmark_path, project_root),
+            "runner_rel": optimize_state.safe_relative(runner_path, project_root),
+            "benchmark_name": benchmark_name,
+            "runner_name": runner_name,
+            "benchmark": benchmark_payload,
+        }
+    return {}
+
+
+def _template_case_hints(template_benchmark: dict[str, Any]) -> list[dict[str, str]]:
+    hints: list[dict[str, str]] = []
+    cases = template_benchmark.get("cases")
+    if not isinstance(cases, list):
+        return hints
+    for raw_case in cases:
+        if not isinstance(raw_case, dict):
+            continue
+        case_id = str(raw_case.get("id") or "").strip()
+        preview = str(raw_case.get("command_preview") or "").strip()
+        if not preview:
+            command = _normalize_string_command_list(raw_case.get("command"))
+            if command:
+                preview = shlex.join(command)
+        if not preview:
+            continue
+        hints.append({"id": case_id, "command_preview": preview})
+        if len(hints) >= 8:
+            break
+    return hints
+
+
+def _quick_objective_from_template(template_benchmark: dict[str, Any]) -> dict[str, Any]:
+    objective: dict[str, Any] = {
+        "primary_metric": "weighted_median_wall_seconds",
+        "direction": "minimize",
+        "min_relative_improvement": QUICK_DEFAULT_MIN_RELATIVE_IMPROVEMENT,
+    }
+    controller = _dict_clone(template_benchmark.get("controller"))
+    template_objective = _dict_clone(controller.get("objective"))
+    if template_objective:
+        objective.update(template_objective)
+    primary_metric = str(objective.get("primary_metric") or "").strip()
+    if not primary_metric:
+        primary_metric = "weighted_median_wall_seconds"
+    direction = str(objective.get("direction") or "minimize").strip().lower()
+    if direction not in {"minimize", "maximize"}:
+        direction = "minimize"
+    min_relative_improvement = _safe_non_negative_float(
+        objective.get("min_relative_improvement"),
+        default=QUICK_DEFAULT_MIN_RELATIVE_IMPROVEMENT,
+    )
+    objective["primary_metric"] = primary_metric
+    objective["direction"] = direction
+    objective["min_relative_improvement"] = min_relative_improvement
+    return objective
+
+
+def _quick_correctness_from_template(template_benchmark: dict[str, Any]) -> dict[str, Any]:
+    correctness: dict[str, Any] = {
+        "require_all_cases_converged": True,
+        "max_abs_energy_delta_hartree": 1.0,
+        "max_abs_dm_rms_delta": 1.0,
+        "max_abs_mo_energy_rms_delta": 1.0,
+    }
+    template_correctness = _dict_clone(template_benchmark.get("correctness"))
+    if template_correctness:
+        correctness.update(template_correctness)
+    correctness["require_all_cases_converged"] = bool(
+        correctness.get("require_all_cases_converged", True)
+    )
+    correctness["max_abs_energy_delta_hartree"] = _safe_non_negative_float(
+        correctness.get("max_abs_energy_delta_hartree"),
+        default=1.0,
+    )
+    correctness["max_abs_dm_rms_delta"] = _safe_non_negative_float(
+        correctness.get("max_abs_dm_rms_delta"),
+        default=1.0,
+    )
+    correctness["max_abs_mo_energy_rms_delta"] = _safe_non_negative_float(
+        correctness.get("max_abs_mo_energy_rms_delta"),
+        default=1.0,
+    )
+    return correctness
+
+
+def _quick_controller_defaults(template_benchmark: dict[str, Any]) -> dict[str, Any]:
+    controller = _dict_clone(template_benchmark.get("controller"))
+    defaults: dict[str, Any] = {
+        "timeout_seconds": QUICK_DEFAULT_TIMEOUT_SECONDS,
+        "warmup_runs": 0,
+        "measured_runs": 1,
+    }
+    defaults["timeout_seconds"] = _safe_positive_int(
+        controller.get("timeout_seconds"),
+        default=QUICK_DEFAULT_TIMEOUT_SECONDS,
+    )
+    defaults["warmup_runs"] = _safe_positive_int(
+        controller.get("warmup_runs"),
+        default=0,
+        allow_zero=True,
+    )
+    defaults["measured_runs"] = _safe_positive_int(
+        controller.get("measured_runs"),
+        default=1,
+    )
+    for key in ("aggregation", "secondary_objectives", "reject_on"):
+        if key in controller:
+            defaults[key] = copy.deepcopy(controller[key])
+    return defaults
 
 
 def _runtime_config(benchmark: dict[str, Any]) -> dict[str, Any]:
@@ -2250,6 +2501,888 @@ def _hard_validate_candidate(
     }
 
 
+def _run_lock_payload(
+    project_root: Path,
+    *,
+    mode: str,
+    package_id: str,
+    benchmark_path: Path,
+    prompt_path: Path | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "pid": os.getpid(),
+        "started_at_utc": optimize_state.utc_now_z(),
+        "mode": str(mode or "expert"),
+        "project_root": str(project_root),
+        "package_id": package_id,
+        "benchmark_path": str(benchmark_path),
+    }
+    if isinstance(prompt_path, Path):
+        payload["prompt_path"] = str(prompt_path)
+    return payload
+
+
+def _write_campaign_run_lock(
+    project_root: Path,
+    *,
+    mode: str,
+    package_id: str,
+    benchmark_path: Path,
+    prompt_path: Path | None,
+) -> None:
+    cli = _cli()
+    lock_path = optimize_state.run_lock_path(project_root)
+    lock_payload = optimize_state.load_run_lock(lock_path)
+    if isinstance(lock_payload, dict):
+        try:
+            lock_pid = int(lock_payload.get("pid") or 0)
+        except (TypeError, ValueError):
+            lock_pid = 0
+        if lock_pid > 0 and lock_pid != os.getpid() and optimize_state.pid_is_running(
+            lock_pid
+        ):
+            started = str(lock_payload.get("started_at_utc") or "").strip()
+            raise cli.PackageError(
+                "Optimize campaign appears active in this repository "
+                f"(pid={lock_pid}, started={started or 'unknown'}). "
+                "Use `fermilink optimize status` to inspect it before launching "
+                "another run."
+            )
+    optimize_state.write_run_lock(
+        lock_path,
+        _run_lock_payload(
+            project_root,
+            mode=mode,
+            package_id=package_id,
+            benchmark_path=benchmark_path,
+            prompt_path=prompt_path,
+        ),
+    )
+
+
+def _collect_tracked_files(project_root: Path) -> list[str]:
+    completed = optimize_git.run_git(
+        project_root,
+        ["ls-files", "-z"],
+    )
+    files: list[str] = []
+    for raw in str(completed.stdout or "").split("\0"):
+        item = str(raw or "").strip().replace("\\", "/")
+        if item:
+            files.append(item)
+    return files
+
+
+def _infer_quick_language(project_root: Path, tracked_files: list[str]) -> str:
+    if (project_root / "pyproject.toml").is_file() or (project_root / "setup.py").is_file():
+        return "python"
+    if any(path.endswith(".py") for path in tracked_files):
+        return "python"
+    if any(path.endswith((".f", ".f90", ".f95", ".f03", ".f08")) for path in tracked_files):
+        return "fortran"
+    if any(path.endswith((".c", ".cc", ".cpp", ".cxx")) for path in tracked_files):
+        return "cpp"
+    if (project_root / "CMakeLists.txt").is_file():
+        return "cmake"
+    return "generic"
+
+
+def _extract_prompt_paths(prompt_text: str) -> list[str]:
+    hints: list[str] = []
+    seen: set[str] = set()
+    path_token_re = re.compile(
+        r"(?<![A-Za-z0-9_])([A-Za-z0-9_./-]+\.[A-Za-z0-9_]+)(?![A-Za-z0-9_])"
+    )
+    for match in path_token_re.finditer(str(prompt_text or "")):
+        candidate = str(match.group(1) or "").strip().lstrip("./")
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        hints.append(candidate.replace("\\", "/"))
+    return hints
+
+
+def _infer_editable_paths(
+    project_root: Path,
+    *,
+    prompt_text: str,
+    tracked_files: list[str],
+    language: str,
+) -> list[str]:
+    tracked_set = set(tracked_files)
+    explicit = [
+        hint
+        for hint in _extract_prompt_paths(prompt_text)
+        if hint in tracked_set and not hint.startswith(".fermilink-optimize/")
+    ]
+    if explicit:
+        return explicit
+
+    if any(path.startswith("src/") for path in tracked_files):
+        return ["src/**"]
+    if any(path.startswith("lib/") for path in tracked_files):
+        return ["lib/**"]
+    if any(path.startswith("pyscf/") for path in tracked_files):
+        return ["pyscf/**"]
+    if language == "python":
+        return ["**/*.py"]
+    source_files = [
+        path
+        for path in tracked_files
+        if Path(path).suffix.lower() in QUICK_SOURCE_CODE_EXTENSIONS
+    ]
+    if source_files:
+        return source_files[:20]
+    return ["**/*"]
+
+
+def _split_shell_tokens(raw: str) -> list[str]:
+    try:
+        tokens = shlex.split(str(raw or "").strip())
+    except ValueError:
+        return []
+    return [token for token in tokens if str(token or "").strip()]
+
+
+def _extract_prompt_commands(prompt_text: str) -> list[list[str]]:
+    commands: list[list[str]] = []
+    seen: set[str] = set()
+    in_fence = False
+    for raw_line in str(prompt_text or "").splitlines():
+        line = str(raw_line or "").rstrip()
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            continue
+        candidate = ""
+        if in_fence:
+            candidate = stripped
+        elif stripped.startswith("$"):
+            candidate = stripped[1:].strip()
+        else:
+            for prefix in ("- `", "* `", "+ `", "`"):
+                if stripped.startswith(prefix) and "`" in stripped[len(prefix) :]:
+                    tail = stripped[len(prefix) :]
+                    candidate = tail.split("`", 1)[0].strip()
+                    break
+        if not candidate:
+            continue
+        if candidate.lower().startswith("fermilink "):
+            continue
+        tokens = _split_shell_tokens(candidate)
+        if not tokens:
+            continue
+        signature = shlex.join(tokens)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        commands.append(tokens)
+    return commands[:8]
+
+
+def _python_executable_for_quick(project_root: Path) -> str:
+    venv_python = project_root / ".venv" / "bin" / "python"
+    if venv_python.is_file():
+        return str(venv_python)
+    return sys.executable
+
+
+def _default_quick_case_commands(
+    project_root: Path,
+    *,
+    language: str,
+    python_exec: str,
+) -> list[list[str]]:
+    tests_dir = project_root / "tests"
+    if language == "python" and tests_dir.is_dir():
+        return [[python_exec, "-m", "pytest", "-q"]]
+    if language == "python":
+        for candidate in (
+            "scripts/benchmark.py",
+            "scripts/bench.py",
+            "scripts/run_benchmark.py",
+        ):
+            if (project_root / candidate).is_file():
+                return [[python_exec, candidate]]
+        return [[python_exec, "-c", "print('fermilink quick benchmark placeholder')"]]
+    if (project_root / "Makefile").is_file():
+        return [["make", "test"]]
+    if (project_root / "CMakeLists.txt").is_file():
+        return [["ctest", "--output-on-failure"]]
+    return [["bash", "-lc", "echo 'fermilink quick benchmark placeholder'"]]
+
+
+def _render_quick_runner_script() -> str:
+    return (
+        "#!/usr/bin/env python3\n"
+        "from __future__ import annotations\n"
+        "\n"
+        "import argparse\n"
+        "import json\n"
+        "import statistics\n"
+        "import subprocess\n"
+        "import time\n"
+        "from pathlib import Path\n"
+        "\n"
+        "import yaml\n"
+        "\n"
+        "\n"
+        "def _expand(tokens: list[str], replacements: dict[str, str]) -> list[str]:\n"
+        "    expanded: list[str] = []\n"
+        "    for token in tokens:\n"
+        "        rendered = str(token)\n"
+        "        for key, value in replacements.items():\n"
+        "            rendered = rendered.replace(key, value)\n"
+        "        expanded.append(rendered)\n"
+        "    return expanded\n"
+        "\n"
+        "\n"
+        "def _run_case(project_root: Path, case: dict[str, object], replacements: dict[str, str]) -> dict[str, object]:\n"
+        "    case_id = str(case.get('id') or 'case')\n"
+        "    raw_command = case.get('command')\n"
+        "    command = [str(item) for item in raw_command if isinstance(item, str)] if isinstance(raw_command, list) else []\n"
+        "    if not command:\n"
+        "        return {\n"
+        "            'id': case_id,\n"
+        "            'converged': False,\n"
+        "            'wall_seconds': 0.0,\n"
+        "            'scf_iterations': 0.0,\n"
+        "            'total_energy_hartree': 0.0,\n"
+        "            'density_matrix': [0.0],\n"
+        "            'mo_energies': [0.0],\n"
+        "            'error': 'missing case.command',\n"
+        "        }\n"
+        "    expanded = _expand(command, replacements)\n"
+        "    timeout_raw = case.get('timeout_seconds')\n"
+        "    timeout_seconds = None\n"
+        "    if isinstance(timeout_raw, (int, float)) and float(timeout_raw) > 0:\n"
+        "        timeout_seconds = float(timeout_raw)\n"
+        "    started = time.perf_counter()\n"
+        "    try:\n"
+        "        completed = subprocess.run(\n"
+        "            expanded,\n"
+        "            cwd=str(project_root),\n"
+        "            text=True,\n"
+        "            capture_output=True,\n"
+        "            timeout=timeout_seconds,\n"
+        "            check=False,\n"
+        "        )\n"
+        "        elapsed = max(0.0, time.perf_counter() - started)\n"
+        "        stderr_text = str(completed.stderr or '').strip()\n"
+        "        if not stderr_text:\n"
+        "            stderr_text = str(completed.stdout or '').strip()\n"
+        "        return {\n"
+        "            'id': case_id,\n"
+        "            'converged': completed.returncode == 0,\n"
+        "            'wall_seconds': elapsed,\n"
+        "            'scf_iterations': 0.0,\n"
+        "            'total_energy_hartree': 0.0,\n"
+        "            'density_matrix': [0.0],\n"
+        "            'mo_energies': [0.0],\n"
+        "            'error': '' if completed.returncode == 0 else stderr_text,\n"
+        "            'return_code': int(completed.returncode),\n"
+        "            'command': expanded,\n"
+        "        }\n"
+        "    except subprocess.TimeoutExpired:\n"
+        "        elapsed = max(0.0, time.perf_counter() - started)\n"
+        "        return {\n"
+        "            'id': case_id,\n"
+        "            'converged': False,\n"
+        "            'wall_seconds': elapsed,\n"
+        "            'scf_iterations': 0.0,\n"
+        "            'total_energy_hartree': 0.0,\n"
+        "            'density_matrix': [0.0],\n"
+        "            'mo_energies': [0.0],\n"
+        "            'error': 'timeout',\n"
+        "            'return_code': 124,\n"
+        "            'command': expanded,\n"
+        "        }\n"
+        "    except OSError as exc:\n"
+        "        elapsed = max(0.0, time.perf_counter() - started)\n"
+        "        return {\n"
+        "            'id': case_id,\n"
+        "            'converged': False,\n"
+        "            'wall_seconds': elapsed,\n"
+        "            'scf_iterations': 0.0,\n"
+        "            'total_energy_hartree': 0.0,\n"
+        "            'density_matrix': [0.0],\n"
+        "            'mo_energies': [0.0],\n"
+        "            'error': str(exc),\n"
+        "            'return_code': 1,\n"
+        "            'command': expanded,\n"
+        "        }\n"
+        "\n"
+        "\n"
+        "def main() -> int:\n"
+        "    parser = argparse.ArgumentParser()\n"
+        "    parser.add_argument('--benchmark', required=True)\n"
+        "    parser.add_argument('--emit-json', action='store_true')\n"
+        "    args = parser.parse_args()\n"
+        "\n"
+        "    benchmark_path = Path(args.benchmark).resolve()\n"
+        "    project_root = benchmark_path.parent.parent.parent.resolve()\n"
+        "    payload = yaml.safe_load(benchmark_path.read_text(encoding='utf-8'))\n"
+        "    if not isinstance(payload, dict):\n"
+        "        raise SystemExit('benchmark file must be a YAML object')\n"
+        "    cases_raw = payload.get('cases')\n"
+        "    if isinstance(cases_raw, list):\n"
+        "        cases = [item for item in cases_raw if isinstance(item, dict)]\n"
+        "    else:\n"
+        "        cases = []\n"
+        "    if not cases:\n"
+        "        raise SystemExit('benchmark file requires a non-empty cases list')\n"
+        "    replacements = {\n"
+        "        '{benchmark}': str(benchmark_path),\n"
+        "        '{project_root}': str(project_root),\n"
+        "        '{run_dir}': str((project_root / '.fermilink-optimize' / 'runs' / 'autogen').resolve()),\n"
+        "    }\n"
+        "    case_results = [_run_case(project_root, case, replacements) for case in cases]\n"
+        "    failures = sum(1 for item in case_results if not bool(item.get('converged')))\n"
+        "    wall_values = [float(item.get('wall_seconds') or 0.0) for item in case_results]\n"
+        "    median_wall = statistics.median(wall_values) if wall_values else 0.0\n"
+        "    output = {\n"
+        "        'benchmark_id': str(payload.get('benchmark_id') or 'quick-benchmark'),\n"
+        "        'correctness_ok': failures == 0,\n"
+        "        'summary_metrics': {\n"
+        "            'weighted_median_wall_seconds': float(median_wall),\n"
+        "            'weighted_median_scf_iterations': 0.0,\n"
+        "            'peak_rss_mb': 0.0,\n"
+        "            'total_failures': int(failures),\n"
+        "        },\n"
+        "        'cases': case_results,\n"
+        "    }\n"
+        "    print(json.dumps(output, sort_keys=True))\n"
+        "    return 0\n"
+        "\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    raise SystemExit(main())\n"
+    )
+
+
+def _render_quick_submit_launcher_script() -> str:
+    return (
+        "#!/usr/bin/env python3\n"
+        "from __future__ import annotations\n"
+        "\n"
+        "import argparse\n"
+        "import subprocess\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "\n"
+        "\n"
+        "def main() -> int:\n"
+        "    parser = argparse.ArgumentParser()\n"
+        "    parser.add_argument('--benchmark', required=True)\n"
+        "    parser.add_argument('--result-json', required=True)\n"
+        "    parser.add_argument('--runner', required=True)\n"
+        "    args = parser.parse_args()\n"
+        "\n"
+        "    benchmark_path = Path(args.benchmark).resolve()\n"
+        "    project_root = benchmark_path.parent.parent.parent.resolve()\n"
+        "    result_path = Path(args.result_json)\n"
+        "    if not result_path.is_absolute():\n"
+        "        result_path = (project_root / result_path).resolve()\n"
+        "    result_path.parent.mkdir(parents=True, exist_ok=True)\n"
+        "    runner_path = Path(args.runner)\n"
+        "    if not runner_path.is_absolute():\n"
+        "        runner_path = (project_root / runner_path).resolve()\n"
+        "    stderr_path = result_path.with_suffix('.submit.stderr.log')\n"
+        "    with result_path.open('w', encoding='utf-8') as out_handle:\n"
+        "        with stderr_path.open('w', encoding='utf-8') as err_handle:\n"
+        "            proc = subprocess.Popen(\n"
+        "                [sys.executable, str(runner_path), '--benchmark', str(benchmark_path), '--emit-json'],\n"
+        "                cwd=str(project_root),\n"
+        "                stdout=out_handle,\n"
+        "                stderr=err_handle,\n"
+        "                text=True,\n"
+        "            )\n"
+        "    print(f'<pid_number>{proc.pid}</pid_number>')\n"
+        "    return 0\n"
+        "\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    raise SystemExit(main())\n"
+    )
+
+
+def _render_quick_setup_script(project_root: Path, *, language: str) -> str:
+    if language == "python":
+        return (
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            f"cd {shlex.quote(str(project_root))}\n"
+            "if [ ! -d .venv ]; then\n"
+            "  python -m venv .venv\n"
+            "fi\n"
+            ". .venv/bin/activate\n"
+            "python -m pip install -U pip\n"
+            "python -m pip install -e .\n"
+        )
+    return (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f"cd {shlex.quote(str(project_root))}\n"
+        "echo 'No language-specific quick setup script was inferred for this repository.'\n"
+    )
+
+
+def _render_quick_run_script(
+    *,
+    package_id: str,
+    project_root: Path,
+    benchmark_path: Path,
+    hpc_profile: str,
+) -> str:
+    lines = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "",
+        "fermilink optimize \\",
+        f"  {shlex.quote(package_id)} \\",
+        f"  {shlex.quote(str(project_root))} \\",
+        f"  --benchmark {shlex.quote(str(benchmark_path))} \\",
+        "  --skills-source existing \\",
+        f"  --max-iterations {QUICK_DEFAULT_MAX_ITERATIONS} \\",
+        f"  --stop-on-consecutive-rejections {QUICK_DEFAULT_STOP_ON_CONSECUTIVE_REJECTIONS} \\",
+        f"  --worker-max-iterations {QUICK_DEFAULT_WORKER_MAX_ITERATIONS} \\",
+        f"  --worker-wait-seconds {QUICK_DEFAULT_WORKER_WAIT_SECONDS} \\",
+        f"  --worker-max-wait-seconds {QUICK_DEFAULT_WORKER_MAX_WAIT_SECONDS} \\",
+        f"  --worker-pid-stall-seconds {QUICK_DEFAULT_WORKER_PID_STALL_SECONDS} \\",
+        "  \"$@\"",
+    ]
+    profile_text = str(hpc_profile or "").strip()
+    if profile_text:
+        lines.insert(-1, f"  --hpc-profile {shlex.quote(profile_text)} \\")
+    return "\n".join(lines) + "\n"
+
+
+def _render_quick_benchmark_yaml(payload: dict[str, Any]) -> str:
+    return yaml.safe_dump(
+        payload,
+        sort_keys=False,
+        default_flow_style=False,
+    )
+
+
+def _ensure_text_file(
+    path: Path,
+    *,
+    content: str,
+    executable: bool = False,
+) -> bool:
+    if path.exists():
+        if executable:
+            optimize_state.ensure_executable(path)
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    if executable:
+        optimize_state.ensure_executable(path)
+    return True
+
+
+def _resolve_quick_prompt_path(project_root: Path, raw_prompt: str) -> Path:
+    prompt_path = Path(raw_prompt).expanduser()
+    if not prompt_path.is_absolute():
+        prompt_path = (project_root / prompt_path).resolve()
+    else:
+        prompt_path = prompt_path.resolve()
+    return prompt_path
+
+
+def _quick_scaffold(
+    project_root: Path,
+    *,
+    package_id: str,
+    prompt_path: Path,
+    hpc_profile: str,
+) -> dict[str, Any]:
+    optimize_state.ensure_optimize_root(project_root)
+    autogen_root = optimize_state.ensure_autogen_root(project_root)
+    benchmark_path = optimize_state.quick_benchmark_path(project_root)
+    runner_path = optimize_state.quick_runner_path(project_root)
+    submit_path = optimize_state.quick_submit_launcher_path(project_root)
+    setup_path = optimize_state.quick_setup_path(project_root)
+    run_script_path = optimize_state.quick_run_script_path(project_root)
+    manifest_path = optimize_state.quick_manifest_path(project_root)
+    latest_metrics_rel = ".fermilink-optimize/autogen/latest_metrics.json"
+
+    prompt_text = prompt_path.read_text(encoding="utf-8")
+    tracked_files = _collect_tracked_files(project_root)
+    language = _infer_quick_language(project_root, tracked_files)
+    reference_template = _load_quick_reference_template(
+        project_root,
+        language=language,
+    )
+    reference_benchmark = _dict_clone(reference_template.get("benchmark"))
+    template_case_hints = _template_case_hints(reference_benchmark)
+    template_controller_defaults = _quick_controller_defaults(reference_benchmark)
+    template_objective = _quick_objective_from_template(reference_benchmark)
+    template_correctness = _quick_correctness_from_template(reference_benchmark)
+    template_runtime = _dict_clone(reference_benchmark.get("runtime"))
+    template_runtime_env = _normalize_runtime_env(template_runtime.get("env"))
+    template_reporting = reference_benchmark.get("reporting")
+    if not isinstance(template_reporting, dict):
+        template_reporting = None
+    reference_examples_payload: dict[str, str] = {}
+    if reference_template:
+        reference_examples_payload = {
+            "source": str(reference_template.get("source") or ""),
+            "benchmark": str(reference_template.get("benchmark_rel") or ""),
+            "runner": str(reference_template.get("runner_rel") or ""),
+        }
+    python_exec = _python_executable_for_quick(project_root)
+    case_commands = _extract_prompt_commands(prompt_text)
+    case_command_source = "prompt"
+    if not case_commands:
+        case_command_source = "default"
+        case_commands = _default_quick_case_commands(
+            project_root,
+            language=language,
+            python_exec=python_exec,
+        )
+    editable_paths = _infer_editable_paths(
+        project_root,
+        prompt_text=prompt_text,
+        tracked_files=tracked_files,
+        language=language,
+    )
+    runtime_mode = "submit_poll" if str(hpc_profile or "").strip() else "direct"
+    runner_rel = optimize_state.safe_relative(runner_path, project_root)
+    submit_rel = optimize_state.safe_relative(submit_path, project_root)
+    setup_rel = optimize_state.safe_relative(setup_path, project_root)
+    run_script_rel = optimize_state.safe_relative(run_script_path, project_root)
+    prompt_rel = optimize_state.safe_relative(prompt_path, project_root)
+    benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
+
+    benchmark_payload: dict[str, Any] = {
+        "schema_version": 1,
+        "benchmark_id": f"autogen-{package_id}",
+        "repo": {
+            "editable_paths": editable_paths,
+            "immutable_paths": [
+                ".fermilink-optimize/**",
+                "skills/**",
+            ],
+        },
+        "controller": {
+            "timeout_seconds": int(template_controller_defaults["timeout_seconds"]),
+            "warmup_runs": int(template_controller_defaults["warmup_runs"]),
+            "measured_runs": int(template_controller_defaults["measured_runs"]),
+            "objective": template_objective,
+        },
+        "campaign": {
+            "max_iterations": QUICK_DEFAULT_MAX_ITERATIONS,
+            "stop_on_consecutive_rejections": QUICK_DEFAULT_STOP_ON_CONSECUTIVE_REJECTIONS,
+        },
+        "worker": {
+            "max_iterations": QUICK_DEFAULT_WORKER_MAX_ITERATIONS,
+            "wait_seconds": QUICK_DEFAULT_WORKER_WAIT_SECONDS,
+            "max_wait_seconds": QUICK_DEFAULT_WORKER_MAX_WAIT_SECONDS,
+            "pid_stall_seconds": QUICK_DEFAULT_WORKER_PID_STALL_SECONDS,
+        },
+        "correctness": template_correctness,
+        "runtime": {},
+        "cases": [],
+        "autogen": {
+            "prompt_path": prompt_rel,
+            "language": language,
+            "command_source": case_command_source,
+            "generated_at_utc": optimize_state.utc_now_z(),
+        },
+    }
+    for key in ("aggregation", "secondary_objectives", "reject_on"):
+        if key in template_controller_defaults:
+            benchmark_payload["controller"][key] = copy.deepcopy(
+                template_controller_defaults[key]
+            )
+    if reference_examples_payload:
+        benchmark_payload["autogen"]["reference_examples"] = reference_examples_payload
+    if isinstance(template_reporting, dict):
+        benchmark_payload["reporting"] = copy.deepcopy(template_reporting)
+
+    cases_payload: list[dict[str, Any]] = []
+    for index, command in enumerate(case_commands, start=1):
+        case_id = f"case-{index}"
+        case_payload: dict[str, Any] = {"id": case_id, "command": list(command)}
+        if index <= len(template_case_hints):
+            hint = template_case_hints[index - 1]
+            hinted_id = str(hint.get("id") or "").strip()
+            if hinted_id:
+                case_payload["id"] = hinted_id
+            preview = str(hint.get("command_preview") or "").strip()
+            if preview:
+                case_payload["command_preview"] = preview
+        cases_payload.append(case_payload)
+    benchmark_payload["cases"] = cases_payload
+
+    runtime_payload = benchmark_payload["runtime"]
+    if not isinstance(runtime_payload, dict):
+        runtime_payload = {}
+        benchmark_payload["runtime"] = runtime_payload
+    if template_runtime_env:
+        runtime_payload["env"] = template_runtime_env
+    if runtime_mode == "submit_poll":
+        runtime_payload.update(
+            {
+                "mode": "submit_poll",
+                "command": [
+                    python_exec,
+                    submit_rel,
+                    "--benchmark",
+                    "{benchmark}",
+                    "--result-json",
+                    latest_metrics_rel,
+                    "--runner",
+                    runner_rel,
+                ],
+                "result_json_path": latest_metrics_rel,
+                "poll_interval_seconds": QUICK_DEFAULT_WORKER_WAIT_SECONDS,
+                "max_poll_seconds": QUICK_DEFAULT_WORKER_MAX_WAIT_SECONDS,
+                "pid_stall_seconds": QUICK_DEFAULT_WORKER_PID_STALL_SECONDS,
+            }
+        )
+    else:
+        runtime_payload.update(
+            {
+                "mode": "direct",
+                "command": [
+                    python_exec,
+                    runner_rel,
+                    "--benchmark",
+                    "{benchmark}",
+                    "--emit-json",
+                ],
+            }
+        )
+
+    created_files: dict[str, bool] = {}
+    created_files["runner"] = _ensure_text_file(
+        runner_path,
+        content=_render_quick_runner_script(),
+        executable=True,
+    )
+    created_files["submit_launcher"] = _ensure_text_file(
+        submit_path,
+        content=_render_quick_submit_launcher_script(),
+        executable=True,
+    )
+    created_files["setup"] = _ensure_text_file(
+        setup_path,
+        content=_render_quick_setup_script(project_root, language=language),
+        executable=True,
+    )
+    created_files["benchmark"] = _ensure_text_file(
+        benchmark_path,
+        content=_render_quick_benchmark_yaml(benchmark_payload),
+    )
+    created_files["run_script"] = _ensure_text_file(
+        run_script_path,
+        content=_render_quick_run_script(
+            package_id=package_id,
+            project_root=project_root,
+            benchmark_path=benchmark_path,
+            hpc_profile=hpc_profile,
+        ),
+        executable=True,
+    )
+    benchmark_loaded = _load_benchmark(benchmark_path)
+
+    manifest_payload = {
+        "schema_version": 1,
+        "mode": "quick",
+        "created_at_utc": optimize_state.utc_now_z(),
+        "package_id": package_id,
+        "project_root": str(project_root),
+        "prompt_path": str(prompt_path),
+        "prompt_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
+        "benchmark_path": str(benchmark_path),
+        "runner_path": str(runner_path),
+        "submit_launcher_path": str(submit_path),
+        "setup_script_path": str(setup_path),
+        "run_script_path": str(run_script_path),
+        "runtime_mode": runtime_mode,
+        "language": language,
+        "editable_paths": editable_paths,
+        "command_source": case_command_source,
+        "inferred_case_commands": case_commands,
+        "template_case_hints": template_case_hints,
+        "reference_examples": reference_examples_payload,
+        "created_files": created_files,
+        "autogen_root": str(autogen_root),
+        "prompt_rel": prompt_rel,
+        "benchmark_rel": benchmark_rel,
+        "runner_rel": runner_rel,
+        "setup_rel": setup_rel,
+        "run_script_rel": run_script_rel,
+    }
+    optimize_state.write_json_file(manifest_path, manifest_payload)
+
+    return {
+        "project_root": project_root,
+        "prompt_path": prompt_path,
+        "manifest_path": manifest_path,
+        "benchmark_path": benchmark_path,
+        "runner_path": runner_path,
+        "submit_launcher_path": submit_path,
+        "setup_script_path": setup_path,
+        "run_script_path": run_script_path,
+        "created_files": created_files,
+        "runtime_mode": runtime_mode,
+        "language": language,
+        "editable_paths": editable_paths,
+        "command_source": case_command_source,
+        "reference_examples": reference_examples_payload,
+        "benchmark_payload": benchmark_loaded,
+        "benchmark_rel": benchmark_rel,
+        "prompt_rel": prompt_rel,
+        "runner_rel": runner_rel,
+    }
+
+
+def _resolve_status_project_root(args: argparse.Namespace) -> Path:
+    cli = _cli()
+    target = str(getattr(args, "project_path", None) or "").strip()
+    if not target:
+        target = "."
+    return cli._resolve_project_path(target)
+
+
+def read_campaign_status(args: argparse.Namespace) -> dict[str, Any]:
+    cli = _cli()
+    project_root = _resolve_status_project_root(args)
+    if not project_root.is_dir():
+        raise cli.PackageError(f"Optimize path is not a directory: {project_root}")
+    state_path = optimize_state.state_path(project_root)
+    results_path = optimize_state.results_path(project_root)
+    lock_path = optimize_state.run_lock_path(project_root)
+    state_payload = optimize_state.load_state(state_path) or {}
+    lock_payload = optimize_state.load_run_lock(lock_path) or {}
+    benchmark_rel = str(state_payload.get("benchmark_path") or "").strip()
+    benchmark_path = (project_root / benchmark_rel).resolve() if benchmark_rel else None
+    benchmark_payload: dict[str, Any] = {}
+    if isinstance(benchmark_path, Path) and benchmark_path.is_file():
+        try:
+            benchmark_payload = _load_benchmark(benchmark_path)
+        except Exception:
+            benchmark_payload = {}
+    primary_metric_name = str(
+        _objective_config(benchmark_payload).get("primary_metric") or "primary_metric"
+    )
+    incumbent_metrics = (
+        state_payload.get("incumbent_metrics")
+        if isinstance(state_payload.get("incumbent_metrics"), dict)
+        else {}
+    )
+    incumbent_summary = (
+        incumbent_metrics.get("summary_metrics")
+        if isinstance(incumbent_metrics, dict)
+        else {}
+    )
+    incumbent_primary = (
+        incumbent_summary.get(primary_metric_name)
+        if isinstance(incumbent_summary, dict)
+        else None
+    )
+    lock_pid = 0
+    try:
+        lock_pid = int(lock_payload.get("pid") or 0)
+    except (TypeError, ValueError):
+        lock_pid = 0
+    run_lock_status = "inactive"
+    if lock_pid > 0 and optimize_state.pid_is_running(lock_pid):
+        run_lock_status = "active"
+    elif lock_pid > 0:
+        run_lock_status = "inactive_stale"
+    launcher = state_payload.get("benchmark_launcher")
+    launcher_status = "none"
+    if isinstance(launcher, dict):
+        source = str(launcher.get("source") or "unknown").strip() or "unknown"
+        launcher_status = f"cached:{source}"
+    runtime_mode = _runtime_mode(_runtime_config(benchmark_payload))
+    tail = int(getattr(args, "tail", 30) or 30)
+    if tail < 1:
+        tail = 1
+    recent_results = optimize_state.recent_results_text(results_path, limit=tail)
+    return {
+        "status": "ok" if state_payload else "missing",
+        "project_root": str(project_root),
+        "state_path": str(state_path),
+        "results_path": str(results_path),
+        "run_lock_path": str(lock_path),
+        "run_lock_status": run_lock_status,
+        "run_lock_pid": lock_pid if lock_pid > 0 else None,
+        "run_lock_started_at": str(lock_payload.get("started_at_utc") or ""),
+        "iteration": int(state_payload.get("iteration") or 0),
+        "accepted_count": int(state_payload.get("accepted_count") or 0),
+        "rejected_count": int(state_payload.get("rejected_count") or 0),
+        "consecutive_rejections": int(state_payload.get("consecutive_rejections") or 0),
+        "incumbent_commit": str(state_payload.get("incumbent_commit") or ""),
+        "incumbent_primary_metric": incumbent_primary,
+        "primary_metric_name": primary_metric_name,
+        "runtime_mode": runtime_mode,
+        "launcher_status": launcher_status,
+        "recent_results": recent_results,
+        "benchmark_path": str(benchmark_path) if isinstance(benchmark_path, Path) else "",
+    }
+
+
+def run_quick_campaign(args: argparse.Namespace) -> dict[str, Any]:
+    cli = _cli()
+    project_root = Path.cwd().resolve()
+    prompt_target = str(getattr(args, "package_id", None) or "").strip()
+    if not prompt_target:
+        raise cli.PackageError(
+            "Quick optimize mode requires a prompt markdown path: "
+            "`fermilink optimize prompt.md`."
+        )
+    prompt_path = _resolve_quick_prompt_path(project_root, prompt_target)
+    if not prompt_path.is_file():
+        raise cli.PackageError(f"Quick optimize prompt file does not exist: {prompt_path}")
+    cli._ensure_compile_repo_ready(project_root)
+    package_id = cli.normalize_package_id(project_root.name or "package")
+    hpc_profile = str(getattr(args, "hpc_profile", None) or "").strip()
+    scaffold = _quick_scaffold(
+        project_root,
+        package_id=package_id,
+        prompt_path=prompt_path,
+        hpc_profile=hpc_profile,
+    )
+    campaign_args = argparse.Namespace(**vars(args))
+    campaign_args.package_id = package_id
+    campaign_args.project_path = str(project_root)
+    campaign_args.benchmark = str(scaffold["benchmark_path"])
+    campaign_args._optimize_mode = "quick"
+    campaign_args._optimize_prompt_path = str(prompt_path)
+    skills_source = str(getattr(campaign_args, "skills_source", "auto") or "auto").strip()
+    if skills_source == "auto":
+        campaign_args.skills_source = (
+            "existing" if (project_root / "skills").is_dir() else "compile"
+        )
+    payload = run_campaign(campaign_args)
+    payload["quick_mode"] = True
+    payload["prompt_path"] = str(prompt_path)
+    payload["scaffold_manifest_path"] = str(scaffold["manifest_path"])
+    payload["scaffold_benchmark_path"] = str(scaffold["benchmark_path"])
+    payload["scaffold_runner_path"] = str(scaffold["runner_path"])
+    payload["generated_run_script_path"] = str(scaffold["run_script_path"])
+    payload["generated_setup_script_path"] = str(scaffold["setup_script_path"])
+    payload["scaffold_runtime_mode"] = str(scaffold["runtime_mode"])
+    payload["scaffold_language"] = str(scaffold["language"])
+    payload["scaffold_command_source"] = str(scaffold.get("command_source") or "")
+    payload["scaffold_reference_examples"] = dict(
+        scaffold.get("reference_examples") or {}
+    )
+    payload["scaffold_created_files"] = dict(scaffold["created_files"])
+    return payload
+
+
 def _initial_state(
     *,
     package_id: str,
@@ -2305,12 +3438,19 @@ def _write_run_json(run_dir: Path, filename: str, payload: dict[str, Any]) -> No
 
 def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     cli = _cli()
-    package_id = cli.normalize_package_id(args.package_id)
-    project_root = cli._resolve_project_path(args.project_path)
+    package_id_raw = str(getattr(args, "package_id", None) or "").strip()
+    project_path_raw = str(getattr(args, "project_path", None) or "").strip()
+    benchmark_path_raw = str(getattr(args, "benchmark", None) or "").strip()
+    if not package_id_raw or not project_path_raw or not benchmark_path_raw:
+        raise cli.PackageError(
+            "Optimize expert mode requires `<package_id> <project_path> --benchmark <path>`."
+        )
+    package_id = cli.normalize_package_id(package_id_raw)
+    project_root = cli._resolve_project_path(project_path_raw)
     if not project_root.is_dir():
         raise cli.PackageError(f"Optimize path is not a directory: {project_root}")
     git_repo_initialized = cli._ensure_compile_repo_ready(project_root)
-    benchmark_path = cli._resolve_project_path(args.benchmark)
+    benchmark_path = cli._resolve_project_path(benchmark_path_raw)
     if not benchmark_path.is_file():
         raise cli.PackageError(f"Benchmark file does not exist: {benchmark_path}")
     benchmark_payload = _load_benchmark(benchmark_path)
@@ -2319,6 +3459,16 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     if (project_root / "skills").exists():
         optimize_git.ensure_local_excludes(project_root, ["skills/"])
     optimize_git.ensure_clean_repo(project_root, allow_dirty=bool(args.allow_dirty))
+    run_mode = str(getattr(args, "_optimize_mode", "expert") or "expert")
+    prompt_path_raw = str(getattr(args, "_optimize_prompt_path", None) or "").strip()
+    prompt_path = Path(prompt_path_raw) if prompt_path_raw else None
+    _write_campaign_run_lock(
+        project_root,
+        mode=run_mode,
+        package_id=package_id,
+        benchmark_path=benchmark_path,
+        prompt_path=prompt_path,
+    )
     branch_name = _resolve_optimize_branch(
         benchmark_payload,
         package_id=package_id,

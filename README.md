@@ -19,6 +19,8 @@ FermiLink now also includes a separate benchmark-gated optimization mode,
 package source tree using fixed ``skills/`` context, an embedded worker loop
 for iterative code changes/debugging/long-job waits, a controller agent for
 reflective decision/memory updates, and hard scientific benchmark validation.
+Quick mode (``fermilink optimize prompt.md``) can scaffold benchmark assets by
+seeding from language-specific examples under ``scripts/``.
 
 Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously. It is designed to sustain long-running computational jobs for days or weeks without human intervention.
 
@@ -56,7 +58,7 @@ fermilink agent codex/claude/gemini
 fermilink exec/loop/reproduce/research goal.md
 
 # 4.1b. Run benchmark-gated code optimization inside a package repo
-fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml
+fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml
 
 # 4.2. Start web UI service for ChatGPT-like experience
 fermilink start

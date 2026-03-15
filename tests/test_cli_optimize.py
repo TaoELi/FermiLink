@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink.cli import optimize_git
+from fermilink.cli import optimize_state
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
@@ -293,6 +296,283 @@ def test_optimize_parser_supports_core_flags() -> None:
     assert args.worker_pid_stall_seconds == 30
     assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
     assert args.forever is True
+
+
+def test_optimize_parser_supports_status_mode() -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "status",
+            "/tmp/repo",
+            "--tail",
+            "40",
+        ]
+    )
+    assert args.command == "optimize"
+    assert args.package_id == "status"
+    assert args.project_path == "/tmp/repo"
+    assert args.tail == 40
+
+
+def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
+    prompt_path = repo_dir / "prompt.md"
+    prompt_path.write_text(
+        (
+            "# Quick optimize prompt\n"
+            "\n"
+            "```bash\n"
+            "python -c \"print('ok')\"\n"
+            "```\n"
+        ),
+        encoding="utf-8",
+    )
+    _git(repo_dir, "add", "prompt.md")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "add prompt",
+    )
+    monkeypatch.chdir(repo_dir)
+
+    code = cli.main(
+        [
+            "optimize",
+            "prompt.md",
+            "--plan-only",
+        ]
+    )
+
+    assert code == 0
+    autogen_root = repo_dir / ".fermilink-optimize" / "autogen"
+    assert (autogen_root / "benchmark.yaml").exists()
+    assert (autogen_root / "benchmark_runner.py").exists()
+    assert (autogen_root / "submit_poll_launcher.py").exists()
+    assert (autogen_root / "setup_env.sh").exists()
+    assert (autogen_root / "run_optimize.sh").exists()
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["iteration"] == 0
+    benchmark_text = (autogen_root / "benchmark.yaml").read_text(encoding="utf-8")
+    assert "mode: direct" in benchmark_text
+    assert "weighted_median_wall_seconds" in benchmark_text
+
+
+def test_optimize_quick_mode_reuses_existing_autogen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
+    prompt_path = repo_dir / "prompt.md"
+    prompt_path.write_text(
+        (
+            "# Prompt\n"
+            "\n"
+            "```bash\n"
+            "python -c \"print('ok')\"\n"
+            "```\n"
+        ),
+        encoding="utf-8",
+    )
+    _git(repo_dir, "add", "prompt.md")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "add prompt",
+    )
+    monkeypatch.chdir(repo_dir)
+
+    code_first = cli.main(["optimize", "prompt.md", "--plan-only"])
+    assert code_first == 0
+
+    benchmark_path = repo_dir / ".fermilink-optimize" / "autogen" / "benchmark.yaml"
+    marker = "# user-edit-marker\n"
+    benchmark_path.write_text(
+        benchmark_path.read_text(encoding="utf-8") + marker,
+        encoding="utf-8",
+    )
+
+    code_second = cli.main(["optimize", "prompt.md", "--plan-only"])
+    assert code_second == 0
+    assert marker in benchmark_path.read_text(encoding="utf-8")
+
+
+def test_optimize_quick_mode_compiles_skills_when_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_dir, _benchmark_path = _init_optimize_repo(tmp_path, with_skills=False)
+    prompt_path = repo_dir / "prompt.md"
+    prompt_path.write_text(
+        (
+            "# Prompt\n"
+            "\n"
+            "```bash\n"
+            "python -c \"print('ok')\"\n"
+            "```\n"
+        ),
+        encoding="utf-8",
+    )
+    _git(repo_dir, "add", "prompt.md")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "add prompt",
+    )
+    monkeypatch.chdir(repo_dir)
+
+    compile_calls: list[str] = []
+
+    def fake_compile(args: argparse.Namespace) -> int:
+        compile_calls.append(str(args.project_path))
+        skills_root = repo_dir / "skills"
+        skills_root.mkdir(parents=True, exist_ok=True)
+        (skills_root / "README.md").write_text("skills", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_compile", fake_compile)
+
+    code = cli.main(["optimize", "prompt.md", "--plan-only"])
+
+    assert code == 0
+    assert compile_calls == [str(repo_dir)]
+    assert (repo_dir / "skills" / "README.md").read_text(encoding="utf-8") == "skills"
+
+
+def test_optimize_quick_mode_seeds_from_reference_templates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_dir = tmp_path / "cpp_repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "skills").mkdir(parents=True, exist_ok=True)
+    (repo_dir / "skills" / "README.md").write_text("skills", encoding="utf-8")
+    (repo_dir / "CMakeLists.txt").write_text(
+        "cmake_minimum_required(VERSION 3.10)\nproject(Mock LANGUAGES CXX)\n",
+        encoding="utf-8",
+    )
+    (repo_dir / "src").mkdir(parents=True, exist_ok=True)
+    (repo_dir / "src" / "main.cpp").write_text(
+        "int main() { return 0; }\n",
+        encoding="utf-8",
+    )
+    prompt_path = repo_dir / "prompt.md"
+    prompt_path.write_text(
+        (
+            "# Optimize request\n"
+            "\n"
+            "Improve force-evaluation throughput while preserving correctness.\n"
+        ),
+        encoding="utf-8",
+    )
+
+    _git(repo_dir, "init", "-b", "main")
+    _git(repo_dir, "add", ".")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+    monkeypatch.chdir(repo_dir)
+
+    code = cli.main(["optimize", "prompt.md", "--plan-only"])
+
+    assert code == 0
+    autogen_root = repo_dir / ".fermilink-optimize" / "autogen"
+    benchmark_payload = yaml.safe_load(
+        (autogen_root / "benchmark.yaml").read_text(encoding="utf-8")
+    )
+    assert isinstance(benchmark_payload, dict)
+    autogen = benchmark_payload.get("autogen")
+    assert isinstance(autogen, dict)
+    reference_examples = autogen.get("reference_examples")
+    assert isinstance(reference_examples, dict)
+    assert str(reference_examples.get("benchmark") or "").endswith(
+        "scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml"
+    )
+    assert str(reference_examples.get("runner") or "").endswith(
+        "scripts/cpp-lammps-tip4p-force-eval-bench.sh"
+    )
+    runtime = benchmark_payload.get("runtime")
+    assert isinstance(runtime, dict)
+    env = runtime.get("env")
+    assert isinstance(env, dict)
+    assert env.get("OMP_NUM_THREADS") == "1"
+    cases = benchmark_payload.get("cases")
+    assert isinstance(cases, list)
+    assert cases
+    assert "command_preview" in cases[0]
+    assert "lmp -in" in str(cases[0].get("command_preview") or "")
+    manifest = json.loads((autogen_root / "quick_mode.json").read_text(encoding="utf-8"))
+    assert manifest["command_source"] == "default"
+    assert str(manifest["reference_examples"]["benchmark"]).endswith(
+        "scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml"
+    )
+
+
+def test_optimize_status_reports_campaign_state(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--plan-only",
+        ]
+    )
+    assert code == 0
+    capsys.readouterr()
+    optimize_state.append_result(
+        optimize_state.results_path(repo_dir),
+        iteration=0,
+        commit="abcdef123456",
+        status="baseline",
+        primary_metric_name="weighted_median_wall_seconds",
+        primary_metric_value=10.0,
+        description="baseline",
+    )
+
+    status_code = cli.main(
+        [
+            "optimize",
+            "status",
+            str(repo_dir),
+            "--tail",
+            "5",
+            "--json",
+        ]
+    )
+    assert status_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "ok"
+    assert payload["run_lock_status"] == "inactive"
+    assert payload["runtime_mode"] == "direct"
+    assert "baseline" in payload["recent_results"]
 
 
 def test_optimize_plan_only_initializes_campaign(tmp_path: Path) -> None:

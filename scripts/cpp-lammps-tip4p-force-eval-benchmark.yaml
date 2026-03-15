@@ -1,0 +1,90 @@
+# Case-specific benchmark contract for optimizing LAMMPS TIP4P force evaluation
+# in the C++ source tree.
+
+schema_version: 1
+benchmark_id: cpp-lammps-tip4p-force-eval
+title: C++ LAMMPS TIP4P force-evaluation benchmark
+package_id: lammps
+domain: molecular-dynamics
+mode: code-optimization
+description: >
+  Optimize TIP4P-related C++ force-evaluation code paths in LAMMPS while
+  preserving stable thermo behavior on representative water workloads.
+
+repo:
+  root: .
+  editable_paths:
+    - src/**
+  immutable_paths:
+    - scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml
+    - scripts/cpp-lammps-tip4p-force-eval-bench.sh
+  disallow_new_dependencies: true
+
+campaign:
+  max_iterations: 120
+  stop_on_consecutive_rejections: 30
+
+worker:
+  max_iterations: 8
+  wait_seconds: 1
+  max_wait_seconds: 1800
+  pid_stall_seconds: 600
+
+controller:
+  timeout_seconds: 3600
+  warmup_runs: 0
+  measured_runs: 1
+  objective:
+    primary_metric: weighted_median_wall_seconds
+    direction: minimize
+    min_relative_improvement: 0.01
+
+correctness:
+  require_all_cases_converged: true
+  max_abs_energy_delta_hartree: 5.0e-2
+  max_abs_dm_rms_delta: 5.0e-2
+  max_abs_mo_energy_rms_delta: 5.0e-2
+
+runtime:
+  mode: direct
+  command:
+    - bash
+    - scripts/cpp-lammps-tip4p-force-eval-bench.sh
+    - --benchmark
+    - scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml
+    - --emit-json
+  expected_stdout_format: json
+  env:
+    OMP_NUM_THREADS: "1"
+
+  # Optional submit+poll mode:
+  # mode: submit_poll
+  # command:
+  #   - bash
+  #   - scripts/submit_lammps_tip4p.sh
+  #   - --benchmark
+  #   - "{benchmark}"
+  # result_json_path: .fermilink-optimize/latest_metrics.json
+
+cases:
+  - id: tip4p_short_nvt
+    weight: 1.0
+    log_path: .fermilink-optimize/tip4p_short.log
+    command_preview: >
+      lmp -in examples/USER/misc/in.tip4p_short -log .fermilink-optimize/tip4p_short.log
+    reference_toteng: -23654.12
+    max_abs_toteng_delta: 5.0e-2
+
+  - id: tip4p_long_nvt
+    weight: 2.0
+    log_path: .fermilink-optimize/tip4p_long.log
+    command_preview: >
+      lmp -in examples/USER/misc/in.tip4p_long -log .fermilink-optimize/tip4p_long.log
+    reference_toteng: -23650.00
+    max_abs_toteng_delta: 1.0e-1
+
+reporting:
+  summary_metrics:
+    - weighted_median_wall_seconds
+    - weighted_median_scf_iterations
+    - total_failures

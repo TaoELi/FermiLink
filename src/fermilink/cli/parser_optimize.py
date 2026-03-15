@@ -18,20 +18,27 @@ def register_optimize_parser(
     optimize_parser = subparsers.add_parser(
         "optimize",
         help=(
-            "Run an optimization-only controller in a scientific package source "
-            "tree using a fixed benchmark contract, static skills, and "
-            "accept/reject git iteration."
+            "Run optimize expert mode (`<package_id> <project_path> --benchmark ...`), "
+            "quick mode (`prompt.md`), or status (`status`)."
         ),
     )
     add_json_option(optimize_parser)
-    optimize_parser.add_argument("package_id", help="Scientific package id.")
+    optimize_parser.add_argument(
+        "package_id",
+        nargs="?",
+        help=(
+            "Expert mode package id, quick mode prompt path (for example prompt.md), "
+            "or literal `status`."
+        ),
+    )
     optimize_parser.add_argument(
         "project_path",
+        nargs="?",
         help="Local scientific package source tree to optimize.",
     )
     optimize_parser.add_argument(
         "--benchmark",
-        required=True,
+        default=None,
         help="Benchmark YAML contract path.",
     )
     optimize_parser.add_argument(
@@ -89,6 +96,15 @@ def register_optimize_parser(
         "--resume",
         action="store_true",
         help="Resume an existing optimization campaign from local state.",
+    )
+    optimize_parser.add_argument(
+        "--tail",
+        type=int,
+        default=30,
+        help=(
+            "When using `fermilink optimize status`, show this many recent results "
+            "rows (default: 30)."
+        ),
     )
     optimize_parser.add_argument(
         "--max-iterations",

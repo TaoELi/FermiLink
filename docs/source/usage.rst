@@ -253,17 +253,30 @@ still override controller acceptance.
 
 .. code-block:: bash
 
+   # quick mode from inside the package repo: infer scaffold from prompt.md
+   fermilink optimize prompt.md
+
+   # quick mode plan-only: generate/edit scaffold first, then run later
+   fermilink optimize prompt.md --plan-only
+
+   # campaign status from inside the package repo (or pass explicit repo path)
+   fermilink optimize status
+   fermilink optimize status /path/to/pyscf --tail 30
+
    # use an existing local skills/ folder
-   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml --skills-source existing
+   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml --skills-source existing
 
    # bootstrap missing skills/ from the curated channel first
-   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml --skills-source channel
+   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml --skills-source channel
 
    # bootstrap missing skills/ by running one local compile pass
-   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/benchmark.yaml --skills-source compile
+   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml --skills-source compile
 
 Optimize behavior:
 
+- quick mode (``fermilink optimize prompt.md``) auto-scaffolds ``.fermilink-optimize/autogen/`` with ``benchmark.yaml``, benchmark runner/submit scripts, setup script, and a generated expert-mode run script;
+- quick mode seeds scaffold defaults from language-specific benchmark examples (project-local ``scripts/`` first, then FermiLink built-in ``scripts/`` fallback) so generated contracts include stronger objective/correctness/runtime hints;
+- quick mode defaults missing ``skills/`` bootstrapping to one local compile pass, and reuses existing scaffold/state when launched again in the same repository;
 - creates and maintains campaign state under ``.fermilink-optimize/``;
 - writes a human-editable ``program.md`` plus persistent controller ``memory.md``, tactical ``worker_memory.md``, and append-only ``results.tsv``;
 - runs one baseline benchmark before any optimization iteration;
@@ -278,6 +291,7 @@ Useful flags:
 
 - ``--plan-only``: validate the repo and benchmark, initialize ``.fermilink-optimize/``, and stop before benchmarking.
 - ``--baseline-only``: run only the incumbent baseline benchmark.
+- ``--tail <n>``: with ``fermilink optimize status``, show the latest ``n`` rows from ``results.tsv``.
 - ``--max-iterations <n>``: cap iterations for one command invocation.
 - ``--worker-max-iterations <n>``: cap inner worker-loop turns per outer optimize iteration.
 - ``--worker-wait-seconds <n>`` / ``--worker-max-wait-seconds <n>`` / ``--worker-pid-stall-seconds <n>``: control inner worker-loop wait and polling behavior.
@@ -293,9 +307,11 @@ command emitting ``<pid_number>`` / ``<slurm_job_number>`` tags with controller-
 polling, then JSON retrieval from ``runtime.result_json_path``/``runtime.result_command``
 or ``artifacts.latest_metrics_json``). When ``--hpc-profile`` is provided, submit-poll
 benchmarks can auto-plan and cache controller launchers, then retry planner+launcher
-on infrastructure failures. See ``scripts/benchmark.yaml`` in this
-repository for a PySCF SCF example and ``scripts/pyscf_scf_bench.py`` for the
-matching benchmark runner template.
+on infrastructure failures. See these case-specific script pairs:
+
+- ``scripts/python-pyscf-scf-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
+- ``scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml`` + ``scripts/cpp-lammps-tip4p-force-eval-bench.sh``
+- ``scripts/fortran-quantum-espresso-scf-benchmark.yaml`` + ``scripts/fortran-quantum-espresso-scf-bench.sh``
 
 
 Global agent runtime policy
