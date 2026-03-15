@@ -6,9 +6,11 @@ import fnmatch
 import json
 import math
 import os
+import re
 import shlex
 import statistics
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,76 @@ def _cli():
     from fermilink import cli
 
     return cli
+
+
+BENCHMARK_LAUNCHER_TAG = "benchmark_launcher"
+BENCHMARK_LAUNCHER_TOKEN_RE = re.compile(
+    rf"<{BENCHMARK_LAUNCHER_TAG}>\s*(.*?)\s*</{BENCHMARK_LAUNCHER_TAG}>",
+    re.IGNORECASE | re.DOTALL,
+)
+BENCHMARK_INFRA_FAILURE_STATUSES = {
+    "timeout",
+    "crash",
+    "pid_issue",
+    "slurm_failure",
+    "slurm_poll_error",
+    "slurm_poll_unavailable",
+    "missing_result_source",
+    "missing_result_json",
+    "result_collect_timeout",
+    "result_collect_crash",
+}
+DEFAULT_BENCHMARK_LAUNCHER_MAX_ATTEMPTS = 3
+
+
+def _runtime_config(benchmark: dict[str, Any]) -> dict[str, Any]:
+    runtime = benchmark.get("runtime")
+    return runtime if isinstance(runtime, dict) else {}
+
+
+def _runtime_mode(runtime: dict[str, Any]) -> str:
+    mode = str(runtime.get("mode") or "direct").strip().lower()
+    if mode in {"", "direct", "sync", "local"}:
+        return "direct"
+    if mode in {"submit_poll", "async", "async_poll"}:
+        return "submit_poll"
+    return mode
+
+
+def _validate_optional_number(
+    *,
+    raw: object,
+    label: str,
+    allow_zero: bool,
+) -> None:
+    cli = _cli()
+    if raw is None:
+        return
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError(f"{label} must be a number.") from exc
+    if allow_zero:
+        if value < 0:
+            raise cli.PackageError(f"{label} must be >= 0.")
+    elif value <= 0:
+        raise cli.PackageError(f"{label} must be > 0.")
+
+
+def _normalize_string_command_list(payload: object) -> list[str]:
+    if isinstance(payload, str):
+        try:
+            parsed = shlex.split(payload)
+        except ValueError:
+            return []
+        return [item for item in parsed if isinstance(item, str) and item.strip()]
+    if not isinstance(payload, list):
+        return []
+    return [
+        str(item).strip()
+        for item in payload
+        if isinstance(item, str) and str(item).strip()
+    ]
 
 
 def _load_benchmark(path: Path) -> dict[str, Any]:
@@ -44,6 +116,53 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
         raise cli.PackageError(
             "Benchmark runtime.command must be a non-empty string list."
         )
+    mode = _runtime_mode(runtime)
+    if mode not in {"direct", "submit_poll"}:
+        raise cli.PackageError(
+            "Benchmark runtime.mode must be `direct` or `submit_poll`."
+        )
+    result_command = runtime.get("result_command")
+    if result_command is not None and (
+        not isinstance(result_command, list)
+        or not all(
+            isinstance(item, str) and item.strip() for item in result_command
+        )
+    ):
+        raise cli.PackageError(
+            "Benchmark runtime.result_command must be a non-empty string list."
+        )
+    _validate_optional_number(
+        raw=runtime.get("submission_timeout_seconds"),
+        label="Benchmark runtime.submission_timeout_seconds",
+        allow_zero=False,
+    )
+    _validate_optional_number(
+        raw=runtime.get("poll_interval_seconds"),
+        label="Benchmark runtime.poll_interval_seconds",
+        allow_zero=False,
+    )
+    _validate_optional_number(
+        raw=runtime.get("max_poll_seconds"),
+        label="Benchmark runtime.max_poll_seconds",
+        allow_zero=False,
+    )
+    _validate_optional_number(
+        raw=runtime.get("pid_stall_seconds"),
+        label="Benchmark runtime.pid_stall_seconds",
+        allow_zero=True,
+    )
+    launcher_attempts_raw = runtime.get("launcher_max_attempts")
+    if launcher_attempts_raw is not None:
+        try:
+            launcher_attempts = int(launcher_attempts_raw)
+        except (TypeError, ValueError) as exc:
+            raise cli.PackageError(
+                "Benchmark runtime.launcher_max_attempts must be an integer."
+            ) from exc
+        if launcher_attempts < 1:
+            raise cli.PackageError(
+                "Benchmark runtime.launcher_max_attempts must be >= 1."
+            )
     repo = payload.get("repo")
     if not isinstance(repo, dict):
         raise cli.PackageError("Benchmark file missing repo block.")
@@ -61,6 +180,20 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
     primary_metric = str(objective.get("primary_metric") or "").strip()
     if not primary_metric:
         raise cli.PackageError("Benchmark objective.primary_metric is required.")
+    if mode == "submit_poll":
+        result_json_path = str(runtime.get("result_json_path") or "").strip()
+        artifacts = payload.get("artifacts")
+        artifact_json_path = ""
+        if isinstance(artifacts, dict):
+            artifact_json_path = str(artifacts.get("latest_metrics_json") or "").strip()
+        has_result_json = bool(result_json_path or artifact_json_path)
+        has_result_command = isinstance(result_command, list) and bool(result_command)
+        if not has_result_json and not has_result_command:
+            raise cli.PackageError(
+                "Benchmark runtime.mode=submit_poll requires either "
+                "`runtime.result_json_path`, `artifacts.latest_metrics_json`, or "
+                "`runtime.result_command`."
+            )
     return payload
 
 
@@ -741,11 +874,14 @@ def _expand_runtime_command(
     *,
     benchmark_path: Path,
     project_root: Path,
+    run_dir: Path | None = None,
 ) -> list[str]:
     replacements = {
         "{benchmark}": str(benchmark_path),
         "{project_root}": str(project_root),
     }
+    if run_dir is not None:
+        replacements["{run_dir}"] = str(run_dir)
     expanded: list[str] = []
     for token in command:
         rendered = str(token)
@@ -753,6 +889,80 @@ def _expand_runtime_command(
             rendered = rendered.replace(key, value)
         expanded.append(rendered)
     return expanded
+
+
+def _resolve_runtime_result_json_path(
+    *,
+    benchmark_payload: dict[str, Any],
+    benchmark_path: Path,
+    project_root: Path,
+    run_dir: Path,
+    runtime: dict[str, Any] | None = None,
+) -> Path | None:
+    runtime_effective = runtime if isinstance(runtime, dict) else _runtime_config(
+        benchmark_payload
+    )
+    artifacts = benchmark_payload.get("artifacts")
+    raw_path = str(runtime_effective.get("result_json_path") or "").strip()
+    if not raw_path and isinstance(artifacts, dict):
+        raw_path = str(artifacts.get("latest_metrics_json") or "").strip()
+    if not raw_path:
+        return None
+    expanded = _expand_runtime_command(
+        [raw_path],
+        benchmark_path=benchmark_path,
+        project_root=project_root,
+        run_dir=run_dir,
+    )[0]
+    path = Path(expanded).expanduser()
+    if not path.is_absolute():
+        path = project_root / path
+    return path
+
+
+def _resolve_runtime_result_command(
+    *,
+    benchmark_payload: dict[str, Any],
+    benchmark_path: Path,
+    project_root: Path,
+    run_dir: Path,
+    runtime: dict[str, Any] | None = None,
+) -> list[str]:
+    runtime_effective = runtime if isinstance(runtime, dict) else _runtime_config(
+        benchmark_payload
+    )
+    raw = runtime_effective.get("result_command")
+    if not isinstance(raw, list):
+        return []
+    command = [item for item in raw if isinstance(item, str) and item.strip()]
+    if not command:
+        return []
+    return _expand_runtime_command(
+        command,
+        benchmark_path=benchmark_path,
+        project_root=project_root,
+        run_dir=run_dir,
+    )
+
+
+def _benchmark_failure_payload(
+    *,
+    status: str,
+    stdout_path: Path,
+    stderr_path: Path,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "ok": False,
+        "status": status,
+        "summary_metrics": {},
+        "cases": [],
+        "stdout_log": str(stdout_path),
+        "stderr_log": str(stderr_path),
+    }
+    if isinstance(extra, dict):
+        payload.update(extra)
+    return payload
 
 
 def _parse_benchmark_stdout(stdout_text: str) -> dict[str, Any]:
@@ -777,6 +987,654 @@ def _parse_benchmark_stdout(stdout_text: str) -> dict[str, Any]:
     return payload
 
 
+def _resolve_hpc_profile_key(args: argparse.Namespace) -> str:
+    raw = getattr(args, "hpc_profile", None)
+    if not isinstance(raw, str) or not raw.strip():
+        return ""
+    return str(Path(raw).expanduser().resolve())
+
+
+def _runtime_launcher_max_attempts(runtime: dict[str, Any]) -> int:
+    raw = runtime.get("launcher_max_attempts")
+    if raw is None:
+        return DEFAULT_BENCHMARK_LAUNCHER_MAX_ATTEMPTS
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_BENCHMARK_LAUNCHER_MAX_ATTEMPTS
+    return max(1, value)
+
+
+def _extract_benchmark_launcher_cache(
+    state_payload: dict[str, Any],
+    *,
+    hpc_profile_key: str,
+) -> dict[str, Any] | None:
+    launcher = state_payload.get("benchmark_launcher")
+    if not isinstance(launcher, dict):
+        return None
+    command = _normalize_string_command_list(launcher.get("command_template"))
+    if not command:
+        return None
+    cached_hpc_profile_key = str(launcher.get("hpc_profile_key") or "").strip()
+    if cached_hpc_profile_key != hpc_profile_key:
+        return None
+    result_command = _normalize_string_command_list(
+        launcher.get("result_command_template")
+    )
+    result_json_path = str(launcher.get("result_json_path_template") or "").strip()
+    return {
+        "command_template": command,
+        "result_command_template": result_command,
+        "result_json_path_template": result_json_path,
+        "source": str(launcher.get("source") or "controller_agent"),
+    }
+
+
+def _write_benchmark_launcher_cache(
+    state_payload: dict[str, Any],
+    *,
+    launcher: dict[str, Any],
+    hpc_profile_key: str,
+    source: str,
+) -> None:
+    state_payload["benchmark_launcher"] = {
+        "command_template": list(launcher.get("command_template") or []),
+        "result_command_template": list(launcher.get("result_command_template") or []),
+        "result_json_path_template": str(
+            launcher.get("result_json_path_template") or ""
+        ).strip(),
+        "hpc_profile_key": hpc_profile_key,
+        "source": source,
+        "updated_at_utc": optimize_state.utc_now_z(),
+    }
+
+
+def _clear_benchmark_launcher_cache(
+    state_payload: dict[str, Any], *, reason: str
+) -> None:
+    state_payload.pop("benchmark_launcher", None)
+    state_payload["benchmark_launcher_last_error"] = {
+        "reason": reason,
+        "updated_at_utc": optimize_state.utc_now_z(),
+    }
+
+
+def _runtime_override_from_launcher(launcher: dict[str, Any]) -> dict[str, Any]:
+    override: dict[str, Any] = {
+        "command": list(launcher.get("command_template") or []),
+    }
+    result_command = _normalize_string_command_list(
+        launcher.get("result_command_template")
+    )
+    if result_command:
+        override["result_command"] = result_command
+    result_json_path = str(launcher.get("result_json_path_template") or "").strip()
+    if result_json_path:
+        override["result_json_path"] = result_json_path
+    return override
+
+
+def _append_benchmark_launcher_memory_note(
+    memory_path: Path,
+    *,
+    event: str,
+    launcher: dict[str, Any] | None,
+    reason: str = "",
+) -> None:
+    try:
+        content = memory_path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    timestamp = optimize_state.utc_now_z()
+    if isinstance(launcher, dict):
+        command = _normalize_string_command_list(launcher.get("command_template"))
+        command_text = shlex.join(command) if command else "(missing command)"
+        result_json_path = str(launcher.get("result_json_path_template") or "").strip()
+        result_command = _normalize_string_command_list(
+            launcher.get("result_command_template")
+        )
+        result_parts: list[str] = []
+        if result_json_path:
+            result_parts.append(f"result_json_path=`{result_json_path}`")
+        if result_command:
+            result_parts.append(f"result_command=`{shlex.join(result_command)}`")
+        result_text = "; ".join(result_parts) if result_parts else "result_source=runtime"
+        suffix = f"; reason={reason}" if reason else ""
+        entry = (
+            f"- [{timestamp}] benchmark launcher {event}: command=`{command_text}`; "
+            f"{result_text}{suffix}"
+        )
+    else:
+        suffix = f" ({reason})" if reason else ""
+        entry = f"- [{timestamp}] benchmark launcher {event}{suffix}"
+    updated = optimize_state._append_section_line(content, "### Progress log", entry)
+    try:
+        memory_path.write_text(updated, encoding="utf-8")
+    except OSError:
+        return
+
+
+def _build_benchmark_launcher_prompt(
+    *,
+    benchmark_payload: dict[str, Any],
+    benchmark_rel: str,
+    memory_rel: str,
+    run_rel: str,
+    hpc_constraints_block: str,
+) -> str:
+    runtime = _runtime_config(benchmark_payload)
+    benchmark_command = _normalize_string_command_list(runtime.get("command"))
+    benchmark_command_json = json.dumps(benchmark_command, indent=2)
+    runtime_result_path = str(runtime.get("result_json_path") or "").strip()
+    result_path_note = (
+        runtime_result_path
+        if runtime_result_path
+        else "use `artifacts.latest_metrics_json` or include `result_command`"
+    )
+    constraints_block = (
+        f"{hpc_constraints_block}\n\n" if hpc_constraints_block.strip() else ""
+    )
+    return (
+        "You are planning the authoritative benchmark submission launcher for FermiLink optimize.\n"
+        "\n"
+        f"{constraints_block}"
+        f"Benchmark contract: `{benchmark_rel}`\n"
+        f"Controller memory: `{memory_rel}`\n"
+        f"Current run directory: `{run_rel}`\n"
+        "\n"
+        "Goal:\n"
+        "- Produce a robust submission command for `runtime.mode=submit_poll`.\n"
+        "- The submission command must submit benchmark execution and print either `<slurm_job_number>` or `<pid_number>`.\n"
+        "- The submitted job must execute the authoritative benchmark payload command below.\n"
+        "\n"
+        "Authoritative benchmark payload command:\n"
+        f"{benchmark_command_json}\n"
+        "\n"
+        "Allowed placeholders in launcher outputs:\n"
+        "- `{benchmark}`\n"
+        "- `{project_root}`\n"
+        "- `{run_dir}`\n"
+        "\n"
+        "Respond with exactly one JSON object inside tags:\n"
+        f"<{BENCHMARK_LAUNCHER_TAG}>{{\"command\": [\"...\"], \"result_json_path\": \"... optional ...\", \"result_command\": [\"... optional ...\"]}}</{BENCHMARK_LAUNCHER_TAG}>\n"
+        "\n"
+        "Rules:\n"
+        "- `command` is required and must be a list of command tokens (no shell prose).\n"
+        f"- If unsure about result retrieval, keep result source as runtime default ({result_path_note}).\n"
+        "- Do not include extra text outside the tag.\n"
+    )
+
+
+def _extract_launcher_from_assistant_text(assistant_text: str) -> dict[str, Any] | None:
+    match = BENCHMARK_LAUNCHER_TOKEN_RE.search(str(assistant_text or ""))
+    if not match:
+        return None
+    raw_payload = str(match.group(1) or "").strip()
+    if not raw_payload:
+        return None
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    command = _normalize_string_command_list(payload.get("command"))
+    if not command:
+        return None
+    result_command = _normalize_string_command_list(payload.get("result_command"))
+    result_json_path = str(payload.get("result_json_path") or "").strip()
+    return {
+        "command_template": command,
+        "result_command_template": result_command,
+        "result_json_path_template": result_json_path,
+    }
+
+
+def _ensure_benchmark_launcher(
+    project_root: Path,
+    *,
+    benchmark_path: Path,
+    benchmark_payload: dict[str, Any],
+    run_dir: Path,
+    run_rel: str,
+    benchmark_rel: str,
+    memory_rel: str,
+    hpc_constraints_block: str,
+    memory_path: Path,
+    state_path: Path,
+    state_payload: dict[str, Any],
+    hpc_profile_key: str,
+    provider: str,
+    provider_bin_override: str | None,
+    sandbox_mode: str,
+    sandbox_policy: str,
+    model: str | None,
+    reasoning_effort: str | None,
+) -> tuple[dict[str, Any] | None, str]:
+    cli = _cli()
+    cached = _extract_benchmark_launcher_cache(
+        state_payload,
+        hpc_profile_key=hpc_profile_key,
+    )
+    if cached is not None:
+        return cached, "cached"
+    if isinstance(state_payload.get("benchmark_launcher"), dict):
+        _clear_benchmark_launcher_cache(
+            state_payload,
+            reason="cached launcher invalid for current context",
+        )
+        optimize_state.write_state(state_path, state_payload)
+
+    prompt = _build_benchmark_launcher_prompt(
+        benchmark_payload=benchmark_payload,
+        benchmark_rel=benchmark_rel,
+        memory_rel=memory_rel,
+        run_rel=run_rel,
+        hpc_constraints_block=hpc_constraints_block,
+    )
+    run_dir.mkdir(parents=True, exist_ok=True)
+    _write_run_text(run_dir, "benchmark_launcher_prompt.txt", prompt)
+    planner_agents_md = (
+        "# FermiLink Optimize Benchmark Launcher Planning Mode\n"
+        "\n"
+        "You are planning benchmark launcher commands for authoritative optimize benchmarking.\n"
+        "\n"
+        "Rules:\n"
+        "- Do not edit any files.\n"
+        "- Return only the requested launcher tag payload.\n"
+    )
+    with optimize_git.temporary_optimize_agents(
+        project_root,
+        provider=provider,
+        content=planner_agents_md,
+    ):
+        planner_result = cli._run_exec_chat_turn(
+            repo_dir=project_root,
+            prompt=prompt,
+            sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+            provider_bin_override=provider_bin_override,
+            provider=provider,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+    assistant_text = str(planner_result.get("assistant_text") or "")
+    launcher = _extract_launcher_from_assistant_text(assistant_text)
+    _write_run_json(
+        run_dir,
+        "benchmark_launcher_plan.json",
+        {
+            "return_code": int(planner_result.get("return_code") or 0),
+            "assistant_text": assistant_text,
+            "stderr": str(planner_result.get("stderr") or ""),
+            "parsed_launcher": launcher if isinstance(launcher, dict) else {},
+        },
+    )
+    if int(planner_result.get("return_code") or 0) != 0:
+        return None, "launcher planner agent exited non-zero"
+    if launcher is None:
+        return None, "launcher planner output did not include a valid launcher payload"
+
+    _write_benchmark_launcher_cache(
+        state_payload,
+        launcher=launcher,
+        hpc_profile_key=hpc_profile_key,
+        source="controller_agent",
+    )
+    optimize_state.write_state(state_path, state_payload)
+    _append_benchmark_launcher_memory_note(
+        memory_path,
+        event="locked",
+        launcher=launcher,
+    )
+    return launcher, "planned"
+
+
+def _resolve_submit_poll_timing(
+    runtime: dict[str, Any],
+    *,
+    wait_hint_seconds: float | None,
+    timeout_seconds: float,
+) -> tuple[float, float, float]:
+    cli = _cli()
+    poll_interval_raw = runtime.get("poll_interval_seconds")
+    if poll_interval_raw is None:
+        poll_interval_raw = (
+            wait_hint_seconds
+            if isinstance(wait_hint_seconds, (int, float)) and wait_hint_seconds > 0
+            else 1.0
+        )
+    try:
+        poll_interval = float(poll_interval_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError(
+            "Benchmark runtime.poll_interval_seconds must be a number."
+        ) from exc
+    if poll_interval <= 0:
+        raise cli.PackageError(
+            "Benchmark runtime.poll_interval_seconds must be > 0."
+        )
+
+    max_poll_raw = runtime.get("max_poll_seconds")
+    if max_poll_raw is None:
+        max_poll_seconds = float(timeout_seconds)
+    else:
+        try:
+            max_poll_seconds = float(max_poll_raw)
+        except (TypeError, ValueError) as exc:
+            raise cli.PackageError(
+                "Benchmark runtime.max_poll_seconds must be a number."
+            ) from exc
+    if max_poll_seconds <= 0:
+        raise cli.PackageError("Benchmark runtime.max_poll_seconds must be > 0.")
+    max_poll_seconds = min(max_poll_seconds, float(timeout_seconds))
+
+    pid_stall_raw = runtime.get("pid_stall_seconds", 900.0)
+    try:
+        pid_stall_seconds = float(pid_stall_raw)
+    except (TypeError, ValueError) as exc:
+        raise cli.PackageError(
+            "Benchmark runtime.pid_stall_seconds must be a number."
+        ) from exc
+    if pid_stall_seconds < 0:
+        raise cli.PackageError("Benchmark runtime.pid_stall_seconds must be >= 0.")
+    if max_poll_seconds > 0 and pid_stall_seconds > max_poll_seconds:
+        pid_stall_seconds = max_poll_seconds
+    return poll_interval, max_poll_seconds, pid_stall_seconds
+
+
+def _poll_submitted_benchmark_targets(
+    *,
+    pid_numbers: list[int],
+    slurm_job_numbers: list[str],
+    poll_interval_seconds: float,
+    max_wait_seconds: float,
+    pid_stall_seconds: float,
+) -> dict[str, Any]:
+    cli = _cli()
+    from fermilink.cli.commands import sessions as session_commands
+
+    poll_started = session_commands.time.monotonic()
+    alive, pid_monitors, initially_dead_pids = session_commands._initialize_pid_monitors(
+        pid_numbers,
+        now_monotonic=poll_started,
+    )
+    pending_slurm_jobs = list(slurm_job_numbers)
+    slurm_monitors: dict[str, object] = {}
+
+    if initially_dead_pids:
+        dead_text = ", ".join(str(pid) for pid in initially_dead_pids)
+        cli._print_tagged(
+            "optimize",
+            (
+                "benchmark submission included already-finished pid(s): "
+                f"{dead_text}"
+            ),
+        )
+
+    if pending_slurm_jobs and not session_commands._slurm_wait_tools_available():
+        slurm_text = ", ".join(pending_slurm_jobs)
+        return {
+            "ok": False,
+            "status": "slurm_poll_unavailable",
+            "reason": f"missing sacct/squeue for slurm job(s): {slurm_text}",
+        }
+
+    if pending_slurm_jobs:
+        (
+            pending_slurm_jobs,
+            failed_slurm_jobs,
+            slurm_issues,
+            slurm_monitors,
+        ) = session_commands._refresh_slurm_monitors(
+            pending_slurm_jobs,
+            slurm_monitors,
+            now_monotonic=poll_started,
+            unknown_poll_limit=session_commands.SLURM_UNKNOWN_CONSECUTIVE_LIMIT,
+        )
+        if failed_slurm_jobs:
+            failed_text = ", ".join(
+                f"{job_id}:{state}" for job_id, state in failed_slurm_jobs
+            )
+            return {
+                "ok": False,
+                "status": "slurm_failure",
+                "reason": f"slurm job(s) failed: {failed_text}",
+            }
+        if slurm_issues:
+            issue_text = session_commands._format_slurm_issues(slurm_issues)
+            return {
+                "ok": False,
+                "status": "slurm_poll_error",
+                "reason": issue_text,
+            }
+
+    if not alive and not pending_slurm_jobs:
+        return {
+            "ok": True,
+            "status": "ok",
+            "waited_seconds": 0.0,
+        }
+
+    wait_targets = session_commands._format_waiting_targets(
+        alive=alive,
+        pending_slurm_jobs=pending_slurm_jobs,
+    )
+    stall_text = f"{pid_stall_seconds:.1f}s" if pid_stall_seconds > 0 else "disabled"
+    cli._print_tagged(
+        "optimize",
+        (
+            "polling benchmark submission "
+            f"({wait_targets}, poll: {poll_interval_seconds:.1f}s, "
+            f"max wait: {max_wait_seconds:.1f}s, pid stall: {stall_text})"
+        ),
+    )
+    next_status_log = poll_started + session_commands.POLL_STATUS_HEARTBEAT_SECONDS
+
+    while alive or pending_slurm_jobs:
+        now_monotonic = session_commands.time.monotonic()
+        elapsed = now_monotonic - poll_started
+        remaining = max_wait_seconds - elapsed
+        if now_monotonic >= next_status_log:
+            remaining_text = max(0.0, remaining)
+            cli._print_tagged(
+                "optimize",
+                (
+                    "benchmark polling status @ "
+                    f"{session_commands._utc_now_timestamp()} "
+                    f"(elapsed: {elapsed:.1f}s, remaining: {remaining_text:.1f}s, "
+                    "waiting on: "
+                    + session_commands._format_waiting_targets(
+                        alive=alive,
+                        pending_slurm_jobs=pending_slurm_jobs,
+                    )
+                    + ")"
+                ),
+            )
+            next_status_log = (
+                now_monotonic + session_commands.POLL_STATUS_HEARTBEAT_SECONDS
+            )
+        if remaining <= 0:
+            return {
+                "ok": False,
+                "status": "timeout",
+                "reason": (
+                    "benchmark submission polling exceeded max wait; "
+                    "still waiting on: "
+                    + session_commands._format_waiting_targets(
+                        alive=alive,
+                        pending_slurm_jobs=pending_slurm_jobs,
+                    )
+                ),
+            }
+        sleep_seconds = min(poll_interval_seconds, remaining)
+        if sleep_seconds > 0:
+            session_commands.time.sleep(sleep_seconds)
+
+        now_monotonic = session_commands.time.monotonic()
+        if alive:
+            alive, pid_monitors, pid_issues = session_commands._refresh_pid_monitors(
+                alive,
+                pid_monitors,
+                now_monotonic=now_monotonic,
+                stall_seconds=pid_stall_seconds,
+            )
+            blocking_pid_issues = [
+                (status, pid)
+                for status, pid in pid_issues
+                if status in {"reused", "stalled"}
+            ]
+            if blocking_pid_issues:
+                issue_text = session_commands._format_pid_issues(blocking_pid_issues)
+                return {
+                    "ok": False,
+                    "status": "pid_issue",
+                    "reason": issue_text,
+                }
+
+        if pending_slurm_jobs:
+            (
+                pending_slurm_jobs,
+                failed_slurm_jobs,
+                slurm_issues,
+                slurm_monitors,
+            ) = session_commands._refresh_slurm_monitors(
+                pending_slurm_jobs,
+                slurm_monitors,
+                now_monotonic=now_monotonic,
+                unknown_poll_limit=session_commands.SLURM_UNKNOWN_CONSECUTIVE_LIMIT,
+            )
+            if failed_slurm_jobs:
+                failed_text = ", ".join(
+                    f"{job_id}:{state}" for job_id, state in failed_slurm_jobs
+                )
+                return {
+                    "ok": False,
+                    "status": "slurm_failure",
+                    "reason": f"slurm job(s) failed: {failed_text}",
+                }
+            if slurm_issues:
+                issue_text = session_commands._format_slurm_issues(slurm_issues)
+                return {
+                    "ok": False,
+                    "status": "slurm_poll_error",
+                    "reason": issue_text,
+                }
+
+    waited_seconds = session_commands.time.monotonic() - poll_started
+    cli._print_tagged(
+        "optimize",
+        f"benchmark submission polling complete after {waited_seconds:.1f}s.",
+    )
+    return {
+        "ok": True,
+        "status": "ok",
+        "waited_seconds": waited_seconds,
+    }
+
+
+def _collect_submitted_benchmark_payload(
+    project_root: Path,
+    *,
+    benchmark_path: Path,
+    benchmark_payload: dict[str, Any],
+    runtime: dict[str, Any],
+    env: dict[str, str],
+    run_dir: Path,
+    run_label: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    result_command = _resolve_runtime_result_command(
+        benchmark_payload=benchmark_payload,
+        benchmark_path=benchmark_path,
+        project_root=project_root,
+        run_dir=run_dir,
+        runtime=runtime,
+    )
+    if result_command:
+        stdout_path = run_dir / f"{run_label}.result.stdout.log"
+        stderr_path = run_dir / f"{run_label}.result.stderr.log"
+        try:
+            completed = subprocess.run(
+                result_command,
+                cwd=str(project_root),
+                text=True,
+                capture_output=True,
+                env=env,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
+            stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
+            return {
+                "ok": False,
+                "status": "result_collect_timeout",
+                "result_stdout_log": str(stdout_path),
+                "result_stderr_log": str(stderr_path),
+            }
+        except (OSError, ValueError) as exc:
+            stderr_path.write_text(str(exc), encoding="utf-8")
+            return {
+                "ok": False,
+                "status": "result_collect_crash",
+                "result_stdout_log": str(stdout_path),
+                "result_stderr_log": str(stderr_path),
+            }
+        stdout_text = str(completed.stdout or "")
+        stderr_text = str(completed.stderr or "")
+        stdout_path.write_text(stdout_text, encoding="utf-8")
+        stderr_path.write_text(stderr_text, encoding="utf-8")
+        if completed.returncode != 0:
+            return {
+                "ok": False,
+                "status": "result_collect_crash",
+                "return_code": int(completed.returncode),
+                "result_stdout_log": str(stdout_path),
+                "result_stderr_log": str(stderr_path),
+            }
+        return {
+            "ok": True,
+            "payload": _parse_benchmark_stdout(stdout_text),
+            "result_stdout_log": str(stdout_path),
+            "result_stderr_log": str(stderr_path),
+        }
+
+    result_json_path = _resolve_runtime_result_json_path(
+        benchmark_payload=benchmark_payload,
+        benchmark_path=benchmark_path,
+        project_root=project_root,
+        run_dir=run_dir,
+        runtime=runtime,
+    )
+    if result_json_path is None:
+        return {
+            "ok": False,
+            "status": "missing_result_source",
+        }
+    try:
+        metrics_text = result_json_path.read_text(encoding="utf-8")
+    except OSError:
+        return {
+            "ok": False,
+            "status": "missing_result_json",
+            "result_json_path": str(result_json_path),
+        }
+    payload = _parse_benchmark_stdout(metrics_text)
+    snapshot_path = run_dir / f"{run_label}.result.metrics.json"
+    snapshot_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "ok": True,
+        "payload": payload,
+        "result_json_path": str(result_json_path),
+        "result_metrics_snapshot": str(snapshot_path),
+    }
+
+
 def _run_benchmark_once(
     project_root: Path,
     *,
@@ -785,14 +1643,20 @@ def _run_benchmark_once(
     timeout_seconds: int,
     run_dir: Path,
     run_label: str,
+    runtime_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     cli = _cli()
-    runtime = benchmark_payload.get("runtime")
-    runtime = runtime if isinstance(runtime, dict) else {}
+    runtime = dict(_runtime_config(benchmark_payload))
+    if isinstance(runtime_override, dict):
+        for key in ("command", "result_command", "result_json_path"):
+            if key in runtime_override:
+                runtime[key] = runtime_override.get(key)
+    runtime_mode = _runtime_mode(runtime)
     command = _expand_runtime_command(
         list(runtime.get("command") or []),
         benchmark_path=benchmark_path,
         project_root=project_root,
+        run_dir=run_dir,
     )
     env = os.environ.copy()
     runtime_env = runtime.get("env")
@@ -804,6 +1668,153 @@ def _run_benchmark_once(
     run_dir.mkdir(parents=True, exist_ok=True)
     stdout_path = run_dir / f"{run_label}.stdout.log"
     stderr_path = run_dir / f"{run_label}.stderr.log"
+    started_monotonic = time.monotonic()
+    if runtime_mode == "submit_poll":
+        submission_timeout_raw = runtime.get("submission_timeout_seconds")
+        if submission_timeout_raw is None:
+            submission_timeout = min(float(timeout_seconds), 120.0)
+        else:
+            submission_timeout = float(submission_timeout_raw)
+        submission_timeout = min(submission_timeout, float(timeout_seconds))
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(project_root),
+                text=True,
+                capture_output=True,
+                env=env,
+                timeout=submission_timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
+            stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
+            return _benchmark_failure_payload(
+                status="timeout",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+            )
+        except (OSError, ValueError) as exc:
+            stderr_path.write_text(str(exc), encoding="utf-8")
+            return _benchmark_failure_payload(
+                status="crash",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={"reason": str(exc)},
+            )
+
+        stdout_text = str(completed.stdout or "")
+        stderr_text = str(completed.stderr or "")
+        stdout_path.write_text(stdout_text, encoding="utf-8")
+        stderr_path.write_text(stderr_text, encoding="utf-8")
+        if completed.returncode != 0:
+            return _benchmark_failure_payload(
+                status="crash",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={"return_code": int(completed.returncode)},
+            )
+
+        submission_text = "\n".join(
+            part for part in (stdout_text, stderr_text) if part.strip()
+        )
+        pid_numbers = cli._extract_loop_pid_numbers(submission_text)
+        slurm_job_numbers = cli._extract_loop_slurm_job_numbers(submission_text)
+        if not pid_numbers and not slurm_job_numbers:
+            payload = _parse_benchmark_stdout(stdout_text)
+            payload["ok"] = True
+            payload["status"] = "ok"
+            payload["stdout_log"] = str(stdout_path)
+            payload["stderr_log"] = str(stderr_path)
+            payload["runtime_mode"] = "submit_poll_fallback_direct"
+            return payload
+
+        elapsed = time.monotonic() - started_monotonic
+        remaining_timeout = float(timeout_seconds) - elapsed
+        if remaining_timeout <= 0:
+            return _benchmark_failure_payload(
+                status="timeout",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+            )
+        wait_hint = cli._extract_loop_wait_seconds(submission_text)
+        poll_interval, max_poll_seconds, pid_stall_seconds = (
+            _resolve_submit_poll_timing(
+                runtime,
+                wait_hint_seconds=wait_hint,
+                timeout_seconds=remaining_timeout,
+            )
+        )
+        if max_poll_seconds <= 0:
+            return _benchmark_failure_payload(
+                status="timeout",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+            )
+        poll_result = _poll_submitted_benchmark_targets(
+            pid_numbers=pid_numbers,
+            slurm_job_numbers=slurm_job_numbers,
+            poll_interval_seconds=poll_interval,
+            max_wait_seconds=max_poll_seconds,
+            pid_stall_seconds=pid_stall_seconds,
+        )
+        if not bool(poll_result.get("ok")):
+            return _benchmark_failure_payload(
+                status=str(poll_result.get("status") or "poll_failed"),
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={"reason": str(poll_result.get("reason") or "").strip()},
+            )
+
+        elapsed = time.monotonic() - started_monotonic
+        remaining_timeout = float(timeout_seconds) - elapsed
+        if remaining_timeout <= 0:
+            return _benchmark_failure_payload(
+                status="timeout",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+            )
+        collect_result = _collect_submitted_benchmark_payload(
+            project_root,
+            benchmark_path=benchmark_path,
+            benchmark_payload=benchmark_payload,
+            runtime=runtime,
+            env=env,
+            run_dir=run_dir,
+            run_label=run_label,
+            timeout_seconds=remaining_timeout,
+        )
+        if not bool(collect_result.get("ok")):
+            return _benchmark_failure_payload(
+                status=str(collect_result.get("status") or "missing_result_source"),
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={
+                    key: value
+                    for key, value in collect_result.items()
+                    if key not in {"ok", "status"}
+                },
+            )
+
+        payload = collect_result.get("payload")
+        payload = payload if isinstance(payload, dict) else {}
+        payload["ok"] = True
+        payload["status"] = "ok"
+        payload["stdout_log"] = str(stdout_path)
+        payload["stderr_log"] = str(stderr_path)
+        payload["runtime_mode"] = "submit_poll"
+        if "result_json_path" in collect_result:
+            payload["result_json_path"] = str(collect_result.get("result_json_path"))
+        if "result_metrics_snapshot" in collect_result:
+            payload["result_metrics_snapshot"] = str(
+                collect_result.get("result_metrics_snapshot")
+            )
+        if "result_stdout_log" in collect_result:
+            payload["result_stdout_log"] = str(collect_result.get("result_stdout_log"))
+        if "result_stderr_log" in collect_result:
+            payload["result_stderr_log"] = str(collect_result.get("result_stderr_log"))
+        return payload
+
     try:
         completed = subprocess.run(
             command,
@@ -817,34 +1828,37 @@ def _run_benchmark_once(
     except subprocess.TimeoutExpired as exc:
         stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
         stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
-        return {
-            "ok": False,
-            "status": "timeout",
-            "summary_metrics": {},
-            "cases": [],
-            "stdout_log": str(stdout_path),
-            "stderr_log": str(stderr_path),
-        }
+        return _benchmark_failure_payload(
+            status="timeout",
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+        )
+    except (OSError, ValueError) as exc:
+        stderr_path.write_text(str(exc), encoding="utf-8")
+        return _benchmark_failure_payload(
+            status="crash",
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            extra={"reason": str(exc)},
+        )
 
     stdout_text = str(completed.stdout or "")
     stderr_text = str(completed.stderr or "")
     stdout_path.write_text(stdout_text, encoding="utf-8")
     stderr_path.write_text(stderr_text, encoding="utf-8")
     if completed.returncode != 0:
-        return {
-            "ok": False,
-            "status": "crash",
-            "return_code": int(completed.returncode),
-            "summary_metrics": {},
-            "cases": [],
-            "stdout_log": str(stdout_path),
-            "stderr_log": str(stderr_path),
-        }
+        return _benchmark_failure_payload(
+            status="crash",
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            extra={"return_code": int(completed.returncode)},
+        )
     payload = _parse_benchmark_stdout(stdout_text)
     payload["ok"] = True
     payload["status"] = "ok"
     payload["stdout_log"] = str(stdout_path)
     payload["stderr_log"] = str(stderr_path)
+    payload["runtime_mode"] = "direct"
     return payload
 
 
@@ -903,6 +1917,7 @@ def _run_benchmark_suite(
     benchmark_payload: dict[str, Any],
     run_dir: Path,
     timeout_seconds: int,
+    runtime_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     controller = _controller_config(benchmark_payload)
     warmup_runs = int(controller.get("warmup_runs") or 0)
@@ -916,6 +1931,7 @@ def _run_benchmark_suite(
             timeout_seconds=timeout_seconds,
             run_dir=run_dir,
             run_label=f"warmup_{index + 1}",
+            runtime_override=runtime_override,
         )
         if not warmup.get("ok"):
             return warmup
@@ -929,6 +1945,7 @@ def _run_benchmark_suite(
             timeout_seconds=timeout_seconds,
             run_dir=run_dir,
             run_label=f"measured_{index + 1}",
+            runtime_override=runtime_override,
         )
         if not measured.get("ok"):
             return measured
@@ -939,6 +1956,108 @@ def _run_benchmark_suite(
         encoding="utf-8",
     )
     return aggregated
+
+
+def _run_authoritative_benchmark_suite(
+    project_root: Path,
+    *,
+    benchmark_path: Path,
+    benchmark_payload: dict[str, Any],
+    run_dir: Path,
+    run_rel: str,
+    timeout_seconds: int,
+    state_payload: dict[str, Any],
+    state_path: Path,
+    memory_path: Path,
+    benchmark_rel: str,
+    memory_rel: str,
+    hpc_constraints_block: str,
+    hpc_profile_key: str,
+    use_dynamic_submit_launcher: bool,
+    provider: str,
+    provider_bin_override: str | None,
+    sandbox_mode: str,
+    sandbox_policy: str,
+    model: str | None,
+    reasoning_effort: str | None,
+) -> dict[str, Any]:
+    cli = _cli()
+    runtime = _runtime_config(benchmark_payload)
+    if not use_dynamic_submit_launcher or _runtime_mode(runtime) != "submit_poll":
+        return _run_benchmark_suite(
+            project_root,
+            benchmark_path=benchmark_path,
+            benchmark_payload=benchmark_payload,
+            run_dir=run_dir,
+            timeout_seconds=timeout_seconds,
+        )
+
+    max_attempts = _runtime_launcher_max_attempts(runtime)
+    latest_result: dict[str, Any] = {}
+    for attempt in range(1, max_attempts + 1):
+        launcher, launcher_source = _ensure_benchmark_launcher(
+            project_root,
+            benchmark_path=benchmark_path,
+            benchmark_payload=benchmark_payload,
+            run_dir=run_dir,
+            run_rel=run_rel,
+            benchmark_rel=benchmark_rel,
+            memory_rel=memory_rel,
+            hpc_constraints_block=hpc_constraints_block,
+            memory_path=memory_path,
+            state_path=state_path,
+            state_payload=state_payload,
+            hpc_profile_key=hpc_profile_key,
+            provider=provider,
+            provider_bin_override=provider_bin_override,
+            sandbox_mode=sandbox_mode,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+        if launcher is None:
+            return {
+                "ok": False,
+                "status": "launcher_planning_failed",
+                "summary_metrics": {},
+                "cases": [],
+                "reason": launcher_source,
+            }
+        runtime_override = _runtime_override_from_launcher(launcher)
+        latest_result = _run_benchmark_suite(
+            project_root,
+            benchmark_path=benchmark_path,
+            benchmark_payload=benchmark_payload,
+            run_dir=run_dir,
+            timeout_seconds=timeout_seconds,
+            runtime_override=runtime_override,
+        )
+        latest_result["launcher_source"] = launcher_source
+        status = str(latest_result.get("status") or "unknown")
+        if status == "ok":
+            return latest_result
+        if status not in BENCHMARK_INFRA_FAILURE_STATUSES:
+            return latest_result
+        if attempt >= max_attempts:
+            return latest_result
+        cli._print_tagged(
+            "optimize",
+            (
+                "benchmark launcher failed with infra status "
+                f"`{status}`; replanning launcher "
+                f"(attempt {attempt + 1}/{max_attempts})"
+            ),
+            stderr=True,
+        )
+        _append_benchmark_launcher_memory_note(
+            memory_path,
+            event="invalidated",
+            launcher=launcher,
+            reason=status,
+        )
+        _clear_benchmark_launcher_cache(state_payload, reason=f"{status}")
+        optimize_state.write_state(state_path, state_payload)
+    return latest_result
 
 
 def _case_map(cases: object) -> dict[str, dict[str, Any]]:
@@ -1294,17 +2413,55 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     primary_metric_name = str(
         _objective_config(benchmark_payload).get("primary_metric") or "primary_metric"
     )
+    runtime_policy = cli.resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    sandbox_policy = runtime_policy.sandbox_policy
+    sandbox_mode = runtime_policy.sandbox_mode
+    if isinstance(args.sandbox, str) and args.sandbox.strip():
+        sandbox_policy = "enforce"
+        sandbox_mode = args.sandbox.strip()
+    model = runtime_policy.model
+    reasoning_effort = runtime_policy.reasoning_effort
+    provider_bin_override = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+    )
+    hpc_constraints_block = _build_optimize_hpc_constraints_block(
+        project_root,
+        args=args,
+    )
+    hpc_profile_key = _resolve_hpc_profile_key(args)
+    use_dynamic_submit_launcher = bool(
+        hpc_profile_key
+        and _runtime_mode(_runtime_config(benchmark_payload)) == "submit_poll"
+    )
 
     if not str(state_payload.get("baseline_commit") or "").strip():
         cli._print_tagged("optimize", "running baseline benchmark")
         baseline_commit = optimize_git.head_sha(project_root)
         baseline_dir = optimize_state.runs_root(project_root) / "baseline"
-        baseline_metrics = _run_benchmark_suite(
+        baseline_rel = optimize_state.safe_relative(baseline_dir, project_root)
+        baseline_metrics = _run_authoritative_benchmark_suite(
             project_root,
             benchmark_path=benchmark_path,
             benchmark_payload=benchmark_payload,
             run_dir=baseline_dir,
+            run_rel=baseline_rel,
             timeout_seconds=timeout_seconds,
+            state_payload=state_payload,
+            state_path=state_path,
+            memory_path=memory_path,
+            benchmark_rel=benchmark_rel,
+            memory_rel=memory_rel,
+            hpc_constraints_block=hpc_constraints_block,
+            hpc_profile_key=hpc_profile_key,
+            use_dynamic_submit_launcher=use_dynamic_submit_launcher,
+            provider=provider,
+            provider_bin_override=provider_bin_override,
+            sandbox_mode=sandbox_mode,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
         )
         if (
             not baseline_metrics.get("ok", True)
@@ -1377,26 +2534,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             "status": "baseline_only",
         }
 
-    runtime_policy = cli.resolve_agent_runtime_policy()
-    provider = runtime_policy.provider
-    sandbox_policy = runtime_policy.sandbox_policy
-    sandbox_mode = runtime_policy.sandbox_mode
-    if isinstance(args.sandbox, str) and args.sandbox.strip():
-        sandbox_policy = "enforce"
-        sandbox_mode = args.sandbox.strip()
-    model = runtime_policy.model
-    reasoning_effort = runtime_policy.reasoning_effort
-    provider_bin_override = cli.resolve_provider_binary_override(
-        provider,
-        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
-    )
     editable_paths = _benchmark_editable_paths(benchmark_payload)
     immutable_paths = _benchmark_immutable_paths(benchmark_payload)
     worker_loop_config = _resolve_worker_loop_config(args, benchmark_payload)
-    hpc_constraints_block = _build_optimize_hpc_constraints_block(
-        project_root,
-        args=args,
-    )
     agents_md = optimize_prompts.build_optimize_agents_md(
         benchmark_rel=benchmark_rel,
         program_rel=program_rel,
@@ -1633,12 +2773,27 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             )
             _write_run_text(run_dir, "candidate.diff", diff_full.stdout or "")
             benchmark_ran = True
-            candidate_metrics = _run_benchmark_suite(
+            candidate_metrics = _run_authoritative_benchmark_suite(
                 project_root,
                 benchmark_path=benchmark_path,
                 benchmark_payload=benchmark_payload,
                 run_dir=run_dir,
+                run_rel=run_rel,
                 timeout_seconds=timeout_seconds,
+                state_payload=state_payload,
+                state_path=state_path,
+                memory_path=memory_path,
+                benchmark_rel=benchmark_rel,
+                memory_rel=memory_rel,
+                hpc_constraints_block=hpc_constraints_block,
+                hpc_profile_key=hpc_profile_key,
+                use_dynamic_submit_launcher=use_dynamic_submit_launcher,
+                provider=provider,
+                provider_bin_override=provider_bin_override,
+                sandbox_mode=sandbox_mode,
+                sandbox_policy=sandbox_policy,
+                model=model,
+                reasoning_effort=reasoning_effort,
             )
             evaluation_context["benchmark_status"] = str(
                 candidate_metrics.get("status") or "unknown"
@@ -1659,9 +2814,10 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 direction=objective_direction,
             )
 
-            if candidate_metrics.get("status") in {"timeout", "crash"}:
+            benchmark_status = str(candidate_metrics.get("status") or "unknown")
+            if benchmark_status != "ok":
                 hard_reject = True
-                hard_status = str(candidate_metrics.get("status") or "rejected")
+                hard_status = benchmark_status
                 hard_reason = f"benchmark {hard_status}"
             else:
                 hard_validation = _hard_validate_candidate(

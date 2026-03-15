@@ -72,6 +72,7 @@ correctness:
   forbid_relaxed_tolerances: true
 
 runtime:
+  mode: direct
   command:
     - python
     - scripts/pyscf_scf_bench.py
@@ -86,6 +87,18 @@ runtime:
     NUMEXPR_NUM_THREADS: "1"
     PYSCF_MAX_MEMORY: "4000"
     PYTHONHASHSEED: "0"
+  # Optional async benchmark mode for submit+poll workflows:
+  # mode: submit_poll
+  # command:
+  #   - python
+  #   - scripts/submit_benchmark_job.py
+  #   - --benchmark
+  #   - "{benchmark}"
+  # result_json_path: .fermilink-optimize/latest_metrics.json
+  # poll_interval_seconds: 5
+  # max_poll_seconds: 7200
+  # submission_timeout_seconds: 120
+  # launcher_max_attempts: 3   # when `--hpc-profile` is set, controller can re-plan submit launcher on infra failures
 
 artifacts:
   run_root: .fermilink-optimize

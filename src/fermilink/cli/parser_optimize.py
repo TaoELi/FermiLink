@@ -150,7 +150,8 @@ def register_optimize_parser(
         help=(
             "Optional JSON file with `slurm_default_partition`, `slurm_defaults`, "
             "and `slurm_resource_policy`; when set, the optimize worker-loop prompt "
-            "is constrained to this HPC profile."
+            "is constrained to this HPC profile and `runtime.mode=submit_poll` "
+            "benchmarks can auto-plan/reuse adaptive submission launchers."
         ),
     )
     optimize_parser.add_argument(

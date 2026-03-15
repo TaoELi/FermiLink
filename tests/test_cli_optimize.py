@@ -26,7 +26,11 @@ def _git(repo_dir: Path, *args: str) -> str:
     return (completed.stdout or "").strip()
 
 
-def _write_mock_benchmark_files(repo_dir: Path) -> Path:
+def _write_mock_benchmark_files(
+    repo_dir: Path,
+    *,
+    submission_mode: str | None = None,
+) -> Path:
     scripts_dir = repo_dir / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "mock_bench.py").write_text(
@@ -80,7 +84,104 @@ def _write_mock_benchmark_files(repo_dir: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    if submission_mode in {"pid", "slurm"}:
+        (scripts_dir / "mock_submit_bench.py").write_text(
+            (
+                "from __future__ import annotations\n"
+                "\n"
+                "import argparse\n"
+                "import json\n"
+                "import subprocess\n"
+                "import sys\n"
+                "from pathlib import Path\n"
+                "\n"
+                "\n"
+                "def _payload(repo_dir: Path) -> dict[str, object]:\n"
+                "    solver_text = (repo_dir / 'solver.py').read_text(encoding='utf-8')\n"
+                "    metric = 10.0\n"
+                "    if 'FAST' in solver_text:\n"
+                "        metric = 8.0\n"
+                "    elif 'BROKEN' in solver_text:\n"
+                "        metric = 7.0\n"
+                "    elif 'SLOW' in solver_text:\n"
+                "        metric = 12.0\n"
+                "    return {\n"
+                "        'benchmark_id': 'mock-solver',\n"
+                "        'correctness_ok': 'BROKEN' not in solver_text,\n"
+                "        'summary_metrics': {\n"
+                "            'weighted_median_wall_seconds': metric,\n"
+                "            'weighted_median_scf_iterations': 5.0,\n"
+                "            'peak_rss_mb': 32.0,\n"
+                "            'total_failures': 0,\n"
+                "        },\n"
+                "        'cases': [\n"
+                "            {\n"
+                "                'id': 'case-1',\n"
+                "                'converged': 'BROKEN' not in solver_text,\n"
+                "                'total_energy_hartree': -1.0 if 'BROKEN' not in solver_text else -0.8,\n"
+                "                'density_matrix': [1.0, 0.0] if 'BROKEN' not in solver_text else [0.0, 1.0],\n"
+                "                'mo_energies': [-0.5, 0.2] if 'BROKEN' not in solver_text else [0.2, -0.5],\n"
+                "                'error': '' if 'BROKEN' not in solver_text else 'forced correctness failure',\n"
+                "            }\n"
+                "        ],\n"
+                "    }\n"
+                "\n"
+                "\n"
+                "def main() -> int:\n"
+                "    parser = argparse.ArgumentParser()\n"
+                "    parser.add_argument('--benchmark', required=True)\n"
+                "    parser.add_argument('--mode', choices=('pid', 'slurm'), required=True)\n"
+                "    args = parser.parse_args()\n"
+                "    repo_dir = Path(__file__).resolve().parent.parent\n"
+                "    metrics_path = repo_dir / '.fermilink-optimize' / 'latest_metrics.json'\n"
+                "    metrics_path.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    payload = _payload(repo_dir)\n"
+                "    metrics_text = json.dumps(payload, sort_keys=True)\n"
+                "    if args.mode == 'pid':\n"
+                "        writer_script = (\n"
+                "            'from pathlib import Path\\n'\n"
+                "            'import time\\n'\n"
+                "            'time.sleep(0.2)\\n'\n"
+                "            f\"Path({str(metrics_path)!r}).write_text({metrics_text!r}, encoding='utf-8')\\n\"\n"
+                "        )\n"
+                "        proc = subprocess.Popen([sys.executable, '-c', writer_script])\n"
+                "        print(f'<pid_number>{proc.pid}</pid_number>')\n"
+                "        return 0\n"
+                "    metrics_path.write_text(metrics_text, encoding='utf-8')\n"
+                "    print('<slurm_job_number>12345</slurm_job_number>')\n"
+                "    return 0\n"
+                "\n"
+                "\n"
+                "if __name__ == '__main__':\n"
+                "    raise SystemExit(main())\n"
+            ),
+            encoding="utf-8",
+        )
     benchmark_path = scripts_dir / "benchmark.yaml"
+    runtime_block = (
+        "runtime:\n"
+        "  mode: direct\n"
+        "  command:\n"
+        f'    - "{sys.executable}"\n'
+        "    - scripts/mock_bench.py\n"
+        "    - --benchmark\n"
+        '    - "{benchmark}"\n'
+    )
+    if submission_mode in {"pid", "slurm"}:
+        runtime_block = (
+            "runtime:\n"
+            "  mode: submit_poll\n"
+            "  command:\n"
+            f'    - "{sys.executable}"\n'
+            "    - scripts/mock_submit_bench.py\n"
+            "    - --benchmark\n"
+            '    - "{benchmark}"\n'
+            "    - --mode\n"
+            f"    - {submission_mode}\n"
+            "  result_json_path: .fermilink-optimize/latest_metrics.json\n"
+            "  poll_interval_seconds: 0.01\n"
+            "  max_poll_seconds: 5\n"
+        )
     benchmark_path.write_text(
         (
             "schema_version: 1\n"
@@ -106,12 +207,7 @@ def _write_mock_benchmark_files(repo_dir: Path) -> Path:
             "  max_abs_energy_delta_hartree: 1.0e-9\n"
             "  max_abs_dm_rms_delta: 1.0e-9\n"
             "  max_abs_mo_energy_rms_delta: 1.0e-9\n"
-            "runtime:\n"
-            "  command:\n"
-            f'    - "{sys.executable}"\n'
-            "    - scripts/mock_bench.py\n"
-            "    - --benchmark\n"
-            '    - "{benchmark}"\n'
+            f"{runtime_block}"
         ),
         encoding="utf-8",
     )
@@ -119,7 +215,10 @@ def _write_mock_benchmark_files(repo_dir: Path) -> Path:
 
 
 def _init_optimize_repo(
-    tmp_path: Path, *, with_skills: bool = True
+    tmp_path: Path,
+    *,
+    with_skills: bool = True,
+    benchmark_runtime: str = "direct",
 ) -> tuple[Path, Path]:
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
@@ -127,7 +226,17 @@ def _init_optimize_repo(
     if with_skills:
         (repo_dir / "skills").mkdir(parents=True, exist_ok=True)
         (repo_dir / "skills" / "README.md").write_text("skills", encoding="utf-8")
-    benchmark_path = _write_mock_benchmark_files(repo_dir)
+    if benchmark_runtime not in {"direct", "submit_poll_pid", "submit_poll_slurm"}:
+        raise ValueError(f"Unsupported benchmark runtime: {benchmark_runtime}")
+    submission_mode = None
+    if benchmark_runtime == "submit_poll_pid":
+        submission_mode = "pid"
+    if benchmark_runtime == "submit_poll_slurm":
+        submission_mode = "slurm"
+    benchmark_path = _write_mock_benchmark_files(
+        repo_dir,
+        submission_mode=submission_mode,
+    )
     _git(repo_dir, "init", "-b", "main")
     _git(repo_dir, "add", ".")
     _git(
@@ -1030,6 +1139,352 @@ def test_optimize_worker_loop_handles_slurm_waits(
 
     assert code == 0
     assert calls == ["worker1", "worker2", "controller"]
+
+
+def test_optimize_benchmark_submit_poll_handles_pid_submission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(
+        tmp_path,
+        benchmark_runtime="submit_poll_pid",
+    )
+    hpc_profile_path = tmp_path / "hpc_profile.json"
+    hpc_profile_path.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1",
+                "slurm_resource_policy": "Prefer single node when possible",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    calls: list[str] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "planning the authoritative benchmark submission launcher" in prompt:
+            calls.append("planner")
+            return {
+                "assistant_text": (
+                    "<benchmark_launcher>"
+                    "{\"command\": ["
+                    f"\"{sys.executable}\", "
+                    "\"scripts/mock_submit_bench.py\", "
+                    "\"--benchmark\", "
+                    "\"{benchmark}\", "
+                    "\"--mode\", "
+                    "\"pid\""
+                    "]}"
+                    "</benchmark_launcher>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>benchmark submit/poll succeeded</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        calls.append("worker")
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--hpc-profile",
+            str(hpc_profile_path),
+            "--allow-dirty",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["planner", "worker", "controller"]
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 1
+    assert state["benchmark_launcher"]["source"] == "controller_agent"
+    assert state["incumbent_metrics"]["summary_metrics"][
+        "weighted_median_wall_seconds"
+    ] == pytest.approx(8.0)
+    assert (
+        repo_dir
+        / ".fermilink-optimize"
+        / "runs"
+        / "iter_0001"
+        / "measured_1.result.metrics.json"
+    ).exists()
+
+
+def test_optimize_benchmark_submit_poll_handles_slurm_submission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(
+        tmp_path,
+        benchmark_runtime="submit_poll_slurm",
+    )
+    hpc_profile_path = tmp_path / "hpc_profile.json"
+    hpc_profile_path.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1",
+                "slurm_resource_policy": "Use standard short queue",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(session_commands, "_slurm_wait_tools_available", lambda: True)
+
+    slurm_polls = {"count": 0}
+
+    def fake_refresh_slurm_monitors(
+        slurm_job_numbers: list[str],
+        monitors: dict[str, object],
+        *,
+        now_monotonic: float,
+        unknown_poll_limit: int,
+    ) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, object]]:
+        slurm_polls["count"] += 1
+        if slurm_polls["count"] % 2 == 1:
+            return (
+                list(slurm_job_numbers),
+                [],
+                [],
+                {job_id: object() for job_id in slurm_job_numbers},
+            )
+        return [], [], [], {}
+
+    monkeypatch.setattr(
+        session_commands,
+        "_refresh_slurm_monitors",
+        fake_refresh_slurm_monitors,
+    )
+
+    calls: list[str] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "planning the authoritative benchmark submission launcher" in prompt:
+            calls.append("planner")
+            return {
+                "assistant_text": (
+                    "<benchmark_launcher>"
+                    "{\"command\": ["
+                    f"\"{sys.executable}\", "
+                    "\"scripts/mock_submit_bench.py\", "
+                    "\"--benchmark\", "
+                    "\"{benchmark}\", "
+                    "\"--mode\", "
+                    "\"slurm\""
+                    "]}"
+                    "</benchmark_launcher>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            calls.append("controller")
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        calls.append("worker")
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--hpc-profile",
+            str(hpc_profile_path),
+            "--allow-dirty",
+        ]
+    )
+
+    assert code == 0
+    assert calls == ["planner", "worker", "controller"]
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 1
+    assert slurm_polls["count"] >= 4
+
+
+def test_optimize_submit_poll_replans_launcher_after_infra_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(
+        tmp_path,
+        benchmark_runtime="submit_poll_pid",
+    )
+    hpc_profile_path = tmp_path / "hpc_profile.json"
+    hpc_profile_path.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1",
+                "slurm_resource_policy": "Use resilient launcher fallback",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    planner_calls = {"count": 0}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "planning the authoritative benchmark submission launcher" in prompt:
+            planner_calls["count"] += 1
+            if planner_calls["count"] == 1:
+                return {
+                    "assistant_text": (
+                        "<benchmark_launcher>"
+                        "{\"command\": [\"definitely_not_a_real_binary_fermilink_test\"]}"
+                        "</benchmark_launcher>"
+                    ),
+                    "return_code": 0,
+                    "stderr": "",
+                }
+            return {
+                "assistant_text": (
+                    "<benchmark_launcher>"
+                    "{\"command\": ["
+                    f"\"{sys.executable}\", "
+                    "\"scripts/mock_submit_bench.py\", "
+                    "\"--benchmark\", "
+                    "\"{benchmark}\", "
+                    "\"--mode\", "
+                    "\"pid\""
+                    "]}"
+                    "</benchmark_launcher>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted after launcher replan</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--hpc-profile",
+            str(hpc_profile_path),
+            "--allow-dirty",
+        ]
+    )
+
+    assert code == 0
+    assert planner_calls["count"] == 2
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 1
 
 
 def test_optimize_rejected_candidate_cleans_new_untracked_files(

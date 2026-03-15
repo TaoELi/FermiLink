@@ -281,13 +281,19 @@ Useful flags:
 - ``--max-iterations <n>``: cap iterations for one command invocation.
 - ``--worker-max-iterations <n>``: cap inner worker-loop turns per outer optimize iteration.
 - ``--worker-wait-seconds <n>`` / ``--worker-max-wait-seconds <n>`` / ``--worker-pid-stall-seconds <n>``: control inner worker-loop wait and polling behavior.
-- ``--hpc-profile <json>``: forward the same lightweight SLURM prompt constraints used by ``exec``/``loop`` into the optimize worker loop.
+- ``--hpc-profile <json>``: forward SLURM prompt constraints into the optimize worker loop and enable adaptive controller-side launcher planning/reuse for ``runtime.mode=submit_poll`` benchmarks.
 - ``--forever``: keep iterating until interrupted or a rejection stop rule fires.
 - ``--allow-dirty``: bypass the clean-worktree startup requirement.
 
 The benchmark contract is a YAML file that defines editable paths, the
 authoritative benchmark command, aggregation policy, correctness thresholds,
-and optional ``worker`` loop defaults. See ``scripts/benchmark.yaml`` in this
+and optional ``worker`` loop defaults. For benchmark execution, ``runtime.mode``
+supports ``direct`` (default synchronous command) and ``submit_poll`` (submission
+command emitting ``<pid_number>`` / ``<slurm_job_number>`` tags with controller-side
+polling, then JSON retrieval from ``runtime.result_json_path``/``runtime.result_command``
+or ``artifacts.latest_metrics_json``). When ``--hpc-profile`` is provided, submit-poll
+benchmarks can auto-plan and cache controller launchers, then retry planner+launcher
+on infrastructure failures. See ``scripts/benchmark.yaml`` in this
 repository for a PySCF SCF example and ``scripts/pyscf_scf_bench.py`` for the
 matching benchmark runner template.
 
