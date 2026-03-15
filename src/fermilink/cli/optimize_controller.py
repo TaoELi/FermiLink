@@ -54,6 +54,26 @@ QUICK_DEFAULT_WORKER_MAX_WAIT_SECONDS = 900
 QUICK_DEFAULT_WORKER_PID_STALL_SECONDS = 300
 QUICK_DEFAULT_TIMEOUT_SECONDS = 900
 QUICK_DEFAULT_MIN_RELATIVE_IMPROVEMENT = 0.01
+CORRECTNESS_MODE_RUNNER_ONLY = "runner_only"
+CORRECTNESS_MODE_SCF = "scf"
+CORRECTNESS_MODE_FIELD_TOLERANCES = "field_tolerances"
+CORRECTNESS_MODE_VALUES = {
+    CORRECTNESS_MODE_RUNNER_ONLY,
+    CORRECTNESS_MODE_SCF,
+    CORRECTNESS_MODE_FIELD_TOLERANCES,
+}
+SCF_CORRECTNESS_KEYS = {
+    "max_abs_energy_delta_hartree",
+    "max_abs_dm_rms_delta",
+    "max_abs_mo_energy_rms_delta",
+}
+FIELD_TOLERANCE_DELTA_KEY_MAP = {
+    "abs_delta": ("abs_delta", "max_abs_delta"),
+    "rms_delta": ("rms_delta", "max_rms_delta"),
+    "relative_delta": ("relative_delta", "max_relative_delta"),
+}
+FIELD_TOLERANCE_COMPARISONS = set(FIELD_TOLERANCE_DELTA_KEY_MAP)
+FIELD_PATH_MISSING = object()
 QUICK_SOURCE_CODE_EXTENSIONS = (
     ".py",
     ".c",
@@ -225,10 +245,9 @@ def _quick_objective_from_template(template_benchmark: dict[str, Any]) -> dict[s
     controller = _dict_clone(template_benchmark.get("controller"))
     template_objective = _dict_clone(controller.get("objective"))
     if template_objective:
-        objective.update(template_objective)
-    primary_metric = str(objective.get("primary_metric") or "").strip()
-    if not primary_metric:
-        primary_metric = "weighted_median_wall_seconds"
+        for key in ("min_relative_improvement", "tie_relative_tolerance"):
+            if key in template_objective:
+                objective[key] = copy.deepcopy(template_objective[key])
     direction = str(objective.get("direction") or "minimize").strip().lower()
     if direction not in {"minimize", "maximize"}:
         direction = "minimize"
@@ -236,37 +255,116 @@ def _quick_objective_from_template(template_benchmark: dict[str, Any]) -> dict[s
         objective.get("min_relative_improvement"),
         default=QUICK_DEFAULT_MIN_RELATIVE_IMPROVEMENT,
     )
-    objective["primary_metric"] = primary_metric
+    tie_relative_tolerance = _safe_non_negative_float(
+        objective.get("tie_relative_tolerance"),
+        default=0.0,
+    )
+    objective["primary_metric"] = "weighted_median_wall_seconds"
     objective["direction"] = direction
     objective["min_relative_improvement"] = min_relative_improvement
+    if tie_relative_tolerance > 0:
+        objective["tie_relative_tolerance"] = tie_relative_tolerance
+    else:
+        objective.pop("tie_relative_tolerance", None)
     return objective
 
 
-def _quick_correctness_from_template(template_benchmark: dict[str, Any]) -> dict[str, Any]:
-    correctness: dict[str, Any] = {
-        "require_all_cases_converged": True,
-        "max_abs_energy_delta_hartree": 1.0,
-        "max_abs_dm_rms_delta": 1.0,
-        "max_abs_mo_energy_rms_delta": 1.0,
-    }
+def _normalize_correctness_mode(raw_mode: object) -> str:
+    mode = str(raw_mode or "").strip().lower()
+    if mode in CORRECTNESS_MODE_VALUES:
+        return mode
+    return ""
+
+
+def _resolve_correctness_mode(correctness: dict[str, Any]) -> str:
+    explicit = _normalize_correctness_mode(correctness.get("mode"))
+    if explicit:
+        return explicit
+    if any(key in correctness for key in SCF_CORRECTNESS_KEYS):
+        return CORRECTNESS_MODE_SCF
+    field_tolerances = correctness.get("field_tolerances")
+    if isinstance(field_tolerances, list) and field_tolerances:
+        return CORRECTNESS_MODE_FIELD_TOLERANCES
+    return CORRECTNESS_MODE_RUNNER_ONLY
+
+
+def _quick_correctness_mode_from_template(
+    template_correctness: dict[str, Any],
+    *,
+    allow_template_mode: bool,
+) -> str:
+    explicit = _normalize_correctness_mode(template_correctness.get("mode"))
+    if allow_template_mode and explicit:
+        return explicit
+    # Quick-mode autogen should remain generic unless an explicit project-local
+    # template requests otherwise.
+    return CORRECTNESS_MODE_RUNNER_ONLY
+
+
+def _quick_default_field_tolerances(
+    payload: object,
+) -> list[dict[str, Any]]:
+    tolerances: list[dict[str, Any]] = []
+    if not isinstance(payload, list):
+        return tolerances
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field") or "").strip()
+        if not field:
+            continue
+        spec: dict[str, Any] = {"field": field}
+        for key in (
+            "abs_delta",
+            "rms_delta",
+            "relative_delta",
+            "max_abs_delta",
+            "max_rms_delta",
+            "max_relative_delta",
+            "comparison",
+            "label",
+        ):
+            if key in item:
+                spec[key] = copy.deepcopy(item[key])
+        tolerances.append(spec)
+    return tolerances
+
+
+def _quick_correctness_from_template(
+    template_benchmark: dict[str, Any],
+    *,
+    allow_template_mode: bool,
+) -> dict[str, Any]:
     template_correctness = _dict_clone(template_benchmark.get("correctness"))
-    if template_correctness:
-        correctness.update(template_correctness)
-    correctness["require_all_cases_converged"] = bool(
-        correctness.get("require_all_cases_converged", True)
+    mode = _quick_correctness_mode_from_template(
+        template_correctness,
+        allow_template_mode=allow_template_mode,
     )
-    correctness["max_abs_energy_delta_hartree"] = _safe_non_negative_float(
-        correctness.get("max_abs_energy_delta_hartree"),
-        default=1.0,
-    )
-    correctness["max_abs_dm_rms_delta"] = _safe_non_negative_float(
-        correctness.get("max_abs_dm_rms_delta"),
-        default=1.0,
-    )
-    correctness["max_abs_mo_energy_rms_delta"] = _safe_non_negative_float(
-        correctness.get("max_abs_mo_energy_rms_delta"),
-        default=1.0,
-    )
+    correctness: dict[str, Any] = {
+        "mode": mode,
+        "require_all_cases_converged": bool(
+            template_correctness.get("require_all_cases_converged", True)
+        ),
+    }
+    if mode == CORRECTNESS_MODE_SCF:
+        correctness["max_abs_energy_delta_hartree"] = _safe_non_negative_float(
+            template_correctness.get("max_abs_energy_delta_hartree"),
+            default=1.0,
+        )
+        correctness["max_abs_dm_rms_delta"] = _safe_non_negative_float(
+            template_correctness.get("max_abs_dm_rms_delta"),
+            default=1.0,
+        )
+        correctness["max_abs_mo_energy_rms_delta"] = _safe_non_negative_float(
+            template_correctness.get("max_abs_mo_energy_rms_delta"),
+            default=1.0,
+        )
+    elif mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
+        tolerances = _quick_default_field_tolerances(
+            template_correctness.get("field_tolerances")
+        )
+        if tolerances:
+            correctness["field_tolerances"] = tolerances
     return correctness
 
 
@@ -344,6 +442,106 @@ def _normalize_string_command_list(payload: object) -> list[str]:
         for item in payload
         if isinstance(item, str) and str(item).strip()
     ]
+
+
+def _validate_field_tolerances_config(
+    payload: object,
+    *,
+    context_label: str,
+) -> None:
+    cli = _cli()
+    if not isinstance(payload, list) or not payload:
+        raise cli.PackageError(
+            f"{context_label}.field_tolerances must be a non-empty list."
+        )
+    for index, spec in enumerate(payload, start=1):
+        spec_label = f"{context_label}.field_tolerances[{index}]"
+        if not isinstance(spec, dict):
+            raise cli.PackageError(f"{spec_label} must be an object.")
+        field = str(spec.get("field") or "").strip()
+        if not field:
+            raise cli.PackageError(f"{spec_label}.field is required.")
+        threshold_count = 0
+        for aliases in FIELD_TOLERANCE_DELTA_KEY_MAP.values():
+            metric_has_threshold = False
+            for key in aliases:
+                if key not in spec:
+                    continue
+                raw_value = spec.get(key)
+                if raw_value is None:
+                    continue
+                if isinstance(raw_value, bool):
+                    raise cli.PackageError(
+                        f"{spec_label}.{key} must be a number."
+                    )
+                _validate_optional_number(
+                    raw=raw_value,
+                    label=f"{spec_label}.{key}",
+                    allow_zero=True,
+                )
+                metric_has_threshold = True
+            if metric_has_threshold:
+                threshold_count += 1
+        if threshold_count == 0:
+            allowed = ", ".join(sorted(FIELD_TOLERANCE_COMPARISONS))
+            raise cli.PackageError(
+                f"{spec_label} must set at least one threshold ({allowed})."
+            )
+        comparison = str(spec.get("comparison") or "").strip().lower()
+        if comparison and comparison not in FIELD_TOLERANCE_COMPARISONS:
+            allowed = ", ".join(sorted(FIELD_TOLERANCE_COMPARISONS))
+            raise cli.PackageError(
+                f"{spec_label}.comparison must be one of: {allowed}."
+            )
+
+
+def _validate_correctness_schema(payload: dict[str, Any]) -> None:
+    cli = _cli()
+    correctness = payload.get("correctness")
+    if correctness is None:
+        return
+    if not isinstance(correctness, dict):
+        raise cli.PackageError("Benchmark correctness block must be an object.")
+
+    mode_raw = correctness.get("mode")
+    mode_explicit = _normalize_correctness_mode(mode_raw)
+    if mode_raw is not None and not mode_explicit:
+        allowed = ", ".join(sorted(CORRECTNESS_MODE_VALUES))
+        raise cli.PackageError(
+            "Benchmark correctness.mode must be one of: "
+            f"{allowed}."
+        )
+    mode = mode_explicit or _resolve_correctness_mode(correctness)
+
+    require_all = correctness.get("require_all_cases_converged")
+    if require_all is not None and not isinstance(require_all, bool):
+        raise cli.PackageError(
+            "Benchmark correctness.require_all_cases_converged must be true/false."
+        )
+
+    if mode == CORRECTNESS_MODE_SCF:
+        _validate_optional_number(
+            raw=correctness.get("max_abs_energy_delta_hartree"),
+            label="Benchmark correctness.max_abs_energy_delta_hartree",
+            allow_zero=True,
+        )
+        _validate_optional_number(
+            raw=correctness.get("max_abs_dm_rms_delta"),
+            label="Benchmark correctness.max_abs_dm_rms_delta",
+            allow_zero=True,
+        )
+        _validate_optional_number(
+            raw=correctness.get("max_abs_mo_energy_rms_delta"),
+            label="Benchmark correctness.max_abs_mo_energy_rms_delta",
+            allow_zero=True,
+        )
+        return
+
+    if mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
+        _validate_field_tolerances_config(
+            correctness.get("field_tolerances"),
+            context_label="Benchmark correctness",
+        )
 
 
 def _load_benchmark(path: Path) -> dict[str, Any]:
@@ -431,6 +629,7 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
     primary_metric = str(objective.get("primary_metric") or "").strip()
     if not primary_metric:
         raise cli.PackageError("Benchmark objective.primary_metric is required.")
+    _validate_correctness_schema(payload)
     if mode == "submit_poll":
         result_json_path = str(runtime.get("result_json_path") or "").strip()
         artifacts = payload.get("artifacts")
@@ -973,6 +1172,149 @@ def _rms_difference(left: object, right: object) -> float:
     for left_value, right_value in zip(left_values, right_values):
         sq_sum += (left_value - right_value) ** 2
     return math.sqrt(sq_sum / len(left_values))
+
+
+def _max_abs_difference(left: object, right: object) -> float:
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return abs(float(left) - float(right))
+    left_values = _flatten_numbers(left)
+    right_values = _flatten_numbers(right)
+    if not left_values or len(left_values) != len(right_values):
+        return float("inf")
+    return max(abs(left_value - right_value) for left_value, right_value in zip(left_values, right_values))
+
+
+def _relative_difference(left: object, right: object) -> float:
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        baseline = abs(float(left))
+        delta = abs(float(left) - float(right))
+        if baseline <= 1.0e-12:
+            return 0.0 if delta <= 1.0e-12 else float("inf")
+        return delta / baseline
+    left_values = _flatten_numbers(left)
+    right_values = _flatten_numbers(right)
+    if not left_values or len(left_values) != len(right_values):
+        return float("inf")
+    rms_delta = _rms_difference(left, right)
+    baseline_rms = math.sqrt(sum(value * value for value in left_values) / len(left_values))
+    if baseline_rms <= 1.0e-12:
+        return 0.0 if rms_delta <= 1.0e-12 else float("inf")
+    return rms_delta / baseline_rms
+
+
+def _value_at_field_path(payload: object, field_path: str) -> object:
+    current = payload
+    tokens = [token.strip() for token in str(field_path or "").split(".") if token.strip()]
+    if not tokens:
+        return FIELD_PATH_MISSING
+    for token in tokens:
+        if isinstance(current, dict):
+            if token not in current:
+                return FIELD_PATH_MISSING
+            current = current[token]
+            continue
+        if isinstance(current, list):
+            try:
+                index = int(token)
+            except (TypeError, ValueError):
+                return FIELD_PATH_MISSING
+            if index < 0 or index >= len(current):
+                return FIELD_PATH_MISSING
+            current = current[index]
+            continue
+        return FIELD_PATH_MISSING
+    return current
+
+
+def _field_tolerance_threshold(spec: dict[str, Any], metric_name: str) -> float | None:
+    aliases = FIELD_TOLERANCE_DELTA_KEY_MAP.get(metric_name, ())
+    for key in aliases:
+        value = spec.get(key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            return max(0.0, float(value))
+    return None
+
+
+def _scf_case_correctness_errors(
+    *,
+    case_id: str,
+    incumbent_case: dict[str, Any],
+    candidate_case: dict[str, Any],
+    correctness: dict[str, Any],
+) -> list[str]:
+    max_abs_energy_delta = float(correctness.get("max_abs_energy_delta_hartree") or 0.0)
+    max_abs_dm_rms_delta = float(correctness.get("max_abs_dm_rms_delta") or 0.0)
+    max_abs_mo_energy_rms_delta = float(
+        correctness.get("max_abs_mo_energy_rms_delta") or 0.0
+    )
+    errors: list[str] = []
+    incumbent_energy = incumbent_case.get("total_energy_hartree")
+    candidate_energy = candidate_case.get("total_energy_hartree")
+    if isinstance(incumbent_energy, (int, float)) and isinstance(candidate_energy, (int, float)):
+        if abs(float(candidate_energy) - float(incumbent_energy)) > max_abs_energy_delta:
+            errors.append(f"case {case_id} energy drift exceeds threshold")
+    dm_diff = _rms_difference(
+        incumbent_case.get("density_matrix"),
+        candidate_case.get("density_matrix"),
+    )
+    if dm_diff > max_abs_dm_rms_delta:
+        errors.append(f"case {case_id} density-matrix drift exceeds threshold")
+    mo_diff = _rms_difference(
+        incumbent_case.get("mo_energies"),
+        candidate_case.get("mo_energies"),
+    )
+    if mo_diff > max_abs_mo_energy_rms_delta:
+        errors.append(f"case {case_id} MO-energy drift exceeds threshold")
+    return errors
+
+
+def _field_tolerance_case_errors(
+    *,
+    case_id: str,
+    incumbent_case: dict[str, Any],
+    candidate_case: dict[str, Any],
+    tolerance_specs: list[dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    for spec in tolerance_specs:
+        field_path = str(spec.get("field") or "").strip()
+        if not field_path:
+            continue
+        label = str(spec.get("label") or "").strip() or field_path
+        incumbent_value = _value_at_field_path(incumbent_case, field_path)
+        candidate_value = _value_at_field_path(candidate_case, field_path)
+        if incumbent_value is FIELD_PATH_MISSING or candidate_value is FIELD_PATH_MISSING:
+            errors.append(f"case {case_id} missing field `{field_path}` for correctness check")
+            continue
+        requested_comparison = str(spec.get("comparison") or "").strip().lower()
+        if requested_comparison and requested_comparison in FIELD_TOLERANCE_COMPARISONS:
+            comparison_names = [requested_comparison]
+        else:
+            comparison_names = [
+                name
+                for name in FIELD_TOLERANCE_DELTA_KEY_MAP
+                if _field_tolerance_threshold(spec, name) is not None
+            ]
+        for comparison_name in comparison_names:
+            threshold = _field_tolerance_threshold(spec, comparison_name)
+            if threshold is None:
+                continue
+            if comparison_name == "abs_delta":
+                diff = _max_abs_difference(incumbent_value, candidate_value)
+            elif comparison_name == "rms_delta":
+                diff = _rms_difference(incumbent_value, candidate_value)
+            else:
+                diff = _relative_difference(incumbent_value, candidate_value)
+            if diff > threshold:
+                errors.append(
+                    (
+                        f"case {case_id} {label} {comparison_name} "
+                        f"exceeds threshold ({diff:.6g} > {threshold:.6g})"
+                    )
+                )
+    return errors
 
 
 def _resolve_optimize_branch(
@@ -2354,17 +2696,18 @@ def _compare_correctness(
     candidate_metrics: dict[str, Any],
 ) -> dict[str, Any]:
     correctness = _correctness_config(benchmark_payload)
+    mode = _resolve_correctness_mode(correctness)
     require_all_cases_converged = bool(
         correctness.get("require_all_cases_converged", True)
     )
-    max_abs_energy_delta = float(correctness.get("max_abs_energy_delta_hartree") or 0.0)
-    max_abs_dm_rms_delta = float(correctness.get("max_abs_dm_rms_delta") or 0.0)
-    max_abs_mo_energy_rms_delta = float(
-        correctness.get("max_abs_mo_energy_rms_delta") or 0.0
-    )
-
     incumbent_cases = _case_map(incumbent_metrics.get("cases"))
     candidate_cases = _case_map(candidate_metrics.get("cases"))
+    field_tolerance_specs = (
+        list(correctness.get("field_tolerances"))
+        if mode == CORRECTNESS_MODE_FIELD_TOLERANCES
+        and isinstance(correctness.get("field_tolerances"), list)
+        else []
+    )
     errors: list[str] = []
     for case_id, incumbent_case in incumbent_cases.items():
         candidate_case = candidate_cases.get(case_id)
@@ -2374,32 +2717,29 @@ def _compare_correctness(
         if require_all_cases_converged and not bool(candidate_case.get("converged")):
             errors.append(f"case {case_id} did not converge")
             continue
-        incumbent_energy = incumbent_case.get("total_energy_hartree")
-        candidate_energy = candidate_case.get("total_energy_hartree")
-        if isinstance(incumbent_energy, (int, float)) and isinstance(
-            candidate_energy, (int, float)
-        ):
-            if (
-                abs(float(candidate_energy) - float(incumbent_energy))
-                > max_abs_energy_delta
-            ):
-                errors.append(f"case {case_id} energy drift exceeds threshold")
-        dm_diff = _rms_difference(
-            incumbent_case.get("density_matrix"),
-            candidate_case.get("density_matrix"),
-        )
-        if dm_diff > max_abs_dm_rms_delta:
-            errors.append(f"case {case_id} density-matrix drift exceeds threshold")
-        mo_diff = _rms_difference(
-            incumbent_case.get("mo_energies"),
-            candidate_case.get("mo_energies"),
-        )
-        if mo_diff > max_abs_mo_energy_rms_delta:
-            errors.append(f"case {case_id} MO-energy drift exceeds threshold")
+        if mode == CORRECTNESS_MODE_SCF:
+            errors.extend(
+                _scf_case_correctness_errors(
+                    case_id=case_id,
+                    incumbent_case=incumbent_case,
+                    candidate_case=candidate_case,
+                    correctness=correctness,
+                )
+            )
+        elif mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
+            errors.extend(
+                _field_tolerance_case_errors(
+                    case_id=case_id,
+                    incumbent_case=incumbent_case,
+                    candidate_case=candidate_case,
+                    tolerance_specs=field_tolerance_specs,
+                )
+            )
 
     return {
         "ok": not errors,
         "errors": errors,
+        "mode": mode,
     }
 
 
@@ -2438,16 +2778,30 @@ def _condense_metrics_for_controller(metrics: dict[str, Any]) -> dict[str, Any]:
         for item in cases:
             if not isinstance(item, dict):
                 continue
-            rendered_cases.append(
-                {
-                    "id": str(item.get("id") or ""),
-                    "converged": bool(item.get("converged")),
-                    "wall_seconds": item.get("wall_seconds"),
-                    "scf_iterations": item.get("scf_iterations"),
-                    "total_energy_hartree": item.get("total_energy_hartree"),
-                    "error": str(item.get("error") or ""),
-                }
-            )
+            case_payload: dict[str, Any] = {
+                "id": str(item.get("id") or ""),
+                "converged": bool(item.get("converged")),
+                "wall_seconds": item.get("wall_seconds"),
+                "error": str(item.get("error") or ""),
+            }
+            scalar_metrics: dict[str, float] = {}
+            for key, value in item.items():
+                if key in {
+                    "id",
+                    "converged",
+                    "wall_seconds",
+                    "error",
+                    "command",
+                    "command_preview",
+                }:
+                    continue
+                if isinstance(value, bool):
+                    continue
+                if isinstance(value, (int, float)):
+                    scalar_metrics[str(key)] = float(value)
+            if scalar_metrics:
+                case_payload["scalar_metrics"] = scalar_metrics
+            rendered_cases.append(case_payload)
     return {
         "status": metrics.get("status"),
         "correctness_ok": bool(metrics.get("correctness_ok")),
@@ -2699,8 +3053,6 @@ def _infer_editable_paths(
         return ["src/**"]
     if any(path.startswith("lib/") for path in tracked_files):
         return ["lib/**"]
-    if any(path.startswith("pyscf/") for path in tracked_files):
-        return ["pyscf/**"]
     if language == "python":
         return ["**/*.py"]
     source_files = [
@@ -2827,10 +3179,6 @@ def _render_quick_runner_script() -> str:
         "            'id': case_id,\n"
         "            'converged': False,\n"
         "            'wall_seconds': 0.0,\n"
-        "            'scf_iterations': 0.0,\n"
-        "            'total_energy_hartree': 0.0,\n"
-        "            'density_matrix': [0.0],\n"
-        "            'mo_energies': [0.0],\n"
         "            'error': 'missing case.command',\n"
         "        }\n"
         "    expanded = _expand(command, replacements)\n"
@@ -2856,10 +3204,6 @@ def _render_quick_runner_script() -> str:
         "            'id': case_id,\n"
         "            'converged': completed.returncode == 0,\n"
         "            'wall_seconds': elapsed,\n"
-        "            'scf_iterations': 0.0,\n"
-        "            'total_energy_hartree': 0.0,\n"
-        "            'density_matrix': [0.0],\n"
-        "            'mo_energies': [0.0],\n"
         "            'error': '' if completed.returncode == 0 else stderr_text,\n"
         "            'return_code': int(completed.returncode),\n"
         "            'command': expanded,\n"
@@ -2870,10 +3214,6 @@ def _render_quick_runner_script() -> str:
         "            'id': case_id,\n"
         "            'converged': False,\n"
         "            'wall_seconds': elapsed,\n"
-        "            'scf_iterations': 0.0,\n"
-        "            'total_energy_hartree': 0.0,\n"
-        "            'density_matrix': [0.0],\n"
-        "            'mo_energies': [0.0],\n"
         "            'error': 'timeout',\n"
         "            'return_code': 124,\n"
         "            'command': expanded,\n"
@@ -2884,10 +3224,6 @@ def _render_quick_runner_script() -> str:
         "            'id': case_id,\n"
         "            'converged': False,\n"
         "            'wall_seconds': elapsed,\n"
-        "            'scf_iterations': 0.0,\n"
-        "            'total_energy_hartree': 0.0,\n"
-        "            'density_matrix': [0.0],\n"
-        "            'mo_energies': [0.0],\n"
         "            'error': str(exc),\n"
         "            'return_code': 1,\n"
         "            'command': expanded,\n"
@@ -2926,7 +3262,6 @@ def _render_quick_runner_script() -> str:
         "        'correctness_ok': failures == 0,\n"
         "        'summary_metrics': {\n"
         "            'weighted_median_wall_seconds': float(median_wall),\n"
-        "            'weighted_median_scf_iterations': 0.0,\n"
         "            'peak_rss_mb': 0.0,\n"
         "            'total_failures': int(failures),\n"
         "        },\n"
@@ -3100,7 +3435,11 @@ def _quick_scaffold(
     template_case_hints = _template_case_hints(reference_benchmark)
     template_controller_defaults = _quick_controller_defaults(reference_benchmark)
     template_objective = _quick_objective_from_template(reference_benchmark)
-    template_correctness = _quick_correctness_from_template(reference_benchmark)
+    template_source = str(reference_template.get("source") or "").strip().lower()
+    template_correctness = _quick_correctness_from_template(
+        reference_benchmark,
+        allow_template_mode=template_source == "project",
+    )
     template_runtime = _dict_clone(reference_benchmark.get("runtime"))
     template_runtime_env = _normalize_runtime_env(template_runtime.get("env"))
     template_reporting = reference_benchmark.get("reporting")

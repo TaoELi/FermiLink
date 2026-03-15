@@ -14,8 +14,8 @@ Benchmark examples follow `language-pkg-goal` naming:
 - `validate_data.py`: validates curated channel/package metadata used by FermiLink.
 - `hpc_profile_anvil.json`: sample HPC profile for Purdue Anvil.
 
-- `python-pyscf-scf-benchmark.yaml`: Python/PySCF SCF optimize benchmark contract example with composite single+SMP and HF+DFT objectives plus incumbent no-regression guardrails.
-- `python-pyscf-scf-bench.py`: Python benchmark runner matching the PySCF contract, including per-case thread-profile execution and composite summary metrics.
+- `python-pyscf-scf-benchmark.yaml`: Python/PySCF SCF optimize benchmark contract example with composite single+SMP and HF+DFT objectives plus incumbent no-regression guardrails; correctness now uses `mode: field_tolerances` for energy/MO-energy/`s2` checks (no density-matrix correctness gate).
+- `python-pyscf-scf-bench.py`: Python benchmark runner matching the PySCF contract, including per-case thread-profile execution, composite summary metrics, and per-case `s2` output for correctness checks.
 
 - `cpp-lammps-tip4p-force-eval-benchmark.yaml`: C++/LAMMPS TIP4P force-evaluation optimize contract example.
 - `cpp-lammps-tip4p-force-eval-bench.sh`: Bash benchmark runner matching the LAMMPS contract.

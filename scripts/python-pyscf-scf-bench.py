@@ -57,6 +57,27 @@ def _rms(values: Any) -> float:
     return math.sqrt(sum(value * value for value in flattened) / len(flattened))
 
 
+def _spin_square_value(mf: Any) -> float:
+    spin_square_fn = getattr(mf, "spin_square", None)
+    if not callable(spin_square_fn):
+        return float("nan")
+    try:
+        raw_value = spin_square_fn()
+    except Exception:
+        return float("nan")
+    if isinstance(raw_value, (tuple, list)):
+        if not raw_value:
+            return float("nan")
+        raw_value = raw_value[0]
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not math.isfinite(value):
+        return float("nan")
+    return value
+
+
 def _weighted_median(weighted_values: list[tuple[float, float]]) -> float:
     if not weighted_values:
         return float("inf")
@@ -258,6 +279,7 @@ def _failed_case_payload(
         "total_energy_hartree": float("nan"),
         "dm_rms": float("nan"),
         "mo_energy_rms": float("nan"),
+        "s2": float("nan"),
         "peak_rss_mb": _peak_rss_mb(),
         "density_matrix": [],
         "mo_energies": [],
@@ -294,6 +316,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
         wall_seconds = time.perf_counter() - started
         density_matrix = _to_builtin(mf.make_rdm1())
         mo_energies = _to_builtin(getattr(mf, "mo_energy", []))
+        s2 = _spin_square_value(mf)
         scf_iterations = (
             getattr(mf, "cycles", None)
             or getattr(mf, "iterations", None)
@@ -312,6 +335,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
             "total_energy_hartree": float(energy),
             "dm_rms": _rms(density_matrix),
             "mo_energy_rms": _rms(mo_energies),
+            "s2": s2,
             "peak_rss_mb": _peak_rss_mb(),
             "density_matrix": density_matrix,
             "mo_energies": mo_energies,

@@ -12,6 +12,7 @@ import yaml
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink.cli import optimize_git
+from fermilink.cli import optimize_controller
 from fermilink.cli import optimize_state
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
@@ -328,6 +329,115 @@ def test_optimize_parser_supports_status_mode() -> None:
     assert args.tail == 40
 
 
+def test_load_benchmark_rejects_unknown_correctness_mode(tmp_path: Path) -> None:
+    benchmark_path = tmp_path / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: mock\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - src/**\n"
+            "controller:\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "correctness:\n"
+            "  mode: unknown_mode\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - -c\n"
+            "    - print('ok')\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(cli.PackageError, match="correctness.mode"):
+        optimize_controller._load_benchmark(benchmark_path)
+
+
+def test_compare_correctness_runner_only_uses_generic_case_checks() -> None:
+    benchmark_payload = {
+        "correctness": {
+            "mode": "runner_only",
+            "require_all_cases_converged": True,
+        }
+    }
+    incumbent_metrics = {
+        "cases": [
+            {
+                "id": "case-1",
+                "converged": True,
+                "physics_payload": {"energy": -1.0, "forces": [0.1, 0.2, 0.3]},
+            }
+        ]
+    }
+    candidate_metrics = {
+        "cases": [
+            {
+                "id": "case-1",
+                "converged": True,
+                "physics_payload": {"energy": -9.0, "forces": [9.1, 9.2, 9.3]},
+            }
+        ]
+    }
+
+    comparison = optimize_controller._compare_correctness(
+        benchmark_payload,
+        incumbent_metrics=incumbent_metrics,
+        candidate_metrics=candidate_metrics,
+    )
+
+    assert comparison["ok"] is True
+    assert comparison["errors"] == []
+    assert comparison["mode"] == "runner_only"
+
+
+def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None:
+    benchmark_payload = {
+        "correctness": {
+            "mode": "field_tolerances",
+            "field_tolerances": [
+                {
+                    "field": "outputs.force_norm",
+                    "abs_delta": 0.05,
+                }
+            ],
+        }
+    }
+    incumbent_metrics = {
+        "cases": [
+            {"id": "case-1", "converged": True, "outputs": {"force_norm": 1.0}}
+        ]
+    }
+    passing_candidate = {
+        "cases": [
+            {"id": "case-1", "converged": True, "outputs": {"force_norm": 1.04}}
+        ]
+    }
+    failing_candidate = {
+        "cases": [
+            {"id": "case-1", "converged": True, "outputs": {"force_norm": 1.2}}
+        ]
+    }
+
+    passing = optimize_controller._compare_correctness(
+        benchmark_payload,
+        incumbent_metrics=incumbent_metrics,
+        candidate_metrics=passing_candidate,
+    )
+    failing = optimize_controller._compare_correctness(
+        benchmark_payload,
+        incumbent_metrics=incumbent_metrics,
+        candidate_metrics=failing_candidate,
+    )
+
+    assert passing["ok"] is True
+    assert failing["ok"] is False
+    assert "force_norm abs_delta exceeds threshold" in "; ".join(failing["errors"])
+
+
 def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
     prompt_path = repo_dir / "prompt.md"
@@ -376,6 +486,8 @@ def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: py
     benchmark_text = (autogen_root / "benchmark.yaml").read_text(encoding="utf-8")
     assert "mode: direct" in benchmark_text
     assert "weighted_median_wall_seconds" in benchmark_text
+    benchmark_payload = yaml.safe_load(benchmark_text)
+    assert benchmark_payload["correctness"]["mode"] == "runner_only"
 
 
 def test_optimize_quick_mode_reuses_existing_autogen(
