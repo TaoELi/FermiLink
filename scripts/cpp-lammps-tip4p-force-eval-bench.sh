@@ -160,7 +160,7 @@ run_case() {
 
   local escaped_error
   escaped_error="$(json_escape "${error_text}")"
-  case_rows+=("{\"id\":\"${case_id}\",\"converged\":${converged},\"wall_seconds\":${wall_seconds},\"scf_iterations\":${step},\"total_energy_hartree\":${total_energy},\"density_matrix\":[${total_energy}],\"mo_energies\":[${temperature}],\"peak_rss_mb\":0.0,\"error\":\"${escaped_error}\"}")
+  case_rows+=("{\"id\":\"${case_id}\",\"converged\":${converged},\"wall_seconds\":${wall_seconds},\"scf_iterations\":${step},\"total_energy_hartree\":${total_energy},\"total_energy_lammps_units\":${total_energy},\"temperature\":${temperature},\"density_matrix\":[${total_energy}],\"mo_energies\":[${temperature}],\"peak_rss_mb\":0.0,\"error\":\"${escaped_error}\"}")
 }
 
 run_case \

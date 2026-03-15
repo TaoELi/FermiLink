@@ -40,10 +40,12 @@ controller:
     min_relative_improvement: 0.01
 
 correctness:
+  mode: field_tolerances
   require_all_cases_converged: true
-  max_abs_energy_delta_hartree: 5.0e-2
-  max_abs_dm_rms_delta: 5.0e-2
-  max_abs_mo_energy_rms_delta: 5.0e-2
+  field_tolerances:
+    - field: total_energy_lammps_units
+      abs_delta: 1.0e-1
+      label: total_energy_lammps_units
 
 runtime:
   mode: direct

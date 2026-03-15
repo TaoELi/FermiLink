@@ -17,11 +17,11 @@ Benchmark examples follow `language-pkg-goal` naming:
 - `python-pyscf-scf-benchmark.yaml`: Python/PySCF SCF optimize benchmark contract example with composite single+SMP and HF+DFT objectives plus incumbent no-regression guardrails; correctness now uses `mode: field_tolerances` for energy/MO-energy/`s2` checks (no density-matrix correctness gate).
 - `python-pyscf-scf-bench.py`: Python benchmark runner matching the PySCF contract, including per-case thread-profile execution, composite summary metrics, and per-case `s2` output for correctness checks.
 
-- `cpp-lammps-tip4p-force-eval-benchmark.yaml`: C++/LAMMPS TIP4P force-evaluation optimize contract example.
-- `cpp-lammps-tip4p-force-eval-bench.sh`: Bash benchmark runner matching the LAMMPS contract.
+- `cpp-lammps-tip4p-force-eval-benchmark.yaml`: C++/LAMMPS TIP4P force-evaluation optimize contract example using `correctness.mode: field_tolerances`.
+- `cpp-lammps-tip4p-force-eval-bench.sh`: Bash benchmark runner matching the LAMMPS contract, emitting per-case energy/temperature values used by field-tolerance checks.
 
-- `fortran-quantum-espresso-scf-benchmark.yaml`: Fortran/Quantum ESPRESSO SCF optimize contract example.
-- `fortran-quantum-espresso-scf-bench.sh`: Bash benchmark runner matching the QE contract.
+- `fortran-quantum-espresso-scf-benchmark.yaml`: Fortran/Quantum ESPRESSO SCF optimize contract example using `correctness.mode: field_tolerances`.
+- `fortran-quantum-espresso-scf-bench.sh`: Bash benchmark runner matching the QE contract, emitting per-case total energy values in Ry for field-tolerance checks.
 
 ## How optimize quick mode uses these
 

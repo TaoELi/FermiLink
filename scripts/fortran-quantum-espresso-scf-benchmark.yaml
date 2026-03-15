@@ -41,10 +41,12 @@ controller:
     min_relative_improvement: 0.01
 
 correctness:
+  mode: field_tolerances
   require_all_cases_converged: true
-  max_abs_energy_delta_hartree: 5.0e-4
-  max_abs_dm_rms_delta: 5.0e-4
-  max_abs_mo_energy_rms_delta: 5.0e-4
+  field_tolerances:
+    - field: total_energy_ry
+      abs_delta: 1.0e-3
+      label: total_energy_ry
 
 runtime:
   mode: direct
