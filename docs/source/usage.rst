@@ -316,8 +316,22 @@ Correctness policy supports two modes:
 - ``mode: field_tolerances``: generic per-case field drift checks with thresholds such as ``abs_delta``, ``rms_delta``, or ``relative_delta``.
 
 - ``scripts/python-pyscf-scf-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
+- ``scripts/python-pyscf-hf-small-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
+- ``scripts/python-pyscf-hf-large-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
+- ``scripts/python-pyscf-dft-small-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
+- ``scripts/python-pyscf-dft-large-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
 - ``scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml`` + ``scripts/cpp-lammps-tip4p-force-eval-bench.sh``
 - ``scripts/fortran-quantum-espresso-scf-benchmark.yaml`` + ``scripts/fortran-quantum-espresso-scf-bench.sh``
+
+Bundled PySCF benchmark templates default ``smp_node`` throughput runs to
+``FERMILINK_PYSCF_SMP_THREADS=4`` (plus ``thread_profiles.smp_node.threads: 4``)
+to keep single-node resource usage moderate by default.
+
+For launching parallel objective-specific optimize campaigns from one clean
+package clone, use ``scripts/fermilink-optimize-worktree.sh``. It creates/reuses
+an isolated ``git worktree`` (plus optional per-worktree venv), then runs
+``fermilink optimize`` with your selected benchmark/bench files, branch, and
+optional ``--hpc-profile`` while forwarding additional optimize flags after ``--``.
 
 
 Global agent runtime policy

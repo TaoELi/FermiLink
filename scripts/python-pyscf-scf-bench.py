@@ -208,7 +208,7 @@ def _thread_profiles(benchmark: dict[str, Any]) -> dict[str, int]:
         )
     if "smp_node" not in profiles:
         profiles["smp_node"] = _safe_positive_int(
-            os.getenv("FERMILINK_PYSCF_SMP_THREADS"), default=16
+            os.getenv("FERMILINK_PYSCF_SMP_THREADS"), default=4
         )
     return profiles
 
@@ -229,7 +229,7 @@ def _resolve_case_threads(
         case.get("execution_profile"), threads=1
     )
     if execution_profile == "smp":
-        fallback = profiles.get("smp_node", 16)
+        fallback = profiles.get("smp_node", 4)
         threads = _safe_positive_int(
             os.getenv("FERMILINK_PYSCF_SMP_THREADS"), default=fallback
         )

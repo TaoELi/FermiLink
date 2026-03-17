@@ -116,7 +116,7 @@ runtime:
     PYSCF_MAX_MEMORY: "24000"
     PYTHONHASHSEED: "0"
     FERMILINK_PYSCF_SINGLE_THREADS: "1"
-    FERMILINK_PYSCF_SMP_THREADS: "16"
+    FERMILINK_PYSCF_SMP_THREADS: "4"
   # Optional async benchmark mode for submit+poll workflows:
   # mode: submit_poll
   # command:
@@ -143,7 +143,7 @@ thread_profiles:
   single_cpu:
     threads: 1
   smp_node:
-    threads: 16
+    threads: 4
 
 performance_guardrails:
   enabled: true

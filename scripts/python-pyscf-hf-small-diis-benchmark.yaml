@@ -1,0 +1,178 @@
+# PySCF DIIS benchmark focused on restricted + unrestricted Hartree-Fock for
+# small molecules.
+
+schema_version: 1
+benchmark_id: python-pyscf-diis-hf-small
+title: Python PySCF DIIS HF benchmark (small molecules, RHF+UHF)
+package_id: pyscf
+domain: quantum-chemistry
+mode: code-optimization
+description: >
+  Optimize pyscf/lib/diis.py for restricted and unrestricted Hartree-Fock on
+  small molecules. All cases are single-node and configured for reproducible
+  SCF convergence checks.
+
+repo:
+  root: .
+  editable_paths:
+    - pyscf/scf/**
+    - pyscf/lib/diis.py
+  immutable_paths:
+    - scripts/python-pyscf-hf-small-diis-benchmark.yaml
+    - scripts/python-pyscf-scf-bench.py
+  disallow_new_dependencies: true
+
+campaign:
+  baseline_branch: main
+  incumbent_branch: fermilink-optimize/pyscf-hf-small-diis
+  candidate_branch_prefix: fermilink-optimize/candidate-hf-small-diis
+  max_iterations: 120
+  stop_on_consecutive_rejections: 30
+
+worker:
+  max_iterations: 8
+  wait_seconds: 1
+  max_wait_seconds: 3600
+  pid_stall_seconds: 900
+
+controller:
+  timeout_seconds: 1800
+  warmup_runs: 1
+  measured_runs: 3
+  aggregation:
+    timing: median
+    memory: max
+    iterations: median
+  objective:
+    primary_metric: weighted_median_wall_seconds
+    direction: minimize
+    min_relative_improvement: 0.02
+    tie_relative_tolerance: 0.003
+  reject_on:
+    - crash
+    - timeout
+    - missing_metrics
+    - correctness_failure
+    - modified_immutable_path
+
+correctness:
+  mode: field_tolerances
+  reference_policy: incumbent_branch_first_success
+  require_all_cases_converged: true
+  field_tolerances:
+    - field: total_energy_hartree
+      abs_delta: 5.0e-8
+      label: total_energy_hartree
+    - field: mo_energies
+      rms_delta: 2.0e-5
+      label: mo_energies
+    - field: s2
+      abs_delta: 1.0e-3
+      label: s2
+  allow_fewer_iterations_than_reference: true
+  forbid_relaxed_tolerances: true
+
+runtime:
+  mode: direct
+  command:
+    - python
+    - scripts/python-pyscf-scf-bench.py
+    - --benchmark
+    - scripts/python-pyscf-hf-small-diis-benchmark.yaml
+    - --emit-json
+  expected_stdout_format: json
+  env:
+    PYTHONHASHSEED: "0"
+    FERMILINK_PYSCF_SINGLE_THREADS: "1"
+    FERMILINK_PYSCF_SMP_THREADS: "4"
+
+artifacts:
+  run_root: .fermilink-optimize
+  results_tsv: .fermilink-optimize/results.tsv
+  memory_md: .fermilink-optimize/memory.md
+  latest_metrics_json: .fermilink-optimize/latest_metrics.json
+  latest_stdout_log: .fermilink-optimize/latest_stdout.log
+  latest_stderr_log: .fermilink-optimize/latest_stderr.log
+  run_archive_dir: .fermilink-optimize/runs
+
+thread_profiles:
+  single_cpu:
+    threads: 1
+  smp_node:
+    threads: 4
+
+cases:
+  - id: h2o_rhf_small
+    weight: 1.0
+    execution_profile: single
+    thread_profile: single_cpu
+    molecule: |
+      O   0.000000   0.000000   0.000000
+      H   0.000000  -0.757160   0.586260
+      H   0.000000   0.757160   0.586260
+    charge: 0
+    spin: 0
+    basis: cc-pvdz
+    scf:
+      method: RHF
+      max_cycle: 120
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 12
+
+  - id: nh3_rhf_small
+    weight: 1.0
+    execution_profile: single
+    thread_profile: single_cpu
+    molecule: |
+      N   0.000000   0.000000   0.117000
+      H   0.000000   0.937700  -0.273000
+      H   0.811100  -0.468850  -0.273000
+      H  -0.811100  -0.468850  -0.273000
+    charge: 0
+    spin: 0
+    basis: cc-pvdz
+    scf:
+      method: RHF
+      max_cycle: 120
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 12
+
+  - id: o2_uhf_small
+    weight: 1.0
+    execution_profile: single
+    thread_profile: single_cpu
+    molecule: |
+      O   0.000000   0.000000   0.000000
+      O   1.207500   0.000000   0.000000
+    charge: 0
+    spin: 2
+    basis: cc-pvdz
+    scf:
+      method: UHF
+      max_cycle: 140
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 12
+
+  - id: no_uhf_small
+    weight: 1.0
+    execution_profile: single
+    thread_profile: single_cpu
+    molecule: |
+      N   0.000000   0.000000   0.000000
+      O   1.150800   0.000000   0.000000
+    charge: 0
+    spin: 1
+    basis: cc-pvdz
+    scf:
+      method: UHF
+      max_cycle: 140
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 12

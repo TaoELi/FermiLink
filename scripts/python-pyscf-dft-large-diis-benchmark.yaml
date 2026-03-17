@@ -1,0 +1,220 @@
+# PySCF DIIS benchmark focused on restricted + unrestricted DFT for
+# larger single-node molecules.
+
+schema_version: 1
+benchmark_id: python-pyscf-diis-dft-large
+title: Python PySCF DIIS DFT benchmark (large molecules, RKS+UKS)
+package_id: pyscf
+domain: quantum-chemistry
+mode: code-optimization
+description: >
+  Optimize pyscf/lib/diis.py for restricted and unrestricted DFT on
+  larger molecules while remaining within single-node SCF workloads.
+
+repo:
+  root: .
+  editable_paths:
+    - pyscf/scf/**
+    - pyscf/lib/diis.py
+    - pyscf/dft/**
+  immutable_paths:
+    - scripts/python-pyscf-dft-large-diis-benchmark.yaml
+    - scripts/python-pyscf-scf-bench.py
+  disallow_new_dependencies: true
+
+campaign:
+  baseline_branch: main
+  incumbent_branch: fermilink-optimize/pyscf-dft-large-diis
+  candidate_branch_prefix: fermilink-optimize/candidate-dft-large-diis
+  max_iterations: 120
+  stop_on_consecutive_rejections: 30
+
+worker:
+  max_iterations: 8
+  wait_seconds: 1
+  max_wait_seconds: 5400
+  pid_stall_seconds: 1200
+
+controller:
+  timeout_seconds: 2400
+  warmup_runs: 1
+  measured_runs: 3
+  aggregation:
+    timing: median
+    memory: max
+    iterations: median
+  objective:
+    primary_metric: weighted_median_wall_seconds
+    direction: minimize
+    min_relative_improvement: 0.02
+    tie_relative_tolerance: 0.003
+  reject_on:
+    - crash
+    - timeout
+    - missing_metrics
+    - correctness_failure
+    - modified_immutable_path
+
+correctness:
+  mode: field_tolerances
+  reference_policy: incumbent_branch_first_success
+  require_all_cases_converged: true
+  field_tolerances:
+    - field: total_energy_hartree
+      abs_delta: 2.0e-6
+      label: total_energy_hartree
+    - field: mo_energies
+      rms_delta: 5.0e-5
+      label: mo_energies
+    - field: s2
+      abs_delta: 2.0e-3
+      label: s2
+  allow_fewer_iterations_than_reference: true
+  forbid_relaxed_tolerances: true
+
+runtime:
+  mode: direct
+  command:
+    - python
+    - scripts/python-pyscf-scf-bench.py
+    - --benchmark
+    - scripts/python-pyscf-dft-large-diis-benchmark.yaml
+    - --emit-json
+  expected_stdout_format: json
+  env:
+    PYTHONHASHSEED: "0"
+    FERMILINK_PYSCF_SINGLE_THREADS: "1"
+    FERMILINK_PYSCF_SMP_THREADS: "4"
+
+artifacts:
+  run_root: .fermilink-optimize
+  results_tsv: .fermilink-optimize/results.tsv
+  memory_md: .fermilink-optimize/memory.md
+  latest_metrics_json: .fermilink-optimize/latest_metrics.json
+  latest_stdout_log: .fermilink-optimize/latest_stdout.log
+  latest_stderr_log: .fermilink-optimize/latest_stderr.log
+  run_archive_dir: .fermilink-optimize/runs
+
+thread_profiles:
+  single_cpu:
+    threads: 1
+  smp_node:
+    threads: 4
+
+cases:
+  - id: benzene_rks_large
+    weight: 1.0
+    execution_profile: smp
+    thread_profile: smp_node
+    molecule: |
+      C   0.000000   1.396792   0.000000
+      C   1.209657   0.698396   0.000000
+      C   1.209657  -0.698396   0.000000
+      C   0.000000  -1.396792   0.000000
+      C  -1.209657  -0.698396   0.000000
+      C  -1.209657   0.698396   0.000000
+      H   0.000000   2.490290   0.000000
+      H   2.156660   1.245145   0.000000
+      H   2.156660  -1.245145   0.000000
+      H   0.000000  -2.490290   0.000000
+      H  -2.156660  -1.245145   0.000000
+      H  -2.156660   1.245145   0.000000
+    charge: 0
+    spin: 0
+    basis: 6-31g*
+    scf:
+      method: RKS
+      xc: pbe
+      grids_level: 3
+      max_cycle: 140
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 14
+
+  - id: water_hexamer_rks_large
+    weight: 1.0
+    execution_profile: smp
+    thread_profile: smp_node
+    molecule: |
+      O   0.000000   0.000000   0.000000
+      H   0.000000  -0.757160   0.586260
+      H   0.000000   0.757160   0.586260
+      O   2.800000   0.000000   0.000000
+      H   2.800000  -0.757160   0.586260
+      H   2.800000   0.757160   0.586260
+      O   5.600000   0.000000   0.000000
+      H   5.600000  -0.757160   0.586260
+      H   5.600000   0.757160   0.586260
+      O   0.000000   3.000000   0.000000
+      H   0.000000   2.242840   0.586260
+      H   0.000000   3.757160   0.586260
+      O   2.800000   3.000000   0.000000
+      H   2.800000   2.242840   0.586260
+      H   2.800000   3.757160   0.586260
+      O   5.600000   3.000000   0.000000
+      H   5.600000   2.242840   0.586260
+      H   5.600000   3.757160   0.586260
+    charge: 0
+    spin: 0
+    basis: 6-31g*
+    scf:
+      method: RKS
+      xc: pbe
+      grids_level: 3
+      max_cycle: 140
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 14
+
+  - id: phenyl_uks_large
+    weight: 1.0
+    execution_profile: smp
+    thread_profile: smp_node
+    molecule: |
+      C   0.000000   1.396792   0.000000
+      C   1.209657   0.698396   0.000000
+      C   1.209657  -0.698396   0.000000
+      C   0.000000  -1.396792   0.000000
+      C  -1.209657  -0.698396   0.000000
+      C  -1.209657   0.698396   0.000000
+      H   0.000000   2.490290   0.000000
+      H   2.156660   1.245145   0.000000
+      H   2.156660  -1.245145   0.000000
+      H   0.000000  -2.490290   0.000000
+      H  -2.156660  -1.245145   0.000000
+    charge: 0
+    spin: 1
+    basis: 6-31g*
+    scf:
+      method: UKS
+      xc: pbe
+      grids_level: 3
+      max_cycle: 160
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 14
+
+  - id: o2_dimer_uks_large
+    weight: 1.0
+    execution_profile: smp
+    thread_profile: smp_node
+    molecule: |
+      O   0.000000   0.000000   0.000000
+      O   1.207500   0.000000   0.000000
+      O   4.000000   0.000000   0.000000
+      O   5.207500   0.000000   0.000000
+    charge: 0
+    spin: 2
+    basis: 6-31g*
+    scf:
+      method: UKS
+      xc: pbe
+      grids_level: 3
+      max_cycle: 160
+      conv_tol: 1.0e-10
+      conv_tol_grad: 1.0e-6
+      init_guess: minao
+      diis_space: 14
