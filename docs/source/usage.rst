@@ -328,8 +328,10 @@ Bundled PySCF benchmark templates default ``smp_node`` throughput runs to
 to keep single-node resource usage moderate by default.
 
 For launching parallel objective-specific optimize campaigns from one clean
-package clone, use ``scripts/fermilink-optimize-worktree.sh``. It creates/reuses
-an isolated ``git worktree`` (plus optional per-worktree venv), then runs
+package clone, use ``bin/fermilink-optimize-python`` from source checkout,
+or ``fermilink-optimize-python`` after ``pip install .``. It creates/reuses
+an isolated ``git worktree`` (plus optional per-worktree venv), checks editable
+install support for Python package workflows, then runs
 ``fermilink optimize`` with your selected benchmark/bench files, branch, and
 optional ``--hpc-profile`` while forwarding additional optimize flags after ``--``.
 

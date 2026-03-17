@@ -53,6 +53,7 @@ fermilink = "fermilink.cli:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
+script-files = ["bin/fermilink-optimize-python"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

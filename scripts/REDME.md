@@ -13,7 +13,6 @@ Benchmark examples follow `language-pkg-goal` naming:
 
 - `validate_data.py`: validates curated channel/package metadata used by FermiLink.
 - `hpc_profile_anvil.json`: sample HPC profile for Purdue Anvil.
-- `fermilink-optimize-worktree.sh`: helper launcher for isolated optimize campaigns using `git worktree` + per-worktree venv. It accepts benchmark/runner selection, branch/worktree naming, optional `--hpc-profile`, and forwards additional `fermilink optimize` flags after `--`.
 
 - `python-pyscf-scf-benchmark.yaml`: Python/PySCF SCF optimize benchmark contract example with composite single+SMP and HF+DFT objectives plus incumbent no-regression guardrails; correctness now uses `mode: field_tolerances` for energy/MO-energy/`s2` checks (no density-matrix correctness gate).
 - `python-pyscf-scf-bench.py`: Python benchmark runner matching the PySCF contract, including per-case thread-profile execution, composite summary metrics, per-case `s2` output for correctness checks, and incumbent-normalized wall-time ratio metrics (`mean_wall_ratio_vs_incumbent`, `geomean_wall_ratio_vs_incumbent`) for average speedup scoring across cases.
@@ -28,6 +27,10 @@ Benchmark examples follow `language-pkg-goal` naming:
 
 - `fortran-quantum-espresso-scf-benchmark.yaml`: Fortran/Quantum ESPRESSO SCF optimize contract example using `correctness.mode: field_tolerances`.
 - `fortran-quantum-espresso-scf-bench.sh`: Bash benchmark runner matching the QE contract, emitting per-case total energy values in Ry for field-tolerance checks.
+
+Related launcher outside this directory:
+
+- `bin/fermilink-optimize-python`: helper for per-branch optimize isolation using `git worktree` + optional per-worktree venv for Python packages, with benchmark/runner selection, editable-install support checks (`pip install -e`), and `--hpc-profile` forwarding.
 
 ## How optimize quick mode uses these
 

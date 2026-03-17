@@ -5,10 +5,15 @@ SCRIPT_NAME="$(basename "$0")"
 
 usage() {
   cat <<'EOF'
-Create/reuse a git worktree and launch one isolated `fermilink optimize` run.
+Create/reuse a git worktree and launch one isolated Python-package `fermilink optimize` run.
+
+Note:
+  This launcher currently targets Python package workflows and uses per-worktree
+  venv + `pip install -e <worktree>`. It checks whether editable install is
+  supported before running.
 
 Usage:
-  fermilink-optimize-worktree.sh \
+  fermilink-optimize-python \
     --project-root /path/to/package-repo \
     --branch fermilink-optimize/pyscf-hf-small \
     --benchmark scripts/python-pyscf-hf-small-diis-benchmark.yaml \
@@ -44,7 +49,7 @@ Extra optimize arguments:
   Everything after `--` is forwarded to `fermilink optimize`.
 
 Examples:
-  ./scripts/fermilink-optimize-worktree.sh \
+  ./bin/fermilink-optimize-python \
     --project-root /data/pyscf \
     --branch fermilink-optimize/pyscf-dft-large \
     --benchmark scripts/python-pyscf-dft-large-diis-benchmark.yaml \
@@ -56,11 +61,11 @@ EOF
 }
 
 log() {
-  printf '[opt-worktree] %s\n' "$*"
+  printf '[opt-workflow-python] %s\n' "$*"
 }
 
 err() {
-  printf '[opt-worktree] error: %s\n' "$*" >&2
+  printf '[opt-workflow-python] error: %s\n' "$*" >&2
 }
 
 die() {
@@ -71,6 +76,24 @@ die() {
 require_cmd() {
   local cmd="$1"
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
+}
+
+check_editable_install_support() {
+  # check_editable_install_support <python_bin> <project_root_abs>
+  local py_bin="$1"
+  local project_root_abs="$2"
+  local pip_help
+  pip_help="$("$py_bin" -m pip install --help 2>/dev/null || true)"
+  if [[ -z "$pip_help" ]]; then
+    die "Unable to query pip install help from: $py_bin"
+  fi
+  if ! grep -Eq -- '(^|[[:space:]])-e, --editable|--editable' <<<"$pip_help"; then
+    die "pip in this environment does not support editable install (-e). This launcher is Python-only and requires editable install support."
+  fi
+
+  if [[ ! -f "$project_root_abs/pyproject.toml" && ! -f "$project_root_abs/setup.py" && ! -f "$project_root_abs/setup.cfg" ]]; then
+    die "Worktree has no pyproject/setup metadata for editable install: $project_root_abs"
+  fi
 }
 
 abs_path() {
@@ -366,8 +389,10 @@ if [[ "$use_venv" -eq 1 ]]; then
     log "Creating venv: $venv_abs"
     "$python_bin" -m venv "$venv_abs"
     "$venv_abs/bin/python" -m pip install -U pip
+    check_editable_install_support "$venv_abs/bin/python" "$worktree_abs"
     "$venv_abs/bin/python" -m pip install -e "$worktree_abs"
   elif [[ "$sync_editable" -eq 1 ]]; then
+    check_editable_install_support "$venv_abs/bin/python" "$worktree_abs"
     log "Refreshing editable install in existing venv: $venv_abs"
     "$venv_abs/bin/python" -m pip install -e "$worktree_abs"
   fi
@@ -404,7 +429,7 @@ if [[ ${#extra_optimize_args[@]} -gt 0 ]]; then
   optimize_cmd+=("${extra_optimize_args[@]}")
 fi
 
-log "Prepared worktree optimize run:"
+log "Prepared worktree optimize run (python workflow):"
 log "  project_root:   $project_root_abs"
 log "  worktree:       $worktree_abs"
 log "  branch:         $branch_name"
@@ -432,4 +457,3 @@ fi
 
 cd "$worktree_abs"
 exec "${optimize_cmd[@]}"
-
