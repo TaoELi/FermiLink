@@ -788,6 +788,44 @@ def test_optimize_plan_only_initializes_campaign(tmp_path: Path) -> None:
     assert state["rejected_count"] == 0
 
 
+def test_optimize_plan_only_supports_git_worktree(tmp_path: Path) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    worktree_dir = tmp_path / "repo-worktree"
+    _git(
+        repo_dir,
+        "worktree",
+        "add",
+        "-b",
+        "worktree-optimize-base",
+        str(worktree_dir),
+        "main",
+    )
+    benchmark_in_worktree = worktree_dir / benchmark_path.relative_to(repo_dir)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(worktree_dir),
+            "--benchmark",
+            str(benchmark_in_worktree),
+            "--skills-source",
+            "existing",
+            "--plan-only",
+        ]
+    )
+
+    assert code == 0
+    optimize_root = worktree_dir / ".fermilink-optimize"
+    assert (optimize_root / "state.json").exists()
+    exclude_raw = _git(worktree_dir, "rev-parse", "--git-path", "info/exclude")
+    exclude_path = Path(exclude_raw)
+    if not exclude_path.is_absolute():
+        exclude_path = (worktree_dir / exclude_path).resolve()
+    exclude_lines = exclude_path.read_text(encoding="utf-8").splitlines()
+    assert ".fermilink-optimize/" in exclude_lines
+
+
 def test_optimize_accepts_better_candidate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

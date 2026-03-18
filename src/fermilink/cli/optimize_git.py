@@ -97,10 +97,22 @@ def checkout_optimize_branch(
     }
 
 
+def _git_path(repo_dir: Path, pathspec: str) -> Path:
+    completed = run_git(repo_dir, ["rev-parse", "--git-path", pathspec])
+    resolved = (completed.stdout or "").strip()
+    if not resolved:
+        raise _cli().PackageError(
+            f"git rev-parse --git-path {pathspec} returned an empty path."
+        )
+    candidate = Path(resolved)
+    if not candidate.is_absolute():
+        candidate = (repo_dir / candidate).resolve()
+    return candidate
+
+
 def ensure_local_excludes(repo_dir: Path, patterns: list[str]) -> None:
-    info_dir = repo_dir / ".git" / "info"
-    info_dir.mkdir(parents=True, exist_ok=True)
-    exclude_path = info_dir / "exclude"
+    exclude_path = _git_path(repo_dir, "info/exclude")
+    exclude_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         existing = exclude_path.read_text(encoding="utf-8").splitlines()
     except OSError:

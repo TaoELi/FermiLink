@@ -30,7 +30,7 @@ Benchmark examples follow `language-pkg-goal` naming:
 
 Related launcher outside this directory:
 
-- `bin/fermilink-optimize-python`: helper for per-branch optimize isolation using `git worktree` + optional per-worktree venv for Python packages, with benchmark/runner selection, editable-install support checks (`pip install -e`), and `--hpc-profile` forwarding.
+- `bin/fermilink-optimize-python`: helper for per-branch optimize isolation using `git worktree` + optional per-worktree venv for Python packages, with benchmark/runner selection, editable-install support checks (`pip install -e`), local-exclude setup (for example `.venv/`) through `git rev-parse --git-path info/exclude`, auto-commit of copied benchmark prep files in the worktree, auto-install of default benchmark dependency `PyYAML` plus optional user deps (`--bench-dep`, `--bench-deps-file`), benchmark-runner import preflight checks, resolved/pinned `fermilink` binary execution, and `--hpc-profile` forwarding.
 
 ## How optimize quick mode uses these
 

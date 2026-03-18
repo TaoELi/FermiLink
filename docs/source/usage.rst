@@ -331,9 +331,19 @@ For launching parallel objective-specific optimize campaigns from one clean
 package clone, use ``bin/fermilink-optimize-python`` from source checkout,
 or ``fermilink-optimize-python`` after ``pip install .``. It creates/reuses
 an isolated ``git worktree`` (plus optional per-worktree venv), checks editable
-install support for Python package workflows, then runs
+install support for Python package workflows, auto-commits copied benchmark
+prep files in the worktree, then runs
 ``fermilink optimize`` with your selected benchmark/bench files, branch, and
 optional ``--hpc-profile`` while forwarding additional optimize flags after ``--``.
+Optimize local-exclude setup now resolves ``info/exclude`` through
+``git rev-parse --git-path``, so this workflow works for both standard clones
+and ``git worktree`` checkouts.
+When venv is enabled, the launcher now resolves and pins the original
+``fermilink`` binary path, auto-installs missing ``PyYAML`` for benchmark
+runner compatibility, and performs benchmark-runner import preflight checks.
+Extra benchmark deps can be supplied with ``--bench-dep`` (repeatable) and
+``--bench-deps-file``.
+When no extra bench deps are provided, the launcher now skips that install step cleanly.
 
 
 Global agent runtime policy
