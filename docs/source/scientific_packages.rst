@@ -67,6 +67,24 @@ For example, when doing LAMMPS MD simulations (the main package for agent reason
 This will allow the agent, when lammps is loaded as the main package, to also use packmol for reasoning and execution. 
 
 
+Overlay entry controls
+----------------------
+
+Use ``overlay`` to control which top-level package entries are linked into the
+workspace during ``exec``/``chat``/``loop`` runs.
+
+.. code-block:: bash
+
+   # set explicit exposed entries
+   fermilink overlay lammps --entries "skills,docs"
+
+   # remove one entry from current exposure (for example, skip skills/)
+   fermilink overlay lammps --remove skills
+
+   # clear restriction and expose all exportable entries again
+   fermilink overlay lammps --clear
+
+
 Where are the package files stored?
 -------------------------------------
 

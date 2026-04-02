@@ -10,9 +10,14 @@ from fermilink.packages.package_registry import load_registry
 
 
 def _make_local_package(path: Path) -> None:
+    _make_local_package_with_entries(path, ["skills"])
+
+
+def _make_local_package_with_entries(path: Path, entries: list[str]) -> None:
     path.mkdir(parents=True, exist_ok=True)
-    (path / "skills").mkdir()
-    (path / "skills" / "README.md").write_text("skills", encoding="utf-8")
+    for entry in entries:
+        (path / entry).mkdir(parents=True, exist_ok=True)
+        (path / entry / "README.md").write_text(entry, encoding="utf-8")
 
 
 def test_cli_install_local_auto_sync(monkeypatch, tmp_path: Path) -> None:
@@ -48,6 +53,63 @@ def test_cli_dependencies(monkeypatch, tmp_path: Path) -> None:
     registry = load_registry(scipkg_root)
     deps = registry["packages"]["maxwelllink"].get("dependency_package_ids")
     assert deps == ["meep"]
+
+
+def test_cli_overlay_remove_from_configured_entries(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    source = tmp_path / "overlay-src"
+    _make_local_package_with_entries(source, ["skills", "docs"])
+
+    assert cli.main(["install", "overlaypkg", "--local-path", str(source)]) == 0
+    assert (
+        cli.main(
+            ["overlay", "overlaypkg", "--entries", "skills,docs"],
+        )
+        == 0
+    )
+    assert cli.main(["overlay", "overlaypkg", "--remove", "skills"]) == 0
+
+    registry = load_registry(scipkg_root)
+    assert registry["packages"]["overlaypkg"].get("overlay_entries") == ["docs"]
+
+
+def test_cli_overlay_remove_from_default_exportable_entries(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    source = tmp_path / "overlay-src"
+    _make_local_package_with_entries(source, ["skills", "docs"])
+
+    assert cli.main(["install", "overlaypkg", "--local-path", str(source)]) == 0
+    assert cli.main(["overlay", "overlaypkg", "--remove", "skills"]) == 0
+
+    registry = load_registry(scipkg_root)
+    assert registry["packages"]["overlaypkg"].get("overlay_entries") == ["docs"]
+
+
+def test_cli_overlay_remove_rejects_combined_entry_flags(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    source = tmp_path / "overlay-src"
+    _make_local_package_with_entries(source, ["skills", "docs"])
+
+    assert cli.main(["install", "overlaypkg", "--local-path", str(source)]) == 0
+    code = cli.main(
+        ["overlay", "overlaypkg", "--entry", "skills", "--remove", "docs"]
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "Cannot combine --remove with --entry/--entries." in err
 
 
 def test_cli_install_multiple_packages_installs_each_and_syncs_once(

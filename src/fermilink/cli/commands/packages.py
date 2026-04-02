@@ -3219,6 +3219,84 @@ def _collect_csv_and_repeat(
     return collected
 
 
+def _normalize_overlay_name_values(values: list[str]) -> list[str]:
+    """Normalize repeated/csv overlay entry values while preserving order."""
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        for candidate in str(value).split(","):
+            name = candidate.strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            normalized.append(name)
+    return normalized
+
+
+def _normalize_overlay_meta_entries(raw: object) -> list[str] | None:
+    """Normalize stored package overlay metadata into a deduplicated list."""
+
+    cli = _cli()
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        candidates = raw.split(",")
+    elif isinstance(raw, list):
+        candidates = raw
+    else:
+        raise cli.PackageError(
+            "Package metadata field overlay_entries must be a list or comma-separated string."
+        )
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not isinstance(candidate, str):
+            raise cli.PackageError("overlay_entries can only contain strings.")
+        name = candidate.strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        normalized.append(name)
+    return normalized
+
+
+def _resolve_overlay_entries_for_remove(
+    *,
+    scipkg_root: Path,
+    package_id: str,
+) -> tuple[list[str], bool]:
+    """Resolve overlay entries used as the baseline for `overlay --remove`."""
+
+    cli = _cli()
+    packages = cli.list_packages(scipkg_root)
+    if not isinstance(packages, dict):
+        raise cli.PackageNotFoundError(f"Package not found: {package_id}")
+    package_meta = packages.get(package_id)
+    if not isinstance(package_meta, dict):
+        raise cli.PackageNotFoundError(f"Package not found: {package_id}")
+
+    configured_entries = _normalize_overlay_meta_entries(
+        package_meta.get("overlay_entries")
+    )
+    if configured_entries is not None:
+        return configured_entries, True
+
+    raw_installed_path = package_meta.get("installed_path")
+    if not isinstance(raw_installed_path, str) or not raw_installed_path.strip():
+        raise cli.PackageError("Package metadata is missing installed_path.")
+
+    package_root = Path(raw_installed_path).expanduser()
+    if not package_root.is_absolute():
+        package_root = (Path.cwd() / package_root).resolve()
+
+    from fermilink.packages.package_registry import iter_package_entries
+
+    entries, _missing = iter_package_entries(package_root, include_names=None)
+    return [entry.name for entry in entries], False
+
+
 def cmd_overlay(args: argparse.Namespace) -> int:
     """
     Execute the `overlay` CLI subcommand.
@@ -3238,22 +3316,50 @@ def cmd_overlay(args: argparse.Namespace) -> int:
     package_id = cli.normalize_package_id(args.package_id)
 
     collected = _collect_csv_and_repeat(args.entry, args.entries_csv)
-    if args.clear and collected:
-        raise cli.PackageError("Cannot combine --clear with --entry/--entries.")
+    remove_collected = _collect_csv_and_repeat(args.remove, None)
+    if args.clear and (collected or remove_collected):
+        raise cli.PackageError(
+            "Cannot combine --clear with --entry/--entries/--remove."
+        )
+    if remove_collected and collected:
+        raise cli.PackageError("Cannot combine --remove with --entry/--entries.")
 
     if args.clear:
         entries: list[str] | None = None
+    elif remove_collected:
+        remove_entries = _normalize_overlay_name_values(remove_collected)
+        if not remove_entries:
+            raise cli.PackageError(
+                "Provide at least one non-empty value for --remove."
+            )
+        baseline_entries, had_explicit_overlay = _resolve_overlay_entries_for_remove(
+            scipkg_root=scipkg_root,
+            package_id=package_id,
+        )
+        remove_set = set(remove_entries)
+        entries_after_remove = [
+            name for name in baseline_entries if name not in remove_set
+        ]
+        if not had_explicit_overlay and entries_after_remove == baseline_entries:
+            entries = None
+        else:
+            entries = entries_after_remove
     else:
         if not collected:
             raise cli.PackageError(
-                "Provide --entry/--entries to set exposed items, or use --clear."
+                "Provide --entry/--entries to set exposed items, "
+                "--remove to subtract entries, or use --clear."
             )
         entries = collected
 
     meta = cli.set_package_overlay_entries(scipkg_root, package_id, entries)
     overlay_entries = meta.get("overlay_entries")
-    if isinstance(overlay_entries, list) and overlay_entries:
-        entry_text = ", ".join(str(item) for item in overlay_entries)
+    if isinstance(overlay_entries, list):
+        entry_text = (
+            ", ".join(str(item) for item in overlay_entries)
+            if overlay_entries
+            else "(no exportable entries)"
+        )
     else:
         entry_text = "(all exportable entries)"
     payload = {
