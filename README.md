@@ -3,7 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="docs/source/overview.rst"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge"></a>
+  <a href="https://taoeli.github.io/FermiLink/"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge"></a>
+    <a href="https://pypi.org/project/fermilink/"><img src="https://img.shields.io/pypi/v/maxwelllink.svg?label=pypi&logo=pypi" alt="PyPI version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
 </p>
