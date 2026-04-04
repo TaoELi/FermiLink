@@ -1,7 +1,7 @@
 Usage Guide
 ===========
 
-The **command line tools** are the most powerful and flexible way to use FermiLink. They provide direct access to all features and support multiple modes: one-shot execution, interactive chat, autonomous loops, benchmark-gated package optimization, and full research or reproduction workflows.
+The **command line tools** are the most powerful and flexible way to use FermiLink. They provide direct access to all features and support multiple modes: one-shot execution, interactive chat, autonomous loops, and full research or reproduction workflows.
 
 .. toctree::
    :maxdepth: 1
@@ -33,4 +33,5 @@ General usage tips
 - :doc:`usage_configure_your_package`: If you want to use your own local custom package for FermiLink.
 
 - :doc:`usage_advanced_configuration`: If you want to add research data, pipelines in papers, or group secrets to your local FermiLink workspace.
+
 

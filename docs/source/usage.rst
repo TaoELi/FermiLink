@@ -242,118 +242,12 @@ Notes:
 
    Note that **if a different prompt or file is provided in the second command, it will trigger a new planning stage.**
 
-``optimize``: Benchmark-gated package code optimization
--------------------------------------------------------
-
-Use ``optimize`` inside a scientific package source tree when you want FermiLink
-to search for faster code changes against a fixed benchmark contract. Unlike
-``exec``/``chat``/``loop``, this mode does not route packages dynamically. It
-expects one concrete package repo, a static local ``skills/`` folder, a worker
-worker loop that iterates on one candidate at a time, and a controller agent
-that reviews authoritative benchmark outcomes and updates optimize memory before
-emitting an ``ACCEPTED`` or ``REJECTED`` decision. Hard scientific failures
-still override controller acceptance.
-
-.. code-block:: bash
-
-   # quick mode from inside the package repo: infer scaffold from prompt.md
-   fermilink optimize prompt.md
-
-   # quick mode plan-only: generate/edit scaffold first, then run later
-   fermilink optimize prompt.md --plan-only
-
-   # campaign status from inside the package repo (or pass explicit repo path)
-   fermilink optimize status
-   fermilink optimize status /path/to/pyscf --tail 30
-
-   # use an existing local skills/ folder
-   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml --skills-source existing
-
-   # bootstrap missing skills/ from the curated channel first
-   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml --skills-source channel
-
-   # bootstrap missing skills/ by running one local compile pass
-   fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml --skills-source compile
-
-Optimize behavior:
-
-- quick mode (``fermilink optimize prompt.md``) auto-scaffolds ``.fermilink-optimize/autogen/`` with ``benchmark.yaml``, benchmark runner/submit scripts, setup script, and a generated expert-mode run script;
-- quick mode seeds scaffold defaults from language-specific benchmark examples (project-local ``scripts/`` first, then FermiLink built-in ``scripts/`` fallback) so generated contracts include stronger objective/correctness/runtime hints;
-- quick mode defaults missing ``skills/`` bootstrapping to one local compile pass, and reuses existing scaffold/state when launched again in the same repository;
-- creates and maintains campaign state under ``.fermilink-optimize/``;
-- writes a human-editable ``program.md`` plus persistent controller ``memory.md``, tactical ``worker_memory.md``, and append-only ``results.tsv``;
-- runs one baseline benchmark before any optimization iteration;
-- runs an embedded optimize-worker loop before the benchmark, reusing the same wait-tag protocol as ``fermilink loop`` (``<wait_seconds>``, ``<pid_number>``, ``<slurm_job_number>``, ``<promise>DONE</promise>``) so the worker can debug iteratively and wait on long local or SLURM jobs;
-- archives the final worker memory for each outer iteration at ``.fermilink-optimize/runs/iter_XXXX/worker_memory.md``;
-- benchmarks the committed candidate only after the worker loop emits ``<promise>DONE</promise>``, then runs a second controller-agent review turn that updates controller ``memory.md`` and emits a tagged decision;
-- rejects incomplete worker loops before benchmarking without invoking package routing, overlay, or loop completion commits;
-- still force-rejects forbidden edits, benchmark crashes/timeouts, malformed metrics, and correctness failures even if the controller agent tries to accept them;
-- treats benchmark-reported ``guardrail_errors`` as hard performance regressions (recorded as status ``rejected`` with explicit performance-regression reasoning, not ``correctness_failure``);
-- keeps ``skills/`` fixed during the campaign after the initial bootstrap step.
-
-Useful flags:
-
-- ``--plan-only``: validate the repo and benchmark, initialize ``.fermilink-optimize/``, and stop before benchmarking.
-- ``--baseline-only``: run only the incumbent baseline benchmark.
-- ``--tail <n>``: with ``fermilink optimize status``, show the latest ``n`` rows from ``results.tsv``.
-- ``--max-iterations <n>``: cap iterations for one command invocation.
-- ``--worker-max-iterations <n>``: cap inner worker-loop turns per outer optimize iteration.
-- ``--worker-wait-seconds <n>`` / ``--worker-max-wait-seconds <n>`` / ``--worker-pid-stall-seconds <n>``: control inner worker-loop wait and polling behavior.
-- ``--hpc-profile <json>``: forward SLURM prompt constraints into the optimize worker loop and enable adaptive controller-side launcher planning/reuse for ``runtime.mode=submit_poll`` benchmarks.
-- ``--forever``: keep iterating until interrupted or a rejection stop rule fires.
-- ``--allow-dirty``: bypass the clean-worktree startup requirement.
-
-The benchmark contract is a YAML file that defines editable paths, the
-authoritative benchmark command, aggregation policy, correctness policy,
-and optional ``worker`` loop defaults. For benchmark execution, ``runtime.mode``
-supports ``direct`` (default synchronous command) and ``submit_poll`` (submission
-command emitting ``<pid_number>`` / ``<slurm_job_number>`` tags with controller-side
-polling, then JSON retrieval from ``runtime.result_json_path``/``runtime.result_command``
-or ``artifacts.latest_metrics_json``). When ``--hpc-profile`` is provided, submit-poll
-benchmarks can auto-plan and cache controller launchers, then retry planner+launcher
-on infrastructure failures. See these case-specific script pairs:
-
-Correctness policy supports two modes:
-
-- ``mode: runner_only``: generic validation of case presence and (optionally) case convergence.
-- ``mode: field_tolerances``: generic per-case field drift checks with thresholds such as ``abs_delta``, ``rms_delta``, or ``relative_delta``.
-
-- ``scripts/python-pyscf-scf-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
-- ``scripts/python-pyscf-hf-small-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
-- ``scripts/python-pyscf-hf-large-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
-- ``scripts/python-pyscf-dft-small-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
-- ``scripts/python-pyscf-dft-large-diis-benchmark.yaml`` + ``scripts/python-pyscf-scf-bench.py``
-- ``scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml`` + ``scripts/cpp-lammps-tip4p-force-eval-bench.sh``
-- ``scripts/fortran-quantum-espresso-scf-benchmark.yaml`` + ``scripts/fortran-quantum-espresso-scf-bench.sh``
-
-Bundled PySCF benchmark templates default ``smp_node`` throughput runs to
-``FERMILINK_PYSCF_SMP_THREADS=4`` (plus ``thread_profiles.smp_node.threads: 4``)
-to keep single-node resource usage moderate by default.
-
-For launching parallel objective-specific optimize campaigns from one clean
-package clone, use ``bin/fermilink-optimize-python`` from source checkout,
-or ``fermilink-optimize-python`` after ``pip install .``. It creates/reuses
-an isolated ``git worktree`` (plus optional per-worktree venv), checks editable
-install support for Python package workflows, auto-commits copied benchmark
-prep files in the worktree, then runs
-``fermilink optimize`` with your selected benchmark/bench files, branch, and
-optional ``--hpc-profile`` while forwarding additional optimize flags after ``--``.
-Optimize local-exclude setup now resolves ``info/exclude`` through
-``git rev-parse --git-path``, so this workflow works for both standard clones
-and ``git worktree`` checkouts.
-When venv is enabled, the launcher now resolves and pins the original
-``fermilink`` binary path, auto-installs missing ``PyYAML`` for benchmark
-runner compatibility, and performs benchmark-runner import preflight checks.
-Extra benchmark deps can be supplied with ``--bench-dep`` (repeatable) and
-``--bench-deps-file``.
-When no extra bench deps are provided, the launcher now skips that install step cleanly.
-
 
 Global agent runtime policy
 ---------------------------
 
 Use ``fermilink agent`` to set global runtime defaults used by
-``exec/chat/loop/research/reproduce/optimize`` and the web runner path.
+``exec/chat/loop/research/reproduce`` and the web runner path.
 
 .. code-block:: bash
 
