@@ -56,7 +56,7 @@ fermilink gateway
 
 ## Documentation
 
-Visit the [documentation](docs/source/overview.rst) for installation details and usage guide. 
+Visit the [documentation](https://taoeli.github.io/FermiLink/) for installation details and usage guide. 
 
 In brief, the key design principle of **FermiLink** is the separation of package knowledge bases from simulation workflows, so that simulation workflows in **FermiLink**, from figure-level simulations to full-paper-level research on high-performance computing clusters, operate uniformly among supported packages via a four-layer progressive disclosure mechanism.
 ![FermiLink design](docs/source/_static/img/package_management_workflow.svg)
