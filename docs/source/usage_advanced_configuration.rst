@@ -61,7 +61,7 @@ Here, ``--data-dir`` and ``--comment`` are optional but highly recommended.
 
 
 Convert unified-memory suggestions into permanent skill patches
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 During FermiLink simulations, agents will write down key findings for improving the usage of the packages in ``projects/memory.md`` within one workspace. 
 

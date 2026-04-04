@@ -70,7 +70,7 @@ FermiLink assumes a standard local developer environment:
    For HPC users without sudo access, you need to install Node.js and ``npm`` locally first.
 
 Install provider CLI (Codex or Claude or Gemini)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
