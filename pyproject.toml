@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fermilink"
 version = "0.2.0"
-description = "Unified Codex + Chainlit gateway for scientific software workflows"
+description = "A unified agent framework for multidomain autonomous scientific simulations"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "FermiLink"}]
@@ -20,7 +20,6 @@ dependencies = [
   "SQLAlchemy>=2.0",
   "aiosqlite>=0.19",
   "greenlet>=3.0",
-  "maxwelllink",
 ]
 
 [project.optional-dependencies]
