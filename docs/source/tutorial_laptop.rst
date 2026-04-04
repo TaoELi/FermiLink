@@ -2,22 +2,17 @@ Laptop Tutorial
 ===============
 
 This tutorial shows how to run FermiLink locally on a laptop/workstation
-(macOS/Linux) so you can quickly test autonomous scientific workflows. It is
-designed to be **self-contained**, so you can follow it end-to-end without
+(macOS/Linux). It is designed to be **self-contained**, so you can follow it end-to-end without
 reading other pages.
 
-This tutorial uses the default FermiLink runtime location:
+This tutorial assumes the default FermiLink runtime location is located at:
 
-- ``~/.fermilink`` (no FermiLink environment variables required)
+- ``~/.fermilink``
 
-What you will set up:
+.. note::
 
-- A local Python environment
-- Provider CLI authentication (Codex, Claude, or Gemini)
-- FermiLink installation
-- One scientific package knowledge base (example: ``qutip``)
-- Example runs with ``exec``, ``chat``, and the Web UI (``start``)
-
+   If you want a different runtime location later, see :doc:`configuration`. This tutorial intentionally sticks to the
+   defaults for a quick laptop use.
 
 Prerequisites
 ~~~~~~~~~~~~~~~~
@@ -26,12 +21,7 @@ You need:
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
-- Node.js + ``npm`` (or Homebrew on macOS) for local provider CLIs
-
-.. note::
-
-   If you want a different runtime location later, see :doc:`configuration`. This tutorial intentionally sticks to the
-   defaults for a quick laptop use.
+- Node.js + ``npm`` (or Homebrew on macOS) for local agent provider CLIs
 
 
 Step 1. Create a clean Python environment (recommended)
@@ -41,14 +31,14 @@ Use conda environment so your laptop test does not modify your system Python:
 
 .. code-block:: bash
 
-   conda create -n fermilink-laptop python=3.11 -y
-   conda activate fermilink-laptop
+   conda create -n fermilink python=3.11 -y
+   conda activate fermilink
 
 
-Step 2. Install provider CLI and authenticate
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 2. Install agent provider CLI and authenticate
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently documents tested provider support for Codex, Claude, and Gemini.
+FermiLink currently supports **OpenAI Codex**, **Claude**, and **Gemini** as the agent providers.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -56,22 +46,17 @@ Install and authenticate the provider you want to use:
    # Codex option
    npm i -g @openai/codex
    codex login
-   # Claude option
-   # install Claude CLI from its official distribution, then:
-   claude login
+   # Please read the official documentation of Claude and Gemini for installation.
+   # Claude login
+   claude 
+   # Gemini login
+   gemini
 
 .. note::
 
    On macOS, you can also install the Codex CLI via Homebrew (if preferred)::
 
      brew install codex
-
-If your selected provider CLI is not found after install, ensure your local
-binary directory is on ``PATH``.
-
-For Codex users, you can choose a default model (for example
-``gpt-5.3-codex``).
-
 
 Step 3. Install FermiLink
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -80,8 +65,6 @@ Clone the repo and install the CLI into your active Python environment:
 
 .. code-block:: bash
 
-   mkdir -p ~/fermilink_laptop_demo
-   cd ~/fermilink_laptop_demo
    git clone https://github.com/TaoELi/FermiLink.git
    cd FermiLink
    pip install .
@@ -97,7 +80,7 @@ Step 4. Install a scientific package knowledge base
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 FermiLink routes each user request to an installed scientific package knowledge base, so
-**install at least one package** before you run anything.
+**install at least one package knowledge base** before you run anything.
 
 This laptop tutorial uses ``qutip`` because it runs well locally and is a good
 fit for small "hello world" quantum simulations:
@@ -119,11 +102,11 @@ fit for small "hello world" quantum simulations:
    ``~/.fermilink/scientific_packages``. It does not necessarily install the
    underlying runtime library used for execution.
 
-Install the runtime Python package too:
+Install in Python to **really install** the package:
 
 .. code-block:: bash
 
-   pip install qutip matplotlib
+   pip install qutip
 
 If you want to use a different scientific package, see the built-in catalog:
 :doc:`built_in_scientific_packages`.
@@ -132,8 +115,7 @@ If you want to use a different scientific package, see the built-in catalog:
 Step 5. Set agent runtime policy (sandbox)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, FermiLink runs in a restricted sandbox. For a first laptop test,
-the default is recommended.
+By default, FermiLink runs in a restricted sandbox, but you can also relax the sandbox for more flexible agent execution. 
 
 .. code-block:: bash
 
@@ -143,12 +125,12 @@ the default is recommended.
    # enforce sandbox mode (default) for codex
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-   # relax sandbox for claude
-   fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+   # relax sandbox for codex (for better performance)
+   fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort high
 
 .. warning::
 
-   If you bypass the sandbox (i.e., replacing ``--sandbox`` with ``--bypass-sandbox``), **never** run as root. Use a dedicated non-root
+   If you bypass the sandbox (i.e., replacing ``--sandbox`` with ``--bypass-sandbox``), **never run as root**. Use a dedicated non-root
    account and keep regular backups of your data.
 
 
@@ -164,13 +146,16 @@ Run a single prompt in a clean project directory.
 
    fermilink exec "Use qutip to simulate the Jaynes-Cummings model (two-level system + single cavity mode). Plot the excited-state population vs time." 
 
+.. figure:: _static/img/fermilink_laptop_exec_qutip.png
+   :alt: FermiLink exec snapshot on a laptop.
+   :align: center
+   :width: 95%
+
 What ``exec`` does:
 
 - overlays the selected package knowledge base into the current repo
 - initializes or updates ``projects/memory.md``
 - runs the agent locally (no SLURM / no ``--hpc-profile``)
-
-Pass ``--init-git`` to initialize a git repo in the current directory for better memory management. Use ``--no-init-git`` to skip this step.
 
 
 Step 7. Interactive terminal chat (``chat``)
@@ -189,8 +174,19 @@ Then ask follow-ups like:
 
    For the previous simulations, refine the plot styling with Nature publication quality and save the figure as jc_population_refined.png.
 
+.. figure:: _static/img/fermilink_laptop_chat_qutip.png
+   :alt: FermiLink chat snapshot on a laptop.
+   :align: center
+   :width: 95%
+
 As this is run in the same workspace as the previous ``exec`` run, the agent can refer to the previous context and files in the repo using the shared memory at ``projects/memory.md``.
 
+The generated figure is as follows:
+
+.. figure:: _static/img/jc_population_refined.png
+   :alt: Refined Jaynes-Cummings population plot.
+   :align: center
+   :width: 60%
 
 Step 8. Web UI on a laptop (``start``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -201,8 +197,14 @@ If you prefer a ChatGPT-style interface, start the local runner + web UI:
 
    fermilink start
 
-Then open ``http://localhost:7860``.
+Then your browser will automatically open the following webpage:
 
+.. figure:: _static/img/web_ui_entry.png
+   :alt: FermiLink web UI.
+   :align: center
+   :width: 95%
+
+**Sign UP** with an account and then **Sign In**. You can then enjoy a ChatGPT-style interface with the same agent capabilities as the terminal, but with better interactivity and visualization support.
 
 Step 9. Longer local runs (optional)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -214,6 +216,8 @@ default):
 
    cd ~/fermilink_laptop_demo/run_qutip_demo
    fermilink loop goal.md --max-iterations 5 --max-wait-seconds 3600
+
+The **goal.md** file can be replaced by a string prompt directly (just like the `exec` mode).
 
 .. note::
 

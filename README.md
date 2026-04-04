@@ -13,7 +13,7 @@
 **FermiLink** is a unified agent framework for multidomain autonomous scientific simulations. It runs on personal laptops, **high-performance computing (HPC) clusters**, or even your cellphone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
 
 
-With [an official package channel](https://github.com/skilled-scipkg), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any local scientific package or simulation pipeline.
+With [an official package channel](https://github.com/orgs/skilled-scipkg/repositories), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any local scientific package or simulation pipeline.
 
 Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously on both workstations and **HPC clusters**. It is designed to sustain long-running multi-task computational jobs for days or weeks without human intervention.
 
@@ -51,7 +51,7 @@ fermilink gateway
 ```
 
 <p align="center">
-  <img src="docs/source/_static/img/fermilink-hpc-bot.jpeg" alt="FermiLink Telegram Bot" width="300">
+  <img src="docs/source/_static/img/fermilink_hpc_bot.jpeg" alt="FermiLink Telegram Bot" width="300">
 </p>
 
 ## Documentation

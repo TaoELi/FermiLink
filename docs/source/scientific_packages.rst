@@ -11,7 +11,7 @@ at execution time and how that context is overlaid into workspaces.
 Built-in package catalog
 ------------------------
 
-FermiLink has a built-in curated channel (Github: ``skilled-scipkg``) containing more than 150 scientific packages across multiple domains. Each package in this channel has an associated knowledge base, including the full source code tree and the **Agent Skills** layer. This built-in channel allows users to quickly access a wide range of scientific packages.
+FermiLink has a `built-in curated channel <https://github.com/orgs/skilled-scipkg/repositories>`_ (Github: ``skilled-scipkg``) containing more than 150 scientific packages across multiple domains. Each package in this channel has an associated knowledge base, including the full source code tree and the **Agent Skills** layer. This built-in channel allows users to quickly access a wide range of scientific packages.
 
 For the live list of built-in curated packages (``package_id``, title, and repo),
 see :doc:`built_in_scientific_packages`.
@@ -51,13 +51,17 @@ Package lifecycle commands
 
    # check the list of locally installed packages
    fermilink list
+
    # switch active package, the default package for new sessions
    fermilink activate maxwelllink
+
    # delete the package knowledge base from local machine (but keep the files if --keep-files is provided)
    fermilink delete maxwelllink
+
    fermilink delete maxwelllink --keep-files
    
 In some cases, you want to **expose multiple packages simultaneously for agents** to use.
+
 For example, when doing LAMMPS MD simulations (the main package for agent reasoning), the agent might also need to use Packmol (a common package for preparing molecular initial geometry) for the pre-processing step. In this situation, use:
 
 .. code-block:: bash
@@ -94,23 +98,6 @@ Once installed, these package data are stored within FermiLink under ``FERMILINK
 - ``registry.json`` package metadata and active package.
 - ``router_rules.json`` keyword router configuration for each package.
 
-
-
-Advanced: ``auto-compile`` for curated channel
------------------------------------------------------
-
-The curated channel (Github: ``skilled-scipkg``) is maintained by FermiLink developers. This channel is created automatically using the ``auto-compile`` workflow.
-
-.. note:: This workflow requires GitHub authentication and the ``gh`` CLI tool, and will **create a forked repo under the user's Github account**.
-
-.. note:: Use ``fermilink compile`` (:doc:`usage_configure_your_package`) instead if you simply want to compile your own local packages.
-
-.. code-block:: bash
-
-   fermilink auto-compile qutip https://github.com/qutip/qutip \
-     --fermilink-repo /absolute/path/to/FermiLink/source/code
-
-``--fermilink-repo`` is required to specify the local path to the FermiLink repository, as ``auto-compile`` can update curated channel metadata within the FermiLink source code.
 
 
 See also:

@@ -371,7 +371,9 @@ async def _iter_stream_lines(
             yield line
 
 
-def _signal_process_safely(process: asyncio.subprocess.Process, signal_name: str) -> None:
+def _signal_process_safely(
+    process: asyncio.subprocess.Process, signal_name: str
+) -> None:
     """Best-effort subprocess signaling that ignores already-exited races."""
 
     signal_fn = getattr(process, signal_name, None)

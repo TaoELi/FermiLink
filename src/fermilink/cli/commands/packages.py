@@ -3329,9 +3329,7 @@ def cmd_overlay(args: argparse.Namespace) -> int:
     elif remove_collected:
         remove_entries = _normalize_overlay_name_values(remove_collected)
         if not remove_entries:
-            raise cli.PackageError(
-                "Provide at least one non-empty value for --remove."
-            )
+            raise cli.PackageError("Provide at least one non-empty value for --remove.")
         baseline_entries, had_explicit_overlay = _resolve_overlay_entries_for_remove(
             scipkg_root=scipkg_root,
             package_id=package_id,

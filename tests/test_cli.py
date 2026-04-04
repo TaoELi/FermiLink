@@ -103,9 +103,7 @@ def test_cli_overlay_remove_rejects_combined_entry_flags(
     _make_local_package_with_entries(source, ["skills", "docs"])
 
     assert cli.main(["install", "overlaypkg", "--local-path", str(source)]) == 0
-    code = cli.main(
-        ["overlay", "overlaypkg", "--entry", "skills", "--remove", "docs"]
-    )
+    code = cli.main(["overlay", "overlaypkg", "--entry", "skills", "--remove", "docs"])
 
     assert code == 2
     err = capsys.readouterr().err
@@ -382,7 +380,9 @@ def test_cli_no_args_interactive_quit_from_main_menu(
     assert "Show system status" in out
 
 
-def test_cli_no_args_runs_provider_setup_before_menu(monkeypatch, tmp_path: Path) -> None:
+def test_cli_no_args_runs_provider_setup_before_menu(
+    monkeypatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
     monkeypatch.setattr(zero_arg, "_interactive_tty", lambda: True)
     states = iter(

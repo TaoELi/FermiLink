@@ -1,30 +1,27 @@
 Command Line Tools
 ==================
 
-The most powerful way to use FermiLink is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. The CLI supports multiple modes of operation, including one-shot execution, interactive chat, autonomous loops, and reproduction/research workflows. Below is a comprehensive reference for using the CLI effectively.
+The most powerful way to use FermiLink is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. 
+Below is a comprehensive reference for using the CLI effectively.
 
 Beginner entrypoint
 -------------------
 
 In an interactive terminal, running ``fermilink`` with **no subcommand**
-launches a deterministic onboarding assistant. It:
+launches a deterministic onboarding assistant. 
 
-- shows a terminal welcome banner at startup for each interactive invocation;
-- scans for supported provider CLIs and the current default runtime policy;
-- checks whether any scientific packages are installed;
-- reports runner/web service status;
-- checks Telegram gateway environment variables;
-- discovers an optional default HPC profile from ``FERMILINK_DEFAULT_HPC_PROFILE``,
-  ``./hpc_profile.json``, or ``~/.fermilink/hpc_profile.json``;
-- offers advanced guided entrypoints for ``compile`` and ``recompile`` when the
-  user needs to onboard a local package or patch package skills from a
-  manuscript or workspace memory;
-- routes the user into setup, package installation, web UI startup, Telegram
-  setup, or a guided simulation launch through a structured terminal status
-  table and menu.
 
-In non-interactive contexts, ``fermilink`` with no subcommand prints a concise
-status summary and exits without launching the assistant.
+.. figure:: _static/img/fermilink_command_line_entry.png
+   :alt: FermiLink command line entrypoint.
+   :align: center
+   :width: 95%
+
+As shown above, the assistant provides a structured status summary and menu to guide users through setup, package installation, web UI startup, Telegram gateway setup, or a guided simulation launch. 
+
+It also checks for provider CLI authentication, installed scientific packages, and an optional default HPC profile.
+
+
+Below are the detailed instructions for the three major workflows of FermiLink: ``exec`` for single runs, ``loop`` for iterative runs involving long SLURM or PID jobs, and ``research/reproduce`` for full research-paper-level calculations.
 
 .. figure:: _static/img/major_modes_workflow.svg
    :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
@@ -51,11 +48,9 @@ What ``exec`` does:
 
 - routes the prompt to the best installed package (keyword router + optional agent second-guess);
 - overlays the selected package knowledge base into the current repository;
-- syncs the unified ``AGENTS.md`` instructions to the current workspace, along with the active provider alias file (``CLAUDE.md`` for Claude or ``GEMINI.md`` for Gemini) when that alias is not already a real user-owned file;
+- syncs the unified ``AGENTS.md`` instructions to the current workspace;
 - initializes/upgrades shared memory at ``projects/memory.md``;
-- runs provider execution and streams output (including provider-native
-  stream-json reasoning/tool events for non-codex providers such as
-  ``claude``/``gemini`` when emitted by the provider CLI);
+- runs provider execution and streams output;
 - after ``exec`` finishes, attempts a best-effort repository checkpoint commit
   (``git add -A`` + conditional commit).
 
@@ -100,9 +95,6 @@ Per turn, ``chat``:
 - streams provider stdout/stderr live;
 - appends the assistant reply to session history.
 
-When a ``chat`` session exits, FermiLink also attempts a best-effort repository
-checkpoint commit (``git add -A`` + conditional commit).
-
 Useful flags:
 
 - ``--package <id>``: pin a package for the whole session.
@@ -122,7 +114,7 @@ waiting.
 .. code-block:: bash
 
    fermilink loop prompt.md
-   fermilink loop "refactor router and add tests"
+   fermilink loop "Run a few simulations regarding strong coupling with a single two-level system and a cavity mode."
 
    # cap iterations and max wait time for PID/SLURM job polling
    fermilink loop --max-iterations 10 --max-wait-seconds 3600  prompt.md
@@ -134,7 +126,7 @@ Loop behavior:
 
 - iterates until done token or iteration cap;
 - persists unified memory to ``projects/memory.md`` (short-term plan/progress + long-term durable outcomes);
-- streams provider output live each iteration (including non-codex stream-json events) and supports ``Ctrl+C`` interruption;
+- streams provider output live each iteration;
 - stops early when output includes ``<promise>DONE</promise>``;
 - supports job-aware waiting via ``<pid_number>...</pid_number>`` and
   ``<slurm_job_number>...</slurm_job_number>`` tags and polls until completion
@@ -152,10 +144,14 @@ publication-scale reproduction requests.
 
    fermilink reproduce paper.tex
    fermilink reproduce "reproduce Figures 1-4 from this paper arXiv:..."
+
    # provide the plan for review without execution, user can modify the generated plan before execution
    fermilink reproduce paper.tex --plan-only
+
    # provide the report for review only without planning and execution
    fermilink reproduce paper.tex --report-only
+
+   # append an HPC target profile to the reproduce prompt context
    fermilink reproduce paper.tex --hpc-profile hpc_profile.json
 
 Key artifacts are written under ``projects/reproduce/<run-id>/`` (for example
@@ -201,8 +197,15 @@ Use ``research`` when starting from an idea prompt instead of an existing paper.
 .. code-block:: bash
 
    fermilink research "Design and validate a cavity QED protocol"
+   fermilink research idea.md
+
+   # provide the plan for review without execution, user can modify the generated plan before execution
    fermilink research idea.md --plan-only
+
+   # provide the report for review only without planning and execution
    fermilink research idea.md --report-only
+
+   # append an HPC target profile to the reproduce prompt context
    fermilink research idea.md --hpc-profile hpc_profile.json
 
 Key artifacts are written under ``projects/research/<run-id>/`` (including
@@ -248,10 +251,20 @@ Use ``fermilink agent`` to set global runtime defaults used by
 
 .. code-block:: bash
 
+   # check current agent runtime policy
    fermilink agent --json
+   
+   # set Codex as the default provider with sandbox mode and extra reasoning effort
    fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
+
+   # set Claude with relaxed sandbox for better performance
    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+
+   # set Gemini with sandbox for better safety
    fermilink agent gemini --sandbox --model auto-gemini-3 --reasoning-effort high
+
+   # clear provider/model override and reasoning effort settings 
+   # so FermiLink will use the default provider/model and reasoning effort
    fermilink agent --clear-model
    fermilink agent --clear-reasoning-effort
 
