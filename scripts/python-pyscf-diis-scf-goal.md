@@ -7,47 +7,51 @@ pyscf
 python
 
 ## Target
-Optimize the DIIS (Direct Inversion in the Iterative Subspace) extrapolation
-implementation in `pyscf/lib/diis.py` and surrounding SCF driver code in
-`pyscf/scf/` for faster Hartree-Fock and DFT self-consistent field
-convergence on small-to-medium molecules.
+Optimize DIIS (Direct Inversion in the Iterative Subspace) behavior for SCF in
+PySCF, with primary focus on `pyscf/lib/diis.py` and SCF/DFT call sites that
+invoke DIIS during iterative convergence.
 
-The DIIS algorithm is the primary convergence accelerator in PySCF's SCF loop.
-Optimization opportunities include: linear-algebra operations in the DIIS
-update step (Fock matrix extrapolation, error vector management), memory
-layout and allocation patterns for the DIIS history, numerical
-short-circuits when the error vector is small, and any overhead in the
-SCF iteration driver that calls into DIIS.
+Target optimization opportunities include:
+- reduced overhead in DIIS history management and error-vector assembly
+- lower-cost linear algebra in DIIS extrapolation updates
+- fewer transient allocations and better memory locality in tight SCF loops
+- faster convergence-path handling without relaxing tolerances
 
 ## Editable Scope
-- pyscf/scf/**
 - pyscf/lib/diis.py
+- pyscf/scf/**
+- pyscf/dft/**
 
 ## Performance Metric
-End-to-end wall-clock time for full SCF convergence (minimize).
+Minimize end-to-end SCF convergence time.
 
-The primary metric should be the weighted median total time across all
-benchmark cases, capturing both setup and kernel execution phases so that
-moving work between phases cannot game the metric.
+Primary objective should be weighted median total wall-clock time across all
+benchmark cases (including both setup and kernel phases).
 
 ## Correctness Constraints
-- Total SCF energy must match reference within 5e-8 Hartree (absolute)
-- Molecular orbital energies must match reference within 2e-5 RMS
-- Spin expectation value S^2 must match within 1e-3 (for open-shell cases)
-- All cases must converge within the allowed cycle limit
-- No relaxation of convergence tolerances is permitted
-- No special-casing of benchmark input molecules by name
+- Total SCF energy absolute delta <= 5e-8 Hartree vs incumbent baseline
+- Molecular orbital energies RMS delta <= 2e-5 vs incumbent baseline
+- Open-shell `<S^2>` absolute delta <= 1e-3 vs incumbent baseline
+- All benchmark cases must converge within configured cycle limits
+- Do not loosen `conv_tol`, `conv_tol_grad`, DIIS start criteria, or max-cycle defaults
+- No case-specific shortcuts keyed on molecule identity
 
 ## Representative Workloads
-- H2O / cc-pVDZ / RHF: small closed-shell baseline
-- NH3 / cc-pVDZ / RHF: small closed-shell with pyramidal geometry
-- O2 / cc-pVDZ / UHF (spin=2): small open-shell triplet
-- NO / cc-pVDZ / UHF (spin=1): small open-shell doublet, harder convergence
+- H2O / cc-pVDZ / RHF / DIIS space=12
+- NH3 / cc-pVDZ / RHF / DIIS space=12
+- O2 / cc-pVDZ / UHF (spin=2) / DIIS space=12
+- NO / cc-pVDZ / UHF (spin=1) / DIIS space=12
+- H2O / cc-pVDZ / RKS(B3LYP) / DIIS space=12
+- NO / cc-pVDZ / UKS(B3LYP, spin=1) / DIIS space=12
+
+## Build
+```bash
+python -m pip install -U pip
+python -m pip install -e .
+python -m pip install PyYAML
+```
 
 ## Notes
-These cases cover both restricted (RHF) and unrestricted (UHF) Hartree-Fock.
-The DIIS subspace size should be 12 vectors. Convergence tolerance is 1e-10
-for energy and 1e-6 for gradient.  Initial guess should use MINAO.
-
-For larger-scale optimization campaigns, consider adding cc-pVTZ basis set
-cases or DFT (RKS/UKS with B3LYP) workloads in a separate goal file.
+- Use MINAO initial guess unless a case explicitly specifies otherwise.
+- Keep benchmark behavior deterministic across repeated runs.
+- If multithreading is used, keep thread counts explicit in benchmark runtime config.
