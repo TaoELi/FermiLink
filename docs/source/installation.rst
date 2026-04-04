@@ -11,8 +11,8 @@ Fast path
 
 .. code-block:: bash
 
-   # 1. Install FermiLink (from this repo root)
-   pip install .
+   # 1. Install FermiLink 
+   pip install fermilink
 
    # 2. Start the guided beginner entrypoint
    fermilink
@@ -88,11 +88,11 @@ Example login commands:
 Install FermiLink
 ~~~~~~~~~~~~~~~~~~
 
-From the Github repository root, you can install FermiLink with pip:
+You can install FermiLink with pip:
 
 .. code-block:: bash
 
-   pip install .
+   pip install fermilink
 
 
 

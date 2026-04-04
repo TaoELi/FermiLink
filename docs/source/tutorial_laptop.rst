@@ -65,9 +65,7 @@ Clone the repo and install the CLI into your active Python environment:
 
 .. code-block:: bash
 
-   git clone https://github.com/TaoELi/FermiLink.git
-   cd FermiLink
-   pip install .
+   pip install fermilink
 
 Quick check:
 

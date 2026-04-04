@@ -60,9 +60,7 @@ Step 3. Install FermiLink
 
 .. code-block:: bash
 
-   git clone https://github.com/TaoELi/FermiLink.git
-   cd FermiLink/
-   pip install .
+   pip install fermilink
 
 Step 4. Install at least one scientific package knowledge base
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

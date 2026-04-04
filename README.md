@@ -22,7 +22,9 @@ Once you describe a goal, **FermiLink** takes care of the rest — routing tasks
 For beginners, start with:
 
 ```bash
-pip install .
+# install fermilink
+pip install fermilink
+# start the fermilink initialization helper
 fermilink
 ```
 
@@ -30,7 +32,7 @@ You can also use the manual workflow directly:
 
 ```bash
 # 1. Install
-pip install .
+pip install fermilink
 
 # 2. Install at least one scientific package knowledge base
 fermilink install meep
