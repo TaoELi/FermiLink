@@ -12,6 +12,7 @@ STATE_FILENAME = "state.json"
 RESULTS_FILENAME = "results.tsv"
 MEMORY_FILENAME = "memory.md"
 WORKER_MEMORY_FILENAME = "worker_memory.md"
+WORKER_BENCHMARK_FILENAME = "benchmark.worker.yaml"
 PROGRAM_FILENAME = "program.md"
 RUNS_DIRNAME = "runs"
 AUTOGEN_DIRNAME = "autogen"
@@ -59,6 +60,10 @@ def memory_path(project_root: Path) -> Path:
 
 def worker_memory_path(project_root: Path) -> Path:
     return optimize_root(project_root) / WORKER_MEMORY_FILENAME
+
+
+def worker_benchmark_path(project_root: Path) -> Path:
+    return optimize_root(project_root) / WORKER_BENCHMARK_FILENAME
 
 
 def runs_root(project_root: Path) -> Path:

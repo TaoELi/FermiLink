@@ -1,12 +1,26 @@
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import shutil
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
 from fermilink.agents import get_provider_agent
+
+
+WORKER_BRANCH_PREFIX = "fermilink-optimize-worker/"
+WORKER_GIT_HIDDEN_BASENAME = ".git.fermilink-hidden"
+WORKER_WORKTREE_STORAGE_DIRNAME = "fermilink-optimize-worktrees"
+WORKER_GIT_ENV_KEYS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+)
 
 
 def _cli():
@@ -108,6 +122,230 @@ def _git_path(repo_dir: Path, pathspec: str) -> Path:
     if not candidate.is_absolute():
         candidate = (repo_dir / candidate).resolve()
     return candidate
+
+
+def _git_common_dir(repo_dir: Path) -> Path:
+    completed = run_git(repo_dir, ["rev-parse", "--git-common-dir"])
+    resolved = (completed.stdout or "").strip()
+    if not resolved:
+        raise _cli().PackageError("git rev-parse --git-common-dir returned no path.")
+    candidate = Path(resolved)
+    if not candidate.is_absolute():
+        candidate = (repo_dir / candidate).resolve()
+    return candidate
+
+
+def _worker_key(controller_branch: str) -> str:
+    branch = str(controller_branch or "").strip()
+    if not branch:
+        branch = "optimize"
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", branch).strip("-._")
+    if not slug:
+        slug = "optimize"
+    digest = hashlib.sha1(branch.encode("utf-8")).hexdigest()[:12]
+    return f"{slug[:48]}-{digest}"
+
+
+def worker_branch_name(controller_branch: str) -> str:
+    return f"{WORKER_BRANCH_PREFIX}{_worker_key(controller_branch)}"
+
+
+def worker_worktree_path(
+    repo_dir: Path,
+    *,
+    controller_branch: str,
+) -> Path:
+    storage_root = _git_common_dir(repo_dir) / WORKER_WORKTREE_STORAGE_DIRNAME
+    return storage_root / _worker_key(controller_branch)
+
+
+def _list_worktrees(repo_dir: Path) -> list[dict[str, str]]:
+    completed = run_git(repo_dir, ["worktree", "list", "--porcelain"])
+    entries: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    for raw_line in (completed.stdout or "").splitlines():
+        line = str(raw_line or "").strip()
+        if not line:
+            if current:
+                entries.append(current)
+                current = {}
+            continue
+        if raw_line.startswith("worktree "):
+            if current:
+                entries.append(current)
+            current = {"worktree": raw_line.split(" ", 1)[1].strip()}
+            continue
+        if raw_line.startswith("HEAD "):
+            current["head"] = raw_line.split(" ", 1)[1].strip()
+            continue
+        if raw_line.startswith("branch "):
+            current["branch"] = raw_line.split(" ", 1)[1].strip()
+            continue
+        if line == "detached":
+            current["detached"] = "true"
+    if current:
+        entries.append(current)
+    return entries
+
+
+def _resolve_existing_worktree_for_branch(
+    repo_dir: Path,
+    *,
+    branch_name: str,
+) -> Path | None:
+    branch_ref = f"refs/heads/{branch_name}"
+    for entry in _list_worktrees(repo_dir):
+        if entry.get("branch") != branch_ref:
+            continue
+        worktree_raw = str(entry.get("worktree") or "").strip()
+        if not worktree_raw:
+            continue
+        candidate = Path(worktree_raw).resolve()
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def ensure_worker_worktree(
+    repo_dir: Path,
+    *,
+    controller_branch: str,
+    start_commit: str | None = None,
+) -> dict[str, str | bool]:
+    worker_branch = worker_branch_name(controller_branch)
+    baseline_commit = str(start_commit or "").strip() or head_sha(repo_dir)
+
+    if not branch_exists(repo_dir, worker_branch):
+        run_git(
+            repo_dir,
+            ["branch", worker_branch, baseline_commit],
+            check=True,
+            capture_output=True,
+        )
+        created_branch = True
+    else:
+        created_branch = False
+
+    run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)
+    existing = _resolve_existing_worktree_for_branch(
+        repo_dir,
+        branch_name=worker_branch,
+    )
+    worker_root = existing
+    created_worktree = False
+    if worker_root is None:
+        worker_root = worker_worktree_path(
+            repo_dir,
+            controller_branch=controller_branch,
+        )
+        worker_root.parent.mkdir(parents=True, exist_ok=True)
+        run_git(
+            repo_dir,
+            ["worktree", "add", "--force", str(worker_root), worker_branch],
+            check=True,
+            capture_output=True,
+        )
+        created_worktree = True
+
+    restored_git = restore_worker_git_metadata(worker_root)
+    return {
+        "worker_branch": worker_branch,
+        "worker_root": str(worker_root),
+        "created_branch": created_branch,
+        "created_worktree": created_worktree,
+        "restored_git_metadata": restored_git,
+    }
+
+
+def clean_worker_untracked(worker_repo_dir: Path) -> None:
+    restore_worker_git_metadata(worker_repo_dir)
+    run_git(
+        worker_repo_dir,
+        ["clean", "-fd"],
+        check=True,
+        capture_output=True,
+    )
+
+
+def reset_worker_to_commit(worker_repo_dir: Path, *, commit_sha: str) -> None:
+    restore_worker_git_metadata(worker_repo_dir)
+    run_git(
+        worker_repo_dir,
+        ["reset", "--hard", commit_sha],
+        check=True,
+        capture_output=True,
+    )
+
+
+def _worker_git_paths(worker_repo_dir: Path) -> tuple[Path, Path]:
+    return (
+        worker_repo_dir / ".git",
+        worker_repo_dir / WORKER_GIT_HIDDEN_BASENAME,
+    )
+
+
+def restore_worker_git_metadata(worker_repo_dir: Path) -> bool:
+    git_path, hidden_path = _worker_git_paths(worker_repo_dir)
+    if git_path.exists():
+        return False
+    if not hidden_path.exists():
+        return False
+    try:
+        hidden_path.rename(git_path)
+    except OSError as exc:
+        raise _cli().PackageError(
+            f"Failed to restore worker git metadata at {worker_repo_dir}: {exc}"
+        ) from exc
+    return True
+
+
+@contextmanager
+def _temporary_unset_env(keys: tuple[str, ...]):
+    original: dict[str, str] = {}
+    for key in keys:
+        if key in os.environ:
+            original[key] = os.environ[key]
+            os.environ.pop(key, None)
+    try:
+        yield
+    finally:
+        for key, value in original.items():
+            os.environ[key] = value
+
+
+@contextmanager
+def with_worker_git_disabled(worker_repo_dir: Path):
+    restore_worker_git_metadata(worker_repo_dir)
+    git_path, hidden_path = _worker_git_paths(worker_repo_dir)
+    if hidden_path.exists() and git_path.exists():
+        raise _cli().PackageError(
+            f"Conflicting worker git metadata paths: {git_path} and {hidden_path}"
+        )
+    if not git_path.exists():
+        raise _cli().PackageError(
+            f"Worker git metadata missing at {git_path}; cannot disable git tools."
+        )
+    try:
+        git_path.rename(hidden_path)
+    except OSError as exc:
+        raise _cli().PackageError(
+            f"Failed to hide worker git metadata at {git_path}: {exc}"
+        ) from exc
+    try:
+        with _temporary_unset_env(WORKER_GIT_ENV_KEYS):
+            yield
+    finally:
+        if hidden_path.exists() and not git_path.exists():
+            try:
+                hidden_path.rename(git_path)
+            except OSError as exc:
+                raise _cli().PackageError(
+                    f"Failed to restore worker git metadata at {git_path}: {exc}"
+                ) from exc
+        elif not git_path.exists():
+            raise _cli().PackageError(
+                f"Worker git metadata missing after worker run: {git_path}"
+            )
 
 
 def ensure_local_excludes(repo_dir: Path, patterns: list[str]) -> None:

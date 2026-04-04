@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,14 @@ def _git(repo_dir: Path, *args: str) -> str:
         check=True,
     )
     return (completed.stdout or "").strip()
+
+
+def _write_solver_in_worker(kwargs: dict[str, object], *, mode: str) -> None:
+    repo_dir_raw = str(kwargs.get("repo_dir") or "").strip()
+    if not repo_dir_raw:
+        raise AssertionError("missing repo_dir for worker turn")
+    worker_repo = Path(repo_dir_raw)
+    (worker_repo / "solver.py").write_text(f"MODE = '{mode}'\n", encoding="utf-8")
 
 
 def _write_mock_benchmark_files(
@@ -267,6 +276,158 @@ def _init_optimize_repo(
     return repo_dir, benchmark_path
 
 
+def _init_split_optimize_repo(tmp_path: Path) -> tuple[Path, Path]:
+    repo_dir = tmp_path / "repo-split"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    (repo_dir / "solver.py").write_text("MODE = 'BASELINE'\n", encoding="utf-8")
+    (repo_dir / "skills").mkdir(parents=True, exist_ok=True)
+    (repo_dir / "skills" / "README.md").write_text("skills", encoding="utf-8")
+    scripts_dir = repo_dir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    (scripts_dir / "mock_split_bench.py").write_text(
+        (
+            "from __future__ import annotations\n"
+            "\n"
+            "import argparse\n"
+            "import json\n"
+            "import statistics\n"
+            "from pathlib import Path\n"
+            "\n"
+            "import yaml\n"
+            "\n"
+            "\n"
+            "BASELINE = {\n"
+            "    'train-a': 10.0,\n"
+            "    'train-b': 10.0,\n"
+            "    'test-a': 10.0,\n"
+            "    'test-b': 10.0,\n"
+            "}\n"
+            "\n"
+            "\n"
+            "def _case_time(case_id: str, mode_text: str) -> float:\n"
+            "    baseline = float(BASELINE.get(case_id, 10.0))\n"
+            "    if 'TRAIN_FAST' not in mode_text:\n"
+            "        return baseline\n"
+            "    if case_id.startswith('train-'):\n"
+            "        return 1.0\n"
+            "    return 20.0\n"
+            "\n"
+            "\n"
+            "def main() -> int:\n"
+            "    parser = argparse.ArgumentParser()\n"
+            "    parser.add_argument('--benchmark', required=True)\n"
+            "    parser.add_argument('--emit-json', action='store_true')\n"
+            "    args = parser.parse_args()\n"
+            "    benchmark_path = Path(args.benchmark).resolve()\n"
+            "    payload = yaml.safe_load(benchmark_path.read_text(encoding='utf-8'))\n"
+            "    if not isinstance(payload, dict):\n"
+            "        raise SystemExit('invalid benchmark payload')\n"
+            "    raw_cases = payload.get('cases')\n"
+            "    cases = [item for item in raw_cases if isinstance(item, dict)] if isinstance(raw_cases, list) else []\n"
+            "    repo_dir = Path(__file__).resolve().parent.parent\n"
+            "    mode_text = (repo_dir / 'solver.py').read_text(encoding='utf-8')\n"
+            "    case_results = []\n"
+            "    for case in cases:\n"
+            "        case_id = str(case.get('id') or 'case')\n"
+            "        wall = _case_time(case_id, mode_text)\n"
+            "        case_results.append(\n"
+            "            {\n"
+            "                'id': case_id,\n"
+            "                'converged': True,\n"
+            "                'wall_seconds': wall,\n"
+            "                'error': '',\n"
+            "            }\n"
+            "        )\n"
+            "    wall_values = [float(item.get('wall_seconds') or 0.0) for item in case_results]\n"
+            "    median_wall = statistics.median(wall_values) if wall_values else 0.0\n"
+            "    output = {\n"
+            "        'benchmark_id': str(payload.get('benchmark_id') or 'mock-split'),\n"
+            "        'correctness_ok': True,\n"
+            "        'summary_metrics': {\n"
+            "            'weighted_median_wall_seconds': float(median_wall),\n"
+            "            'peak_rss_mb': 0.0,\n"
+            "            'total_failures': 0,\n"
+            "        },\n"
+            "        'cases': case_results,\n"
+            "    }\n"
+            "    if 'TRAIN_FAST' in mode_text and any(\n"
+            "        str(item.get('id') or '').startswith('test-') for item in case_results\n"
+            "    ):\n"
+            "        output['guardrail_errors'] = ['test-only regression detected']\n"
+            "    print(json.dumps(output, sort_keys=True))\n"
+            "    return 0\n"
+            "\n"
+            "\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n"
+        ),
+        encoding="utf-8",
+    )
+    benchmark_path = scripts_dir / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: mock-split\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - solver.py\n"
+            "  immutable_paths:\n"
+            "    - scripts/**\n"
+            "controller:\n"
+            "  timeout_seconds: 30\n"
+            "  warmup_runs: 0\n"
+            "  measured_runs: 1\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "    direction: minimize\n"
+            "    min_relative_improvement: 0.05\n"
+            "campaign:\n"
+            "  max_iterations: 1\n"
+            "  stop_on_consecutive_rejections: 1\n"
+            "worker:\n"
+            "  max_iterations: 2\n"
+            "  wait_seconds: 0\n"
+            "correctness:\n"
+            "  mode: runner_only\n"
+            "split:\n"
+            "  train_case_ids:\n"
+            "    - train-a\n"
+            "    - train-b\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            f'    - "{sys.executable}"\n'
+            "    - scripts/mock_split_bench.py\n"
+            "    - --benchmark\n"
+            '    - "{benchmark}"\n'
+            "    - --emit-json\n"
+            "cases:\n"
+            "  - id: train-a\n"
+            "    weight: 1.0\n"
+            "  - id: train-b\n"
+            "    weight: 1.0\n"
+            "  - id: test-a\n"
+            "    weight: 1.0\n"
+            "  - id: test-b\n"
+            "    weight: 1.0\n"
+        ),
+        encoding="utf-8",
+    )
+    _git(repo_dir, "init", "-b", "main")
+    _git(repo_dir, "add", ".")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+    return repo_dir, benchmark_path
+
+
 def test_optimize_parser_supports_core_flags() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(
@@ -381,6 +542,68 @@ def test_load_benchmark_rejects_legacy_scf_correctness_keys(tmp_path: Path) -> N
     )
 
     with pytest.raises(cli.PackageError, match="Legacy SCF correctness keys"):
+        optimize_controller._load_benchmark(benchmark_path)
+
+
+def test_load_benchmark_split_rejects_unknown_train_case_ids(tmp_path: Path) -> None:
+    benchmark_path = tmp_path / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: split-mock\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - src/**\n"
+            "controller:\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - -c\n"
+            "    - print('ok')\n"
+            "split:\n"
+            "  train_case_ids:\n"
+            "    - train-a\n"
+            "cases:\n"
+            "  - id: test-a\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(cli.PackageError, match="references unknown cases"):
+        optimize_controller._load_benchmark(benchmark_path)
+
+
+def test_load_benchmark_split_requires_controller_test_cases(tmp_path: Path) -> None:
+    benchmark_path = tmp_path / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: split-mock\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - src/**\n"
+            "controller:\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - -c\n"
+            "    - print('ok')\n"
+            "split:\n"
+            "  train_case_ids:\n"
+            "    - only-case\n"
+            "cases:\n"
+            "  - id: only-case\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(cli.PackageError, match="at least one controller-only test case"):
         optimize_controller._load_benchmark(benchmark_path)
 
 
@@ -894,7 +1117,7 @@ def test_optimize_accepts_better_candidate(
             }
 
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -984,7 +1207,7 @@ def test_optimize_rejects_worse_candidate_and_restores_repo(
             }
 
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'SLOW'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="SLOW")
         return {
             "assistant_text": (
                 "<experiment_description>slow path</experiment_description>\n"
@@ -1069,7 +1292,7 @@ def test_optimize_hard_reject_overrides_controller_accept(
             }
 
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'BROKEN'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="BROKEN")
         return {
             "assistant_text": (
                 "<experiment_description>broken fast path</experiment_description>\n"
@@ -1145,7 +1368,7 @@ def test_optimize_guardrail_regression_reports_performance_rejection(
             }
 
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'REGRESS'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="REGRESS")
         return {
             "assistant_text": (
                 "<experiment_description>regressing candidate</experiment_description>\n"
@@ -1195,6 +1418,206 @@ def test_optimize_guardrail_regression_reports_performance_rejection(
     assert review_context.get("hard_reject_status") == "rejected"
     assert review_context.get("hard_reject_category") == "performance_regression"
     assert "performance_regression" in str(review_context.get("hard_reject_reason") or "")
+
+
+def test_optimize_split_hides_test_cases_from_worker_and_evaluates_test_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_split_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    seen_prompts: dict[str, str] = {"worker": "", "controller": ""}
+    worker_repo_path = {"value": ""}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            seen_prompts["controller"] = prompt
+            return {
+                "assistant_text": (
+                    "<decision>REJECTED</decision>\n"
+                    "<controller_summary>test-only benchmark regressed</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        seen_prompts["worker"] = prompt
+        worker_repo = Path(str(kwargs.get("repo_dir")))
+        worker_repo_path["value"] = str(worker_repo)
+        assert not (worker_repo / ".git").exists()
+        assert (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+        for key in optimize_git.WORKER_GIT_ENV_KEYS:
+            assert key not in os.environ
+        (worker_repo / "solver.py").write_text("MODE = 'TRAIN_FAST'\n", encoding="utf-8")
+        return {
+            "assistant_text": (
+                "<experiment_description>train-only fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-max-iterations",
+            "2",
+        ]
+    )
+
+    assert code == 0
+    assert ".fermilink-optimize/benchmark.worker.yaml" in seen_prompts["worker"]
+    assert "scripts/benchmark.yaml" not in seen_prompts["worker"]
+
+    worker_benchmark = yaml.safe_load(
+        (repo_dir / ".fermilink-optimize" / "benchmark.worker.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    worker_cases = [
+        str(item.get("id") or "")
+        for item in worker_benchmark.get("cases", [])
+        if isinstance(item, dict)
+    ]
+    assert worker_cases == ["train-a", "train-b"]
+
+    controller_benchmark = yaml.safe_load(
+        (
+            repo_dir
+            / ".fermilink-optimize"
+            / "runs"
+            / "iter_0001"
+            / "benchmark.controller.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    controller_cases = [
+        str(item.get("id") or "")
+        for item in controller_benchmark.get("cases", [])
+        if isinstance(item, dict)
+    ]
+    assert controller_cases == ["test-a", "test-b"]
+
+    review_context = json.loads(
+        (
+            repo_dir
+            / ".fermilink-optimize"
+            / "runs"
+            / "iter_0001"
+            / "review_context.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert review_context.get("hard_reject") is True
+    candidate_metrics = review_context.get("candidate_metrics")
+    assert isinstance(candidate_metrics, dict)
+    case_ids = [
+        str(item.get("id") or "")
+        for item in candidate_metrics.get("cases", [])
+        if isinstance(item, dict)
+    ]
+    assert case_ids == ["test-a", "test-b"]
+    worker_repo = Path(worker_repo_path["value"])
+    assert worker_repo_path["value"]
+    assert worker_repo.resolve() != repo_dir.resolve()
+    assert (worker_repo / ".git").exists()
+    assert not (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+
+
+def test_optimize_reuses_worker_worktree_across_outer_iterations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    worker_repo_paths: list[str] = []
+    worker_turn_count = {"count": 0}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        worker_turn_count["count"] += 1
+        worker_repo = Path(str(kwargs.get("repo_dir")))
+        worker_repo_paths.append(str(worker_repo))
+        assert not (worker_repo / ".git").exists()
+        assert (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+        _write_solver_in_worker(kwargs, mode=f"FAST_{worker_turn_count['count']}")
+        return {
+            "assistant_text": (
+                f"<experiment_description>fast path {worker_turn_count['count']}</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "2",
+            "--stop-on-consecutive-rejections",
+            "2",
+        ]
+    )
+
+    assert code == 0
+    assert len(worker_repo_paths) == 2
+    assert len(set(worker_repo_paths)) == 1
+    worker_repo = Path(worker_repo_paths[0]).resolve()
+    assert worker_repo != repo_dir.resolve()
+    assert (worker_repo / ".git").exists()
+    assert not (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 2
+    assert state["iteration"] == 2
 
 
 def test_optimize_channel_bootstraps_skills(
@@ -1302,7 +1725,7 @@ def test_optimize_worker_loop_can_fix_candidate_before_benchmark(
         worker_turn["count"] += 1
         if worker_turn["count"] == 1:
             calls.append("worker1")
-            (repo_dir / "solver.py").write_text("MODE = 'BROKEN'\n", encoding="utf-8")
+            _write_solver_in_worker(kwargs, mode="BROKEN")
             return {
                 "assistant_text": (
                     "<experiment_description>initial buggy fast path</experiment_description>\n"
@@ -1312,7 +1735,7 @@ def test_optimize_worker_loop_can_fix_candidate_before_benchmark(
             }
 
         calls.append("worker2")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fixed fast path</experiment_description>\n"
@@ -1373,7 +1796,7 @@ def test_optimize_rejects_incomplete_worker_without_controller(
 
     def fake_run_exec_chat_turn(**kwargs):
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>needs another debugging turn</experiment_description>\n"
@@ -1463,7 +1886,7 @@ def test_optimize_archives_worker_memory_and_skips_routing_overlay_and_completio
                 "return_code": 0,
                 "stderr": "",
             }
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -1541,7 +1964,7 @@ def test_optimize_worker_hpc_profile_appends_execution_target_constraints(
                 "stderr": "",
             }
         captured["prompt"] = prompt
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -1623,7 +2046,7 @@ def test_optimize_worker_loop_handles_pid_waits(
             }
 
         calls.append("worker2")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path after local wait</experiment_description>\n"
@@ -1723,7 +2146,7 @@ def test_optimize_worker_loop_handles_slurm_waits(
             }
 
         calls.append("worker2")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path after slurm wait</experiment_description>\n"
@@ -1822,7 +2245,7 @@ def test_optimize_benchmark_submit_poll_handles_pid_submission(
                 "stderr": "",
             }
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -1959,7 +2382,7 @@ def test_optimize_benchmark_submit_poll_handles_slurm_submission(
                 "stderr": "",
             }
         calls.append("worker")
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -2068,7 +2491,7 @@ def test_optimize_submit_poll_replans_launcher_after_infra_failure(
                 "return_code": 0,
                 "stderr": "",
             }
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -2134,7 +2557,7 @@ def test_optimize_rejected_candidate_cleans_new_untracked_files(
                 "return_code": 0,
                 "stderr": "",
             }
-        (repo_dir / "solver.py").write_text("MODE = 'SLOW'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="SLOW")
         return {
             "assistant_text": (
                 "<experiment_description>slow path</experiment_description>\n"
@@ -2200,7 +2623,7 @@ def test_optimize_accepted_candidate_cleans_new_untracked_files(
                 "return_code": 0,
                 "stderr": "",
             }
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -2259,7 +2682,7 @@ def test_optimize_cleanup_preserves_preexisting_untracked_entries(
             return ["preexisting.tmp"]
         return ["preexisting.tmp", "new_artifact.tmp"]
 
-    cleanup_calls: list[list[str]] = []
+    cleanup_calls: list[tuple[Path, list[str]]] = []
 
     monkeypatch.setattr(
         optimize_git,
@@ -2269,7 +2692,7 @@ def test_optimize_cleanup_preserves_preexisting_untracked_entries(
     monkeypatch.setattr(
         optimize_git,
         "cleanup_paths",
-        lambda _repo_dir, paths: cleanup_calls.append(list(paths)),
+        lambda repo_path, paths: cleanup_calls.append((Path(repo_path), list(paths))),
     )
 
     def fake_run_exec_chat_turn(**kwargs):
@@ -2283,7 +2706,7 @@ def test_optimize_cleanup_preserves_preexisting_untracked_entries(
                 "return_code": 0,
                 "stderr": "",
             }
-        (repo_dir / "solver.py").write_text("MODE = 'FAST'\n", encoding="utf-8")
+        _write_solver_in_worker(kwargs, mode="FAST")
         return {
             "assistant_text": (
                 "<experiment_description>fast path</experiment_description>\n"
@@ -2311,4 +2734,9 @@ def test_optimize_cleanup_preserves_preexisting_untracked_entries(
     )
 
     assert code == 0
-    assert cleanup_calls == [["new_artifact.tmp"]]
+    controller_cleanup_calls = [
+        paths
+        for repo_path, paths in cleanup_calls
+        if repo_path.resolve() == repo_dir.resolve()
+    ]
+    assert controller_cleanup_calls == [["new_artifact.tmp"]]
