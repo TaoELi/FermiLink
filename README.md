@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
 </p>
 
-# FermiLink: AI Agent for Autonomous Scientific Simulations
+# FermiLink: Unified Agent Framework for Multidomain Autonomous Scientific Simulations
 
 [**FermiLink**](https://taoeli.github.io/FermiLink/) is a unified agent framework for multidomain autonomous scientific simulations. It runs on personal laptops, **high-performance computing (HPC) clusters**, or even your cellphone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
 
