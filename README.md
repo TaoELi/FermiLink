@@ -10,45 +10,31 @@
 
 # FermiLink: AI Agent for Autonomous Scientific Simulations
 
-**FermiLink** is a unified agent framework for autonomous scientific simulations. It runs on personal laptops, HPC clusters, or even your phone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
+[**FermiLink**](https://taoeli.github.io/FermiLink/) is a unified agent framework for multidomain autonomous scientific simulations. It runs on personal laptops, **high-performance computing (HPC) clusters**, or even your cellphone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
 
-With [an official package channel](https://github.com/skilled-scipkg), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any scientific package, publication, or custom simulation recipe.
 
-FermiLink now also includes a separate benchmark-gated optimization mode,
-``fermilink optimize``, for iterative code optimization inside a scientific
-package source tree using fixed ``skills/`` context, an embedded worker loop
-for iterative code changes/debugging/long-job waits, a controller agent for
-reflective decision/memory updates, and hard scientific benchmark validation.
-Quick mode (``fermilink optimize prompt.md``) can scaffold benchmark assets by
-seeding from language-specific examples under ``scripts/``.
+With [an official package channel](https://github.com/orgs/skilled-scipkg/repositories), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any local scientific package or simulation pipeline.
 
-Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously. It is designed to sustain long-running computational jobs for days or weeks without human intervention.
+Once you describe a goal, **FermiLink** takes care of the rest — routing tasks to the right packages, running multi-step simulations, and iterating autonomously on both workstations and **HPC clusters**. It is designed to sustain long-running multi-task computational jobs for days or weeks without human intervention.
+
 
 ## Quick Start
 For beginners, start with:
 
 ```bash
-pip install .
+# install fermilink
+pip install fermilink
+# start the fermilink initialization helper
 fermilink
 ```
-
-Running ``fermilink`` with no subcommand opens a guided setup flow in an
-interactive terminal. It checks provider availability, installed scientific
-packages, web/runner status, Telegram configuration, and optional HPC profile
-setup, then routes you to the right next step. The same beginner menu also
-includes guided advanced entrypoints for ``fermilink compile`` and
-``fermilink recompile`` when you need to onboard a local package or patch
-installed package skills from a manuscript or workspace memory. On the first
-interactive entry it also prints a terminal hero banner before entering the
-setup flow.
 
 You can also use the manual workflow directly:
 
 ```bash
 # 1. Install
-pip install .
+pip install fermilink
 
-# 2. Install at least one scientific package
+# 2. Install at least one scientific package knowledge base
 fermilink install meep
 
 # 3. set up the agent provider 
@@ -56,9 +42,6 @@ fermilink agent codex/claude/gemini
 
 # 4.1. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
-
-# 4.1b. Run benchmark-gated code optimization inside a package repo
-fermilink optimize pyscf /path/to/pyscf --benchmark scripts/python-pyscf-scf-benchmark.yaml
 
 # 4.2. Start web UI service for ChatGPT-like experience
 fermilink start
@@ -69,21 +52,26 @@ export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_
 fermilink gateway
 ```
 
+<p align="center">
+  <img src="docs/source/_static/img/fermilink_hpc_bot.jpeg" alt="FermiLink Telegram Bot" width="300">
+</p>
+
 ## Documentation
 
-Visit the [documentation](docs/source/overview.rst) for installation details, tutorials, and API reference.
+Visit the [documentation](https://taoeli.github.io/FermiLink/) for installation details and usage guide. 
 
-## Build documentation
+In brief, the key design principle of **FermiLink** is the separation of package knowledge bases from simulation workflows, so that simulation workflows in **FermiLink**, from figure-level simulations to full-paper-level research on high-performance computing clusters, operate uniformly among supported packages via a four-layer progressive disclosure mechanism.
+![FermiLink design](docs/source/_static/img/package_management_workflow.svg)
 
-User can build the documentation website for FermiLink locally with the following commands:
+To accommodate simulations at different scopes, as demonstrated below, **FermiLink** delivers with three major computational workflows. 
+![FermiLink major workflows](docs/source/_static/img/major_modes_workflow.svg)
+- **exec** mode: Designed for short-duration simulations.
+- **loop** mode: Connects iterative agent reasoning with simulation monitoring for PID and HPC SLURM jobs, thus providing robust support for long-duration simulations on both workstations and HPC clusters. 
+- **research**/**reproduce** mode: Intended for multi-task simulations at the scope of a full research paper. 
 
-```bash
-   pip install ".[docs]"
-   make doc html
-```
 
 ## Citation
 
 If you find **FermiLink** helpful for your research, please cite the following reference:
 
-- TEL Research Group. *A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. [arXiv:tbd](https://arxiv.org/abs/tbd) (2026).
+- Gang Meng†, Andres Felipe Bocanegra Vargas†, Xinwei Ji†, Federico Garcia-Gaitan, Felipe Reyes-Osorio, Jalil Varela-Manjarres, Yafei Ren, Mohammadhasan Dinpajooh, Branislav K. Nikolić, Tao E. Li. *FermiLink: A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. **Submitted to arXiv** (2026).

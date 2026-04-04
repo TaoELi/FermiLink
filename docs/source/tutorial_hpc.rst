@@ -2,19 +2,8 @@ HPC Tutorial
 ===============
 
 This tutorial shows how to run FermiLink smoothly on a typical SLURM-based HPC
-cluster without sudo access. It is designed to be **self-contained**, so you can
-follow it end-to-end without reading other pages. At the end, we also point to
-more detailed references if you want them.
-
-What you will set up:
-
-- A user-local Python + Node.js environment
-- FermiLink + provider CLI authentication (Codex, Claude, Gemini)
-- One or more scientific packages (knowledge bases)
-- An ``hpc_profile.json`` so FermiLink submits and monitors SLURM jobs
-- Example runs with ``exec``, ``loop``, ``research``, and ``reproduce``
-- Optional Telegram remote control
-
+cluster without sudo access. It is **self-contained**, so you can
+follow it end-to-end without reading other pages.
 
 Prerequisites
 ~~~~~~~~~~~~~~~~
@@ -23,7 +12,7 @@ You need the following available on the cluster (all can be user-local):
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
-- Node.js + ``npm`` (for local provider CLIs)
+- Node.js + ``npm`` (for local agent provider CLIs)
 - SLURM client tools (``sbatch``, ``squeue``, ``sacct``) if you plan to submit jobs
 
 .. note::
@@ -35,7 +24,7 @@ You need the following available on the cluster (all can be user-local):
 Step 1. Choose working and runtime locations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink stores packages, workspaces, and logs under ``FERMILINK_HOME``
+FermiLink stores packages knowledge bases and runtim data under ``$FERMILINK_HOME``
 (default ``~/.fermilink``). On HPC, it is often better to use a scratch or
 project filesystem to avoid home-quota issues.
 
@@ -46,13 +35,13 @@ The most significant storage is for workspaces, which might generate large runti
    # ~/.bashrc
    # Example: keep FermiLink runtime in a project filesystem
    export FERMILINK_HOME="$PROJECT/.fermilink/"
-   # Example: also keep the simulation workspaces in scratch 
+   # Example: also keep the simulation workspaces (where large simulation data can be generated) in scratch 
    export FERMILINK_WORKSPACES_ROOT="$SCRATCH/fermilink/workspaces"
 
-Step 2. Install provider CLI and authenticate
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 2. Install agent provider CLI and authenticate
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently documents tested provider support for Codex, Claude and Gemini.
+FermiLink currently support OpenAI Codex, Claude and Gemini.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -60,35 +49,24 @@ Install and authenticate the provider you want to use:
    # Codex option
    npm i -g @openai/codex
    codex login
-   # Claude option
-   # install Claude CLI from its official distribution, then:
-   claude login
-
-If your selected provider CLI is not found after install, ensure your local
-binary directory is on ``PATH``.
-
-For Codex users, choose the default model (e.g., ``gpt-5.3-codex``) you want
-to use for FermiLink.
-
+   # Install Claude / Gemini CLI from its official distribution, then:
+   # Claude login
+   claude 
+   # Gemini login
+   gemini
 
 Step 3. Install FermiLink
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   git clone https://github.com/TaoELi/FermiLink.git
-   cd FermiLink/
-   pip install .
+   pip install fermilink
 
-If you are working from a cloned repo, this installs the CLI and all runtime
-dependencies into your current Python environment.
-
-
-Step 4. Install at least one scientific package
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 4. Install at least one scientific package knowledge base
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 FermiLink routes each run to an installed package knowledge base. Install at
-least one package before you run anything:
+least one package knowledge base before you run anything:
 
 .. code-block:: bash
 
@@ -117,18 +95,14 @@ least one package before you run anything:
 Step 5. Set agent runtime policy (sandbox)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, FermiLink runs in a restricted sandbox. Some simulations or local
-MPI workflows may need to bypass it. Check and set the policy if needed:
+By default, FermiLink runs in a restricted sandbox. For HPC runs, you might want to relax the sandbox for better performanc. You can set this with:
 
 .. code-block:: bash
 
    # show current policy
    fermilink agent --json
 
-   # enforce sandbox mode (default) for codex
-   fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
-
-   # bypass sandbox for codex (which might be needed for local MPI jobs)
+   # bypass sandbox for codex
    fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
    # bypass sandbox for claude
@@ -202,8 +176,11 @@ completion and can run multiple iterations until the goal is reached.
      --max-wait-seconds 7200 \
      --init-git
 
-``loop`` recognizes ``<slurm_job_number>...</slurm_job_number>`` tags and polls
-SLURM until completion, up to the ``--max-wait-seconds`` limit.
+Here, ``--max-wait-seconds`` is the maximal wait time between agent iterations. The agent will wait for up to
+this time to recheck the SLURM process. 
+
+If the SLURM jobs finish or quit before this time, 
+the agent will immediately proceed to the next iteration. 
 
 
 Step 9. Full workflows (``research`` and ``reproduce``)
@@ -257,27 +234,34 @@ Submit it with:
 
    sbatch fermilink_job.sh
 
-Adjust the ``#SBATCH`` lines to match your site’s partition, account, or QoS
-requirements.
+Adjust the ``#SBATCH`` lines to match your HPC setting.
 
 
 Step 11. Compile / recompile your own package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-At this early stage, it is likely that you want to add your own package or pipeline to FermiLink. Use ``fermilink compile`` to turn a local project into a package knowledge base, and use ``fermilink recompile`` to update it after you add more skills or files.
+At this stage, it is likely that you want to add your own package or pipeline to FermiLink.  
+
+- ``fermilink compile``: turn a local project into a package knowledge base;
+- ``fermilink recompile``: update it after you add more skills or files.
 
 See :doc:`usage_configure_your_package` and :doc:`usage_advanced_configuration` for details on how to compile/recompile your package and convert research pipelines or memory suggestions into package knowledge.
 
-Alternatively, you can also send an email to the FermiLink team (taoeli@udel.edu) with your open-source package or pipeline, and we can help compile it into the curated channel for easy installation and use by the community.
+Alternatively, you can also send an email to the FermiLink team (taoeli@udel.edu) with your open-source package or pipeline, and we can help compile it into 
+the `curated Github channel <https://github.com/orgs/skilled-scipkg/repositories>`_ for easy installation and use by the community.
 
 
-Step 12. Optional: Telegram remote control for HPC
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 12. Optional (but highly useful): Telegram remote control for HPC
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Telegram gateway is a convenient remote control when you want to queue jobs
 from your phone while the cluster runs them.
 
-You can start the gateway on the cluster with in the login node for testing:
+.. note::
+
+   Read :doc:`usage_chatting_apps` for the full Telegram gateway guide and more details about flags and usage tips.
+
+After reading :doc:`usage_chatting_apps`, you can run the commands below at the login node of the HPC cluster for testing:
 
 .. code-block:: bash
 
@@ -289,10 +273,6 @@ You can start the gateway on the cluster with in the login node for testing:
 
 Once the gateway is running, chat with your bot and use ``/list`` or ``/mode`` to
 start sending jobs. 
-
-.. note::
-
-   Read :doc:`usage_chatting_apps` for the full Telegram gateway guide and more details about flags and usage tips.
 
 Then, if everything works, you can submit the gateway itself as a long-running SLURM job (1 CPU) so it can accept commands whenever you need it.
 
@@ -326,13 +306,15 @@ Even better, if you want **multiple bots working for you simultaneously for diff
    #SBATCH --cpus-per-task=1
    #SBATCH --output=fermilink-%j.out
 
-    FERMILINK_WORKSPACES_ROOT=$SCRATCH/fermilink/workspaces_lammps \
-    fermilink gateway --telegram-token "xxxx" \
-        --session-store $FERMILINK_HOME/runtime/chat_sessions_lammps.json \
-        --max-iterations 30 --max-wait-seconds 36000 \
-        --hpc-profile $HOME/hpc_profile.json
+   export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 
-The above SLURM script starts a gateway for LAMMPS-related jobs with a specific Telegram bot token, separate session store, and workspace root. You can create similar scripts for different packages or projects. 
+   FERMILINK_WORKSPACES_ROOT=$SCRATCH/fermilink/workspaces_lammps \
+   fermilink gateway --telegram-token "xxxx" \
+      --session-store $FERMILINK_HOME/runtime/chat_sessions_lammps.json \
+      --max-iterations 30 --max-wait-seconds 36000 \
+      --hpc-profile $HOME/hpc_profile.json
+
+The above SLURM script starts a gateway for LAMMPS-related jobs with a specific Telegram bot token and workspace location (so different bots would not interfere with each other). You can create similar scripts for different packages or projects. 
 
 .. note::
 

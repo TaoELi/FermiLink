@@ -1,50 +1,37 @@
-``recompile``: Reusable Research Pipelines and Memory
-=======================================================
+Updating Package Skills (``recompile``)
+========================================
 
-Here we introduce ``fermilink recompile``, a powerful command for refreshing package agent skills and knowledge based on paper pipelines or memory-driven suggestions. This command is designed to help users keep their package knowledge base up-to-date and relevant to their research and simulations.
+``fermilink recompile`` refreshes the skills and knowledge of an already-installed
+package. Common reasons to recompile:
 
-If you prefer a guided flow, run bare ``fermilink`` in an interactive terminal
-and choose ``Advanced: Update package skills with research pipelines / memory``.
-The zero-arg assistant asks for the package id plus the relevant ``--doc`` /
-``--data-dir`` or ``--memory`` path inputs, then dispatches the real
-``fermilink recompile`` command.
-
-When to use ``recompile``
--------------------------
-
-Use this guide when you need any of the following:
-
-- Refresh package skills after code or documentation updates.
-- Enrich the **local** package knowledge base with new insights or pipelines from **published papers** or **unpublished research**.
-- Convert unified-memory suggestions from workspace runs into permanent skill patches for the package knowledge base.
+- The package source code or documentation has changed.
+- You want to teach the agent workflows from a research paper.
+- You want to promote agent memory from a workspace into permanent package knowledge.
 
 .. note::
-   
-   - Use ``compile`` when onboarding a new local package (with no ``skills/`` directory) into FermiLink package storage.
 
-   - Use ``recompile`` when a package already has ``skills/`` and you want to refresh skills due to various reasons.
+   Use ``compile`` to onboard a **new** local package for the first time.
+   Use ``recompile`` to **update** a package that already has a ``skills/`` directory.
 
 
-Update skills with significantly modified source code or documentation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In this case, run one of the following commands:
+After source-code changes
+-------------------------
 
 .. code-block:: bash
 
+   # recompile from the installed copy
    fermilink recompile <package_id> --core-skill-count 6
-   fermilink recompile <package_id> <path/to/source/code> --core-skill-count 6
 
-When ``<path/to/source/code>`` is omitted, recompile works on the installed package
-path at FermiLink local storage ``~/.fermilink/scientific_packages/packages/<package_id>``.
+   # or point to a local development copy
+   fermilink recompile <package_id> <path/to/source> --core-skill-count 6
 
-When ``<path/to/source/code>`` is given, recompile targets the provided path instead of the installed package path, and then further installs the updated package into FermiLink local storage. This allows users to maintain a local copy of the package for development and testing before installing it to FermiLink storage.
+When a source path is given, FermiLink recompiles from that path and then
+installs the result into local storage, so you can iterate on a development
+copy before publishing.
 
 
-Convert research pipelines from published papers or unpublished secrets into package knowledge
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In this situation, run the following commands:
+From a research paper
+---------------------
 
 .. code-block:: bash
 
@@ -53,42 +40,57 @@ In this situation, run the following commands:
      --data-dir ./paper/supplementary \
      --comment "focus on the cavity spectra and validation workflow"
 
-Here, ``--data-dir`` and ``--comment`` are optional but highly recommended.
+.. list-table::
+   :widths: 20 80
 
-- ``--doc`` can be a research paper manuscript or even a simplified markdown file briefly describing the research pipeline.
-- ``--data-dir`` is the directory containing **unstructured** supplementary data files, which can be a few input files or even the whole data directory of a research paper. Agent will automatically search and rank these files for relevance to the workflow.
-- ``--comment`` is a free-form text to specify the focus or scope of the generated skills, which is particularly useful when the manuscript covers multiple workflows or systems and users want only one or a subset of them. 
+   * - ``--doc``
+     - Paper manuscript (``.tex``, ``.md``, etc.) describing the research pipeline.
+   * - ``--data-dir``
+     - Directory of supplementary files (input decks, scripts, etc.). The agent ranks them by relevance automatically.
+   * - ``--comment``
+     - Free-form focus hint — useful when the paper covers multiple workflows and you only need a subset.
+
+``--data-dir`` and ``--comment`` are optional but recommended.
 
 
-Convert unified-memory suggestions into permanent skill patches
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+From workspace memory
+---------------------
 
-During FermiLink simulations, agents will write down key findings for improving the usage of the packages in ``projects/memory.md`` within one workspace. 
-
-Use ``recompile --memory`` to **convert unified-memory suggestions** in the workspace to a **permanent skill patch** to the package knowledge base, so all simulations will learn from the simulations in this workspace.
+During simulations, agents record suggestions in ``projects/memory.md``.
+Recompile with ``--memory`` to promote those suggestions into permanent skills
+so that **all** future sessions benefit.
 
 .. code-block:: bash
 
-   fermilink recompile <package_id> \
-     --memory ./projects/memory.md
+   # from a single memory file
+   fermilink recompile <package_id> --memory ./projects/memory.md
 
-   fermilink recompile <package_id> \
-     --memory ./projects
+   # or scan an entire directory for matching memory entries
+   fermilink recompile <package_id> --memory ./projects
 
-   # keep only machine-independent/shareable updates
-   fermilink recompile <package_id> \
-     --memory ./projects \
+   # keep only machine-independent updates
+   fermilink recompile <package_id> --memory ./projects \
      --memory-scope package-specific
 
-If ``./projects`` is provided, FermiLink will recursively scan all ``memory.md`` files under this directory and extract all entries with the header format of ``### Suggested skills updates`` matching this package. 
+When a directory is given, FermiLink recursively finds all ``memory.md`` files
+and extracts ``### Suggested skills updates`` entries that match the package.
 
-By default, ``recompile --memory`` applies both machine-specific and package-specific suggestions. Use ``--memory-scope package-specific`` when you want only machine-independent/shareable updates, or ``--memory-scope machine-specific`` when you want only local-machine troubleshooting guidance.
+``--memory-scope`` controls which suggestions are applied:
 
+- ``package-specific`` — shareable, machine-independent updates only.
+- ``machine-specific`` — local-machine troubleshooting guidance only.
+- *(default)* — both.
+
+
+.. tip::
+
+   Prefer a guided flow? Run bare ``fermilink`` and choose
+   **Advanced: Update package skills with research pipelines / memory**.
 
 
 See also
 --------
 
-- :doc:`usage_configure_your_package` for compile workflows and local package install details.
-- :doc:`scientific_packages` for curated channel install.
-- :doc:`configuration` for full runtime environment-variable reference.
+- :doc:`usage_configure_your_package` — first-time ``compile`` and local package install.
+- :doc:`scientific_packages` — installing curated packages.
+- :doc:`configuration` — runtime environment-variable reference.

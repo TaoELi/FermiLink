@@ -6,12 +6,10 @@ Apart from using the built-in curated scientific packages, you can also configur
 Quick ``compile`` flow
 -----------------------
 
-``fermilink compile`` provides a quick way to onboard your local package into FermiLink. It generates the necessary **Agent Skills** for your package and installs it into the **local** scientific package storage. This allows you to use your package in FermiLink agent runs just like the built-in packages.
+``fermilink compile`` provides a quick way to onboard your local package into FermiLink. 
 
-If you prefer a guided flow, run bare ``fermilink`` in an interactive terminal
-and choose ``Advanced: Compile a local package for FermiLink``. The zero-arg
-assistant asks for the package id and local project path, then dispatches the
-real ``fermilink compile`` command for you.
+It generates the necessary **Agent Skills** for your package and installs it into the **local** scientific package storage. This allows you to use your package in FermiLink agent runs just like the built-in packages.
+
 
 .. code-block:: bash
 
@@ -43,7 +41,15 @@ A **suggested advanced workflow** for configuring your local package:
     # 2. (optional) inspect and modify the generated skills in <path/to/source/code/tree>/skills/ 
 
     # 3. install the modified package to local FermiLink storage
-    fermilink install mypkg --local-path <path/to/source/code/tree> --activate
+    fermilink install <package_id> --local-path <path/to/source/code/tree> --activate
+
+.. note::
+
+    If you prefer a guided flow, run bare ``fermilink`` in an interactive terminal
+    and choose ``Advanced: Compile a local package for FermiLink``. 
+    
+    The assistant asks for the package id and local project path, then dispatches the
+    real ``fermilink compile`` command for you.
 
 See also:
 

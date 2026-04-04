@@ -1,7 +1,9 @@
 Web UI
 ======
 
-Use the web interface for ChatGPT-style interaction in your local environment. The Web UI is built with Chainlit and provides a user-friendly interface for chatting with your installed FermiLink packages.
+Use the web interface for ChatGPT-style interaction in your local environment. 
+
+The Web UI is built with `Chainlit <https://chainlit.io/>`_ and provides a user-friendly interface for chatting with your installed FermiLink packages.
 
 
 Fast path (recommended)
@@ -14,7 +16,14 @@ need to get the Web UI running.
 
    fermilink start
 
-Then open ``http://localhost:7860``, sign up / sign in, and type in:
+Then your browser will automatically open the following webpage:
+
+.. figure:: _static/img/web_ui_entry.png
+   :alt: FermiLink web UI.
+   :align: center
+   :width: 95%
+
+**Sign UP** with an account and then **Sign In**. You can then enjoy a ChatGPT-style interface with the same agent capabilities as the terminal, but with better interactivity and visualization support.
 
 .. code-block:: text
 
@@ -95,13 +104,20 @@ Troubleshooting (common first-run issues)
 
 - **Runner fails with a provider error**:
   ensure the active provider CLI (``codex``, ``claude``, or ``gemini``) is on
-  ``PATH`` and authenticated, then restart. You can check or change provider
+  ``PATH`` and authenticated, then restart. 
+  
+  You can check or change provider
   selection with ``fermilink agent``::
-
+    # check current provider and reasoning effort
     fermilink agent --json
+
+    # switch to Codex with high reasoning effort
     fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
+
+    # switch to Claude with relaxed sandbox for better performance
     fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
-    fermilink agent gemini --sandbox --model auto-gemini-3 --reasoning-effort high
+
+    # restart the web UI service of FermiLink to apply the new provider settings
     fermilink restart
 
 - **Ports already in use**:

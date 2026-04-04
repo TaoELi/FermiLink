@@ -808,7 +808,9 @@ def test_workflow_checkpoint_commit_stages_all_changes_under_limits(
         if git_args == ("rev-parse", "--is-inside-work-tree"):
             return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
         if git_args == ("status", "--porcelain"):
-            return subprocess.CompletedProcess(cmd, 0, stdout=" M notes.txt\n", stderr="")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=" M notes.txt\n", stderr=""
+            )
         if git_args == ("add", "-A"):
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         if git_args == ("diff", "--cached", "--quiet"):
@@ -844,7 +846,9 @@ def test_workflow_checkpoint_commit_falls_back_to_memory_only_when_limits_exceed
     (repo_dir / ".git").mkdir()
     (repo_dir / "large.bin").write_bytes(b"x" * 8)
     memory_path = (
-        repo_dir / workflow_commands.LOOP_MEMORY_DIRNAME / workflow_commands.LOOP_MEMORY_FILENAME
+        repo_dir
+        / workflow_commands.LOOP_MEMORY_DIRNAME
+        / workflow_commands.LOOP_MEMORY_FILENAME
     )
     memory_path.parent.mkdir(parents=True, exist_ok=True)
     memory_path.write_text("memory\n", encoding="utf-8")
@@ -912,7 +916,9 @@ def test_workflow_checkpoint_commit_returns_noop_when_limits_exceeded_without_me
         if git_args == ("rev-parse", "--is-inside-work-tree"):
             return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
         if git_args == ("status", "--porcelain"):
-            return subprocess.CompletedProcess(cmd, 0, stdout=" M large.bin\n", stderr="")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=" M large.bin\n", stderr=""
+            )
         raise AssertionError(f"unexpected git args: {git_args}")
 
     monkeypatch.setattr(workflow_commands.shutil, "which", lambda name: "/usr/bin/git")

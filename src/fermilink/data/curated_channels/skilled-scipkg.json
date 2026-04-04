@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-03-08T12:06:23.193471Z",
+  "updated_at": "2026-03-14T22:20:27.016608Z",
   "packages": [
     {
       "package_id": "abinit",
@@ -2243,6 +2243,33 @@
       ]
     },
     {
+      "package_id": "mumax3",
+      "title": "MuMax3 Micromagnetic Simulator",
+      "description": "MuMax3 is a GPU-accelerated micromagnetic simulation package for modeling magnetization dynamics, spintronic effects, and nanomagnetic device behavior using Landau-Lifshitz-Gilbert equation solvers.",
+      "upstream_repo_url": "https://github.com/mumax/3",
+      "homepage_url": "https://github.com/mumax/3",
+      "zip_url": "https://github.com/skilled-scipkg/3/archive/refs/heads/master.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/3/archive/refs/heads/master.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "master"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "micromagnetics",
+        "gpu",
+        "spintronics",
+        "nanomagnetism",
+        "magnetization"
+      ]
+    },
+    {
       "package_id": "nekrs",
       "title": "nekRS CFD Solver",
       "description": "nekRS is a GPU-accelerated high-order spectral-element computational fluid dynamics solver for incompressible and low-Mach Navier-Stokes flows on massively parallel HPC systems.",
@@ -2627,6 +2654,34 @@
         "neutron-transport",
         "moc",
         "core-simulation"
+      ]
+    },
+    {
+      "package_id": "openmx",
+      "title": "OpenMX Materials DFT Package",
+      "description": "OpenMX is an open-source DFT package for nano-scale material simulations based on norm-conserving pseudopotentials and pseudo-atomic localized basis functions. It is designed for large-scale parallel electronic-structure calculations with MPI or hybrid MPI/OpenMP execution across bulk, surface, interface, liquid, and low-dimensional materials.",
+      "upstream_repo_url": "https://www.openmx-square.org/openmx3.9.tar.gz",
+      "homepage_url": "https://www.openmx-square.org/",
+      "zip_url": "https://github.com/skilled-scipkg/openmx/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/openmx/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "openmx",
+        "dft",
+        "electronic-structure",
+        "materials-science",
+        "pseudopotentials",
+        "hpc"
       ]
     },
     {
@@ -4144,6 +4199,33 @@
       ]
     },
     {
+      "package_id": "sunny-jl",
+      "title": "Sunny.jl Magnetic Materials Modeling",
+      "description": "Sunny.jl models magnetic materials with symmetry-aware Hamiltonians, quantum spin excitations, finite-temperature spin dynamics, and fitting to neutron or X-ray scattering data.",
+      "upstream_repo_url": "https://github.com/SunnySuite/Sunny.jl",
+      "homepage_url": "https://sunnysuite.github.io/Sunny.jl/",
+      "zip_url": "https://github.com/skilled-scipkg/Sunny.jl/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/Sunny.jl/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "magnetism",
+        "spin-waves",
+        "spin-dynamics",
+        "quantum-materials",
+        "scattering"
+      ]
+    },
+    {
       "package_id": "sw4",
       "title": "SW4 Seismic Waves Solver",
       "description": "SW4 is a high-order solver for 3D seismic wave propagation with free-surface and absorbing boundaries, supporting point-force and moment-tensor earthquake source modeling.",
@@ -4363,6 +4445,33 @@
         "ttree",
         "columnar",
         "particle-physics"
+      ]
+    },
+    {
+      "package_id": "vampire",
+      "title": "VAMPIRE Atomistic Spin Dynamics Simulator",
+      "description": "VAMPIRE is an atomistic spin dynamics code for simulating magnetic materials, enabling finite-temperature magnetism, hysteresis, ultrafast dynamics, and spin-transport studies at atomic resolution.",
+      "upstream_repo_url": "https://github.com/richard-evans/vampire",
+      "homepage_url": "https://github.com/richard-evans/vampire",
+      "zip_url": "https://github.com/skilled-scipkg/vampire/archive/refs/heads/main.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/vampire/archive/refs/heads/main.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "main"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "magnetism",
+        "spin-dynamics",
+        "atomistic-simulation",
+        "materials-science",
+        "computational-physics"
       ]
     },
     {

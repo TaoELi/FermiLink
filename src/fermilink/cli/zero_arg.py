@@ -759,7 +759,6 @@ def _run_zero_arg_telegram_setup(state: dict[str, object]) -> int | None:
 
 
 def _run_zero_arg_hpc_setup(state: dict[str, object]) -> None:
-    cli = _cli()
     hpc = state["hpc"]
     target_path = resolve_fermilink_home() / _ZERO_ARG_DEFAULT_HPC_FILENAME
     if hpc["profile_valid"]:
@@ -981,11 +980,7 @@ def _prompt_zero_arg_memory_scope() -> str | None:
     print("1. all")
     print("2. package-specific (machine-independent/shareable)")
     print("3. machine-specific (local-machine guidance)")
-    answer = (
-        _prompt_line("Choose memory scope [1-3] (Enter for all): ")
-        .strip()
-        .lower()
-    )
+    answer = _prompt_line("Choose memory scope [1-3] (Enter for all): ").strip().lower()
     if answer in {"", "1", "all"}:
         return None
     if answer in {"2", "package-specific", "machine-independent"}:
