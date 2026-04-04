@@ -10,7 +10,7 @@
 
 # FermiLink: AI Agent for Autonomous Scientific Simulations
 
-**FermiLink** is a unified agent framework for multidomain autonomous scientific simulations. It runs on personal laptops, **high-performance computing (HPC) clusters**, or even your cellphone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
+[**FermiLink**](https://taoeli.github.io/FermiLink/) is a unified agent framework for multidomain autonomous scientific simulations. It runs on personal laptops, **high-performance computing (HPC) clusters**, or even your cellphone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for on-the-go access.
 
 
 With [an official package channel](https://github.com/orgs/skilled-scipkg/repositories), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any local scientific package or simulation pipeline.
