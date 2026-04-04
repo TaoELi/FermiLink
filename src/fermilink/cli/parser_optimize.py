@@ -171,6 +171,17 @@ def register_optimize_parser(
         ),
     )
     optimize_parser.add_argument(
+        "--goal",
+        action="store_true",
+        help=(
+            "Treat the input markdown as a goal specification for goal-driven "
+            "optimization.  FermiLink will analyse the source code and "
+            "auto-generate benchmark files before starting the campaign.  "
+            "When omitted, goal mode is auto-detected from the markdown "
+            "structure."
+        ),
+    )
+    optimize_parser.add_argument(
         "--forever",
         action="store_true",
         help="Run indefinitely until interrupted instead of stopping at the cap.",

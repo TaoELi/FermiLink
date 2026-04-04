@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from fermilink.cli import optimize_controller, optimize_state
+from fermilink.cli import optimize_controller, optimize_goal, optimize_state
 
 
 def _cli():
@@ -26,11 +26,25 @@ def _looks_like_quick_prompt(target: str) -> bool:
     return path.is_file()
 
 
+def _is_goal_markdown_file(target: str) -> bool:
+    """Return True if *target* points to a goal-structured markdown file."""
+
+    path = Path(target).expanduser()
+    if not path.is_file():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return optimize_goal.is_goal_markdown(text)
+
+
 def _resolve_optimize_mode(args: argparse.Namespace) -> str:
     cli = _cli()
     target = _normalize_text(getattr(args, "package_id", None))
     project_path = _normalize_text(getattr(args, "project_path", None))
     benchmark = _normalize_text(getattr(args, "benchmark", None))
+    explicit_goal = bool(getattr(args, "goal", False))
 
     if target.lower() == "status":
         return "status"
@@ -43,6 +57,9 @@ def _resolve_optimize_mode(args: argparse.Namespace) -> str:
         return "expert"
 
     if target and _looks_like_quick_prompt(target):
+        # Goal mode: explicit --goal flag or auto-detected goal structure
+        if explicit_goal or _is_goal_markdown_file(target):
+            return "goal"
         return "quick"
 
     if benchmark and not project_path:
@@ -53,13 +70,14 @@ def _resolve_optimize_mode(args: argparse.Namespace) -> str:
 
     if not target:
         raise cli.PackageError(
-            "Optimize requires one of: `status`, `<prompt.md>`, or "
+            "Optimize requires one of: `status`, `<goal.md>`, `<prompt.md>`, or "
             "`<package_id> <project_path> --benchmark <path>`."
         )
 
     raise cli.PackageError(
         "Unable to infer optimize mode from arguments. Use `fermilink optimize "
-        "status`, `fermilink optimize prompt.md`, or expert mode "
+        "status`, `fermilink optimize goal.md`, `fermilink optimize prompt.md`, "
+        "or expert mode "
         "`fermilink optimize <package_id> <project_path> --benchmark <path>`."
     )
 
@@ -152,12 +170,15 @@ def cmd_optimize(args: argparse.Namespace) -> int:
             lock_path = optimize_state.run_lock_path(
                 cli._resolve_project_path(project_path)
             )
-    elif mode == "quick":
+    elif mode in ("quick", "goal"):
         lock_path = optimize_state.run_lock_path(Path.cwd().resolve())
     try:
         if mode == "status":
             payload = optimize_controller.read_campaign_status(args)
             return _emit_status(args, payload)
+        if mode == "goal":
+            payload = optimize_controller.run_goal_campaign(args)
+            return _emit_campaign(args, payload)
         if mode == "quick":
             payload = optimize_controller.run_quick_campaign(args)
             return _emit_campaign(args, payload)

@@ -3763,6 +3763,707 @@ def run_quick_campaign(args: argparse.Namespace) -> dict[str, Any]:
     return payload
 
 
+# ---------------------------------------------------------------------------
+# Goal mode
+# ---------------------------------------------------------------------------
+
+GOAL_MAX_ANALYSIS_TURNS = 3
+GOAL_MAX_GENERATION_TURNS = 3
+GOAL_MAX_REPAIR_ATTEMPTS = 2
+
+
+def _tracked_file_summary(project_root: Path, tracked_files: list[str]) -> str:
+    """Build a compact summary of the repo file tree for prompts."""
+
+    if not tracked_files:
+        return "(no tracked files)"
+    dirs: dict[str, int] = {}
+    for path in tracked_files:
+        parts = path.split("/")
+        if len(parts) > 1:
+            top = parts[0]
+        else:
+            top = "."
+        dirs[top] = dirs.get(top, 0) + 1
+    lines: list[str] = []
+    for dir_name in sorted(dirs):
+        lines.append(f"  {dir_name}/ ({dirs[dir_name]} files)")
+    if len(tracked_files) <= 80:
+        lines.append("")
+        lines.append("Full listing:")
+        for path in sorted(tracked_files):
+            lines.append(f"  {path}")
+    else:
+        lines.append(f"  (total: {len(tracked_files)} tracked files)")
+    return "\n".join(lines)
+
+
+def _goal_reference_template_text(
+    project_root: Path,
+    language: str,
+) -> tuple[str, str]:
+    """Load reference benchmark YAML and runner script as strings.
+
+    Returns ``(benchmark_yaml_text, runner_script_text)`` for use as
+    templates in the benchmark-generation prompt.
+    """
+
+    template = _load_quick_reference_template(project_root, language=language)
+    benchmark_text = ""
+    runner_text = ""
+    if template:
+        benchmark_path = str(template.get("benchmark_path") or "")
+        runner_path = str(template.get("runner_path") or "")
+        if benchmark_path:
+            try:
+                benchmark_text = Path(benchmark_path).read_text(encoding="utf-8")
+            except OSError:
+                pass
+        if runner_path:
+            try:
+                runner_text = Path(runner_path).read_text(encoding="utf-8")
+            except OSError:
+                pass
+    if not benchmark_text:
+        benchmark_text = _render_quick_benchmark_yaml({
+            "schema_version": 1,
+            "benchmark_id": "example",
+            "controller": {
+                "timeout_seconds": 1800,
+                "warmup_runs": 1,
+                "measured_runs": 3,
+                "objective": {
+                    "primary_metric": "weighted_median_wall_seconds",
+                    "direction": "minimize",
+                    "min_relative_improvement": 0.02,
+                },
+                "reject_on": [
+                    "crash", "timeout", "missing_metrics", "correctness_failure",
+                ],
+            },
+            "campaign": {
+                "max_iterations": 120,
+                "stop_on_consecutive_rejections": 30,
+            },
+            "worker": {"max_iterations": 8, "wait_seconds": 1},
+            "correctness": {"mode": "runner_only"},
+            "runtime": {
+                "mode": "direct",
+                "command": ["python", "runner.py", "--benchmark", "{benchmark}", "--emit-json"],
+            },
+            "cases": [{"id": "example-case", "weight": 1.0}],
+        })
+    if not runner_text:
+        runner_text = _render_quick_runner_script()
+    return benchmark_text, runner_text
+
+
+def _validate_goal_benchmark(
+    benchmark_path: Path,
+) -> tuple[dict[str, Any] | None, str]:
+    """Validate a generated benchmark YAML and return ``(payload, error)``.
+
+    Returns the loaded payload on success or ``(None, error_message)`` on
+    failure.
+    """
+
+    if not benchmark_path.is_file():
+        return None, f"Benchmark file was not generated: {benchmark_path}"
+    try:
+        payload = _load_benchmark(benchmark_path)
+    except Exception as exc:
+        return None, f"Benchmark validation failed: {exc}"
+    return payload, ""
+
+
+def _validate_goal_runner(
+    runner_path: Path,
+    *,
+    language: str,
+) -> str:
+    """Validate a generated benchmark runner and return an error string.
+
+    Returns empty string on success.
+    """
+
+    if not runner_path.is_file():
+        return f"Runner script was not generated: {runner_path}"
+    try:
+        source = runner_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return f"Cannot read runner script: {exc}"
+    if language == "python":
+        try:
+            compile(source, str(runner_path), "exec")
+        except SyntaxError as exc:
+            return f"Runner script has a syntax error: {exc}"
+    return ""
+
+
+def _run_goal_analysis_turn(
+    *,
+    cli: Any,
+    project_root: Path,
+    goal_spec: dict[str, Any],
+    goal_rel: str,
+    language: str,
+    tracked_files: list[str],
+    autogen_rel: str,
+    provider: str,
+    provider_bin_override: str | None,
+    sandbox_mode: str | None,
+    sandbox_policy: str,
+    model: str | None,
+    reasoning_effort: str | None,
+) -> dict[str, Any]:
+    """Run the source-analysis agent turn and return the result dict."""
+
+    from fermilink.cli import optimize_source_analysis
+
+    agents_md = optimize_source_analysis.build_source_analysis_agents_md(
+        goal_rel=goal_rel,
+        autogen_rel=autogen_rel,
+    )
+    prompt = optimize_source_analysis.build_source_analysis_prompt(
+        goal_spec=goal_spec,
+        goal_rel=goal_rel,
+        language=language,
+        tracked_file_summary=_tracked_file_summary(project_root, tracked_files),
+    )
+    with optimize_git.temporary_optimize_agents(
+        project_root,
+        provider=provider,
+        content=agents_md,
+    ):
+        result = cli._run_exec_chat_turn(
+            repo_dir=project_root,
+            prompt=prompt,
+            sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+            provider_bin_override=provider_bin_override,
+            provider=provider,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+    return result
+
+
+def _run_goal_generation_turn(
+    *,
+    cli: Any,
+    project_root: Path,
+    goal_spec: dict[str, Any],
+    goal_rel: str,
+    analysis: dict[str, Any],
+    analysis_rel: str,
+    language: str,
+    benchmark_template: str,
+    runner_template: str,
+    autogen_benchmark_rel: str,
+    autogen_runner_rel: str,
+    autogen_rel: str,
+    provider: str,
+    provider_bin_override: str | None,
+    sandbox_mode: str | None,
+    sandbox_policy: str,
+    model: str | None,
+    reasoning_effort: str | None,
+) -> dict[str, Any]:
+    """Run the benchmark-generation agent turn and return the result dict."""
+
+    from fermilink.cli import optimize_source_analysis
+
+    agents_md = optimize_source_analysis.build_benchmark_generation_agents_md(
+        goal_rel=goal_rel,
+        analysis_rel=analysis_rel,
+        autogen_rel=autogen_rel,
+    )
+    prompt = optimize_source_analysis.build_benchmark_generation_prompt(
+        goal_spec=goal_spec,
+        goal_rel=goal_rel,
+        analysis=analysis,
+        analysis_rel=analysis_rel,
+        language=language,
+        runner_template=runner_template,
+        benchmark_template=benchmark_template,
+        autogen_benchmark_rel=autogen_benchmark_rel,
+        autogen_runner_rel=autogen_runner_rel,
+    )
+    with optimize_git.temporary_optimize_agents(
+        project_root,
+        provider=provider,
+        content=agents_md,
+    ):
+        result = cli._run_exec_chat_turn(
+            repo_dir=project_root,
+            prompt=prompt,
+            sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+            provider_bin_override=provider_bin_override,
+            provider=provider,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+    return result
+
+
+def _goal_scaffold(
+    project_root: Path,
+    *,
+    package_id: str,
+    goal_spec: dict[str, Any],
+    goal_path: Path,
+    language: str,
+    analysis: dict[str, Any],
+    benchmark_yaml_text: str,
+    runner_script_text: str,
+    review_notes: str,
+    hpc_profile: str,
+) -> dict[str, Any]:
+    """Write goal-generated benchmark and runner to the autogen directory.
+
+    Returns a scaffold manifest similar to the quick-mode scaffold.
+    """
+
+    optimize_state.ensure_optimize_root(project_root)
+    optimize_state.ensure_autogen_root(project_root)
+    benchmark_path = optimize_state.goal_benchmark_path(project_root)
+    runner_path = optimize_state.goal_runner_path(project_root)
+    submit_path = optimize_state.goal_submit_launcher_path(project_root)
+    setup_path = optimize_state.goal_setup_path(project_root)
+    run_script_path = optimize_state.goal_run_script_path(project_root)
+    manifest_path = optimize_state.goal_manifest_path(project_root)
+    analysis_path = optimize_state.goal_analysis_path(project_root)
+
+    goal_rel = optimize_state.safe_relative(goal_path, project_root)
+    benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
+    runner_rel = optimize_state.safe_relative(runner_path, project_root)
+    setup_rel = optimize_state.safe_relative(setup_path, project_root)
+    run_script_rel = optimize_state.safe_relative(run_script_path, project_root)
+
+    created_files: dict[str, bool] = {}
+
+    # Write analysis
+    optimize_state.write_json_file(analysis_path, analysis)
+    created_files["analysis"] = True
+
+    # Write benchmark YAML
+    benchmark_path.parent.mkdir(parents=True, exist_ok=True)
+    benchmark_path.write_text(benchmark_yaml_text, encoding="utf-8")
+    created_files["benchmark"] = True
+
+    # Write runner script
+    runner_path.parent.mkdir(parents=True, exist_ok=True)
+    runner_path.write_text(runner_script_text, encoding="utf-8")
+    optimize_state.ensure_executable(runner_path)
+    created_files["runner"] = True
+
+    # Write support scripts (reuse quick-mode renderers)
+    created_files["submit_launcher"] = _ensure_text_file(
+        submit_path,
+        content=_render_quick_submit_launcher_script(),
+        executable=True,
+    )
+    created_files["setup"] = _ensure_text_file(
+        setup_path,
+        content=_render_quick_setup_script(project_root, language=language),
+        executable=True,
+    )
+    created_files["run_script"] = _ensure_text_file(
+        run_script_path,
+        content=_render_quick_run_script(
+            package_id=package_id,
+            project_root=project_root,
+            benchmark_path=benchmark_path,
+            hpc_profile=hpc_profile,
+        ),
+        executable=True,
+    )
+
+    manifest_payload = {
+        "schema_version": 1,
+        "mode": "goal",
+        "created_at_utc": optimize_state.utc_now_z(),
+        "package_id": package_id,
+        "project_root": str(project_root),
+        "goal_path": str(goal_path),
+        "goal_sha256": hashlib.sha256(
+            str(goal_spec.get("raw_text") or "").encode("utf-8")
+        ).hexdigest(),
+        "benchmark_path": str(benchmark_path),
+        "runner_path": str(runner_path),
+        "analysis_path": str(analysis_path),
+        "submit_launcher_path": str(submit_path),
+        "setup_script_path": str(setup_path),
+        "run_script_path": str(run_script_path),
+        "language": language,
+        "review_notes": review_notes,
+        "created_files": created_files,
+    }
+    optimize_state.write_json_file(manifest_path, manifest_payload)
+
+    return {
+        "project_root": project_root,
+        "goal_path": goal_path,
+        "manifest_path": manifest_path,
+        "benchmark_path": benchmark_path,
+        "runner_path": runner_path,
+        "analysis_path": analysis_path,
+        "submit_launcher_path": submit_path,
+        "setup_script_path": setup_path,
+        "run_script_path": run_script_path,
+        "created_files": created_files,
+        "language": language,
+        "review_notes": review_notes,
+        "benchmark_rel": benchmark_rel,
+        "goal_rel": goal_rel,
+        "runner_rel": runner_rel,
+    }
+
+
+def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
+    """Goal mode: parse goal.md, analyse source, generate benchmark, then run campaign.
+
+    This is the entry point for ``fermilink optimize goal.md`` when the
+    markdown has goal-structured sections (or ``--goal`` is passed).
+
+    Steps:
+    1. Parse goal.md into a structured spec.
+    2. Run source-analysis agent turn → structured JSON analysis.
+    3. Run benchmark-generation agent turn → benchmark.yaml + runner.py.
+    4. Validate generated files.
+    5. Optionally retry generation if validation fails.
+    6. Fall through to ``run_campaign()`` with generated benchmark.
+    """
+
+    from fermilink.cli import optimize_goal, optimize_source_analysis
+
+    cli = _cli()
+    project_root = Path.cwd().resolve()
+    goal_target = str(getattr(args, "package_id", None) or "").strip()
+    if not goal_target:
+        raise cli.PackageError(
+            "Goal optimize mode requires a goal markdown path: "
+            "`fermilink optimize goal.md`."
+        )
+    goal_path = _resolve_quick_prompt_path(project_root, goal_target)
+    if not goal_path.is_file():
+        raise cli.PackageError(f"Goal file does not exist: {goal_path}")
+
+    goal_text = goal_path.read_text(encoding="utf-8")
+    goal_spec = optimize_goal.parse_goal(goal_text)
+
+    cli._ensure_compile_repo_ready(project_root)
+    package_id_raw = str(goal_spec.get("package") or "").strip()
+    if not package_id_raw:
+        package_id_raw = project_root.name or "package"
+    package_id = cli.normalize_package_id(package_id_raw)
+
+    hpc_profile = str(getattr(args, "hpc_profile", None) or "").strip()
+    tracked_files = _collect_tracked_files(project_root)
+
+    # Infer language from goal spec or project structure
+    goal_language = str(goal_spec.get("language") or "").strip().lower()
+    language = goal_language if goal_language else _infer_quick_language(
+        project_root, tracked_files
+    )
+
+    # Resolve provider settings
+    runtime_policy = cli.resolve_agent_runtime_policy()
+    provider = runtime_policy.provider
+    sandbox_policy = runtime_policy.sandbox_policy
+    sandbox_mode = runtime_policy.sandbox_mode
+    if isinstance(getattr(args, "sandbox", None), str) and args.sandbox.strip():
+        sandbox_policy = "enforce"
+        sandbox_mode = args.sandbox.strip()
+    model = runtime_policy.model
+    reasoning_effort = runtime_policy.reasoning_effort
+    provider_bin_override = cli.resolve_provider_binary_override(
+        provider,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+    )
+
+    optimize_state.ensure_optimize_root(project_root)
+    optimize_state.ensure_autogen_root(project_root)
+    goal_rel = optimize_state.safe_relative(goal_path, project_root)
+    autogen_rel = optimize_state.safe_relative(
+        optimize_state.autogen_root(project_root), project_root
+    )
+    autogen_benchmark_rel = optimize_state.safe_relative(
+        optimize_state.goal_benchmark_path(project_root), project_root
+    )
+    autogen_runner_rel = optimize_state.safe_relative(
+        optimize_state.goal_runner_path(project_root), project_root
+    )
+    analysis_rel = optimize_state.safe_relative(
+        optimize_state.goal_analysis_path(project_root), project_root
+    )
+
+    # ------------------------------------------------------------------
+    # Phase 1: Source analysis
+    # ------------------------------------------------------------------
+    cli._print_tagged("optimize", "goal mode: analysing source code")
+    analysis: dict[str, Any] = {}
+    analysis_summary = ""
+    review_notes = ""
+
+    for attempt in range(1, GOAL_MAX_ANALYSIS_TURNS + 1):
+        result = _run_goal_analysis_turn(
+            cli=cli,
+            project_root=project_root,
+            goal_spec=goal_spec,
+            goal_rel=goal_rel,
+            language=language,
+            tracked_files=tracked_files,
+            autogen_rel=autogen_rel,
+            provider=provider,
+            provider_bin_override=provider_bin_override,
+            sandbox_mode=sandbox_mode,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+        assistant_text = str(result.get("assistant_text") or "")
+        extracted = optimize_source_analysis.extract_source_analysis(assistant_text)
+        if extracted:
+            analysis = extracted
+            analysis_summary = optimize_source_analysis.extract_analysis_summary(
+                assistant_text
+            ) or ""
+            review_notes = optimize_source_analysis.extract_review_notes(
+                assistant_text
+            ) or ""
+            break
+        if attempt < GOAL_MAX_ANALYSIS_TURNS:
+            cli._print_tagged(
+                "optimize",
+                f"source analysis attempt {attempt} did not produce structured output, retrying",
+            )
+
+    if not analysis:
+        raise cli.PackageError(
+            "Source analysis failed to produce a structured analysis after "
+            f"{GOAL_MAX_ANALYSIS_TURNS} attempts.  Check the goal.md file and "
+            "ensure the target package source code is accessible."
+        )
+
+    # Persist analysis
+    optimize_state.write_json_file(
+        optimize_state.goal_analysis_path(project_root), analysis
+    )
+    if analysis_summary:
+        cli._print_tagged("optimize", f"analysis: {analysis_summary}")
+    if review_notes:
+        cli._print_tagged("optimize", f"review notes: {review_notes}")
+
+    # ------------------------------------------------------------------
+    # Phase 2: Benchmark generation
+    # ------------------------------------------------------------------
+    cli._print_tagged("optimize", "goal mode: generating benchmark files")
+    benchmark_template, runner_template = _goal_reference_template_text(
+        project_root, language
+    )
+
+    benchmark_yaml_text = ""
+    runner_script_text = ""
+    generation_review = ""
+
+    for attempt in range(1, GOAL_MAX_GENERATION_TURNS + 1):
+        gen_result = _run_goal_generation_turn(
+            cli=cli,
+            project_root=project_root,
+            goal_spec=goal_spec,
+            goal_rel=goal_rel,
+            analysis=analysis,
+            analysis_rel=analysis_rel,
+            language=language,
+            benchmark_template=benchmark_template,
+            runner_template=runner_template,
+            autogen_benchmark_rel=autogen_benchmark_rel,
+            autogen_runner_rel=autogen_runner_rel,
+            autogen_rel=autogen_rel,
+            provider=provider,
+            provider_bin_override=provider_bin_override,
+            sandbox_mode=sandbox_mode,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+        gen_text = str(gen_result.get("assistant_text") or "")
+
+        # Try XML-tag extraction first; fall back to checking if the agent
+        # wrote files directly (which is the preferred path since the agent
+        # has tool access).
+        extracted_yaml = optimize_source_analysis.extract_benchmark_yaml(gen_text)
+        extracted_runner = optimize_source_analysis.extract_runner_script(gen_text)
+        generation_review = optimize_source_analysis.extract_review_notes(
+            gen_text
+        ) or ""
+
+        bench_path = optimize_state.goal_benchmark_path(project_root)
+        runner_path = optimize_state.goal_runner_path(project_root)
+
+        if extracted_yaml:
+            bench_path.parent.mkdir(parents=True, exist_ok=True)
+            bench_path.write_text(extracted_yaml, encoding="utf-8")
+        if extracted_runner:
+            runner_path.parent.mkdir(parents=True, exist_ok=True)
+            runner_path.write_text(extracted_runner, encoding="utf-8")
+            optimize_state.ensure_executable(runner_path)
+
+        # Read whatever is on disk (agent may have written directly)
+        if bench_path.is_file():
+            benchmark_yaml_text = bench_path.read_text(encoding="utf-8")
+        if runner_path.is_file():
+            runner_script_text = runner_path.read_text(encoding="utf-8")
+
+        if benchmark_yaml_text and runner_script_text:
+            break
+        if attempt < GOAL_MAX_GENERATION_TURNS:
+            cli._print_tagged(
+                "optimize",
+                f"benchmark generation attempt {attempt} incomplete, retrying",
+            )
+
+    if not benchmark_yaml_text or not runner_script_text:
+        raise cli.PackageError(
+            "Benchmark generation failed to produce both benchmark.yaml and "
+            f"benchmark_runner.py after {GOAL_MAX_GENERATION_TURNS} attempts."
+        )
+
+    # ------------------------------------------------------------------
+    # Phase 3: Validate generated files
+    # ------------------------------------------------------------------
+    cli._print_tagged("optimize", "goal mode: validating generated files")
+
+    bench_path = optimize_state.goal_benchmark_path(project_root)
+    runner_path = optimize_state.goal_runner_path(project_root)
+
+    benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
+    runner_error = _validate_goal_runner(runner_path, language=language)
+
+    if bench_error or runner_error:
+        errors = [e for e in (bench_error, runner_error) if e]
+        cli._print_tagged("optimize", f"validation issues: {'; '.join(errors)}")
+        # Attempt one repair cycle
+        for repair_attempt in range(1, GOAL_MAX_REPAIR_ATTEMPTS + 1):
+            cli._print_tagged(
+                "optimize",
+                f"goal mode: repair attempt {repair_attempt}",
+            )
+            repair_prompt = (
+                "The previously generated benchmark files have validation errors.\n"
+                f"Errors: {'; '.join(errors)}\n\n"
+                "Please fix the files and write corrected versions to:\n"
+                f"- `{autogen_benchmark_rel}`\n"
+                f"- `{autogen_runner_rel}`\n\n"
+                "The files must conform to the FermiLink benchmark contract as "
+                "described in the previous turn.  Output the corrected files in\n"
+                f"<{optimize_source_analysis.BENCHMARK_YAML_TAG}>...</{optimize_source_analysis.BENCHMARK_YAML_TAG}>\n"
+                f"<{optimize_source_analysis.RUNNER_SCRIPT_TAG}>...</{optimize_source_analysis.RUNNER_SCRIPT_TAG}>\n"
+                "tags.\n\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            )
+            from fermilink.cli import optimize_source_analysis as osa
+
+            repair_agents = osa.build_benchmark_generation_agents_md(
+                goal_rel=goal_rel,
+                analysis_rel=analysis_rel,
+                autogen_rel=autogen_rel,
+            )
+            with optimize_git.temporary_optimize_agents(
+                project_root,
+                provider=provider,
+                content=repair_agents,
+            ):
+                repair_result = cli._run_exec_chat_turn(
+                    repo_dir=project_root,
+                    prompt=repair_prompt,
+                    sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+                    provider_bin_override=provider_bin_override,
+                    provider=provider,
+                    sandbox_policy=sandbox_policy,
+                    model=model,
+                    reasoning_effort=reasoning_effort,
+                )
+            repair_text = str(repair_result.get("assistant_text") or "")
+            repaired_yaml = osa.extract_benchmark_yaml(repair_text)
+            repaired_runner = osa.extract_runner_script(repair_text)
+            if repaired_yaml:
+                bench_path.write_text(repaired_yaml, encoding="utf-8")
+            if repaired_runner:
+                runner_path.write_text(repaired_runner, encoding="utf-8")
+                optimize_state.ensure_executable(runner_path)
+            # Re-read from disk (agent may have written directly)
+            if bench_path.is_file():
+                benchmark_yaml_text = bench_path.read_text(encoding="utf-8")
+            if runner_path.is_file():
+                runner_script_text = runner_path.read_text(encoding="utf-8")
+            benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
+            runner_error = _validate_goal_runner(runner_path, language=language)
+            if not bench_error and not runner_error:
+                break
+
+    if benchmark_payload is None:
+        raise cli.PackageError(
+            f"Generated benchmark.yaml is invalid: {bench_error}"
+        )
+    if runner_error:
+        raise cli.PackageError(f"Generated runner script is invalid: {runner_error}")
+
+    # ------------------------------------------------------------------
+    # Phase 4: Write scaffold and delegate to run_campaign
+    # ------------------------------------------------------------------
+    all_review_notes = "\n".join(
+        note for note in (review_notes, generation_review) if note
+    )
+    scaffold = _goal_scaffold(
+        project_root,
+        package_id=package_id,
+        goal_spec=goal_spec,
+        goal_path=goal_path,
+        language=language,
+        analysis=analysis,
+        benchmark_yaml_text=benchmark_yaml_text,
+        runner_script_text=runner_script_text,
+        review_notes=all_review_notes,
+        hpc_profile=hpc_profile,
+    )
+
+    cli._print_tagged(
+        "optimize",
+        "goal mode: benchmark files generated, starting optimization campaign",
+    )
+
+    # Prepare args for run_campaign
+    campaign_args = argparse.Namespace(**vars(args))
+    campaign_args.package_id = package_id
+    campaign_args.project_path = str(project_root)
+    campaign_args.benchmark = str(scaffold["benchmark_path"])
+    campaign_args._optimize_mode = "goal"
+    campaign_args._optimize_prompt_path = str(goal_path)
+    skills_source = str(
+        getattr(campaign_args, "skills_source", "auto") or "auto"
+    ).strip()
+    if skills_source == "auto":
+        campaign_args.skills_source = (
+            "existing" if (project_root / "skills").is_dir() else "compile"
+        )
+
+    payload = run_campaign(campaign_args)
+    payload["goal_mode"] = True
+    payload["goal_path"] = str(goal_path)
+    payload["goal_analysis_path"] = str(scaffold["analysis_path"])
+    payload["scaffold_manifest_path"] = str(scaffold["manifest_path"])
+    payload["scaffold_benchmark_path"] = str(scaffold["benchmark_path"])
+    payload["scaffold_runner_path"] = str(scaffold["runner_path"])
+    payload["generated_run_script_path"] = str(scaffold["run_script_path"])
+    payload["scaffold_language"] = str(scaffold["language"])
+    payload["goal_review_notes"] = all_review_notes
+    payload["scaffold_created_files"] = dict(scaffold["created_files"])
+    return payload
+
+
 def _initial_state(
     *,
     package_id: str,

@@ -22,6 +22,13 @@ QUICK_RUNNER_FILENAME = "benchmark_runner.py"
 QUICK_SUBMIT_FILENAME = "submit_poll_launcher.py"
 QUICK_SETUP_FILENAME = "setup_env.sh"
 QUICK_RUN_SCRIPT_FILENAME = "run_optimize.sh"
+GOAL_MANIFEST_FILENAME = "goal_mode.json"
+GOAL_ANALYSIS_FILENAME = "goal_analysis.json"
+GOAL_BENCHMARK_FILENAME = "benchmark.yaml"
+GOAL_RUNNER_FILENAME = "benchmark_runner.py"
+GOAL_SUBMIT_FILENAME = "submit_poll_launcher.py"
+GOAL_SETUP_FILENAME = "setup_env.sh"
+GOAL_RUN_SCRIPT_FILENAME = "run_optimize.sh"
 
 RESULTS_HEADER = "iteration\tcommit\tstatus\tprimary_metric_name\tprimary_metric_value\tdescription\n"
 
@@ -88,6 +95,34 @@ def quick_setup_path(project_root: Path) -> Path:
 
 def quick_run_script_path(project_root: Path) -> Path:
     return autogen_root(project_root) / QUICK_RUN_SCRIPT_FILENAME
+
+
+def goal_manifest_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_MANIFEST_FILENAME
+
+
+def goal_analysis_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_ANALYSIS_FILENAME
+
+
+def goal_benchmark_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_BENCHMARK_FILENAME
+
+
+def goal_runner_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_RUNNER_FILENAME
+
+
+def goal_submit_launcher_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_SUBMIT_FILENAME
+
+
+def goal_setup_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_SETUP_FILENAME
+
+
+def goal_run_script_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_RUN_SCRIPT_FILENAME
 
 
 def default_program_path(project_root: Path) -> Path:
