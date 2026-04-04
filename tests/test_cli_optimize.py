@@ -501,7 +501,7 @@ def test_incumbent_relative_primary_metric_normalization_helpers() -> None:
 
 def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
-    prompt_path = repo_dir / "prompt.md"
+    prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
         (
             "# Quick optimize prompt\n"
@@ -512,7 +512,7 @@ def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: py
         ),
         encoding="utf-8",
     )
-    _git(repo_dir, "add", "prompt.md")
+    _git(repo_dir, "add", "prompt.txt")
     _git(
         repo_dir,
         "-c",
@@ -525,15 +525,11 @@ def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: py
     )
     monkeypatch.chdir(repo_dir)
 
-    code = cli.main(
-        [
-            "optimize",
-            "prompt.md",
-            "--plan-only",
-        ]
-    )
+    parser = cli._build_parser()
+    args = parser.parse_args(["optimize", "prompt.txt", "--plan-only"])
+    payload = optimize_controller.run_quick_campaign(args)
 
-    assert code == 0
+    assert payload["status"] == "planned"
     autogen_root = repo_dir / ".fermilink-optimize" / "autogen"
     assert (autogen_root / "benchmark.yaml").exists()
     assert (autogen_root / "benchmark_runner.py").exists()
@@ -555,7 +551,7 @@ def test_optimize_quick_mode_reuses_existing_autogen(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
-    prompt_path = repo_dir / "prompt.md"
+    prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
         (
             "# Prompt\n"
@@ -566,7 +562,7 @@ def test_optimize_quick_mode_reuses_existing_autogen(
         ),
         encoding="utf-8",
     )
-    _git(repo_dir, "add", "prompt.md")
+    _git(repo_dir, "add", "prompt.txt")
     _git(
         repo_dir,
         "-c",
@@ -579,8 +575,10 @@ def test_optimize_quick_mode_reuses_existing_autogen(
     )
     monkeypatch.chdir(repo_dir)
 
-    code_first = cli.main(["optimize", "prompt.md", "--plan-only"])
-    assert code_first == 0
+    parser = cli._build_parser()
+    args = parser.parse_args(["optimize", "prompt.txt", "--plan-only"])
+    payload_first = optimize_controller.run_quick_campaign(args)
+    assert payload_first["status"] == "planned"
 
     benchmark_path = repo_dir / ".fermilink-optimize" / "autogen" / "benchmark.yaml"
     marker = "# user-edit-marker\n"
@@ -589,8 +587,8 @@ def test_optimize_quick_mode_reuses_existing_autogen(
         encoding="utf-8",
     )
 
-    code_second = cli.main(["optimize", "prompt.md", "--plan-only"])
-    assert code_second == 0
+    payload_second = optimize_controller.run_quick_campaign(args)
+    assert payload_second["status"] == "planned"
     assert marker in benchmark_path.read_text(encoding="utf-8")
 
 
@@ -598,7 +596,7 @@ def test_optimize_quick_mode_compiles_skills_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path, with_skills=False)
-    prompt_path = repo_dir / "prompt.md"
+    prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
         (
             "# Prompt\n"
@@ -609,7 +607,7 @@ def test_optimize_quick_mode_compiles_skills_when_missing(
         ),
         encoding="utf-8",
     )
-    _git(repo_dir, "add", "prompt.md")
+    _git(repo_dir, "add", "prompt.txt")
     _git(
         repo_dir,
         "-c",
@@ -633,9 +631,11 @@ def test_optimize_quick_mode_compiles_skills_when_missing(
 
     monkeypatch.setattr(cli, "_cmd_compile", fake_compile)
 
-    code = cli.main(["optimize", "prompt.md", "--plan-only"])
+    parser = cli._build_parser()
+    args = parser.parse_args(["optimize", "prompt.txt", "--plan-only"])
+    payload = optimize_controller.run_quick_campaign(args)
 
-    assert code == 0
+    assert payload["status"] == "planned"
     assert compile_calls == [str(repo_dir)]
     assert (repo_dir / "skills" / "README.md").read_text(encoding="utf-8") == "skills"
 
@@ -656,13 +656,42 @@ def test_optimize_quick_mode_seeds_from_reference_templates(
         "int main() { return 0; }\n",
         encoding="utf-8",
     )
-    prompt_path = repo_dir / "prompt.md"
+    prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
         (
             "# Optimize request\n"
             "\n"
             "Improve force-evaluation throughput while preserving correctness.\n"
         ),
+        encoding="utf-8",
+    )
+    scripts_dir = repo_dir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    (scripts_dir / "cpp-lammps-tip4p-force-eval-benchmark.yaml").write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: cpp-template\n"
+            "controller:\n"
+            "  timeout_seconds: 1200\n"
+            "  warmup_runs: 0\n"
+            "  measured_runs: 1\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "    direction: minimize\n"
+            "    min_relative_improvement: 0.02\n"
+            "correctness:\n"
+            "  mode: runner_only\n"
+            "runtime:\n"
+            "  env:\n"
+            "    OMP_NUM_THREADS: \"1\"\n"
+            "cases:\n"
+            "  - id: tip4p-case\n"
+            "    command_preview: lmp -in in.tip4p\n"
+        ),
+        encoding="utf-8",
+    )
+    (scripts_dir / "cpp-lammps-tip4p-force-eval-bench.sh").write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\necho ok\n",
         encoding="utf-8",
     )
 
@@ -680,9 +709,11 @@ def test_optimize_quick_mode_seeds_from_reference_templates(
     )
     monkeypatch.chdir(repo_dir)
 
-    code = cli.main(["optimize", "prompt.md", "--plan-only"])
+    parser = cli._build_parser()
+    args = parser.parse_args(["optimize", "prompt.txt", "--plan-only"])
+    payload = optimize_controller.run_quick_campaign(args)
 
-    assert code == 0
+    assert payload["status"] == "planned"
     autogen_root = repo_dir / ".fermilink-optimize" / "autogen"
     benchmark_payload = yaml.safe_load(
         (autogen_root / "benchmark.yaml").read_text(encoding="utf-8")

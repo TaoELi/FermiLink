@@ -8,7 +8,7 @@ python
 
 ## Target
 Optimize DIIS (Direct Inversion in the Iterative Subspace) behavior for SCF in
-PySCF, with primary focus on `pyscf/lib/diis.py` and SCF/DFT call sites that
+PySCF, with primary focus on `pyscf/lib/diis.py` and SCF call sites that
 invoke DIIS during iterative convergence.
 
 Target optimization opportunities include:
@@ -20,7 +20,6 @@ Target optimization opportunities include:
 ## Editable Scope
 - pyscf/lib/diis.py
 - pyscf/scf/**
-- pyscf/dft/**
 
 ## Performance Metric
 Minimize end-to-end SCF convergence time.
@@ -41,8 +40,6 @@ benchmark cases (including both setup and kernel phases).
 - NH3 / cc-pVDZ / RHF / DIIS space=12
 - O2 / cc-pVDZ / UHF (spin=2) / DIIS space=12
 - NO / cc-pVDZ / UHF (spin=1) / DIIS space=12
-- H2O / cc-pVDZ / RKS(B3LYP) / DIIS space=12
-- NO / cc-pVDZ / UKS(B3LYP, spin=1) / DIIS space=12
 
 ## Build
 ```bash

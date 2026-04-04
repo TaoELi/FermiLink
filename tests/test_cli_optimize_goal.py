@@ -357,7 +357,7 @@ class TestModeResolution:
         )
         assert _resolve_optimize_mode(args) == "goal"
 
-    def test_plain_prompt_stays_quick(self, tmp_path: Path) -> None:
+    def test_plain_markdown_defaults_to_goal(self, tmp_path: Path) -> None:
         prompt_file = tmp_path / "prompt.md"
         prompt_file.write_text(NOT_A_GOAL, encoding="utf-8")
         args = argparse.Namespace(
@@ -366,7 +366,19 @@ class TestModeResolution:
             benchmark=None,
             goal=False,
         )
-        assert _resolve_optimize_mode(args) == "quick"
+        assert _resolve_optimize_mode(args) == "goal"
+
+    def test_plain_text_prompt_rejected(self, tmp_path: Path) -> None:
+        prompt_file = tmp_path / "prompt.txt"
+        prompt_file.write_text(NOT_A_GOAL, encoding="utf-8")
+        args = argparse.Namespace(
+            package_id=str(prompt_file),
+            project_path=None,
+            benchmark=None,
+            goal=False,
+        )
+        with pytest.raises(cli.PackageError):
+            _resolve_optimize_mode(args)
 
     def test_parser_accepts_goal_flag(self) -> None:
         parser = cli._build_parser()
