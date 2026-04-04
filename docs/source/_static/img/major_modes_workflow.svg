@@ -3,40 +3,40 @@
   <desc id="desc">Three-column flowchart for exec, loop, and research or reproduce workflows with package selection and loop decision logic.</desc>
 
   <defs>
-    <!-- Soft gradients -->
+    <!-- Economist-style gradients derived from the runtime histogram palette -->
     <linearGradient id="gradCol" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#fbfdff"/>
-      <stop offset="100%" stop-color="#f2f7ff"/>
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f6f6f4"/>
     </linearGradient>
 
     <linearGradient id="gradExec" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#e7f2ff"/>
-      <stop offset="100%" stop-color="#f6fbff"/>
+      <stop offset="0%" stop-color="#edf5f8"/>
+      <stop offset="100%" stop-color="#d9e5ec"/>
     </linearGradient>
 
     <linearGradient id="gradLoop" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#fff1d7"/>
-      <stop offset="100%" stop-color="#fffaf0"/>
+      <stop offset="0%" stop-color="#fff4f3"/>
+      <stop offset="100%" stop-color="#fbe4e1"/>
     </linearGradient>
 
     <linearGradient id="gradRR" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#ede9ff"/>
-      <stop offset="100%" stop-color="#faf8ff"/>
+      <stop offset="0%" stop-color="#f4f8fa"/>
+      <stop offset="100%" stop-color="#dfeaf0"/>
     </linearGradient>
 
     <linearGradient id="gradNode" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f6f9ff"/>
+      <stop offset="100%" stop-color="#f6f6f4"/>
     </linearGradient>
 
     <linearGradient id="gradNodeWarm" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#fff7ea"/>
+      <stop offset="100%" stop-color="#fbe4e1"/>
     </linearGradient>
 
     <linearGradient id="gradNodePurple" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f5f3ff"/>
+      <stop offset="100%" stop-color="#d9e5ec"/>
     </linearGradient>
 
     <!-- Hand-drawn paper texture (subtle) -->
@@ -56,48 +56,48 @@
     </filter>
 
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#325a87"/>
+      <path d="M0,0 L10,4 L0,8 Z" fill="#006CA3"/>
     </marker>
     <marker id="arrowLoop" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#a57522"/>
+      <path d="M0,0 L10,4 L0,8 Z" fill="#E3000F"/>
     </marker>
 
     <!-- Cartoon icon symbols (simple vector, thick outline + pastel fill) -->
     <style>
-      .col { fill: url(#gradCol); stroke: #c8d5e6; stroke-width: 2; rx: 20; filter: url(#paper); }
-      .headExec { fill: url(#gradExec); stroke: #5d8fbe; stroke-width: 2; rx: 14; filter: url(#shadow); }
-      .headLoop { fill: url(#gradLoop); stroke: #bf8d3e; stroke-width: 2; rx: 14; filter: url(#shadow); }
-      .headRR { fill: url(#gradRR); stroke: #7a66b7; stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .col { fill: #F6F6F4; stroke: #D9E5EC; stroke-width: 2; rx: 20; }
+      .headExec { fill: #D9E5EC; stroke: #006CA3; stroke-width: 2; rx: 14; }
+      .headLoop { fill: #FBE4E1; stroke: #E3000F; stroke-width: 2; rx: 14; }
+      .headRR { fill: #D9E5EC; stroke: #006CA3; stroke-width: 2; rx: 14; }
       .headTxt { font: 800 24.67px Helvetica, Arial, sans-serif; fill: #19314f; letter-spacing: 0.2px; }
-      .node { fill: url(#gradNode); stroke: #5f7fa3; stroke-width: 2.2; rx: 14; filter: url(#shadow); }
-      .nodeWarm { fill: url(#gradNodeWarm); }
-      .nodePurple { fill: url(#gradNodePurple); stroke: #7a66b7; }
-      .nodeExec { fill: #fff1f1; stroke: #c56a6a; }
+      .node { fill: #FFFFFF; stroke: #B0B0B0; stroke-width: 2.2; rx: 14; }
+      .nodeWarm { fill: #FDF0EF; stroke: #E3000F; }
+      .nodePurple { fill: #D9E5EC; stroke: #006CA3; }
+      .nodeExec { fill: #D9E5EC; stroke: #006CA3; }
       .nodeTxt { font: 700 20.67px Helvetica, Arial, sans-serif; fill: #18324f; }
       .cmd { font: italic 700 20.67px "Courier New", Courier, monospace; fill: #4b5563; }
       .small { font: 500 16.67px Helvetica, Arial, sans-serif; fill: #3f556f; }
-      .decision { fill: #ffffff; stroke: #a57522; stroke-width: 2.4; filter: url(#shadow); }
-      .arr { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); }
-      .arrSkip { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
-      .arrLoop { stroke: #a57522; stroke-width: 3; fill: none; marker-end: url(#arrowLoop); }
+      .decision { fill: #FFFFFF; stroke: #E3000F; stroke-width: 2.4; }
+      .arr { stroke: #006CA3; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrSkip { stroke: #E3000F; stroke-width: 3; fill: none; marker-end: url(#arrowLoop); stroke-dasharray: 8 8; }
+      .arrLoop { stroke: #E3000F; stroke-width: 3; fill: none; marker-end: url(#arrowLoop); }
       .yn { font: 700 17.67px Helvetica, Arial, sans-serif; fill: #2d4f78; }
 
       /* Icon palette */
-      .iStroke { stroke: #253246; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-      .iBlue { fill: #cfe8ff; }
-      .iBlue2 { fill: #9dd2ff; }
-      .iGreen { fill: #c9f2d8; }
-      .iYellow { fill: #ffe4a8; }
-      .iOrange { fill: #ffc7a6; }
-      .iPurple { fill: #dfd7ff; }
-      .iGray { fill: #eef2f7; }
-      .iDark { fill: #2b3a55; }
-      .iWhite { fill: #ffffff; }
-      .iTeleBlue { fill: #98d8ff; }
+      .iStroke { stroke: #49657A; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .iBlue { fill: #D9E5EC; }
+      .iBlue2 { fill: #BDD4DE; }
+      .iGreen { fill: #ECF3F6; }
+      .iYellow { fill: #FBE4E1; }
+      .iOrange { fill: #F4C8C4; }
+      .iPurple { fill: #E7EFF3; }
+      .iGray { fill: #F6F6F4; }
+      .iDark { fill: #006CA3; }
+      .iWhite { fill: #FFFFFF; }
+      .iTeleBlue { fill: #D9E5EC; }
       .iTermGreen { stroke: #63e89f; }
       .iTermMint { stroke: #86f7b9; }
       .iLoopBold { stroke-width: 2.8; }
-      .iTick { stroke: #2f9d58; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .iTick { stroke: #E3000F; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
       .legendTxt { font: 700 20.67px Helvetica, Arial, sans-serif; fill: #2f4b69; }
     </style>
 
@@ -115,7 +115,7 @@
 
     <symbol id="icon-terminal" viewBox="0 0 48 48">
       <rect x="8" y="10" width="32" height="24" rx="6" class="iDark iStroke"/>
-      <rect x="11" y="13" width="26" height="18" rx="3.5" fill="#213850"/>
+      <rect x="11" y="13" width="26" height="18" rx="3.5" fill="#0F3B53"/>
       <path d="M14 17 L21 21 L14 25" class="iStroke iTermMint" fill="none"/>
       <path d="M22 25 H30" class="iStroke iTermMint" fill="none"/>
       <rect x="18" y="36" width="12" height="3" rx="1.5" class="iGray iStroke"/>
@@ -295,11 +295,11 @@
   <path d="M270 456 L270 496" class="arr"/>
 
   <!-- LOOP column nodes -->
-  <rect x="625" y="160" width="310" height="72" class="node nodeWarm"/>
+  <rect x="625" y="160" width="310" height="72" class="node"/>
   <use href="#icon-user" x="642" y="175" width="42" height="42"/>
   <text x="792" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
 
-  <rect x="625" y="272" width="310" height="72" class="node nodeWarm"/>
+  <rect x="625" y="272" width="310" height="72" class="node"/>
   <use href="#icon-package" x="642" y="287" width="42" height="42"/>
   <text x="792" y="316" text-anchor="middle" class="nodeTxt">Package Selection</text>
 
@@ -318,7 +318,7 @@
   <text x="780" y="695" text-anchor="middle" class="small">Yes / No</text>
   <use href="#icon-flag" x="766" y="702" width="36" height="36" opacity="0.95"/>
 
-  <rect x="625" y="792" width="310" height="72" class="node nodeWarm"/>
+  <rect x="625" y="792" width="310" height="72" class="node"/>
   <use href="#icon-output" x="642" y="807" width="42" height="42"/>
   <text x="792" y="836" text-anchor="middle" class="nodeTxt">Output</text>
 
@@ -366,7 +366,7 @@
 
   <!-- Centered footer legend -->
   <g opacity="0.95">
-    <rect x="470" y="914" width="620" height="58" rx="16" fill="#ffffff" stroke="#d2deee" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="470" y="914" width="620" height="58" rx="16" fill="#FFFFFF" stroke="#D9E5EC" stroke-width="1.5"/>
     <text x="516" y="950" class="legendTxt">Unified memory</text>
     <use href="#icon-brain" x="676" y="918" width="50" height="50"/>
     <text x="748" y="950" class="legendTxt">Web UI</text>

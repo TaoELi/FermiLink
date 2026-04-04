@@ -3,8 +3,8 @@
 Built-in Supported Scientific Packages
 ======================================
 
-- Last curated update: ``2026-03-08 07:06:23 EST``
-- Total built-in packages: ``163``
+- Last curated update: ``2026-03-14 17:20:27 EST``
+- Total built-in packages: ``167``
 
 .. list-table:: Built-in package catalog
    :header-rows: 1
@@ -256,6 +256,9 @@ Built-in Supported Scientific Packages
    * - ``mujoco``
      - MuJoCo Physics Simulator
      - `skilled-scipkg/mujoco <https://github.com/skilled-scipkg/mujoco>`_
+   * - ``mumax3``
+     - MuMax3 Micromagnetic Simulator
+     - `skilled-scipkg/3 <https://github.com/skilled-scipkg/3>`_
    * - ``nekrs``
      - nekRS CFD Solver
      - `skilled-scipkg/nekRS <https://github.com/skilled-scipkg/nekRS>`_
@@ -298,6 +301,9 @@ Built-in Supported Scientific Packages
    * - ``openmoc``
      - OpenMOC Reactor Physics Solver
      - `skilled-scipkg/OpenMOC <https://github.com/skilled-scipkg/OpenMOC>`_
+   * - ``openmx``
+     - OpenMX Materials DFT Package
+     - `skilled-scipkg/openmx <https://github.com/skilled-scipkg/openmx>`_
    * - ``opensees``
      - OpenSees Earthquake Engineering Simulator
      - `skilled-scipkg/OpenSees <https://github.com/skilled-scipkg/OpenSees>`_
@@ -463,6 +469,9 @@ Built-in Supported Scientific Packages
    * - ``su2``
      - SU2 Open-Source CFD Suite
      - `skilled-scipkg/SU2 <https://github.com/skilled-scipkg/SU2>`_
+   * - ``sunny-jl``
+     - Sunny.jl Magnetic Materials Modeling
+     - `skilled-scipkg/Sunny.jl <https://github.com/skilled-scipkg/Sunny.jl>`_
    * - ``sw4``
      - SW4 Seismic Waves Solver
      - `skilled-scipkg/sw4 <https://github.com/skilled-scipkg/sw4>`_
@@ -487,6 +496,9 @@ Built-in Supported Scientific Packages
    * - ``uproot5``
      - Uproot5 ROOT I/O
      - `skilled-scipkg/uproot5 <https://github.com/skilled-scipkg/uproot5>`_
+   * - ``vampire``
+     - VAMPIRE Atomistic Spin Dynamics Simulator
+     - `skilled-scipkg/vampire <https://github.com/skilled-scipkg/vampire>`_
    * - ``wannier_tools``
      - WannierTools Topological Materials Toolkit
      - `skilled-scipkg/wannier_tools <https://github.com/skilled-scipkg/wannier_tools>`_
