@@ -684,6 +684,107 @@ def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None
     assert "force_norm abs_delta exceeds threshold" in "; ".join(failing["errors"])
 
 
+def test_parse_benchmark_stdout_validates_required_schema() -> None:
+    benchmark_payload = {
+        "benchmark_id": "mock-contract",
+        "controller": {
+            "objective": {
+                "primary_metric": "weighted_median_wall_seconds",
+                "direction": "minimize",
+            }
+        },
+        "cases": [{"id": "case-1"}],
+    }
+    invalid_output = json.dumps(
+        {
+            "benchmark_id": "mock-contract",
+            "correctness_ok": True,
+            "summary_metrics": {"peak_rss_mb": 1.0},
+            "cases": [{"id": "case-1", "converged": True}],
+        }
+    )
+    with pytest.raises(cli.PackageError, match="primary metric"):
+        optimize_controller._parse_benchmark_stdout(
+            invalid_output,
+            benchmark_payload=benchmark_payload,
+        )
+
+
+def test_parse_benchmark_stdout_rejects_missing_expected_cases() -> None:
+    benchmark_payload = {
+        "benchmark_id": "mock-contract",
+        "controller": {
+            "objective": {
+                "primary_metric": "weighted_median_wall_seconds",
+                "direction": "minimize",
+            }
+        },
+        "cases": [{"id": "case-1"}, {"id": "case-2"}],
+    }
+    invalid_output = json.dumps(
+        {
+            "benchmark_id": "mock-contract",
+            "correctness_ok": True,
+            "summary_metrics": {"weighted_median_wall_seconds": 1.0},
+            "cases": [{"id": "case-1", "converged": True}],
+        }
+    )
+    with pytest.raises(cli.PackageError, match="missing cases"):
+        optimize_controller._parse_benchmark_stdout(
+            invalid_output,
+            benchmark_payload=benchmark_payload,
+        )
+
+
+def test_effective_correctness_benchmark_payload_auto_upgrades_runner_only() -> None:
+    benchmark_payload = {
+        "correctness": {
+            "mode": "runner_only",
+            "require_all_cases_converged": True,
+        }
+    }
+    baseline_metrics = {
+        "cases": [
+            {
+                "id": "case-1",
+                "converged": True,
+                "energy": -10.5,
+                "forces": [0.1, 0.2, 0.3],
+                "wall_seconds": 1.0,
+            }
+        ]
+    }
+    effective, info = optimize_controller._effective_correctness_benchmark_payload(
+        benchmark_payload,
+        baseline_metrics=baseline_metrics,
+    )
+    assert info["upgraded"] is True
+    assert effective["correctness"]["mode"] == "field_tolerances"
+    assert effective["correctness"]["field_tolerances"]
+    assert all(
+        spec.get("field") in {"energy", "forces"}
+        for spec in effective["correctness"]["field_tolerances"]
+    )
+
+
+def test_effective_correctness_benchmark_payload_respects_allow_runner_only() -> None:
+    benchmark_payload = {
+        "correctness": {
+            "mode": "runner_only",
+            "allow_runner_only": True,
+        }
+    }
+    baseline_metrics = {
+        "cases": [{"id": "case-1", "converged": True, "energy": -10.5}]
+    }
+    effective, info = optimize_controller._effective_correctness_benchmark_payload(
+        benchmark_payload,
+        baseline_metrics=baseline_metrics,
+    )
+    assert info["upgraded"] is False
+    assert effective["correctness"]["mode"] == "runner_only"
+
+
 def test_incumbent_relative_primary_metric_normalization_helpers() -> None:
     benchmark_payload = {
         "controller": {
@@ -2732,3 +2833,103 @@ def test_optimize_cleanup_preserves_preexisting_untracked_entries(
         if repo_path.resolve() == repo_dir.resolve()
     ]
     assert controller_cleanup_calls == [["new_artifact.tmp"]]
+
+
+def test_optimize_removes_stale_temporary_agents_before_clean_check(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    (repo_dir / "AGENTS.md").write_text(
+        (
+            f"{optimize_git.OPTIMIZE_TEMP_AGENTS_HEADER}"
+            "temporary optimize instructions\n"
+        ),
+        encoding="utf-8",
+    )
+    (repo_dir / "CLAUDE.md").write_text(
+        (
+            f"{optimize_git.OPTIMIZE_TEMP_AGENTS_HEADER}"
+            "temporary optimize alias instructions\n"
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        _write_solver_in_worker(kwargs, mode="FAST")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    assert not (repo_dir / "AGENTS.md").exists()
+    assert not (repo_dir / "CLAUDE.md").exists()
+
+
+def test_cleanup_stale_temporary_agents_preserves_tracked_agents(tmp_path: Path) -> None:
+    repo_dir, _ = _init_optimize_repo(tmp_path)
+    (repo_dir / "AGENTS.md").write_text("project policy\n", encoding="utf-8")
+    _git(repo_dir, "add", "AGENTS.md")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "add tracked agents policy",
+    )
+    (repo_dir / "AGENTS.md").write_text(
+        (
+            f"{optimize_git.OPTIMIZE_TEMP_AGENTS_HEADER}"
+            "stale temporary content should not be deleted when tracked\n"
+        ),
+        encoding="utf-8",
+    )
+
+    removed = optimize_git.cleanup_stale_temporary_optimize_agents(repo_dir)
+
+    assert removed == []
+    assert (repo_dir / "AGENTS.md").is_file()

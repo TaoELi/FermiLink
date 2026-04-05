@@ -290,7 +290,6 @@ file by its absolute path:
 
    cd ~/pyscf-optimize-diis
    ./.venv/bin/fermilink optimize "$GOAL" \
-     --skills-source existing \
      --max-iterations 30 \
      --stop-on-consecutive-rejections 8 \
      --timeout-seconds 900

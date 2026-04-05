@@ -114,6 +114,19 @@ QUICK_REFERENCE_EXAMPLES = {
         "fortran-quantum-espresso-scf-bench.sh",
     ),
 }
+GOAL_VALIDATION_CACHE_STATE_KEY = "goal_validation_cache"
+GOAL_VALIDATION_CACHE_MAX_ENTRIES = 32
+GOAL_ALLOW_RUNNER_ONLY_KEY = "allow_runner_only"
+AUTO_CORRECTNESS_SKIP_CASE_FIELDS = {
+    "id",
+    "converged",
+    "wall_seconds",
+    "total_seconds",
+    "error",
+}
+AUTO_FIELD_TOLERANCE_RELATIVE_DELTA = 1.0e-4
+AUTO_FIELD_TOLERANCE_ABS_DELTA_FLOOR = 1.0e-8
+AUTO_FIELD_TOLERANCE_MAX_FIELDS = 16
 
 
 def _dict_clone(payload: object) -> dict[str, Any]:
@@ -514,6 +527,11 @@ def _validate_correctness_schema(payload: dict[str, Any]) -> None:
         raise cli.PackageError(
             "Benchmark correctness.require_all_cases_converged must be true/false."
         )
+    allow_runner_only = correctness.get(GOAL_ALLOW_RUNNER_ONLY_KEY)
+    if allow_runner_only is not None and not isinstance(allow_runner_only, bool):
+        raise cli.PackageError(
+            f"Benchmark correctness.{GOAL_ALLOW_RUNNER_ONLY_KEY} must be true/false."
+        )
 
     if mode == CORRECTNESS_MODE_FIELD_TOLERANCES:
         _validate_field_tolerances_config(
@@ -838,6 +856,10 @@ def _campaign_config(benchmark: dict[str, Any]) -> dict[str, Any]:
 def _correctness_config(benchmark: dict[str, Any]) -> dict[str, Any]:
     correctness = benchmark.get("correctness")
     return correctness if isinstance(correctness, dict) else {}
+
+
+def _correctness_allows_runner_only(correctness: dict[str, Any]) -> bool:
+    return bool(correctness.get(GOAL_ALLOW_RUNNER_ONLY_KEY))
 
 
 def _controller_config(benchmark: dict[str, Any]) -> dict[str, Any]:
@@ -1446,6 +1468,80 @@ def _field_tolerance_case_errors(
     return errors
 
 
+def _numeric_case_field_scale(value: object) -> float | None:
+    flattened = _flatten_numbers(value)
+    if not flattened:
+        return None
+    return max(abs(item) for item in flattened)
+
+
+def _infer_field_tolerances_from_baseline_metrics(
+    baseline_metrics: dict[str, Any],
+) -> list[dict[str, Any]]:
+    case_rows = baseline_metrics.get("cases")
+    if not isinstance(case_rows, list):
+        return []
+    scales_by_field: dict[str, float] = {}
+    for case in case_rows:
+        if not isinstance(case, dict):
+            continue
+        for field_name, value in case.items():
+            normalized_field = str(field_name or "").strip()
+            if not normalized_field or normalized_field in AUTO_CORRECTNESS_SKIP_CASE_FIELDS:
+                continue
+            scale = _numeric_case_field_scale(value)
+            if scale is None:
+                continue
+            previous = scales_by_field.get(normalized_field)
+            if previous is None or scale > previous:
+                scales_by_field[normalized_field] = scale
+    inferred: list[dict[str, Any]] = []
+    for field_name in sorted(scales_by_field)[:AUTO_FIELD_TOLERANCE_MAX_FIELDS]:
+        scale = scales_by_field[field_name]
+        abs_delta = max(
+            AUTO_FIELD_TOLERANCE_ABS_DELTA_FLOOR,
+            scale * AUTO_FIELD_TOLERANCE_RELATIVE_DELTA,
+        )
+        inferred.append(
+            {
+                "field": field_name,
+                "max_abs_delta": abs_delta,
+                "max_relative_delta": AUTO_FIELD_TOLERANCE_RELATIVE_DELTA,
+                "label": field_name,
+            }
+        )
+    return inferred
+
+
+def _effective_correctness_benchmark_payload(
+    benchmark_payload: dict[str, Any],
+    *,
+    baseline_metrics: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    correctness = _correctness_config(benchmark_payload)
+    mode = _resolve_correctness_mode(correctness)
+    if mode != CORRECTNESS_MODE_RUNNER_ONLY:
+        return benchmark_payload, {"upgraded": False, "reason": "mode_not_runner_only"}
+    if _correctness_allows_runner_only(correctness):
+        return benchmark_payload, {"upgraded": False, "reason": "runner_only_allowed"}
+    inferred_tolerances = _infer_field_tolerances_from_baseline_metrics(baseline_metrics)
+    if not inferred_tolerances:
+        return benchmark_payload, {"upgraded": False, "reason": "no_numeric_fields"}
+    effective_payload = copy.deepcopy(benchmark_payload)
+    effective_correctness = _correctness_config(effective_payload)
+    if not isinstance(effective_correctness, dict):
+        effective_correctness = {}
+        effective_payload["correctness"] = effective_correctness
+    effective_correctness["mode"] = CORRECTNESS_MODE_FIELD_TOLERANCES
+    effective_correctness["field_tolerances"] = inferred_tolerances
+    effective_correctness["auto_inferred_from_baseline"] = True
+    return effective_payload, {
+        "upgraded": True,
+        "reason": "auto_field_tolerances",
+        "field_tolerance_count": len(inferred_tolerances),
+    }
+
+
 def _resolve_optimize_branch(
     benchmark: dict[str, Any],
     *,
@@ -1687,7 +1783,108 @@ def _benchmark_failure_payload(
     return payload
 
 
-def _parse_benchmark_stdout(stdout_text: str) -> dict[str, Any]:
+def _validate_benchmark_output_payload(
+    payload: dict[str, Any],
+    *,
+    benchmark_payload: dict[str, Any],
+) -> None:
+    cli = _cli()
+    benchmark_id = payload.get("benchmark_id")
+    if not isinstance(benchmark_id, str) or not benchmark_id.strip():
+        raise cli.PackageError(
+            "Benchmark command JSON payload must include a non-empty `benchmark_id`."
+        )
+    expected_benchmark_id = str(benchmark_payload.get("benchmark_id") or "").strip()
+    if expected_benchmark_id and benchmark_id.strip() != expected_benchmark_id:
+        raise cli.PackageError(
+            "Benchmark command JSON payload benchmark_id does not match benchmark file "
+            f"({benchmark_id.strip()} != {expected_benchmark_id})."
+        )
+    correctness_ok = payload.get("correctness_ok")
+    if not isinstance(correctness_ok, bool):
+        raise cli.PackageError(
+            "Benchmark command JSON payload field `correctness_ok` must be true/false."
+        )
+    summary_metrics = payload.get("summary_metrics")
+    if not isinstance(summary_metrics, dict):
+        raise cli.PackageError(
+            "Benchmark command JSON payload field `summary_metrics` must be an object."
+        )
+    primary_metric = str(
+        _objective_config(benchmark_payload).get("primary_metric") or ""
+    ).strip()
+    if primary_metric:
+        primary_value = summary_metrics.get(primary_metric)
+        if isinstance(primary_value, bool) or not isinstance(primary_value, (int, float)):
+            raise cli.PackageError(
+                "Benchmark command JSON payload summary_metrics is missing numeric "
+                f"primary metric `{primary_metric}`."
+            )
+    peak_rss_mb = summary_metrics.get("peak_rss_mb")
+    if peak_rss_mb is not None and (
+        isinstance(peak_rss_mb, bool) or not isinstance(peak_rss_mb, (int, float))
+    ):
+        raise cli.PackageError(
+            "Benchmark command JSON payload summary_metrics.peak_rss_mb must be numeric."
+        )
+
+    raw_cases = payload.get("cases")
+    if not isinstance(raw_cases, list):
+        raise cli.PackageError(
+            "Benchmark command JSON payload field `cases` must be a list."
+        )
+    expected_case_ids = set(_benchmark_case_ids(_benchmark_cases(benchmark_payload)))
+    observed_case_ids: set[str] = set()
+    for index, case in enumerate(raw_cases, start=1):
+        if not isinstance(case, dict):
+            raise cli.PackageError(
+                f"Benchmark command JSON payload cases[{index}] must be an object."
+            )
+        case_id = str(case.get("id") or "").strip()
+        if not case_id:
+            raise cli.PackageError(
+                f"Benchmark command JSON payload cases[{index}] requires non-empty `id`."
+            )
+        if case_id in observed_case_ids:
+            raise cli.PackageError(
+                "Benchmark command JSON payload contains duplicate case id: "
+                f"{case_id}."
+            )
+        observed_case_ids.add(case_id)
+        converged = case.get("converged")
+        if converged is not None and not isinstance(converged, bool):
+            raise cli.PackageError(
+                "Benchmark command JSON payload case "
+                f"`{case_id}` field `converged` must be true/false."
+            )
+        for field_name in ("wall_seconds", "total_seconds"):
+            field_value = case.get(field_name)
+            if field_value is None:
+                continue
+            if isinstance(field_value, bool) or not isinstance(field_value, (int, float)):
+                raise cli.PackageError(
+                    "Benchmark command JSON payload case "
+                    f"`{case_id}` field `{field_name}` must be numeric."
+                )
+        error_value = case.get("error")
+        if error_value is not None and not isinstance(error_value, str):
+            raise cli.PackageError(
+                f"Benchmark command JSON payload case `{case_id}` field `error` must be a string."
+            )
+    if expected_case_ids:
+        missing_ids = sorted(expected_case_ids - observed_case_ids)
+        if missing_ids:
+            raise cli.PackageError(
+                "Benchmark command JSON payload missing cases from benchmark: "
+                + ", ".join(missing_ids)
+            )
+
+
+def _parse_benchmark_stdout(
+    stdout_text: str,
+    *,
+    benchmark_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     cli = _cli()
     normalized = str(stdout_text or "").strip()
     if not normalized:
@@ -1706,6 +1903,8 @@ def _parse_benchmark_stdout(stdout_text: str) -> dict[str, Any]:
             ) from exc
     if not isinstance(payload, dict):
         raise cli.PackageError("Benchmark command JSON payload must be an object.")
+    if isinstance(benchmark_payload, dict):
+        _validate_benchmark_output_payload(payload, benchmark_payload=benchmark_payload)
     return payload
 
 
@@ -2315,9 +2514,22 @@ def _collect_submitted_benchmark_payload(
                 "result_stdout_log": str(stdout_path),
                 "result_stderr_log": str(stderr_path),
             }
+        try:
+            payload = _parse_benchmark_stdout(
+                stdout_text,
+                benchmark_payload=benchmark_payload,
+            )
+        except Exception as exc:
+            return {
+                "ok": False,
+                "status": "invalid_output_schema",
+                "reason": str(exc),
+                "result_stdout_log": str(stdout_path),
+                "result_stderr_log": str(stderr_path),
+            }
         return {
             "ok": True,
-            "payload": _parse_benchmark_stdout(stdout_text),
+            "payload": payload,
             "result_stdout_log": str(stdout_path),
             "result_stderr_log": str(stderr_path),
         }
@@ -2342,7 +2554,18 @@ def _collect_submitted_benchmark_payload(
             "status": "missing_result_json",
             "result_json_path": str(result_json_path),
         }
-    payload = _parse_benchmark_stdout(metrics_text)
+    try:
+        payload = _parse_benchmark_stdout(
+            metrics_text,
+            benchmark_payload=benchmark_payload,
+        )
+    except Exception as exc:
+        return {
+            "ok": False,
+            "status": "invalid_output_schema",
+            "reason": str(exc),
+            "result_json_path": str(result_json_path),
+        }
     snapshot_path = run_dir / f"{run_label}.result.metrics.json"
     snapshot_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -2442,7 +2665,18 @@ def _run_benchmark_once(
         pid_numbers = cli._extract_loop_pid_numbers(submission_text)
         slurm_job_numbers = cli._extract_loop_slurm_job_numbers(submission_text)
         if not pid_numbers and not slurm_job_numbers:
-            payload = _parse_benchmark_stdout(stdout_text)
+            try:
+                payload = _parse_benchmark_stdout(
+                    stdout_text,
+                    benchmark_payload=benchmark_payload,
+                )
+            except Exception as exc:
+                return _benchmark_failure_payload(
+                    status="invalid_output_schema",
+                    stdout_path=stdout_path,
+                    stderr_path=stderr_path,
+                    extra={"reason": str(exc)},
+                )
             payload["ok"] = True
             payload["status"] = "ok"
             payload["stdout_log"] = str(stdout_path)
@@ -2574,7 +2808,18 @@ def _run_benchmark_once(
             stderr_path=stderr_path,
             extra={"return_code": int(completed.returncode)},
         )
-    payload = _parse_benchmark_stdout(stdout_text)
+    try:
+        payload = _parse_benchmark_stdout(
+            stdout_text,
+            benchmark_payload=benchmark_payload,
+        )
+    except Exception as exc:
+        return _benchmark_failure_payload(
+            status="invalid_output_schema",
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            extra={"reason": str(exc)},
+        )
     payload["ok"] = True
     payload["status"] = "ok"
     payload["stdout_log"] = str(stdout_path)
@@ -3933,6 +4178,146 @@ GOAL_MAX_GENERATION_TURNS = 3
 GOAL_MAX_REPAIR_ATTEMPTS = 2
 
 
+def _goal_validation_cache_key(
+    *,
+    language: str,
+    benchmark_text: str,
+    runner_text: str,
+) -> str:
+    key_material = "\n".join(
+        [
+            "goal_validation_v1",
+            str(language or "").strip().lower(),
+            hashlib.sha256(benchmark_text.encode("utf-8")).hexdigest(),
+            hashlib.sha256(runner_text.encode("utf-8")).hexdigest(),
+        ]
+    )
+    return hashlib.sha256(key_material.encode("utf-8")).hexdigest()
+
+
+def _goal_validation_cache_lookup(project_root: Path, cache_key: str) -> dict[str, Any] | None:
+    state_path = optimize_state.state_path(project_root)
+    state_payload = optimize_state.load_state(state_path)
+    if not isinstance(state_payload, dict):
+        return None
+    cache_payload = state_payload.get(GOAL_VALIDATION_CACHE_STATE_KEY)
+    if not isinstance(cache_payload, dict):
+        return None
+    entry = cache_payload.get(cache_key)
+    if not isinstance(entry, dict):
+        return None
+    if not bool(entry.get("ok")):
+        return None
+    return entry
+
+
+def _goal_validation_cache_store(
+    project_root: Path,
+    *,
+    cache_key: str,
+    language: str,
+    benchmark_path: Path,
+    runner_path: Path,
+    benchmark_text: str,
+    runner_text: str,
+) -> None:
+    state_path = optimize_state.state_path(project_root)
+    state_payload = optimize_state.load_state(state_path)
+    if not isinstance(state_payload, dict):
+        return
+    cache_payload = state_payload.get(GOAL_VALIDATION_CACHE_STATE_KEY)
+    cache: dict[str, Any]
+    if isinstance(cache_payload, dict):
+        cache = copy.deepcopy(cache_payload)
+    else:
+        cache = {}
+    cache[cache_key] = {
+        "ok": True,
+        "validated_at_utc": optimize_state.utc_now_z(),
+        "language": str(language or "").strip().lower(),
+        "benchmark_path": str(benchmark_path),
+        "runner_path": str(runner_path),
+        "benchmark_sha256": hashlib.sha256(benchmark_text.encode("utf-8")).hexdigest(),
+        "runner_sha256": hashlib.sha256(runner_text.encode("utf-8")).hexdigest(),
+    }
+    if len(cache) > GOAL_VALIDATION_CACHE_MAX_ENTRIES:
+        sortable_entries: list[tuple[str, str]] = []
+        for key, value in cache.items():
+            if not isinstance(value, dict):
+                continue
+            sortable_entries.append((key, str(value.get("validated_at_utc") or "")))
+        for key, _stamp in sorted(sortable_entries, key=lambda item: item[1])[
+            : len(cache) - GOAL_VALIDATION_CACHE_MAX_ENTRIES
+        ]:
+            cache.pop(key, None)
+    state_payload[GOAL_VALIDATION_CACHE_STATE_KEY] = cache
+    optimize_state.write_state(state_path, state_payload)
+
+
+def _goal_runner_contract_errors(
+    benchmark_payload: dict[str, Any],
+    *,
+    project_root: Path,
+    benchmark_path: Path,
+    runner_path: Path,
+) -> list[str]:
+    runtime = _runtime_config(benchmark_payload)
+    mode = _runtime_mode(runtime)
+    command = _normalize_string_command_list(runtime.get("command"))
+    errors: list[str] = []
+    if mode != "direct":
+        errors.append("Goal benchmark runtime.mode must be `direct`.")
+    if not command:
+        errors.append("Goal benchmark runtime.command must be a non-empty string list.")
+        return errors
+
+    benchmark_flag_index = -1
+    try:
+        benchmark_flag_index = command.index("--benchmark")
+    except ValueError:
+        benchmark_flag_index = -1
+    if benchmark_flag_index < 0:
+        errors.append("Goal benchmark runtime.command must include `--benchmark`.")
+    else:
+        if benchmark_flag_index + 1 >= len(command):
+            errors.append("Goal benchmark runtime.command `--benchmark` requires an argument.")
+        else:
+            benchmark_arg = str(command[benchmark_flag_index + 1] or "").strip()
+            benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
+            benchmark_abs = str(benchmark_path)
+            benchmark_matches = benchmark_arg in {benchmark_rel, benchmark_abs}
+            if "{benchmark}" not in benchmark_arg and not benchmark_matches:
+                errors.append(
+                    "Goal benchmark runtime.command `--benchmark` argument must use "
+                    "`{benchmark}` (or the generated benchmark path)."
+                )
+    if "--emit-json" not in command:
+        errors.append("Goal benchmark runtime.command must include `--emit-json`.")
+
+    runner_rel = optimize_state.safe_relative(runner_path, project_root).replace("\\", "/")
+    runner_abs = str(runner_path).replace("\\", "/")
+    runner_name = runner_path.name
+    runner_referenced = False
+    for token in command:
+        normalized_token = str(token or "").strip().replace("\\", "/")
+        if not normalized_token:
+            continue
+        token_name = Path(normalized_token).name if "/" in normalized_token else normalized_token
+        if (
+            normalized_token == runner_rel
+            or normalized_token == runner_abs
+            or token_name == runner_name
+        ):
+            runner_referenced = True
+            break
+    if not runner_referenced:
+        errors.append(
+            "Goal benchmark runtime.command must invoke the generated runner script "
+            f"({runner_rel})."
+        )
+    return errors
+
+
 def _tracked_file_summary(project_root: Path, tracked_files: list[str]) -> str:
     """Build a compact summary of the repo file tree for prompts."""
 
@@ -4052,6 +4437,9 @@ def _validate_goal_runner(
     runner_path: Path,
     *,
     language: str,
+    project_root: Path | None = None,
+    benchmark_path: Path | None = None,
+    benchmark_payload: dict[str, Any] | None = None,
 ) -> str:
     """Validate a generated benchmark runner and return an error string.
 
@@ -4069,6 +4457,19 @@ def _validate_goal_runner(
             compile(source, str(runner_path), "exec")
         except SyntaxError as exc:
             return f"Runner script has a syntax error: {exc}"
+    if (
+        isinstance(project_root, Path)
+        and isinstance(benchmark_path, Path)
+        and isinstance(benchmark_payload, dict)
+    ):
+        contract_errors = _goal_runner_contract_errors(
+            benchmark_payload,
+            project_root=project_root,
+            benchmark_path=benchmark_path,
+            runner_path=runner_path,
+        )
+        if contract_errors:
+            return "; ".join(contract_errors)
     return ""
 
 
@@ -4291,6 +4692,27 @@ def _goal_scaffold(
     }
 
 
+def _resolve_goal_resume_benchmark_path(project_root: Path) -> Path | None:
+    """Resolve an existing goal-mode benchmark path for `--resume`."""
+
+    goal_benchmark = optimize_state.goal_benchmark_path(project_root)
+    if goal_benchmark.is_file():
+        return goal_benchmark
+
+    state_payload = optimize_state.load_state(optimize_state.state_path(project_root))
+    if not isinstance(state_payload, dict):
+        return None
+    state_benchmark_raw = str(state_payload.get("benchmark_path") or "").strip()
+    if not state_benchmark_raw:
+        return None
+    state_benchmark_path = Path(state_benchmark_raw).expanduser()
+    if not state_benchmark_path.is_absolute():
+        state_benchmark_path = (project_root / state_benchmark_path).resolve()
+    if state_benchmark_path.is_file():
+        return state_benchmark_path
+    return None
+
+
 def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
     """Goal mode: parse goal.md, analyse source, generate benchmark, then run campaign.
 
@@ -4322,6 +4744,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
     goal_text = goal_path.read_text(encoding="utf-8")
     goal_spec = optimize_goal.parse_goal(goal_text)
+    goal_language = str(goal_spec.get("language") or "").strip().lower()
 
     cli._ensure_compile_repo_ready(project_root)
     package_id_raw = str(goal_spec.get("package") or "").strip()
@@ -4330,10 +4753,104 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
     package_id = cli.normalize_package_id(package_id_raw)
 
     hpc_profile = str(getattr(args, "hpc_profile", None) or "").strip()
+    is_resume = bool(getattr(args, "resume", False))
+    if is_resume:
+        resume_benchmark_path = _resolve_goal_resume_benchmark_path(project_root)
+        if isinstance(resume_benchmark_path, Path):
+            resume_runner_path = optimize_state.goal_runner_path(project_root)
+            resume_language = goal_language
+            if not resume_language:
+                suffix = resume_runner_path.suffix.strip().lower()
+                if suffix == ".py":
+                    resume_language = "python"
+                elif suffix in {".sh", ".bash", ".zsh"}:
+                    resume_language = "bash"
+                else:
+                    resume_language = "python"
+            try:
+                resume_benchmark_text = resume_benchmark_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise cli.PackageError(
+                    f"Cannot read resume benchmark file: {exc}"
+                ) from exc
+            try:
+                resume_runner_text = resume_runner_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise cli.PackageError(
+                    f"Cannot read resume runner script: {exc}"
+                ) from exc
+            resume_cache_key = _goal_validation_cache_key(
+                language=resume_language,
+                benchmark_text=resume_benchmark_text,
+                runner_text=resume_runner_text,
+            )
+            resume_cache_entry = _goal_validation_cache_lookup(
+                project_root,
+                resume_cache_key,
+            )
+            if resume_cache_entry is None:
+                benchmark_payload, bench_error = _validate_goal_benchmark(
+                    resume_benchmark_path
+                )
+                runner_error = _validate_goal_runner(
+                    resume_runner_path,
+                    language=resume_language,
+                    project_root=project_root,
+                    benchmark_path=resume_benchmark_path,
+                    benchmark_payload=benchmark_payload,
+                )
+                if benchmark_payload is None:
+                    raise cli.PackageError(
+                        f"Goal resume benchmark is invalid: {bench_error}"
+                    )
+                if runner_error:
+                    raise cli.PackageError(
+                        f"Goal resume runner is invalid: {runner_error}"
+                    )
+            else:
+                cli._print_tagged(
+                    "optimize",
+                    "goal mode: resume validation cache hit; skipping runner/benchmark revalidation",
+                )
+            cli._print_tagged(
+                "optimize",
+                (
+                    "goal mode: --resume detected; reusing existing benchmark "
+                    "artifacts and skipping source analysis/generation"
+                ),
+            )
+            campaign_args = argparse.Namespace(**vars(args))
+            campaign_args.package_id = package_id
+            campaign_args.project_path = str(project_root)
+            campaign_args.benchmark = str(resume_benchmark_path)
+            campaign_args._optimize_mode = "goal"
+            campaign_args._optimize_prompt_path = str(goal_path)
+            skills_source = str(
+                getattr(campaign_args, "skills_source", "auto") or "auto"
+            ).strip()
+            if skills_source == "auto":
+                campaign_args.skills_source = (
+                    "existing" if (project_root / "skills").is_dir() else "compile"
+                )
+            payload = run_campaign(campaign_args)
+            payload["goal_mode"] = True
+            payload["goal_path"] = str(goal_path)
+            payload["goal_resume"] = True
+            payload["scaffold_benchmark_path"] = str(resume_benchmark_path)
+            _goal_validation_cache_store(
+                project_root,
+                cache_key=resume_cache_key,
+                language=resume_language,
+                benchmark_path=resume_benchmark_path,
+                runner_path=resume_runner_path,
+                benchmark_text=resume_benchmark_text,
+                runner_text=resume_runner_text,
+            )
+            return payload
+
     tracked_files = _collect_tracked_files(project_root)
 
     # Infer language from goal spec or project structure
-    goal_language = str(goal_spec.get("language") or "").strip().lower()
     language = (
         goal_language
         if goal_language
@@ -4510,11 +5027,34 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
     bench_path = optimize_state.goal_benchmark_path(project_root)
     runner_path = optimize_state.goal_runner_path(project_root)
+    validation_cache_key = _goal_validation_cache_key(
+        language=language,
+        benchmark_text=benchmark_yaml_text,
+        runner_text=runner_script_text,
+    )
+    validation_cache_entry = _goal_validation_cache_lookup(
+        project_root,
+        validation_cache_key,
+    )
 
-    benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
-    runner_error = _validate_goal_runner(runner_path, language=language)
+    if validation_cache_entry is not None:
+        cli._print_tagged(
+            "optimize",
+            "goal mode: validation cache hit; skipping repeated benchmark/runner validation",
+        )
+        benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
+        runner_error = ""
+    else:
+        benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
+        runner_error = _validate_goal_runner(
+            runner_path,
+            language=language,
+            project_root=project_root,
+            benchmark_path=bench_path,
+            benchmark_payload=benchmark_payload,
+        )
 
-    if bench_error or runner_error:
+    if (validation_cache_entry is None) and (bench_error or runner_error):
         errors = [e for e in (bench_error, runner_error) if e]
         cli._print_tagged("optimize", f"validation issues: {'; '.join(errors)}")
         # Attempt one repair cycle
@@ -4572,7 +5112,13 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             if runner_path.is_file():
                 runner_script_text = runner_path.read_text(encoding="utf-8")
             benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
-            runner_error = _validate_goal_runner(runner_path, language=language)
+            runner_error = _validate_goal_runner(
+                runner_path,
+                language=language,
+                project_root=project_root,
+                benchmark_path=bench_path,
+                benchmark_payload=benchmark_payload,
+            )
             if not bench_error and not runner_error:
                 break
 
@@ -4580,6 +5126,11 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         raise cli.PackageError(f"Generated benchmark.yaml is invalid: {bench_error}")
     if runner_error:
         raise cli.PackageError(f"Generated runner script is invalid: {runner_error}")
+    validation_cache_key = _goal_validation_cache_key(
+        language=language,
+        benchmark_text=benchmark_yaml_text,
+        runner_text=runner_script_text,
+    )
 
     # ------------------------------------------------------------------
     # Phase 4: Write scaffold and delegate to run_campaign
@@ -4621,6 +5172,15 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     payload = run_campaign(campaign_args)
+    _goal_validation_cache_store(
+        project_root,
+        cache_key=validation_cache_key,
+        language=language,
+        benchmark_path=bench_path,
+        runner_path=runner_path,
+        benchmark_text=benchmark_yaml_text,
+        runner_text=runner_script_text,
+    )
     payload["goal_mode"] = True
     payload["goal_path"] = str(goal_path)
     payload["goal_analysis_path"] = str(scaffold["analysis_path"])
@@ -4837,6 +5397,17 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     optimize_git.ensure_local_excludes(project_root, [".fermilink-optimize/"])
     if (project_root / "skills").exists():
         optimize_git.ensure_local_excludes(project_root, ["skills/"])
+    stale_instruction_paths = optimize_git.cleanup_stale_temporary_optimize_agents(
+        project_root
+    )
+    if stale_instruction_paths:
+        cli._print_tagged(
+            "optimize",
+            (
+                "removed stale temporary instruction files: "
+                f"{', '.join(stale_instruction_paths)}"
+            ),
+        )
     optimize_git.ensure_clean_repo(project_root, allow_dirty=bool(args.allow_dirty))
     run_mode = str(getattr(args, "_optimize_mode", "expert") or "expert")
     prompt_path_raw = str(getattr(args, "_optimize_prompt_path", None) or "").strip()
@@ -5072,6 +5643,37 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             status="baseline",
             description="baseline",
         )
+        optimize_state.write_state(state_path, state_payload)
+
+    baseline_metrics_for_correctness = (
+        state_payload.get("baseline_metrics")
+        if isinstance(state_payload.get("baseline_metrics"), dict)
+        else {}
+    )
+    (
+        evaluation_benchmark_payload,
+        effective_correctness_info,
+    ) = _effective_correctness_benchmark_payload(
+        evaluation_benchmark_payload,
+        baseline_metrics=baseline_metrics_for_correctness,
+    )
+    if bool(effective_correctness_info.get("upgraded")):
+        field_tolerance_count = int(
+            effective_correctness_info.get("field_tolerance_count") or 0
+        )
+        cli._print_tagged(
+            "optimize",
+            (
+                "runner_only correctness upgraded to field_tolerances using baseline "
+                f"metrics ({field_tolerance_count} inferred fields)"
+            ),
+        )
+        state_payload["effective_correctness"] = {
+            "mode": CORRECTNESS_MODE_FIELD_TOLERANCES,
+            "source": "auto_inferred_from_baseline",
+            "field_tolerance_count": field_tolerance_count,
+            "updated_at_utc": optimize_state.utc_now_z(),
+        }
         optimize_state.write_state(state_path, state_payload)
 
     if bool(getattr(args, "baseline_only", False)):

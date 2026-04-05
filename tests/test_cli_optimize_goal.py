@@ -10,6 +10,7 @@ import pytest
 
 from fermilink import cli
 from fermilink.cli import optimize_goal
+from fermilink.cli import optimize_controller
 from fermilink.cli import optimize_source_analysis
 from fermilink.cli import optimize_state
 from fermilink.cli.commands.optimize import _resolve_optimize_mode
@@ -389,6 +390,172 @@ class TestModeResolution:
 
 
 # ---------------------------------------------------------------------------
+# Goal resume behavior
+# ---------------------------------------------------------------------------
+
+
+class TestGoalResume:
+    def test_goal_resume_reuses_autogen_benchmark_and_skips_generation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        goal_path = repo_root / "goal.md"
+        goal_path.write_text(MINIMAL_GOAL, encoding="utf-8")
+
+        autogen_root = optimize_state.ensure_autogen_root(repo_root)
+        benchmark_path = autogen_root / optimize_state.GOAL_BENCHMARK_FILENAME
+        runner_path = autogen_root / optimize_state.GOAL_RUNNER_FILENAME
+        runner_path.write_text("import argparse\n", encoding="utf-8")
+        benchmark_path.write_text(
+            (
+                "schema_version: 1\n"
+                "benchmark_id: goal-resume\n"
+                "repo:\n"
+                "  editable_paths:\n"
+                "    - solver.py\n"
+                "controller:\n"
+                "  objective:\n"
+                "    primary_metric: weighted_median_wall_seconds\n"
+                "    direction: minimize\n"
+                "correctness:\n"
+                "  mode: runner_only\n"
+                "runtime:\n"
+                "  mode: direct\n"
+                "  command:\n"
+                "    - python\n"
+                "    - .fermilink-optimize/autogen/benchmark_runner.py\n"
+                "    - --benchmark\n"
+                '    - "{benchmark}"\n'
+                "    - --emit-json\n"
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.chdir(repo_root)
+        monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _repo: False)
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_analysis_turn",
+            lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("source analysis should be skipped on goal resume")
+            ),
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_generation_turn",
+            lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("benchmark generation should be skipped on goal resume")
+            ),
+        )
+        captured: dict[str, str] = {}
+
+        def fake_run_campaign(campaign_args: argparse.Namespace) -> dict[str, object]:
+            captured["package_id"] = str(getattr(campaign_args, "package_id", ""))
+            captured["project_path"] = str(getattr(campaign_args, "project_path", ""))
+            captured["benchmark"] = str(getattr(campaign_args, "benchmark", ""))
+            return {"status": "completed"}
+
+        monkeypatch.setattr(optimize_controller, "run_campaign", fake_run_campaign)
+
+        args = argparse.Namespace(
+            package_id="goal.md",
+            hpc_profile=None,
+            sandbox=None,
+            skills_source="existing",
+            resume=True,
+        )
+        payload = optimize_controller.run_goal_campaign(args)
+
+        assert captured["package_id"] == "mypackage"
+        assert captured["project_path"] == str(repo_root)
+        assert captured["benchmark"] == str(benchmark_path)
+        assert payload["goal_mode"] is True
+        assert payload["goal_resume"] is True
+        assert payload["scaffold_benchmark_path"] == str(benchmark_path)
+
+    def test_goal_resume_falls_back_to_state_benchmark_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        goal_path = repo_root / "goal.md"
+        goal_path.write_text(MINIMAL_GOAL, encoding="utf-8")
+
+        optimize_state.ensure_optimize_root(repo_root)
+        autogen_root = optimize_state.ensure_autogen_root(repo_root)
+        runner_path = autogen_root / optimize_state.GOAL_RUNNER_FILENAME
+        runner_path.write_text("import argparse\n", encoding="utf-8")
+        fallback_benchmark_path = repo_root / "benchmark.resume.yaml"
+        fallback_benchmark_path.write_text(
+            (
+                "schema_version: 1\n"
+                "benchmark_id: goal-resume\n"
+                "repo:\n"
+                "  editable_paths:\n"
+                "    - solver.py\n"
+                "controller:\n"
+                "  objective:\n"
+                "    primary_metric: weighted_median_wall_seconds\n"
+                "    direction: minimize\n"
+                "correctness:\n"
+                "  mode: runner_only\n"
+                "runtime:\n"
+                "  mode: direct\n"
+                "  command:\n"
+                "    - python\n"
+                "    - .fermilink-optimize/autogen/benchmark_runner.py\n"
+                "    - --benchmark\n"
+                '    - "{benchmark}"\n'
+                "    - --emit-json\n"
+            ),
+            encoding="utf-8",
+        )
+        optimize_state.write_state(
+            optimize_state.state_path(repo_root),
+            {
+                "benchmark_path": "benchmark.resume.yaml",
+            },
+        )
+
+        monkeypatch.chdir(repo_root)
+        monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _repo: False)
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_analysis_turn",
+            lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("source analysis should be skipped on goal resume")
+            ),
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_generation_turn",
+            lambda **_kwargs: (_ for _ in ()).throw(
+                AssertionError("benchmark generation should be skipped on goal resume")
+            ),
+        )
+        captured: dict[str, str] = {}
+
+        def fake_run_campaign(campaign_args: argparse.Namespace) -> dict[str, object]:
+            captured["benchmark"] = str(getattr(campaign_args, "benchmark", ""))
+            return {"status": "completed"}
+
+        monkeypatch.setattr(optimize_controller, "run_campaign", fake_run_campaign)
+
+        args = argparse.Namespace(
+            package_id="goal.md",
+            hpc_profile=None,
+            sandbox=None,
+            skills_source="existing",
+            resume=True,
+        )
+        payload = optimize_controller.run_goal_campaign(args)
+
+        assert captured["benchmark"] == str(fallback_benchmark_path)
+        assert payload["goal_resume"] is True
+
+
+# ---------------------------------------------------------------------------
 # Validation helpers (unit tests)
 # ---------------------------------------------------------------------------
 
@@ -425,6 +592,85 @@ class TestValidationHelpers:
         # Non-python runners skip syntax check
         error = _validate_goal_runner(runner, language="fortran")
         assert error == ""
+
+    def test_validate_goal_runner_contract_requires_emit_json(self, tmp_path: Path) -> None:
+        from fermilink.cli.optimize_controller import _validate_goal_runner
+
+        benchmark = tmp_path / "benchmark.yaml"
+        benchmark.write_text(
+            (
+                "schema_version: 1\n"
+                "benchmark_id: contract-test\n"
+                "repo:\n"
+                "  editable_paths:\n"
+                "    - solver.py\n"
+                "controller:\n"
+                "  objective:\n"
+                "    primary_metric: weighted_median_wall_seconds\n"
+                "    direction: minimize\n"
+                "runtime:\n"
+                "  mode: direct\n"
+                "  command:\n"
+                "    - python\n"
+                "    - benchmark_runner.py\n"
+                "    - --benchmark\n"
+                '    - "{benchmark}"\n'
+            ),
+            encoding="utf-8",
+        )
+        benchmark_payload, error = optimize_controller._validate_goal_benchmark(benchmark)
+        assert error == ""
+        assert benchmark_payload is not None
+        runner = tmp_path / "benchmark_runner.py"
+        runner.write_text("import argparse\n", encoding="utf-8")
+        runner_error = _validate_goal_runner(
+            runner,
+            language="python",
+            project_root=tmp_path,
+            benchmark_path=benchmark,
+            benchmark_payload=benchmark_payload,
+        )
+        assert "emit-json" in runner_error.lower()
+
+    def test_validate_goal_runner_contract_happy_path(self, tmp_path: Path) -> None:
+        from fermilink.cli.optimize_controller import _validate_goal_runner
+
+        benchmark = tmp_path / "benchmark.yaml"
+        benchmark.write_text(
+            (
+                "schema_version: 1\n"
+                "benchmark_id: contract-test\n"
+                "repo:\n"
+                "  editable_paths:\n"
+                "    - solver.py\n"
+                "controller:\n"
+                "  objective:\n"
+                "    primary_metric: weighted_median_wall_seconds\n"
+                "    direction: minimize\n"
+                "runtime:\n"
+                "  mode: direct\n"
+                "  command:\n"
+                "    - python\n"
+                "    - benchmark_runner.py\n"
+                "    - --benchmark\n"
+                '    - "{benchmark}"\n'
+                "    - --emit-json\n"
+            ),
+            encoding="utf-8",
+        )
+        benchmark_payload, error = optimize_controller._validate_goal_benchmark(benchmark)
+        assert error == ""
+        assert benchmark_payload is not None
+        runner = tmp_path / "benchmark_runner.py"
+        runner.write_text("import argparse\n", encoding="utf-8")
+        runner_error = _validate_goal_runner(
+            runner,
+            language="python",
+            project_root=tmp_path,
+            benchmark_path=benchmark,
+            benchmark_payload=benchmark_payload,
+        )
+        assert runner_error == ""
 
     def test_validate_goal_benchmark_missing(self, tmp_path: Path) -> None:
         from fermilink.cli.optimize_controller import _validate_goal_benchmark

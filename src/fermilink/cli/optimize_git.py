@@ -14,6 +14,9 @@ from fermilink.agents import get_provider_agent
 WORKER_BRANCH_PREFIX = "fermilink-optimize-worker/"
 WORKER_GIT_HIDDEN_BASENAME = ".git.fermilink-hidden"
 WORKER_WORKTREE_STORAGE_DIRNAME = "fermilink-optimize-worktrees"
+OPTIMIZE_TEMP_AGENTS_MARKER = "<!-- FERMILINK_TEMP_OPTIMIZE_AGENTS -->"
+OPTIMIZE_TEMP_AGENTS_HEADER = f"{OPTIMIZE_TEMP_AGENTS_MARKER}\n"
+_WORKSPACE_INSTRUCTION_ALIAS_PROVIDERS = ("claude", "gemini")
 WORKER_GIT_ENV_KEYS = (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -82,6 +85,88 @@ def ensure_clean_repo(repo_dir: Path, *, allow_dirty: bool) -> None:
             "Optimize mode requires a clean git working tree. Commit/stash changes "
             "first, or rerun with --allow-dirty."
         )
+
+
+def _is_tracked_path(repo_dir: Path, rel_path: str) -> bool:
+    completed = run_git(
+        repo_dir,
+        ["ls-files", "--error-unmatch", "--", rel_path],
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def _has_optimize_temp_agents_marker(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return text.startswith(OPTIMIZE_TEMP_AGENTS_HEADER)
+
+
+def _temporary_optimize_agents_content(content: str) -> str:
+    text = str(content or "")
+    if text.startswith(OPTIMIZE_TEMP_AGENTS_HEADER):
+        return text
+    return f"{OPTIMIZE_TEMP_AGENTS_HEADER}{text}"
+
+
+def cleanup_stale_temporary_optimize_agents(repo_dir: Path) -> list[str]:
+    """Remove stale temporary AGENTS artifacts left by interrupted optimize turns."""
+
+    removed: list[str] = []
+    repo_agents = repo_dir / "AGENTS.md"
+    agents_removed = False
+    if (
+        repo_agents.is_file()
+        and not _is_tracked_path(repo_dir, "AGENTS.md")
+        and _has_optimize_temp_agents_marker(repo_agents)
+    ):
+        try:
+            repo_agents.unlink()
+        except OSError:
+            pass
+        else:
+            removed.append("AGENTS.md")
+            agents_removed = True
+
+    alias_names: set[str] = set()
+    for provider in _WORKSPACE_INSTRUCTION_ALIAS_PROVIDERS:
+        alias_name = get_provider_agent(provider).workspace_instruction_alias_name()
+        if isinstance(alias_name, str) and alias_name.strip():
+            alias_names.add(alias_name.strip())
+
+    for alias_name in sorted(alias_names):
+        if _is_tracked_path(repo_dir, alias_name):
+            continue
+        alias_path = repo_dir / alias_name
+        if not (alias_path.exists() or alias_path.is_symlink()):
+            continue
+
+        remove_alias = False
+        if alias_path.is_symlink():
+            try:
+                link_target = os.readlink(alias_path)
+            except OSError:
+                link_target = ""
+            if link_target == "AGENTS.md" and (
+                agents_removed
+                or not repo_agents.exists()
+                or _has_optimize_temp_agents_marker(repo_agents)
+            ):
+                remove_alias = True
+        elif alias_path.is_file() and _has_optimize_temp_agents_marker(alias_path):
+            remove_alias = True
+
+        if remove_alias:
+            try:
+                alias_path.unlink()
+            except OSError:
+                pass
+            else:
+                removed.append(alias_name)
+
+    return removed
 
 
 def checkout_optimize_branch(
@@ -497,7 +582,10 @@ def temporary_optimize_agents(
     else:
         alias_state = (False, False, "")
 
-    repo_agents.write_text(content, encoding="utf-8")
+    repo_agents.write_text(
+        _temporary_optimize_agents_content(content),
+        encoding="utf-8",
+    )
     agent.ensure_workspace_instruction_alias(repo_dir)
     try:
         yield
