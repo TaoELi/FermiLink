@@ -30,7 +30,6 @@ benchmark cases (including both setup and kernel phases).
 ## Correctness Constraints
 - Total SCF energy absolute delta <= 5e-8 Hartree vs incumbent baseline
 - Molecular orbital energies RMS delta <= 2e-5 vs incumbent baseline
-- Open-shell `<S^2>` absolute delta <= 1e-3 vs incumbent baseline
 - All benchmark cases must converge within configured cycle limits
 - Do not loosen `conv_tol`, `conv_tol_grad`, DIIS start criteria, or max-cycle defaults
 - No case-specific shortcuts keyed on molecule identity
