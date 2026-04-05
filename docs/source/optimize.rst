@@ -205,7 +205,7 @@ Tutorial: optimizing PySCF with the sample goal file
 -----------------------------------------------------
 
 This walkthrough uses the sample goal file shipped with FermiLink
-(``scripts/python-pyscf-diis-scf-goal.md``) to run a goal-mode campaign
+(``scripts/optimize/python_pyscf/python-pyscf-diis-scf-goal.md``) to run a goal-mode campaign
 against a local PySCF clone.  The controller operates inside a **git
 worktree** so the original clone stays untouched.
 
@@ -272,7 +272,7 @@ create an untracked file in the git tree):
 
 .. code-block:: bash
 
-   export GOAL=/path/to/fermilink/scripts/python-pyscf-diis-scf-goal.md
+   export GOAL=/path/to/fermilink/scripts/optimize/python_pyscf/python-pyscf-diis-scf-goal.md
    test -f "$GOAL"
 
 Replace ``/path/to/fermilink`` with the actual location of your FermiLink

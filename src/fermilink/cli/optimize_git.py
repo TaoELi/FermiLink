@@ -291,6 +291,53 @@ def _resolve_existing_worktree_for_branch(
     return None
 
 
+def _resolve_existing_worktree_for_path(
+    repo_dir: Path,
+    *,
+    worktree_path: Path,
+) -> dict[str, str] | None:
+    target = worktree_path.resolve()
+    for entry in _list_worktrees(repo_dir):
+        worktree_raw = str(entry.get("worktree") or "").strip()
+        if not worktree_raw:
+            continue
+        candidate = Path(worktree_raw).resolve()
+        if candidate == target:
+            return entry
+    return None
+
+
+def _remove_orphaned_worker_root(repo_dir: Path, *, worker_root: Path) -> bool:
+    if not (worker_root.exists() or worker_root.is_symlink()):
+        return False
+    if _resolve_existing_worktree_for_path(repo_dir, worktree_path=worker_root):
+        return False
+
+    storage_root = (
+        _git_common_dir(repo_dir) / WORKER_WORKTREE_STORAGE_DIRNAME
+    ).resolve()
+    try:
+        worker_root.parent.resolve().relative_to(storage_root)
+    except ValueError as exc:
+        raise _cli().PackageError(
+            "Refusing to remove optimize worker path outside "
+            f"{storage_root}: {worker_root}"
+        ) from exc
+
+    try:
+        if worker_root.is_symlink():
+            worker_root.unlink()
+        elif worker_root.is_dir():
+            shutil.rmtree(worker_root)
+        else:
+            worker_root.unlink(missing_ok=True)
+    except OSError as exc:
+        raise _cli().PackageError(
+            f"Failed to remove stale optimize worker path {worker_root}: {exc}"
+        ) from exc
+    return True
+
+
 def ensure_worker_worktree(
     repo_dir: Path,
     *,
@@ -324,6 +371,17 @@ def ensure_worker_worktree(
             controller_branch=controller_branch,
         )
         worker_root.parent.mkdir(parents=True, exist_ok=True)
+        if worker_root.exists() or worker_root.is_symlink():
+            if not _remove_orphaned_worker_root(repo_dir, worker_root=worker_root):
+                entry = _resolve_existing_worktree_for_path(
+                    repo_dir,
+                    worktree_path=worker_root,
+                )
+                branch_ref = str(entry.get("branch") or "").strip() if entry else ""
+                raise _cli().PackageError(
+                    "Optimize worker worktree path is already registered"
+                    f"{f' to {branch_ref}' if branch_ref else ''}: {worker_root}"
+                )
         run_git(
             repo_dir,
             ["worktree", "add", "--force", str(worker_root), worker_branch],

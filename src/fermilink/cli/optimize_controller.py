@@ -5256,7 +5256,8 @@ def _write_benchmark_contract_file(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _normalize_rel_path(value: str) -> str:
-    return str(value or "").strip().lstrip("./").replace("\\", "/").strip("/")
+    normalized = str(value or "").strip().replace("\\", "/")
+    return normalized.lstrip("/")
 
 
 def _sync_controller_inputs_to_worker_repo(

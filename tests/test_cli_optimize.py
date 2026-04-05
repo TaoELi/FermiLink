@@ -1549,6 +1549,10 @@ def test_optimize_split_hides_test_cases_from_worker_and_evaluates_test_only(
         worker_repo_path["value"] = str(worker_repo)
         assert not (worker_repo / ".git").exists()
         assert (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+        assert (worker_repo / ".fermilink-optimize" / "benchmark.worker.yaml").is_file()
+        assert (worker_repo / ".fermilink-optimize" / "program.md").is_file()
+        assert (worker_repo / ".fermilink-optimize" / "memory.md").is_file()
+        assert (worker_repo / ".fermilink-optimize" / "results.tsv").is_file()
         for key in optimize_git.WORKER_GIT_ENV_KEYS:
             assert key not in os.environ
         (worker_repo / "solver.py").write_text(
@@ -1713,6 +1717,38 @@ def test_optimize_reuses_worker_worktree_across_outer_iterations(
     )
     assert state["accepted_count"] == 2
     assert state["iteration"] == 2
+
+
+def test_optimize_recovers_orphaned_worker_worktree_root(tmp_path: Path) -> None:
+    repo_dir, _ = _init_optimize_repo(tmp_path)
+    controller_branch = "fermilink-optimize/mockpkg"
+
+    setup = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+    worker_root = Path(str(setup.get("worker_root") or "")).resolve()
+    assert worker_root.is_dir()
+    git_path = worker_root / ".git"
+    hidden_path = worker_root / optimize_git.WORKER_GIT_HIDDEN_BASENAME
+    assert git_path.exists()
+
+    git_path.rename(hidden_path)
+    _git(repo_dir, "worktree", "prune")
+
+    listed_after_prune = _git(repo_dir, "worktree", "list", "--porcelain")
+    assert str(worker_root) not in listed_after_prune
+    assert hidden_path.exists()
+
+    recovered = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+
+    assert Path(str(recovered.get("worker_root") or "")).resolve() == worker_root
+    assert bool(recovered.get("created_worktree")) is True
+    assert git_path.exists()
+    assert not hidden_path.exists()
 
 
 def test_optimize_channel_bootstraps_skills(
