@@ -5,7 +5,9 @@ import subprocess
 from pathlib import Path
 
 
-def _git(repo_dir: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def _git(
+    repo_dir: Path, *args: str, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=str(repo_dir),
@@ -24,12 +26,12 @@ def _init_python_repo(repo_dir: Path) -> None:
     (repo_dir / "pyproject.toml").write_text(
         (
             "[build-system]\n"
-            "requires = [\"setuptools>=61\"]\n"
-            "build-backend = \"setuptools.build_meta\"\n"
+            'requires = ["setuptools>=61"]\n'
+            'build-backend = "setuptools.build_meta"\n'
             "\n"
             "[project]\n"
-            "name = \"mockpkg\"\n"
-            "version = \"0.0.1\"\n"
+            'name = "mockpkg"\n'
+            'version = "0.0.1"\n'
         ),
         encoding="utf-8",
     )
@@ -55,40 +57,40 @@ def _write_fake_python_with_stub_venv(fake_python: Path) -> None:
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
             "\n"
-            "if [[ \"$#\" -ge 3 && \"$1\" == \"-m\" && \"$2\" == \"venv\" ]]; then\n"
-            "  venv_path=\"$3\"\n"
-            "  mkdir -p \"$venv_path/bin\"\n"
+            'if [[ "$#" -ge 3 && "$1" == "-m" && "$2" == "venv" ]]; then\n'
+            '  venv_path="$3"\n'
+            '  mkdir -p "$venv_path/bin"\n'
             "  cat >\"$venv_path/bin/python\" <<'STUBPY'\n"
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
             "\n"
-            "if [[ \"$#\" -ge 4 && \"$1\" == \"-m\" && \"$2\" == \"pip\" && \"$3\" == \"install\" && \"$4\" == \"--help\" ]]; then\n"
-            "  echo \"  -e, --editable\"\n"
+            'if [[ "$#" -ge 4 && "$1" == "-m" && "$2" == "pip" && "$3" == "install" && "$4" == "--help" ]]; then\n'
+            '  echo "  -e, --editable"\n'
             "  exit 0\n"
             "fi\n"
-            "if [[ \"$#\" -ge 2 && \"$1\" == \"-m\" && \"$2\" == \"pip\" ]]; then\n"
+            'if [[ "$#" -ge 2 && "$1" == "-m" && "$2" == "pip" ]]; then\n'
             "  exit 0\n"
             "fi\n"
-            "if [[ \"$#\" -ge 1 && \"$1\" == \"-c\" ]]; then\n"
+            'if [[ "$#" -ge 1 && "$1" == "-c" ]]; then\n'
             "  exit 0\n"
             "fi\n"
-            "if [[ \"$#\" -ge 1 && \"$1\" == \"-\" ]]; then\n"
+            'if [[ "$#" -ge 1 && "$1" == "-" ]]; then\n'
             "  cat >/dev/null\n"
             "  exit 0\n"
             "fi\n"
             "exit 0\n"
             "STUBPY\n"
-            "  chmod +x \"$venv_path/bin/python\"\n"
+            '  chmod +x "$venv_path/bin/python"\n'
             "  exit 0\n"
             "fi\n"
             "\n"
-            "if [[ \"$#\" -ge 2 && \"$1\" == \"-m\" && \"$2\" == \"pip\" ]]; then\n"
+            'if [[ "$#" -ge 2 && "$1" == "-m" && "$2" == "pip" ]]; then\n'
             "  exit 0\n"
             "fi\n"
-            "if [[ \"$#\" -ge 1 && \"$1\" == \"-c\" ]]; then\n"
+            'if [[ "$#" -ge 1 && "$1" == "-c" ]]; then\n'
             "  exit 0\n"
             "fi\n"
-            "if [[ \"$#\" -ge 1 && \"$1\" == \"-\" ]]; then\n"
+            'if [[ "$#" -ge 1 && "$1" == "-" ]]; then\n'
             "  cat >/dev/null\n"
             "  exit 0\n"
             "fi\n"
@@ -152,10 +154,7 @@ def test_optimize_python_launcher_auto_commits_prep_files(tmp_path: Path) -> Non
     assert f"  {true_bin} optimize " in completed.stdout
 
     worktree_dir = (
-        tmp_path
-        / ".fermilink-worktrees"
-        / "repo"
-        / "fermilink-optimize__mock-branch"
+        tmp_path / ".fermilink-worktrees" / "repo" / "fermilink-optimize__mock-branch"
     )
     assert worktree_dir.is_dir()
 
@@ -163,7 +162,9 @@ def test_optimize_python_launcher_auto_commits_prep_files(tmp_path: Path) -> Non
     assert (status.stdout or "").strip() == ""
 
     head_subject = _git(worktree_dir, "show", "-s", "--format=%s", "HEAD")
-    assert (head_subject.stdout or "").strip() == "chore: sync optimize benchmark prep files"
+    assert (
+        head_subject.stdout or ""
+    ).strip() == "chore: sync optimize benchmark prep files"
 
     exclude_raw = _git(worktree_dir, "rev-parse", "--git-path", "info/exclude")
     exclude_path = Path((exclude_raw.stdout or "").strip())
@@ -186,7 +187,9 @@ def test_optimize_python_launcher_help_lists_bench_dep_flags() -> None:
     assert "--bench-deps-file PATH" in completed.stdout
 
 
-def test_optimize_python_launcher_rejects_missing_bench_deps_file(tmp_path: Path) -> None:
+def test_optimize_python_launcher_rejects_missing_bench_deps_file(
+    tmp_path: Path,
+) -> None:
     repo_dir = tmp_path / "repo"
     _init_python_repo(repo_dir)
 

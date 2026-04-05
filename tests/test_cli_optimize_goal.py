@@ -235,7 +235,9 @@ class TestExtractionHelpers:
         assert "import sys" in extracted
 
     def test_extract_analysis_summary(self) -> None:
-        text = "<analysis_summary>Found 3 entry points and 5 test cases</analysis_summary>"
+        text = (
+            "<analysis_summary>Found 3 entry points and 5 test cases</analysis_summary>"
+        )
         assert optimize_source_analysis.extract_analysis_summary(text) == (
             "Found 3 entry points and 5 test cases"
         )

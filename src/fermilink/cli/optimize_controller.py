@@ -189,7 +189,9 @@ def _load_quick_reference_template(
         if not benchmark_path.is_file():
             continue
         try:
-            benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+            benchmark_payload = yaml.safe_load(
+                benchmark_path.read_text(encoding="utf-8")
+            )
         except (OSError, yaml.YAMLError):
             continue
         if not isinstance(benchmark_payload, dict):
@@ -237,7 +239,9 @@ def _template_case_hints(template_benchmark: dict[str, Any]) -> list[dict[str, s
     return hints
 
 
-def _quick_objective_from_template(template_benchmark: dict[str, Any]) -> dict[str, Any]:
+def _quick_objective_from_template(
+    template_benchmark: dict[str, Any],
+) -> dict[str, Any]:
     objective: dict[str, Any] = {
         "primary_metric": "weighted_median_wall_seconds",
         "direction": "minimize",
@@ -457,9 +461,7 @@ def _validate_field_tolerances_config(
                 if raw_value is None:
                     continue
                 if isinstance(raw_value, bool):
-                    raise cli.PackageError(
-                        f"{spec_label}.{key} must be a number."
-                    )
+                    raise cli.PackageError(f"{spec_label}.{key} must be a number.")
                 _validate_optional_number(
                     raw=raw_value,
                     label=f"{spec_label}.{key}",
@@ -494,8 +496,7 @@ def _validate_correctness_schema(payload: dict[str, Any]) -> None:
     if mode_raw is not None and not mode_explicit:
         allowed = ", ".join(sorted(CORRECTNESS_MODE_VALUES))
         raise cli.PackageError(
-            "Benchmark correctness.mode must be one of: "
-            f"{allowed}."
+            "Benchmark correctness.mode must be one of: " f"{allowed}."
         )
     legacy_scf_keys = sorted(
         key for key in LEGACY_SCF_CORRECTNESS_KEYS if key in correctness
@@ -562,9 +563,7 @@ def _validate_case_split(payload: dict[str, Any]) -> None:
     if split is None:
         return
     if not isinstance(split, dict):
-        raise cli.PackageError(
-            "Benchmark split block must be an object when provided."
-        )
+        raise cli.PackageError("Benchmark split block must be an object when provided.")
     raw_train = split.get(BENCHMARK_SPLIT_TRAIN_CASE_IDS_KEY)
     if not isinstance(raw_train, list) or not raw_train:
         raise cli.PackageError(
@@ -688,9 +687,7 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
     result_command = runtime.get("result_command")
     if result_command is not None and (
         not isinstance(result_command, list)
-        or not all(
-            isinstance(item, str) and item.strip() for item in result_command
-        )
+        or not all(isinstance(item, str) and item.strip() for item in result_command)
     ):
         raise cli.PackageError(
             "Benchmark runtime.result_command must be a non-empty string list."
@@ -905,7 +902,9 @@ def _run_optimize_worker_loop(
 
         assistant_text = str(run_result.get("assistant_text") or "")
         last_assistant_text = assistant_text
-        if any(line.strip() == cli.LOOP_DONE_TOKEN for line in assistant_text.splitlines()):
+        if any(
+            line.strip() == cli.LOOP_DONE_TOKEN for line in assistant_text.splitlines()
+        ):
             return {
                 "status": "done",
                 "reason": "done_token",
@@ -945,7 +944,10 @@ def _run_optimize_worker_loop(
             )
             pending_slurm_jobs = list(slurm_job_numbers)
             slurm_monitors: dict[str, object] = {}
-            if pending_slurm_jobs and not session_commands._slurm_wait_tools_available():
+            if (
+                pending_slurm_jobs
+                and not session_commands._slurm_wait_tools_available()
+            ):
                 slurm_text = ", ".join(pending_slurm_jobs)
                 cli._print_tagged(
                     "optimize",
@@ -1010,9 +1012,7 @@ def _run_optimize_worker_loop(
                     pending_slurm_jobs=pending_slurm_jobs,
                 )
                 stall_text = (
-                    f"{pid_stall_seconds:.1f}s"
-                    if pid_stall_seconds > 0
-                    else "disabled"
+                    f"{pid_stall_seconds:.1f}s" if pid_stall_seconds > 0 else "disabled"
                 )
                 cli._print_tagged(
                     "optimize",
@@ -1023,7 +1023,9 @@ def _run_optimize_worker_loop(
                     ),
                 )
                 started = poll_started
-                next_status_log = started + session_commands.POLL_STATUS_HEARTBEAT_SECONDS
+                next_status_log = (
+                    started + session_commands.POLL_STATUS_HEARTBEAT_SECONDS
+                )
                 pid_issue_caused_early_continue = False
                 slurm_issue_caused_early_continue = False
                 while alive or pending_slurm_jobs:
@@ -1087,8 +1089,7 @@ def _run_optimize_worker_loop(
                             )
                         if pending_slurm_jobs:
                             still_waiting_on.append(
-                                "pending slurm job(s): "
-                                + ", ".join(pending_slurm_jobs)
+                                "pending slurm job(s): " + ", ".join(pending_slurm_jobs)
                             )
                         suffix = (
                             f"; {'; '.join(still_waiting_on)}"
@@ -1132,16 +1133,16 @@ def _run_optimize_worker_loop(
                                 stderr=True,
                             )
                         if slurm_issues:
-                            issue_text = session_commands._format_slurm_issues(slurm_issues)
+                            issue_text = session_commands._format_slurm_issues(
+                                slurm_issues
+                            )
                             waiting_on: list[str] = []
                             if alive:
                                 waiting_on.append(
                                     "still-running pid(s): "
                                     + ", ".join(str(pid) for pid in alive)
                                 )
-                            suffix = (
-                                f"; {'; '.join(waiting_on)}" if waiting_on else ""
-                            )
+                            suffix = f"; {'; '.join(waiting_on)}" if waiting_on else ""
                             cli._print_tagged(
                                 "optimize",
                                 (
@@ -1330,7 +1331,10 @@ def _max_abs_difference(left: object, right: object) -> float:
     right_values = _flatten_numbers(right)
     if not left_values or len(left_values) != len(right_values):
         return float("inf")
-    return max(abs(left_value - right_value) for left_value, right_value in zip(left_values, right_values))
+    return max(
+        abs(left_value - right_value)
+        for left_value, right_value in zip(left_values, right_values)
+    )
 
 
 def _relative_difference(left: object, right: object) -> float:
@@ -1345,7 +1349,9 @@ def _relative_difference(left: object, right: object) -> float:
     if not left_values or len(left_values) != len(right_values):
         return float("inf")
     rms_delta = _rms_difference(left, right)
-    baseline_rms = math.sqrt(sum(value * value for value in left_values) / len(left_values))
+    baseline_rms = math.sqrt(
+        sum(value * value for value in left_values) / len(left_values)
+    )
     if baseline_rms <= 1.0e-12:
         return 0.0 if rms_delta <= 1.0e-12 else float("inf")
     return rms_delta / baseline_rms
@@ -1353,7 +1359,9 @@ def _relative_difference(left: object, right: object) -> float:
 
 def _value_at_field_path(payload: object, field_path: str) -> object:
     current = payload
-    tokens = [token.strip() for token in str(field_path or "").split(".") if token.strip()]
+    tokens = [
+        token.strip() for token in str(field_path or "").split(".") if token.strip()
+    ]
     if not tokens:
         return FIELD_PATH_MISSING
     for token in tokens:
@@ -1401,8 +1409,13 @@ def _field_tolerance_case_errors(
         label = str(spec.get("label") or "").strip() or field_path
         incumbent_value = _value_at_field_path(incumbent_case, field_path)
         candidate_value = _value_at_field_path(candidate_case, field_path)
-        if incumbent_value is FIELD_PATH_MISSING or candidate_value is FIELD_PATH_MISSING:
-            errors.append(f"case {case_id} missing field `{field_path}` for correctness check")
+        if (
+            incumbent_value is FIELD_PATH_MISSING
+            or candidate_value is FIELD_PATH_MISSING
+        ):
+            errors.append(
+                f"case {case_id} missing field `{field_path}` for correctness check"
+            )
             continue
         requested_comparison = str(spec.get("comparison") or "").strip().lower()
         if requested_comparison and requested_comparison in FIELD_TOLERANCE_COMPARISONS:
@@ -1608,8 +1621,8 @@ def _resolve_runtime_result_json_path(
     run_dir: Path,
     runtime: dict[str, Any] | None = None,
 ) -> Path | None:
-    runtime_effective = runtime if isinstance(runtime, dict) else _runtime_config(
-        benchmark_payload
+    runtime_effective = (
+        runtime if isinstance(runtime, dict) else _runtime_config(benchmark_payload)
     )
     artifacts = benchmark_payload.get("artifacts")
     raw_path = str(runtime_effective.get("result_json_path") or "").strip()
@@ -1637,8 +1650,8 @@ def _resolve_runtime_result_command(
     run_dir: Path,
     runtime: dict[str, Any] | None = None,
 ) -> list[str]:
-    runtime_effective = runtime if isinstance(runtime, dict) else _runtime_config(
-        benchmark_payload
+    runtime_effective = (
+        runtime if isinstance(runtime, dict) else _runtime_config(benchmark_payload)
     )
     raw = runtime_effective.get("result_command")
     if not isinstance(raw, list):
@@ -1808,7 +1821,9 @@ def _append_benchmark_launcher_memory_note(
             result_parts.append(f"result_json_path=`{result_json_path}`")
         if result_command:
             result_parts.append(f"result_command=`{shlex.join(result_command)}`")
-        result_text = "; ".join(result_parts) if result_parts else "result_source=runtime"
+        result_text = (
+            "; ".join(result_parts) if result_parts else "result_source=runtime"
+        )
         suffix = f"; reason={reason}" if reason else ""
         entry = (
             f"- [{timestamp}] benchmark launcher {event}: command=`{command_text}`; "
@@ -1866,7 +1881,7 @@ def _build_benchmark_launcher_prompt(
         "- `{run_dir}`\n"
         "\n"
         "Respond with exactly one JSON object inside tags:\n"
-        f"<{BENCHMARK_LAUNCHER_TAG}>{{\"command\": [\"...\"], \"result_json_path\": \"... optional ...\", \"result_command\": [\"... optional ...\"]}}</{BENCHMARK_LAUNCHER_TAG}>\n"
+        f'<{BENCHMARK_LAUNCHER_TAG}>{{"command": ["..."], "result_json_path": "... optional ...", "result_command": ["... optional ..."]}}</{BENCHMARK_LAUNCHER_TAG}>\n'
         "\n"
         "Rules:\n"
         "- `command` is required and must be a list of command tokens (no shell prose).\n"
@@ -2021,9 +2036,7 @@ def _resolve_submit_poll_timing(
             "Benchmark runtime.poll_interval_seconds must be a number."
         ) from exc
     if poll_interval <= 0:
-        raise cli.PackageError(
-            "Benchmark runtime.poll_interval_seconds must be > 0."
-        )
+        raise cli.PackageError("Benchmark runtime.poll_interval_seconds must be > 0.")
 
     max_poll_raw = runtime.get("max_poll_seconds")
     if max_poll_raw is None:
@@ -2065,9 +2078,11 @@ def _poll_submitted_benchmark_targets(
     from fermilink.cli.commands import sessions as session_commands
 
     poll_started = session_commands.time.monotonic()
-    alive, pid_monitors, initially_dead_pids = session_commands._initialize_pid_monitors(
-        pid_numbers,
-        now_monotonic=poll_started,
+    alive, pid_monitors, initially_dead_pids = (
+        session_commands._initialize_pid_monitors(
+            pid_numbers,
+            now_monotonic=poll_started,
+        )
     )
     pending_slurm_jobs = list(slurm_job_numbers)
     slurm_monitors: dict[str, object] = {}
@@ -2076,10 +2091,7 @@ def _poll_submitted_benchmark_targets(
         dead_text = ", ".join(str(pid) for pid in initially_dead_pids)
         cli._print_tagged(
             "optimize",
-            (
-                "benchmark submission included already-finished pid(s): "
-                f"{dead_text}"
-            ),
+            ("benchmark submission included already-finished pid(s): " f"{dead_text}"),
         )
 
     if pending_slurm_jobs and not session_commands._slurm_wait_tools_available():
@@ -3076,8 +3088,10 @@ def _write_campaign_run_lock(
             lock_pid = int(lock_payload.get("pid") or 0)
         except (TypeError, ValueError):
             lock_pid = 0
-        if lock_pid > 0 and lock_pid != os.getpid() and optimize_state.pid_is_running(
-            lock_pid
+        if (
+            lock_pid > 0
+            and lock_pid != os.getpid()
+            and optimize_state.pid_is_running(lock_pid)
         ):
             started = str(lock_payload.get("started_at_utc") or "").strip()
             raise cli.PackageError(
@@ -3112,11 +3126,15 @@ def _collect_tracked_files(project_root: Path) -> list[str]:
 
 
 def _infer_quick_language(project_root: Path, tracked_files: list[str]) -> str:
-    if (project_root / "pyproject.toml").is_file() or (project_root / "setup.py").is_file():
+    if (project_root / "pyproject.toml").is_file() or (
+        project_root / "setup.py"
+    ).is_file():
         return "python"
     if any(path.endswith(".py") for path in tracked_files):
         return "python"
-    if any(path.endswith((".f", ".f90", ".f95", ".f03", ".f08")) for path in tracked_files):
+    if any(
+        path.endswith((".f", ".f90", ".f95", ".f03", ".f08")) for path in tracked_files
+    ):
         return "fortran"
     if any(path.endswith((".c", ".cc", ".cpp", ".cxx")) for path in tracked_files):
         return "cpp"
@@ -3472,7 +3490,7 @@ def _render_quick_run_script(
         f"  --worker-wait-seconds {QUICK_DEFAULT_WORKER_WAIT_SECONDS} \\",
         f"  --worker-max-wait-seconds {QUICK_DEFAULT_WORKER_MAX_WAIT_SECONDS} \\",
         f"  --worker-pid-stall-seconds {QUICK_DEFAULT_WORKER_PID_STALL_SECONDS} \\",
-        "  \"$@\"",
+        '  "$@"',
     ]
     profile_text = str(hpc_profile or "").strip()
     if profile_text:
@@ -3802,11 +3820,6 @@ def read_campaign_status(args: argparse.Namespace) -> dict[str, Any]:
         if isinstance(state_payload.get("incumbent_metrics"), dict)
         else {}
     )
-    incumbent_summary = (
-        incumbent_metrics.get("summary_metrics")
-        if isinstance(incumbent_metrics, dict)
-        else {}
-    )
     incumbent_primary = _objective_primary_for_context(
         benchmark_payload,
         incumbent_metrics=incumbent_metrics,
@@ -3851,7 +3864,9 @@ def read_campaign_status(args: argparse.Namespace) -> dict[str, Any]:
         "runtime_mode": runtime_mode,
         "launcher_status": launcher_status,
         "recent_results": recent_results,
-        "benchmark_path": str(benchmark_path) if isinstance(benchmark_path, Path) else "",
+        "benchmark_path": (
+            str(benchmark_path) if isinstance(benchmark_path, Path) else ""
+        ),
     }
 
 
@@ -3866,7 +3881,9 @@ def run_quick_campaign(args: argparse.Namespace) -> dict[str, Any]:
         )
     prompt_path = _resolve_quick_prompt_path(project_root, prompt_target)
     if not prompt_path.is_file():
-        raise cli.PackageError(f"Quick optimize prompt file does not exist: {prompt_path}")
+        raise cli.PackageError(
+            f"Quick optimize prompt file does not exist: {prompt_path}"
+        )
     cli._ensure_compile_repo_ready(project_root)
     package_id = cli.normalize_package_id(project_root.name or "package")
     hpc_profile = str(getattr(args, "hpc_profile", None) or "").strip()
@@ -3882,7 +3899,9 @@ def run_quick_campaign(args: argparse.Namespace) -> dict[str, Any]:
     campaign_args.benchmark = str(scaffold["benchmark_path"])
     campaign_args._optimize_mode = "quick"
     campaign_args._optimize_prompt_path = str(prompt_path)
-    skills_source = str(getattr(campaign_args, "skills_source", "auto") or "auto").strip()
+    skills_source = str(
+        getattr(campaign_args, "skills_source", "auto") or "auto"
+    ).strip()
     if skills_source == "auto":
         campaign_args.skills_source = (
             "existing" if (project_root / "skills").is_dir() else "compile"
@@ -3967,34 +3986,45 @@ def _goal_reference_template_text(
             except OSError:
                 pass
     if not benchmark_text:
-        benchmark_text = _render_quick_benchmark_yaml({
-            "schema_version": 1,
-            "benchmark_id": "example",
-            "controller": {
-                "timeout_seconds": 1800,
-                "warmup_runs": 1,
-                "measured_runs": 3,
-                "objective": {
-                    "primary_metric": "weighted_median_wall_seconds",
-                    "direction": "minimize",
-                    "min_relative_improvement": 0.02,
+        benchmark_text = _render_quick_benchmark_yaml(
+            {
+                "schema_version": 1,
+                "benchmark_id": "example",
+                "controller": {
+                    "timeout_seconds": 1800,
+                    "warmup_runs": 1,
+                    "measured_runs": 3,
+                    "objective": {
+                        "primary_metric": "weighted_median_wall_seconds",
+                        "direction": "minimize",
+                        "min_relative_improvement": 0.02,
+                    },
+                    "reject_on": [
+                        "crash",
+                        "timeout",
+                        "missing_metrics",
+                        "correctness_failure",
+                    ],
                 },
-                "reject_on": [
-                    "crash", "timeout", "missing_metrics", "correctness_failure",
-                ],
-            },
-            "campaign": {
-                "max_iterations": 120,
-                "stop_on_consecutive_rejections": 30,
-            },
-            "worker": {"max_iterations": 8, "wait_seconds": 1},
-            "correctness": {"mode": "runner_only"},
-            "runtime": {
-                "mode": "direct",
-                "command": ["python", "runner.py", "--benchmark", "{benchmark}", "--emit-json"],
-            },
-            "cases": [{"id": "example-case", "weight": 1.0}],
-        })
+                "campaign": {
+                    "max_iterations": 120,
+                    "stop_on_consecutive_rejections": 30,
+                },
+                "worker": {"max_iterations": 8, "wait_seconds": 1},
+                "correctness": {"mode": "runner_only"},
+                "runtime": {
+                    "mode": "direct",
+                    "command": [
+                        "python",
+                        "runner.py",
+                        "--benchmark",
+                        "{benchmark}",
+                        "--emit-json",
+                    ],
+                },
+                "cases": [{"id": "example-case", "weight": 1.0}],
+            }
+        )
     if not runner_text:
         runner_text = _render_quick_runner_script()
     return benchmark_text, runner_text
@@ -4180,8 +4210,6 @@ def _goal_scaffold(
     goal_rel = optimize_state.safe_relative(goal_path, project_root)
     benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
     runner_rel = optimize_state.safe_relative(runner_path, project_root)
-    setup_rel = optimize_state.safe_relative(setup_path, project_root)
-    run_script_rel = optimize_state.safe_relative(run_script_path, project_root)
 
     created_files: dict[str, bool] = {}
 
@@ -4306,8 +4334,10 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
     # Infer language from goal spec or project structure
     goal_language = str(goal_spec.get("language") or "").strip().lower()
-    language = goal_language if goal_language else _infer_quick_language(
-        project_root, tracked_files
+    language = (
+        goal_language
+        if goal_language
+        else _infer_quick_language(project_root, tracked_files)
     )
 
     # Resolve provider settings
@@ -4369,12 +4399,12 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         extracted = optimize_source_analysis.extract_source_analysis(assistant_text)
         if extracted:
             analysis = extracted
-            analysis_summary = optimize_source_analysis.extract_analysis_summary(
-                assistant_text
-            ) or ""
-            review_notes = optimize_source_analysis.extract_review_notes(
-                assistant_text
-            ) or ""
+            analysis_summary = (
+                optimize_source_analysis.extract_analysis_summary(assistant_text) or ""
+            )
+            review_notes = (
+                optimize_source_analysis.extract_review_notes(assistant_text) or ""
+            )
             break
         if attempt < GOAL_MAX_ANALYSIS_TURNS:
             cli._print_tagged(
@@ -4438,9 +4468,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         # has tool access).
         extracted_yaml = optimize_source_analysis.extract_benchmark_yaml(gen_text)
         extracted_runner = optimize_source_analysis.extract_runner_script(gen_text)
-        generation_review = optimize_source_analysis.extract_review_notes(
-            gen_text
-        ) or ""
+        generation_review = (
+            optimize_source_analysis.extract_review_notes(gen_text) or ""
+        )
 
         bench_path = optimize_state.goal_benchmark_path(project_root)
         runner_path = optimize_state.goal_runner_path(project_root)
@@ -4547,9 +4577,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 break
 
     if benchmark_payload is None:
-        raise cli.PackageError(
-            f"Generated benchmark.yaml is invalid: {bench_error}"
-        )
+        raise cli.PackageError(f"Generated benchmark.yaml is invalid: {bench_error}")
     if runner_error:
         raise cli.PackageError(f"Generated runner script is invalid: {runner_error}")
 
@@ -4678,11 +4706,7 @@ def _sync_controller_inputs_to_worker_repo(
     rel_paths: set[str],
 ) -> None:
     normalized = sorted(
-        {
-            _normalize_rel_path(path)
-            for path in rel_paths
-            if _normalize_rel_path(path)
-        }
+        {_normalize_rel_path(path) for path in rel_paths if _normalize_rel_path(path)}
     )
     root_resolved = project_root.resolve()
     for rel_path in normalized:
@@ -4725,16 +4749,16 @@ def _collect_editable_files(root: Path, editable_paths: list[str]) -> set[str]:
         for item in dirnames:
             if item == ".git":
                 continue
-            candidate_rel = (
-                f"{rel_dir}/{item}" if rel_dir and rel_dir != "." else item
-            )
+            candidate_rel = f"{rel_dir}/{item}" if rel_dir and rel_dir != "." else item
             candidate_rel = candidate_rel.replace("\\", "/")
             if candidate_rel == ".fermilink-optimize/runs":
                 continue
             filtered_dirnames.append(item)
         dirnames[:] = filtered_dirnames
         for filename in filenames:
-            rel_path = f"{rel_dir}/{filename}" if rel_dir and rel_dir != "." else filename
+            rel_path = (
+                f"{rel_dir}/{filename}" if rel_dir and rel_dir != "." else filename
+            )
             rel_path = rel_path.replace("\\", "/").strip("/")
             if not rel_path:
                 continue
@@ -4978,8 +5002,8 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         baseline_commit = optimize_git.head_sha(project_root)
         baseline_dir = optimize_state.runs_root(project_root) / "baseline"
         baseline_rel = optimize_state.safe_relative(baseline_dir, project_root)
-        baseline_benchmark_path, baseline_benchmark_rel = _authoritative_benchmark_inputs(
-            baseline_dir
+        baseline_benchmark_path, baseline_benchmark_rel = (
+            _authoritative_benchmark_inputs(baseline_dir)
         )
         baseline_metrics = _run_authoritative_benchmark_suite(
             project_root,
@@ -5057,14 +5081,12 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             if isinstance(incumbent_metrics, dict)
             else {}
         )
-        incumbent_primary = (
-            _objective_primary_for_context(
-                evaluation_benchmark_payload,
-                incumbent_metrics=(
-                    incumbent_metrics if isinstance(incumbent_metrics, dict) else {}
-                ),
-                primary_metric_name=primary_metric_name,
-            )
+        incumbent_primary = _objective_primary_for_context(
+            evaluation_benchmark_payload,
+            incumbent_metrics=(
+                incumbent_metrics if isinstance(incumbent_metrics, dict) else {}
+            ),
+            primary_metric_name=primary_metric_name,
         )
         return {
             "package_id": package_id,
@@ -5263,7 +5285,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         )
         assistant_text = str(worker_loop_result.get("assistant_text") or "")
         final_worker_turn = worker_loop_result.get("run_result")
-        final_worker_turn = final_worker_turn if isinstance(final_worker_turn, dict) else {}
+        final_worker_turn = (
+            final_worker_turn if isinstance(final_worker_turn, dict) else {}
+        )
         _write_run_json(
             run_dir,
             "worker_loop_result.json",
@@ -5332,7 +5356,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         evaluation_context: dict[str, Any] = {
             "worker_loop_status": str(worker_loop_result.get("status") or ""),
             "worker_loop_reason": str(worker_loop_result.get("reason") or ""),
-            "worker_loop_iteration_count": int(worker_loop_result.get("iteration") or 0),
+            "worker_loop_iteration_count": int(
+                worker_loop_result.get("iteration") or 0
+            ),
             "worker_return_code": int(
                 worker_loop_result.get("provider_return_code") or 0
             ),

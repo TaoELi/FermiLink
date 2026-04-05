@@ -603,7 +603,9 @@ def test_load_benchmark_split_requires_controller_test_cases(tmp_path: Path) -> 
         encoding="utf-8",
     )
 
-    with pytest.raises(cli.PackageError, match="at least one controller-only test case"):
+    with pytest.raises(
+        cli.PackageError, match="at least one controller-only test case"
+    ):
         optimize_controller._load_benchmark(benchmark_path)
 
 
@@ -657,19 +659,13 @@ def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None
         }
     }
     incumbent_metrics = {
-        "cases": [
-            {"id": "case-1", "converged": True, "outputs": {"force_norm": 1.0}}
-        ]
+        "cases": [{"id": "case-1", "converged": True, "outputs": {"force_norm": 1.0}}]
     }
     passing_candidate = {
-        "cases": [
-            {"id": "case-1", "converged": True, "outputs": {"force_norm": 1.04}}
-        ]
+        "cases": [{"id": "case-1", "converged": True, "outputs": {"force_norm": 1.04}}]
     }
     failing_candidate = {
-        "cases": [
-            {"id": "case-1", "converged": True, "outputs": {"force_norm": 1.2}}
-        ]
+        "cases": [{"id": "case-1", "converged": True, "outputs": {"force_norm": 1.2}}]
     }
 
     passing = optimize_controller._compare_correctness(
@@ -710,10 +706,12 @@ def test_incumbent_relative_primary_metric_normalization_helpers() -> None:
         primary_metric_name="geomean_wall_ratio_vs_incumbent",
         metrics=metrics,
     )
-    assert normalized["summary_metrics"]["geomean_wall_ratio_vs_incumbent"] == pytest.approx(
-        1.0
-    )
-    assert normalized["summary_metrics"]["weighted_median_wall_seconds"] == pytest.approx(2.0)
+    assert normalized["summary_metrics"][
+        "geomean_wall_ratio_vs_incumbent"
+    ] == pytest.approx(1.0)
+    assert normalized["summary_metrics"][
+        "weighted_median_wall_seconds"
+    ] == pytest.approx(2.0)
     context_primary = optimize_controller._objective_primary_for_context(
         benchmark_payload,
         incumbent_metrics=normalized,
@@ -722,7 +720,9 @@ def test_incumbent_relative_primary_metric_normalization_helpers() -> None:
     assert context_primary == pytest.approx(1.0)
 
 
-def test_optimize_quick_mode_plan_only_scaffolds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_optimize_quick_mode_plan_only_scaffolds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
     prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
@@ -776,13 +776,7 @@ def test_optimize_quick_mode_reuses_existing_autogen(
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path)
     prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
-        (
-            "# Prompt\n"
-            "\n"
-            "```bash\n"
-            "python -c \"print('ok')\"\n"
-            "```\n"
-        ),
+        ("# Prompt\n" "\n" "```bash\n" "python -c \"print('ok')\"\n" "```\n"),
         encoding="utf-8",
     )
     _git(repo_dir, "add", "prompt.txt")
@@ -821,13 +815,7 @@ def test_optimize_quick_mode_compiles_skills_when_missing(
     repo_dir, _benchmark_path = _init_optimize_repo(tmp_path, with_skills=False)
     prompt_path = repo_dir / "prompt.txt"
     prompt_path.write_text(
-        (
-            "# Prompt\n"
-            "\n"
-            "```bash\n"
-            "python -c \"print('ok')\"\n"
-            "```\n"
-        ),
+        ("# Prompt\n" "\n" "```bash\n" "python -c \"print('ok')\"\n" "```\n"),
         encoding="utf-8",
     )
     _git(repo_dir, "add", "prompt.txt")
@@ -906,7 +894,7 @@ def test_optimize_quick_mode_seeds_from_reference_templates(
             "  mode: runner_only\n"
             "runtime:\n"
             "  env:\n"
-            "    OMP_NUM_THREADS: \"1\"\n"
+            '    OMP_NUM_THREADS: "1"\n'
             "cases:\n"
             "  - id: tip4p-case\n"
             "    command_preview: lmp -in in.tip4p\n"
@@ -962,7 +950,9 @@ def test_optimize_quick_mode_seeds_from_reference_templates(
     assert cases
     assert "command_preview" in cases[0]
     assert "lmp -in" in str(cases[0].get("command_preview") or "")
-    manifest = json.loads((autogen_root / "quick_mode.json").read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (autogen_root / "quick_mode.json").read_text(encoding="utf-8")
+    )
     assert manifest["command_source"] == "default"
     assert str(manifest["reference_examples"]["benchmark"]).endswith(
         "scripts/cpp-lammps-tip4p-force-eval-benchmark.yaml"
@@ -1417,7 +1407,9 @@ def test_optimize_guardrail_regression_reports_performance_rejection(
     assert review_context.get("hard_reject") is True
     assert review_context.get("hard_reject_status") == "rejected"
     assert review_context.get("hard_reject_category") == "performance_regression"
-    assert "performance_regression" in str(review_context.get("hard_reject_reason") or "")
+    assert "performance_regression" in str(
+        review_context.get("hard_reject_reason") or ""
+    )
 
 
 def test_optimize_split_hides_test_cases_from_worker_and_evaluates_test_only(
@@ -1458,7 +1450,9 @@ def test_optimize_split_hides_test_cases_from_worker_and_evaluates_test_only(
         assert (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
         for key in optimize_git.WORKER_GIT_ENV_KEYS:
             assert key not in os.environ
-        (worker_repo / "solver.py").write_text("MODE = 'TRAIN_FAST'\n", encoding="utf-8")
+        (worker_repo / "solver.py").write_text(
+            "MODE = 'TRAIN_FAST'\n", encoding="utf-8"
+        )
         return {
             "assistant_text": (
                 "<experiment_description>train-only fast path</experiment_description>\n"
@@ -1916,11 +1910,7 @@ def test_optimize_archives_worker_memory_and_skips_routing_overlay_and_completio
     assert completion_calls == []
     assert (repo_dir / ".fermilink-optimize" / "worker_memory.md").exists()
     assert (
-        repo_dir
-        / ".fermilink-optimize"
-        / "runs"
-        / "iter_0001"
-        / "worker_memory.md"
+        repo_dir / ".fermilink-optimize" / "runs" / "iter_0001" / "worker_memory.md"
     ).exists()
 
 
@@ -2038,9 +2028,7 @@ def test_optimize_worker_loop_handles_pid_waits(
                 [sys.executable, "-c", "import time; time.sleep(0.2)"]
             )
             return {
-                "assistant_text": (
-                    f"submitted\n<pid_number>{proc.pid}</pid_number>\n"
-                ),
+                "assistant_text": (f"submitted\n<pid_number>{proc.pid}</pid_number>\n"),
                 "return_code": 0,
                 "stderr": "",
             }
@@ -2106,7 +2094,9 @@ def test_optimize_worker_loop_handles_slurm_waits(
         *,
         now_monotonic: float,
         unknown_poll_limit: int,
-    ) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, object]]:
+    ) -> tuple[
+        list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, object]
+    ]:
         slurm_polls["count"] += 1
         if slurm_polls["count"] == 1:
             return list(slurm_job_numbers), [], [], {"12345": object()}
@@ -2221,13 +2211,13 @@ def test_optimize_benchmark_submit_poll_handles_pid_submission(
             return {
                 "assistant_text": (
                     "<benchmark_launcher>"
-                    "{\"command\": ["
-                    f"\"{sys.executable}\", "
-                    "\"scripts/mock_submit_bench.py\", "
-                    "\"--benchmark\", "
-                    "\"{benchmark}\", "
-                    "\"--mode\", "
-                    "\"pid\""
+                    '{"command": ['
+                    f'"{sys.executable}", '
+                    '"scripts/mock_submit_bench.py", '
+                    '"--benchmark", '
+                    '"{benchmark}", '
+                    '"--mode", '
+                    '"pid"'
                     "]}"
                     "</benchmark_launcher>"
                 ),
@@ -2332,7 +2322,9 @@ def test_optimize_benchmark_submit_poll_handles_slurm_submission(
         *,
         now_monotonic: float,
         unknown_poll_limit: int,
-    ) -> tuple[list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, object]]:
+    ) -> tuple[
+        list[str], list[tuple[str, str]], list[tuple[str, str]], dict[str, object]
+    ]:
         slurm_polls["count"] += 1
         if slurm_polls["count"] % 2 == 1:
             return (
@@ -2358,13 +2350,13 @@ def test_optimize_benchmark_submit_poll_handles_slurm_submission(
             return {
                 "assistant_text": (
                     "<benchmark_launcher>"
-                    "{\"command\": ["
-                    f"\"{sys.executable}\", "
-                    "\"scripts/mock_submit_bench.py\", "
-                    "\"--benchmark\", "
-                    "\"{benchmark}\", "
-                    "\"--mode\", "
-                    "\"slurm\""
+                    '{"command": ['
+                    f'"{sys.executable}", '
+                    '"scripts/mock_submit_bench.py", '
+                    '"--benchmark", '
+                    '"{benchmark}", '
+                    '"--mode", '
+                    '"slurm"'
                     "]}"
                     "</benchmark_launcher>"
                 ),
@@ -2460,7 +2452,7 @@ def test_optimize_submit_poll_replans_launcher_after_infra_failure(
                 return {
                     "assistant_text": (
                         "<benchmark_launcher>"
-                        "{\"command\": [\"definitely_not_a_real_binary_fermilink_test\"]}"
+                        '{"command": ["definitely_not_a_real_binary_fermilink_test"]}'
                         "</benchmark_launcher>"
                     ),
                     "return_code": 0,
@@ -2469,13 +2461,13 @@ def test_optimize_submit_poll_replans_launcher_after_infra_failure(
             return {
                 "assistant_text": (
                     "<benchmark_launcher>"
-                    "{\"command\": ["
-                    f"\"{sys.executable}\", "
-                    "\"scripts/mock_submit_bench.py\", "
-                    "\"--benchmark\", "
-                    "\"{benchmark}\", "
-                    "\"--mode\", "
-                    "\"pid\""
+                    '{"command": ['
+                    f'"{sys.executable}", '
+                    '"scripts/mock_submit_bench.py", '
+                    '"--benchmark", '
+                    '"{benchmark}", '
+                    '"--mode", '
+                    '"pid"'
                     "]}"
                     "</benchmark_launcher>"
                 ),

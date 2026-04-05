@@ -203,14 +203,30 @@ def build_source_analysis_prompt(
     package = str(goal_spec.get("package") or "unknown")
     target = str(goal_spec.get("target") or "")
     editable_scope = goal_spec.get("editable_scope") or []
-    editable_block = "\n".join(f"- `{p}`" for p in editable_scope) if editable_scope else "- (not specified — infer from source)"
+    editable_block = (
+        "\n".join(f"- `{p}`" for p in editable_scope)
+        if editable_scope
+        else "- (not specified — infer from source)"
+    )
     workloads = goal_spec.get("workloads") or []
-    workloads_block = "\n".join(f"- {w}" for w in workloads) if workloads else "- (not specified — discover from source)"
+    workloads_block = (
+        "\n".join(f"- {w}" for w in workloads)
+        if workloads
+        else "- (not specified — discover from source)"
+    )
     correctness = goal_spec.get("correctness_constraints") or []
-    correctness_block = "\n".join(f"- {c}" for c in correctness) if correctness else "- (not specified — infer from source)"
+    correctness_block = (
+        "\n".join(f"- {c}" for c in correctness)
+        if correctness
+        else "- (not specified — infer from source)"
+    )
     metric = str(goal_spec.get("performance_metric") or "wall-clock time (minimize)")
     build_commands = goal_spec.get("build_commands") or []
-    build_block = "\n".join(f"```\n{cmd}\n```" for cmd in build_commands) if build_commands else "(none specified)"
+    build_block = (
+        "\n".join(f"```\n{cmd}\n```" for cmd in build_commands)
+        if build_commands
+        else "(none specified)"
+    )
 
     return (
         "You are performing **source analysis** for FermiLink goal-driven optimization.\n"

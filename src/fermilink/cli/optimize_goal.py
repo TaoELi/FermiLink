@@ -99,7 +99,7 @@ def _list_section(sections: dict[str, str], *keys: str) -> list[str]:
             stripped = line.strip()
             for prefix in ("- ", "* ", "+ "):
                 if stripped.startswith(prefix):
-                    stripped = stripped[len(prefix):]
+                    stripped = stripped[len(prefix) :]
                     break
             stripped = stripped.strip()
             if stripped:
@@ -179,6 +179,6 @@ def parse_goal(text: str) -> dict[str, Any]:
         "language": _first_line(sections, "language"),
         "notes": _text_section(sections, "notes"),
         "build_commands": _code_blocks(sections, "build")
-            or _code_blocks(sections, "setup")
-            or _code_blocks(sections, "install"),
+        or _code_blocks(sections, "setup")
+        or _code_blocks(sections, "install"),
     }
