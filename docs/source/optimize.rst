@@ -213,18 +213,21 @@ Prerequisites
 ~~~~~~~~~~~~~
 
 - FermiLink is installed and an agent provider CLI is authenticated.
-- A ``skills/`` folder for PySCF is already present (from a prior
-  ``fermilink install pyscf``, ``fermilink compile``, or manual copy).
+- A ``skills/`` folder for PySCF is available either in your main clone or a
+  FermiLink-managed package location.
 - Git and Python >= 3.11 are available on ``PATH``.
 
 
-Step 1. Clone PySCF
-~~~~~~~~~~~~~~~~~~~~
+Step 1. Clone or update PySCF on ``master``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   git clone https://github.com/pyscf/pyscf.git ~/pyscf
+   git clone git@github.com:skilled-scipkg/pyscf.git ~/pyscf
    cd ~/pyscf
+   git fetch origin
+   git checkout master
+   git pull --ff-only origin master
 
 If you already have a local clone, skip this step.
 
@@ -232,13 +235,13 @@ If you already have a local clone, skip this step.
 Step 2. Create a controller worktree
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create a dedicated worktree so that the optimization campaign does not
-modify the main checkout:
+Create a dedicated worktree from the original ``master`` branch so the
+optimization campaign does not modify the main checkout:
 
 .. code-block:: bash
 
-   # Create a new branch for the campaign and check it out in a worktree
-   git worktree add ../pyscf-optimize-diis fermilink-optimize/pyscf-diis -b fermilink-optimize/pyscf-diis
+   cd ~/pyscf
+   git worktree add -b fermilink-optimize/pyscf-diis ../pyscf-optimize-diis master
 
 This places the worktree at ``~/pyscf-optimize-diis`` on branch
 ``fermilink-optimize/pyscf-diis``.  Change into it for the remaining steps:
@@ -248,26 +251,14 @@ This places the worktree at ``~/pyscf-optimize-diis`` on branch
    cd ~/pyscf-optimize-diis
 
 
-Step 3. Place the skills folder
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If the worktree does not already contain a ``skills/`` directory, copy it
-from the main clone or from a FermiLink-managed location:
+Step 3. Build in the worktree
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   # Copy from the original clone (if you installed skills there)
-   cp -r ~/pyscf/skills skills/
-
-   # -- OR install via FermiLink (if you have not compiled skills yet) --
-   # fermilink install pyscf        # installs into the managed location
-   # cp -r ~/.fermilink/packages/pyscf/skills skills/
-
-.. note::
-
-   When ``skills/`` exists at campaign start, FermiLink auto-selects
-   ``--skills-source existing`` and skips the compile/channel step.  The
-   ``skills/`` directory is git-excluded automatically during the campaign.
+   python -m pip install -U pip
+   python -m pip install -e .
+   python -m pip install PyYAML
 
 
 Step 4. Set the goal file path
@@ -280,6 +271,7 @@ create an untracked file in the git tree):
 .. code-block:: bash
 
    export GOAL=/path/to/fermilink/scripts/python-pyscf-diis-scf-goal.md
+   test -f "$GOAL"
 
 Replace ``/path/to/fermilink`` with the actual location of your FermiLink
 source checkout.  Review the file and, if needed, create a modified copy
@@ -294,6 +286,7 @@ file by its absolute path:
 
 .. code-block:: bash
 
+   cd ~/pyscf-optimize-diis
    fermilink optimize "$GOAL" \
      --skills-source existing \
      --max-iterations 30 \
@@ -327,8 +320,8 @@ This prints the current iteration count, accepted/rejected totals, incumbent
 commit, and the most recent results from ``results.tsv``.
 
 
-Step 7. Resume or extend a campaign
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Step 7. Resume if interrupted
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If the campaign is interrupted (e.g. by ``Ctrl-C`` or a timeout), resume
 from the last checkpoint:
@@ -338,39 +331,14 @@ from the last checkpoint:
    cd ~/pyscf-optimize-diis
    fermilink optimize "$GOAL" --resume
 
-To extend past the original iteration cap:
+
+Step 8. Review accepted commits and clean up
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   fermilink optimize "$GOAL" --resume --max-iterations 60
-
-
-Step 8. Inspect results
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Campaign artifacts live in ``.fermilink-optimize/`` inside the worktree:
-
-- ``state.json`` -- serialised campaign state.
-- ``results.tsv`` -- one row per iteration with timings, metrics, and
-  accept/reject decisions.
-- ``memory.md`` / ``worker_memory.md`` -- controller and worker notes.
-- ``autogen/`` -- the generated benchmark YAML and runner script.
-
-Accepted improvements are committed on the campaign branch
-(``fermilink-optimize/pyscf-diis``).  You can review them with standard git
-tools:
-
-.. code-block:: bash
-
+   cd ~/pyscf-optimize-diis
    git log --oneline
-
-
-Step 9. Clean up
-~~~~~~~~~~~~~~~~~
-
-When you are done, remove the worktree and optionally delete the branch:
-
-.. code-block:: bash
 
    cd ~/pyscf
    git worktree remove ../pyscf-optimize-diis
