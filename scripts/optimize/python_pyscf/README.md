@@ -54,6 +54,15 @@ worktree so optimize clean-tree checks are not affected.
 export VENV="$HOME/.venvs/pyscf-optimize-diis"
 python -m venv "$VENV"
 source "$VENV/bin/activate"
+# before pip install, we need to compile the C library of pyscf
+cd pyscf/lib
+mkdir -p build
+cd build
+cmake ..
+make -j4
+# go to pyscf repo root
+cd ../../../
+# after completing the C library, we proceed the conventional pip install
 python -m pip install -U pip
 python -m pip install -e .
 python -m pip install PyYAML
