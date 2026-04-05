@@ -248,7 +248,7 @@ This places the worktree at ``~/pyscf-optimize-diis`` on branch
 
 .. code-block:: bash
 
-   cd ~/pyscf-optimize-diis
+   cd ../pyscf-optimize-diis
 
 
 Step 3. Build in the worktree
@@ -256,9 +256,11 @@ Step 3. Build in the worktree
 
 .. code-block:: bash
 
-   python -m pip install -U pip
-   python -m pip install -e .
-   python -m pip install PyYAML
+   python -m venv .venv
+   ./.venv/bin/python -m pip install -U pip
+   ./.venv/bin/python -m pip install -e .
+   ./.venv/bin/python -m pip install PyYAML
+   ./.venv/bin/python -m pip install -e /path/to/fermilink
 
 
 Step 4. Set the goal file path
@@ -287,7 +289,7 @@ file by its absolute path:
 .. code-block:: bash
 
    cd ~/pyscf-optimize-diis
-   fermilink optimize "$GOAL" \
+   ./.venv/bin/fermilink optimize "$GOAL" \
      --skills-source existing \
      --max-iterations 30 \
      --stop-on-consecutive-rejections 8 \
@@ -314,7 +316,7 @@ In a separate terminal, ``cd`` into the worktree and run:
 .. code-block:: bash
 
    cd ~/pyscf-optimize-diis
-   fermilink optimize status
+   ./.venv/bin/fermilink optimize status
 
 This prints the current iteration count, accepted/rejected totals, incumbent
 commit, and the most recent results from ``results.tsv``.
@@ -329,7 +331,7 @@ from the last checkpoint:
 .. code-block:: bash
 
    cd ~/pyscf-optimize-diis
-   fermilink optimize "$GOAL" --resume
+   ./.venv/bin/fermilink optimize "$GOAL" --resume
 
 
 Step 8. Review accepted commits and clean up
