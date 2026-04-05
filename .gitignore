@@ -39,6 +39,3 @@ docs/build/
 docs/source/api/
 docs_sample/
 /CLAUDE.md
-
-# ignore goal md files for optimize/
-scripts/optimize
