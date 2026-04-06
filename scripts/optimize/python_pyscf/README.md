@@ -65,7 +65,7 @@ cd ../../../
 # after completing the C library, we proceed the conventional pip install
 python -m pip install -U pip
 python -m pip install -e .
-python -m pip install PyYAML
+python -m pip install PyYAML py-spy
 python -m pip install -e /path/to/fermilink
 ```
 
