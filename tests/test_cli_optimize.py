@@ -987,9 +987,7 @@ def test_effective_correctness_benchmark_payload_respects_allow_runner_only() ->
             "allow_runner_only": True,
         }
     }
-    baseline_metrics = {
-        "cases": [{"id": "case-1", "converged": True, "energy": -10.5}]
-    }
+    baseline_metrics = {"cases": [{"id": "case-1", "converged": True, "energy": -10.5}]}
     effective, info = optimize_controller._effective_correctness_benchmark_payload(
         benchmark_payload,
         baseline_metrics=baseline_metrics,
@@ -1930,6 +1928,116 @@ def test_optimize_reuses_worker_worktree_across_outer_iterations(
     )
     assert state["accepted_count"] == 2
     assert state["iteration"] == 2
+
+
+def test_optimize_worker_prebuild_runs_once_before_first_worker_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+    assert isinstance(benchmark_payload, dict)
+    runtime = benchmark_payload.get("runtime")
+    assert isinstance(runtime, dict)
+    pre_command = [sys.executable, "-c", "print('worker-prebuild-probe')"]
+    runtime["pre_commands"] = [pre_command]
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    events: list[tuple[str, str]] = []
+    worker_repo_paths: list[str] = []
+    real_subprocess_run = subprocess.run
+
+    def _normalize_path_text(raw: str) -> str:
+        value = str(raw or "").strip()
+        if not value:
+            return ""
+        return str(Path(value).resolve())
+
+    def wrapped_subprocess_run(*args, **kwargs):
+        command = args[0] if args else kwargs.get("args")
+        if isinstance(command, list) and command == pre_command:
+            events.append(
+                ("pre_command", _normalize_path_text(str(kwargs.get("cwd") or "")))
+            )
+        return real_subprocess_run(*args, **kwargs)
+
+    monkeypatch.setattr(optimize_controller.subprocess, "run", wrapped_subprocess_run)
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        worker_repo = Path(str(kwargs.get("repo_dir") or "")).resolve()
+        worker_repo_paths.append(str(worker_repo))
+        events.append(("worker_turn", str(worker_repo)))
+        _write_solver_in_worker(kwargs, mode=f"FAST_{len(worker_repo_paths)}")
+        return {
+            "assistant_text": (
+                f"<experiment_description>fast path {len(worker_repo_paths)}</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--allow-dirty",
+            "--max-iterations",
+            "2",
+            "--stop-on-consecutive-rejections",
+            "2",
+        ]
+    )
+
+    assert code == 0
+    assert len(worker_repo_paths) == 2
+    assert len(set(worker_repo_paths)) == 1
+    worker_repo = worker_repo_paths[0]
+    worker_prebuild_indices = [
+        index
+        for index, event in enumerate(events)
+        if event[0] == "pre_command" and event[1] == worker_repo
+    ]
+    assert len(worker_prebuild_indices) == 1
+    worker_turn_indices = [
+        index for index, event in enumerate(events) if event[0] == "worker_turn"
+    ]
+    assert worker_turn_indices
+    assert worker_prebuild_indices[0] < worker_turn_indices[0]
 
 
 def test_optimize_recovers_orphaned_worker_worktree_root(tmp_path: Path) -> None:
@@ -3156,7 +3264,9 @@ def test_optimize_removes_stale_temporary_agents_before_clean_check(
     assert not (repo_dir / "CLAUDE.md").exists()
 
 
-def test_cleanup_stale_temporary_agents_preserves_tracked_agents(tmp_path: Path) -> None:
+def test_cleanup_stale_temporary_agents_preserves_tracked_agents(
+    tmp_path: Path,
+) -> None:
     repo_dir, _ = _init_optimize_repo(tmp_path)
     (repo_dir / "AGENTS.md").write_text("project policy\n", encoding="utf-8")
     _git(repo_dir, "add", "AGENTS.md")

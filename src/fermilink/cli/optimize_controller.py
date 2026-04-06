@@ -462,6 +462,112 @@ def _runtime_pre_commands(runtime: dict[str, Any]) -> list[list[str]]:
     return commands
 
 
+def _run_runtime_pre_commands_once(
+    project_root: Path,
+    *,
+    runtime: dict[str, Any],
+    benchmark_path: Path,
+    run_dir: Path,
+    timeout_seconds: int,
+    marker_filename: str = "pre_commands.ok.json",
+    log_prefix: str = "pre_command",
+    reason_context: str = "runtime.pre_commands",
+) -> dict[str, Any] | None:
+    pre_commands = _runtime_pre_commands(runtime)
+    marker_path = run_dir / str(marker_filename or "pre_commands.ok.json").strip()
+    if not pre_commands or marker_path.is_file():
+        return None
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    runtime_env = runtime.get("env")
+    if isinstance(runtime_env, dict):
+        for key, value in runtime_env.items():
+            if not isinstance(key, str):
+                continue
+            env[key] = str(value)
+
+    for index, command_template in enumerate(pre_commands, start=1):
+        command = _expand_runtime_command(
+            command_template,
+            benchmark_path=benchmark_path,
+            project_root=project_root,
+            run_dir=run_dir,
+        )
+        stdout_path = run_dir / f"{log_prefix}_{index}.stdout.log"
+        stderr_path = run_dir / f"{log_prefix}_{index}.stderr.log"
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(project_root),
+                text=True,
+                capture_output=True,
+                env=env,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
+            stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
+            return _benchmark_failure_payload(
+                status="timeout",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={
+                    "reason": f"{reason_context}[{index}] timed out",
+                    "pre_command": command,
+                    "pre_command_index": index,
+                },
+            )
+        except (OSError, ValueError) as exc:
+            stderr_path.write_text(str(exc), encoding="utf-8")
+            return _benchmark_failure_payload(
+                status="crash",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={
+                    "reason": str(exc),
+                    "pre_command": command,
+                    "pre_command_index": index,
+                },
+            )
+
+        stdout_text = str(completed.stdout or "")
+        stderr_text = str(completed.stderr or "")
+        stdout_path.write_text(stdout_text, encoding="utf-8")
+        stderr_path.write_text(stderr_text, encoding="utf-8")
+        if completed.returncode != 0:
+            return _benchmark_failure_payload(
+                status="crash",
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+                extra={
+                    "reason": (
+                        f"{reason_context}[{index}] failed with return code "
+                        f"{int(completed.returncode)}"
+                    ),
+                    "return_code": int(completed.returncode),
+                    "pre_command": command,
+                    "pre_command_index": index,
+                },
+            )
+
+    marker_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "updated_at_utc": optimize_state.utc_now_z(),
+                "commands": pre_commands,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return None
+
+
 def _validate_field_tolerances_config(
     payload: object,
     *,
@@ -1519,7 +1625,10 @@ def _infer_field_tolerances_from_baseline_metrics(
             continue
         for field_name, value in case.items():
             normalized_field = str(field_name or "").strip()
-            if not normalized_field or normalized_field in AUTO_CORRECTNESS_SKIP_CASE_FIELDS:
+            if (
+                not normalized_field
+                or normalized_field in AUTO_CORRECTNESS_SKIP_CASE_FIELDS
+            ):
                 continue
             scale = _numeric_case_field_scale(value)
             if scale is None:
@@ -1556,7 +1665,9 @@ def _effective_correctness_benchmark_payload(
         return benchmark_payload, {"upgraded": False, "reason": "mode_not_runner_only"}
     if _correctness_allows_runner_only(correctness):
         return benchmark_payload, {"upgraded": False, "reason": "runner_only_allowed"}
-    inferred_tolerances = _infer_field_tolerances_from_baseline_metrics(baseline_metrics)
+    inferred_tolerances = _infer_field_tolerances_from_baseline_metrics(
+        baseline_metrics
+    )
     if not inferred_tolerances:
         return benchmark_payload, {"upgraded": False, "reason": "no_numeric_fields"}
     effective_payload = copy.deepcopy(benchmark_payload)
@@ -1847,7 +1958,9 @@ def _validate_benchmark_output_payload(
     ).strip()
     if primary_metric:
         primary_value = summary_metrics.get(primary_metric)
-        if isinstance(primary_value, bool) or not isinstance(primary_value, (int, float)):
+        if isinstance(primary_value, bool) or not isinstance(
+            primary_value, (int, float)
+        ):
             raise cli.PackageError(
                 "Benchmark command JSON payload summary_metrics is missing numeric "
                 f"primary metric `{primary_metric}`."
@@ -1893,7 +2006,9 @@ def _validate_benchmark_output_payload(
             field_value = case.get(field_name)
             if field_value is None:
                 continue
-            if isinstance(field_value, bool) or not isinstance(field_value, (int, float)):
+            if isinstance(field_value, bool) or not isinstance(
+                field_value, (int, float)
+            ):
                 raise cli.PackageError(
                     "Benchmark command JSON payload case "
                     f"`{case_id}` field `{field_name}` must be numeric."
@@ -2944,93 +3059,18 @@ def _run_benchmark_suite(
     measured_runs = int(controller.get("measured_runs") or 1)
     run_dir.mkdir(parents=True, exist_ok=True)
     runtime = _runtime_config(benchmark_payload)
-    pre_commands = _runtime_pre_commands(runtime)
-    pre_commands_marker_path = run_dir / "pre_commands.ok.json"
-    if pre_commands and not pre_commands_marker_path.is_file():
-        env = os.environ.copy()
-        runtime_env = runtime.get("env")
-        if isinstance(runtime_env, dict):
-            for key, value in runtime_env.items():
-                if not isinstance(key, str):
-                    continue
-                env[key] = str(value)
-        for index, command_template in enumerate(pre_commands, start=1):
-            command = _expand_runtime_command(
-                command_template,
-                benchmark_path=benchmark_path,
-                project_root=project_root,
-                run_dir=run_dir,
-            )
-            stdout_path = run_dir / f"pre_command_{index}.stdout.log"
-            stderr_path = run_dir / f"pre_command_{index}.stderr.log"
-            try:
-                completed = subprocess.run(
-                    command,
-                    cwd=str(project_root),
-                    text=True,
-                    capture_output=True,
-                    env=env,
-                    timeout=timeout_seconds,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired as exc:
-                stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
-                stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
-                return _benchmark_failure_payload(
-                    status="timeout",
-                    stdout_path=stdout_path,
-                    stderr_path=stderr_path,
-                    extra={
-                        "reason": f"runtime.pre_commands[{index}] timed out",
-                        "pre_command": command,
-                        "pre_command_index": index,
-                    },
-                )
-            except (OSError, ValueError) as exc:
-                stderr_path.write_text(str(exc), encoding="utf-8")
-                return _benchmark_failure_payload(
-                    status="crash",
-                    stdout_path=stdout_path,
-                    stderr_path=stderr_path,
-                    extra={
-                        "reason": str(exc),
-                        "pre_command": command,
-                        "pre_command_index": index,
-                    },
-                )
-
-            stdout_text = str(completed.stdout or "")
-            stderr_text = str(completed.stderr or "")
-            stdout_path.write_text(stdout_text, encoding="utf-8")
-            stderr_path.write_text(stderr_text, encoding="utf-8")
-            if completed.returncode != 0:
-                return _benchmark_failure_payload(
-                    status="crash",
-                    stdout_path=stdout_path,
-                    stderr_path=stderr_path,
-                    extra={
-                        "reason": (
-                            "runtime.pre_commands"
-                            f"[{index}] failed with return code {int(completed.returncode)}"
-                        ),
-                        "return_code": int(completed.returncode),
-                        "pre_command": command,
-                        "pre_command_index": index,
-                    },
-                )
-        pre_commands_marker_path.write_text(
-            json.dumps(
-                {
-                    "ok": True,
-                    "updated_at_utc": optimize_state.utc_now_z(),
-                    "commands": pre_commands,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+    pre_command_failure = _run_runtime_pre_commands_once(
+        project_root,
+        runtime=runtime,
+        benchmark_path=benchmark_path,
+        run_dir=run_dir,
+        timeout_seconds=timeout_seconds,
+        marker_filename="pre_commands.ok.json",
+        log_prefix="pre_command",
+        reason_context="runtime.pre_commands",
+    )
+    if pre_command_failure is not None:
+        return pre_command_failure
 
     for index in range(warmup_runs):
         warmup = _run_benchmark_once(
@@ -4316,7 +4356,9 @@ def _goal_validation_cache_key(
     return hashlib.sha256(key_material.encode("utf-8")).hexdigest()
 
 
-def _goal_validation_cache_lookup(project_root: Path, cache_key: str) -> dict[str, Any] | None:
+def _goal_validation_cache_lookup(
+    project_root: Path, cache_key: str
+) -> dict[str, Any] | None:
     state_path = optimize_state.state_path(project_root)
     state_payload = optimize_state.load_state(state_path)
     if not isinstance(state_payload, dict):
@@ -4401,7 +4443,9 @@ def _goal_runner_contract_errors(
         errors.append("Goal benchmark runtime.command must include `--benchmark`.")
     else:
         if benchmark_flag_index + 1 >= len(command):
-            errors.append("Goal benchmark runtime.command `--benchmark` requires an argument.")
+            errors.append(
+                "Goal benchmark runtime.command `--benchmark` requires an argument."
+            )
         else:
             benchmark_arg = str(command[benchmark_flag_index + 1] or "").strip()
             benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
@@ -4415,7 +4459,9 @@ def _goal_runner_contract_errors(
     if "--emit-json" not in command:
         errors.append("Goal benchmark runtime.command must include `--emit-json`.")
 
-    runner_rel = optimize_state.safe_relative(runner_path, project_root).replace("\\", "/")
+    runner_rel = optimize_state.safe_relative(runner_path, project_root).replace(
+        "\\", "/"
+    )
     runner_abs = str(runner_path).replace("\\", "/")
     runner_name = runner_path.name
     runner_referenced = False
@@ -4423,7 +4469,9 @@ def _goal_runner_contract_errors(
         normalized_token = str(token or "").strip().replace("\\", "/")
         if not normalized_token:
             continue
-        token_name = Path(normalized_token).name if "/" in normalized_token else normalized_token
+        token_name = (
+            Path(normalized_token).name if "/" in normalized_token else normalized_token
+        )
         if (
             normalized_token == runner_rel
             or normalized_token == runner_abs
@@ -4889,7 +4937,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 else:
                     resume_language = "python"
             try:
-                resume_benchmark_text = resume_benchmark_path.read_text(encoding="utf-8")
+                resume_benchmark_text = resume_benchmark_path.read_text(
+                    encoding="utf-8"
+                )
             except OSError as exc:
                 raise cli.PackageError(
                     f"Cannot read resume benchmark file: {exc}"
@@ -5877,6 +5927,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     editable_paths = _benchmark_editable_paths(benchmark_payload)
     immutable_paths = _benchmark_immutable_paths(benchmark_payload)
     worker_loop_config = _resolve_worker_loop_config(args, benchmark_payload)
+    worker_runtime = _runtime_config(benchmark_payload)
     agents_md = optimize_prompts.build_optimize_agents_md(
         benchmark_rel=benchmark_rel,
         program_rel=program_rel,
@@ -5954,6 +6005,36 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             rel_paths=worker_iteration_sync_paths,
         )
         optimize_git.cleanup_paths(worker_repo_dir, sorted(worker_hidden_paths))
+        if iteration == 1:
+            worker_benchmark_rel = _normalize_rel_path(benchmark_rel)
+            worker_benchmark_path = worker_repo_dir / worker_benchmark_rel
+            if not worker_benchmark_path.is_file():
+                worker_benchmark_path = benchmark_path
+            cli._print_tagged(
+                "optimize",
+                "running worker runtime.pre_commands before first worker iteration",
+            )
+            worker_prebuild_failure = _run_runtime_pre_commands_once(
+                worker_repo_dir,
+                runtime=worker_runtime,
+                benchmark_path=worker_benchmark_path,
+                run_dir=run_dir,
+                timeout_seconds=timeout_seconds,
+                marker_filename="worker_pre_commands.ok.json",
+                log_prefix="worker_pre_command",
+                reason_context="runtime.pre_commands",
+            )
+            if worker_prebuild_failure is not None:
+                _write_run_json(
+                    run_dir, "worker_prebuild_result.json", worker_prebuild_failure
+                )
+                reason = str(worker_prebuild_failure.get("reason") or "").strip()
+                status = str(worker_prebuild_failure.get("status") or "").strip()
+                detail = reason or status or "unknown failure"
+                raise cli.PackageError(
+                    "Worker runtime.pre_commands prebuild failed before first worker "
+                    f"iteration: {detail}"
+                )
 
         def _run_worker_turn(
             loop_iteration: int,
