@@ -61,7 +61,7 @@ cd pyscf/lib
 mkdir -p build
 cd build
 cmake ..
-cmake -j
+cmake --build . --parallel
 cd ../../../
 python -m pip install -e .
 python -m pip install PyYAML
