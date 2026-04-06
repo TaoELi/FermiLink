@@ -48,12 +48,9 @@ benchmark cases (including both setup and kernel phases).
 - No case-specific shortcuts keyed on molecule identity
 
 ## Representative Workloads
-- train-o2: O2 / 6-31g / UHF (spin=2) / DIIS space=12
 - train-h2o: H2O / 6-31g / RHF / DIIS space=12
 - test-h2o: H2O / cc-pVDZ / RHF / DIIS space=12
 - test-nh3: NH3 / cc-pVDZ / RHF / DIIS space=12
-- test-o2: O2 / cc-pVDZ / UHF (spin=2) / DIIS space=12
-- test-no: NO / cc-pVDZ / UHF (spin=1) / DIIS space=12
 
 ## Build
 ```bash
@@ -75,7 +72,6 @@ python -m pip install PyYAML
   ```yaml
   split:
     train_case_ids:
-      - train-o2
       - train-h2o
   ```
 - Always rebuild the C backend of PySCF (via cmake mentioned in ## Build) as we now modify only the C files in PySCF.

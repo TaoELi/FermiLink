@@ -969,15 +969,34 @@ def _objective_primary_for_context(
     return 1.0 if incumbent_metrics else None
 
 
+def _compact_metrics_for_state(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Drop heavy per-run details before persisting campaign state."""
+    return {key: copy.deepcopy(value) for key, value in metrics.items() if key != "raw_runs"}
+
+
+def _compact_existing_state_metrics(state_payload: dict[str, Any]) -> bool:
+    """Compact legacy state payloads that still persist raw benchmark runs."""
+    changed = False
+    for key in ("baseline_metrics", "incumbent_metrics"):
+        metrics = state_payload.get(key)
+        if not isinstance(metrics, dict):
+            continue
+        if "raw_runs" not in metrics:
+            continue
+        state_payload[key] = _compact_metrics_for_state(metrics)
+        changed = True
+    return changed
+
+
 def _normalize_incumbent_metrics_for_state(
     benchmark: dict[str, Any],
     *,
     primary_metric_name: str,
     metrics: dict[str, Any],
 ) -> dict[str, Any]:
+    normalized = _compact_metrics_for_state(metrics)
     if not _objective_incumbent_relative_primary(benchmark):
-        return metrics
-    normalized = copy.deepcopy(metrics)
+        return normalized
     summary = normalized.get("summary_metrics")
     if not isinstance(summary, dict):
         summary = {}
@@ -5670,6 +5689,8 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             results_rel=results_rel,
             branch_name=branch_name,
         )
+    else:
+        _compact_existing_state_metrics(state_payload)
     state_payload["branch"] = branch_name
     optimize_state.write_state(state_path, state_payload)
 
@@ -5782,7 +5803,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 "Baseline benchmark completed but did not satisfy correctness gates."
             )
         state_payload["baseline_commit"] = baseline_commit
-        state_payload["baseline_metrics"] = baseline_metrics
+        state_payload["baseline_metrics"] = _compact_metrics_for_state(baseline_metrics)
         state_payload["incumbent_commit"] = baseline_commit
         state_payload["incumbent_metrics"] = _normalize_incumbent_metrics_for_state(
             evaluation_benchmark_payload,

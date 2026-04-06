@@ -184,6 +184,19 @@ def build_optimize_prompt(
     direction = str(primary.get("direction") or "minimize")
     latest_commit = str(state_payload.get("incumbent_commit") or "unknown")
     latest_metric = state_payload.get("incumbent_primary_metric")
+    if not isinstance(latest_metric, (int, float)):
+        incumbent_metrics = (
+            state_payload.get("incumbent_metrics")
+            if isinstance(state_payload.get("incumbent_metrics"), dict)
+            else {}
+        )
+        summary_metrics = (
+            incumbent_metrics.get("summary_metrics")
+            if isinstance(incumbent_metrics, dict)
+            else {}
+        )
+        if isinstance(summary_metrics, dict):
+            latest_metric = summary_metrics.get(primary_metric)
     latest_metric_text = (
         f"{latest_metric:.12g}"
         if isinstance(latest_metric, (int, float))

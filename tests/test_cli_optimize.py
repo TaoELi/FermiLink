@@ -14,6 +14,7 @@ from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink.cli import optimize_git
 from fermilink.cli import optimize_controller
+from fermilink.cli import optimize_prompts
 from fermilink.cli import optimize_state
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
@@ -1032,6 +1033,35 @@ def test_incumbent_relative_primary_metric_normalization_helpers() -> None:
     assert context_primary == pytest.approx(1.0)
 
 
+def test_build_optimize_prompt_falls_back_to_nested_incumbent_summary_metrics() -> None:
+    benchmark_payload = {
+        "benchmark_id": "mock-solver",
+        "controller": {
+            "objective": {
+                "primary_metric": "weighted_median_wall_seconds",
+                "direction": "minimize",
+            }
+        },
+    }
+    prompt = optimize_prompts.build_optimize_prompt(
+        benchmark_payload=benchmark_payload,
+        benchmark_rel="scripts/benchmark.yaml",
+        program_rel=".fermilink-optimize/program.md",
+        controller_memory_rel=".fermilink-optimize/memory.md",
+        worker_memory_rel=".fermilink-optimize/worker_memory.md",
+        results_rel=".fermilink-optimize/results.tsv",
+        recent_results_text="",
+        state_payload={
+            "incumbent_commit": "abc123",
+            "incumbent_metrics": {
+                "summary_metrics": {"weighted_median_wall_seconds": 8.0}
+            },
+        },
+        editable_paths=["solver.py"],
+    )
+    assert "Current incumbent weighted_median_wall_seconds: 8" in prompt
+
+
 def test_optimize_quick_mode_plan_only_scaffolds(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1470,6 +1500,88 @@ def test_optimize_accepts_better_candidate(
     assert _git(repo_dir, "log", "--format=%s", "-1") == (
         "fermilink optimize iter 1: fast path"
     )
+
+
+def test_optimize_state_compacts_raw_runs_for_baseline_and_incumbent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+    benchmark_payload["controller"]["measured_runs"] = 2
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    _git(repo_dir, "add", "scripts/benchmark.yaml")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "set measured runs to 2",
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>clear benchmark win</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+        _write_solver_in_worker(kwargs, mode="FAST")
+        return {
+            "assistant_text": (
+                "<experiment_description>fast path</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+        ]
+    )
+
+    assert code == 0
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 1
+    assert "raw_runs" not in state["baseline_metrics"]
+    assert "raw_runs" not in state["incumbent_metrics"]
 
 
 def test_optimize_rejects_worse_candidate_and_restores_repo(
