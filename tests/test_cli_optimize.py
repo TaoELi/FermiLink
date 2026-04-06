@@ -609,6 +609,219 @@ def test_load_benchmark_split_requires_controller_test_cases(tmp_path: Path) -> 
         optimize_controller._load_benchmark(benchmark_path)
 
 
+def test_load_benchmark_rejects_invalid_runtime_pre_commands(tmp_path: Path) -> None:
+    benchmark_path = tmp_path / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: pre-command-shape\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - src/**\n"
+            "controller:\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  pre_commands:\n"
+            "    - python -m pip install -e .\n"
+            "  command:\n"
+            "    - python\n"
+            "    - -c\n"
+            "    - print('ok')\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(cli.PackageError, match="runtime.pre_commands\\[1\\]"):
+        optimize_controller._load_benchmark(benchmark_path)
+
+
+def test_run_benchmark_suite_executes_runtime_pre_commands_once_per_suite(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo-pre-commands"
+    scripts_dir = repo_dir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    (scripts_dir / "bench.py").write_text(
+        (
+            "from __future__ import annotations\n"
+            "\n"
+            "import argparse\n"
+            "import json\n"
+            "\n"
+            "\n"
+            "def main() -> int:\n"
+            "    parser = argparse.ArgumentParser()\n"
+            "    parser.add_argument('--benchmark', required=True)\n"
+            "    parser.add_argument('--emit-json', action='store_true')\n"
+            "    parser.parse_args()\n"
+            "    payload = {\n"
+            "        'benchmark_id': 'pre-command-test',\n"
+            "        'correctness_ok': True,\n"
+            "        'summary_metrics': {\n"
+            "            'weighted_median_wall_seconds': 1.0,\n"
+            "            'peak_rss_mb': 0.0,\n"
+            "        },\n"
+            "        'cases': [],\n"
+            "    }\n"
+            "    print(json.dumps(payload, sort_keys=True))\n"
+            "    return 0\n"
+            "\n"
+            "\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n"
+        ),
+        encoding="utf-8",
+    )
+    benchmark_path = repo_dir / "benchmark.yaml"
+    pre_counter = repo_dir / "pre_count.txt"
+    benchmark_payload = {
+        "schema_version": 1,
+        "benchmark_id": "pre-command-test",
+        "repo": {"editable_paths": ["solver.py"]},
+        "controller": {
+            "timeout_seconds": 30,
+            "warmup_runs": 1,
+            "measured_runs": 2,
+            "objective": {
+                "primary_metric": "weighted_median_wall_seconds",
+                "direction": "minimize",
+            },
+        },
+        "campaign": {"max_iterations": 1, "stop_on_consecutive_rejections": 1},
+        "correctness": {"mode": "runner_only"},
+        "runtime": {
+            "mode": "direct",
+            "pre_commands": [
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "from pathlib import Path; "
+                        "p = Path('pre_count.txt'); "
+                        "n = int(p.read_text(encoding='utf-8')) if p.exists() else 0; "
+                        "p.write_text(str(n + 1), encoding='utf-8')"
+                    ),
+                ]
+            ],
+            "command": [
+                sys.executable,
+                "scripts/bench.py",
+                "--benchmark",
+                "{benchmark}",
+                "--emit-json",
+            ],
+        },
+        "cases": [],
+    }
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    loaded_payload = optimize_controller._load_benchmark(benchmark_path)
+    run_dir = repo_dir / "runs" / "suite"
+
+    result = optimize_controller._run_benchmark_suite(
+        repo_dir,
+        benchmark_path=benchmark_path,
+        benchmark_payload=loaded_payload,
+        run_dir=run_dir,
+        timeout_seconds=30,
+    )
+
+    assert result["status"] == "ok"
+    assert result["correctness_ok"] is True
+    assert pre_counter.read_text(encoding="utf-8").strip() == "1"
+    assert (run_dir / "pre_command_1.stdout.log").is_file()
+    assert (run_dir / "pre_command_1.stderr.log").is_file()
+    assert (run_dir / "pre_commands.ok.json").is_file()
+
+
+def test_run_benchmark_suite_returns_failure_on_runtime_pre_command_crash(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo-pre-command-fail"
+    scripts_dir = repo_dir / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    (scripts_dir / "bench.py").write_text(
+        (
+            "from __future__ import annotations\n"
+            "import argparse\n"
+            "import json\n"
+            "\n"
+            "def main() -> int:\n"
+            "    parser = argparse.ArgumentParser()\n"
+            "    parser.add_argument('--benchmark', required=True)\n"
+            "    parser.add_argument('--emit-json', action='store_true')\n"
+            "    parser.parse_args()\n"
+            "    print(json.dumps({'benchmark_id': 'pre-command-fail', 'correctness_ok': True, 'summary_metrics': {'weighted_median_wall_seconds': 1.0}, 'cases': []}, sort_keys=True))\n"
+            "    return 0\n"
+            "\n"
+            "if __name__ == '__main__':\n"
+            "    raise SystemExit(main())\n"
+        ),
+        encoding="utf-8",
+    )
+    benchmark_path = repo_dir / "benchmark.yaml"
+    benchmark_payload = {
+        "schema_version": 1,
+        "benchmark_id": "pre-command-fail",
+        "repo": {"editable_paths": ["solver.py"]},
+        "controller": {
+            "timeout_seconds": 30,
+            "warmup_runs": 0,
+            "measured_runs": 1,
+            "objective": {
+                "primary_metric": "weighted_median_wall_seconds",
+                "direction": "minimize",
+            },
+        },
+        "campaign": {"max_iterations": 1, "stop_on_consecutive_rejections": 1},
+        "correctness": {"mode": "runner_only"},
+        "runtime": {
+            "mode": "direct",
+            "pre_commands": [[sys.executable, "-c", "import sys; sys.exit(3)"]],
+            "command": [
+                sys.executable,
+                "scripts/bench.py",
+                "--benchmark",
+                "{benchmark}",
+                "--emit-json",
+            ],
+        },
+        "cases": [],
+    }
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    loaded_payload = optimize_controller._load_benchmark(benchmark_path)
+    run_dir = repo_dir / "runs" / "suite"
+
+    result = optimize_controller._run_benchmark_suite(
+        repo_dir,
+        benchmark_path=benchmark_path,
+        benchmark_payload=loaded_payload,
+        run_dir=run_dir,
+        timeout_seconds=30,
+    )
+
+    assert result["status"] == "crash"
+    assert result["ok"] is False
+    assert "runtime.pre_commands[1] failed" in str(result.get("reason") or "")
+    assert (run_dir / "pre_command_1.stdout.log").is_file()
+    assert (run_dir / "pre_command_1.stderr.log").is_file()
+
+
 def test_compare_correctness_runner_only_uses_generic_case_checks() -> None:
     benchmark_payload = {
         "correctness": {

@@ -447,6 +447,21 @@ def _normalize_string_command_list(payload: object) -> list[str]:
     ]
 
 
+def _runtime_pre_commands(runtime: dict[str, Any]) -> list[list[str]]:
+    raw = runtime.get("pre_commands")
+    if not isinstance(raw, list):
+        return []
+    commands: list[list[str]] = []
+    for item in raw:
+        if not isinstance(item, list):
+            continue
+        command = [str(token).strip() for token in item if isinstance(token, str)]
+        command = [token for token in command if token]
+        if command:
+            commands.append(command)
+    return commands
+
+
 def _validate_field_tolerances_config(
     payload: object,
     *,
@@ -710,6 +725,23 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
         raise cli.PackageError(
             "Benchmark runtime.result_command must be a non-empty string list."
         )
+    pre_commands = runtime.get("pre_commands")
+    if pre_commands is not None:
+        if not isinstance(pre_commands, list) or not pre_commands:
+            raise cli.PackageError(
+                "Benchmark runtime.pre_commands must be a non-empty list of command token lists."
+            )
+        for index, command in enumerate(pre_commands, start=1):
+            if not isinstance(command, list) or not command:
+                raise cli.PackageError(
+                    "Benchmark runtime.pre_commands"
+                    f"[{index}] must be a non-empty string list."
+                )
+            if not all(isinstance(item, str) and item.strip() for item in command):
+                raise cli.PackageError(
+                    "Benchmark runtime.pre_commands"
+                    f"[{index}] must be a non-empty string list."
+                )
     _validate_optional_number(
         raw=runtime.get("submission_timeout_seconds"),
         label="Benchmark runtime.submission_timeout_seconds",
@@ -2910,6 +2942,95 @@ def _run_benchmark_suite(
     controller = _controller_config(benchmark_payload)
     warmup_runs = int(controller.get("warmup_runs") or 0)
     measured_runs = int(controller.get("measured_runs") or 1)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    runtime = _runtime_config(benchmark_payload)
+    pre_commands = _runtime_pre_commands(runtime)
+    pre_commands_marker_path = run_dir / "pre_commands.ok.json"
+    if pre_commands and not pre_commands_marker_path.is_file():
+        env = os.environ.copy()
+        runtime_env = runtime.get("env")
+        if isinstance(runtime_env, dict):
+            for key, value in runtime_env.items():
+                if not isinstance(key, str):
+                    continue
+                env[key] = str(value)
+        for index, command_template in enumerate(pre_commands, start=1):
+            command = _expand_runtime_command(
+                command_template,
+                benchmark_path=benchmark_path,
+                project_root=project_root,
+                run_dir=run_dir,
+            )
+            stdout_path = run_dir / f"pre_command_{index}.stdout.log"
+            stderr_path = run_dir / f"pre_command_{index}.stderr.log"
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=str(project_root),
+                    text=True,
+                    capture_output=True,
+                    env=env,
+                    timeout=timeout_seconds,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired as exc:
+                stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
+                stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
+                return _benchmark_failure_payload(
+                    status="timeout",
+                    stdout_path=stdout_path,
+                    stderr_path=stderr_path,
+                    extra={
+                        "reason": f"runtime.pre_commands[{index}] timed out",
+                        "pre_command": command,
+                        "pre_command_index": index,
+                    },
+                )
+            except (OSError, ValueError) as exc:
+                stderr_path.write_text(str(exc), encoding="utf-8")
+                return _benchmark_failure_payload(
+                    status="crash",
+                    stdout_path=stdout_path,
+                    stderr_path=stderr_path,
+                    extra={
+                        "reason": str(exc),
+                        "pre_command": command,
+                        "pre_command_index": index,
+                    },
+                )
+
+            stdout_text = str(completed.stdout or "")
+            stderr_text = str(completed.stderr or "")
+            stdout_path.write_text(stdout_text, encoding="utf-8")
+            stderr_path.write_text(stderr_text, encoding="utf-8")
+            if completed.returncode != 0:
+                return _benchmark_failure_payload(
+                    status="crash",
+                    stdout_path=stdout_path,
+                    stderr_path=stderr_path,
+                    extra={
+                        "reason": (
+                            "runtime.pre_commands"
+                            f"[{index}] failed with return code {int(completed.returncode)}"
+                        ),
+                        "return_code": int(completed.returncode),
+                        "pre_command": command,
+                        "pre_command_index": index,
+                    },
+                )
+        pre_commands_marker_path.write_text(
+            json.dumps(
+                {
+                    "ok": True,
+                    "updated_at_utc": optimize_state.utc_now_z(),
+                    "commands": pre_commands,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     for index in range(warmup_runs):
         warmup = _run_benchmark_once(

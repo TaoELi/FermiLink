@@ -54,6 +54,10 @@ REVIEW_NOTES_RE = re.compile(
     rf"<{REVIEW_NOTES_TAG}>\s*(.*?)\s*</{REVIEW_NOTES_TAG}>",
     re.IGNORECASE | re.DOTALL,
 )
+_NATIVE_EDITABLE_PATH_RE = re.compile(
+    r"\.(?:c|cc|cpp|cxx|h|hpp|f|f90|f95|f03|f08)(?:$|[^a-z0-9])",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +353,25 @@ def build_benchmark_generation_prompt(
     target = str(goal_spec.get("target") or "")
     metric = str(goal_spec.get("performance_metric") or "wall-clock time (minimize)")
     analysis_json = json.dumps(analysis, indent=2, sort_keys=True)
+    build_commands = goal_spec.get("build_commands")
+    has_build_commands = isinstance(build_commands, list) and any(
+        str(item or "").strip() for item in build_commands
+    )
+    editable_scope = goal_spec.get("editable_scope")
+    has_native_editable_scope = False
+    if isinstance(editable_scope, list):
+        has_native_editable_scope = any(
+            _NATIVE_EDITABLE_PATH_RE.search(str(item or "").strip().lower())
+            for item in editable_scope
+        )
+    pre_commands_guidance = ""
+    if has_build_commands and has_native_editable_scope:
+        pre_commands_guidance = (
+            "- `runtime.pre_commands`: REQUIRED for this goal. Include one or more\n"
+            "  command token lists that rebuild/install the native backend before\n"
+            "  benchmark execution. Derive these from the goal `## Build` section.\n"
+            "  For shell pipelines, wrap as `['bash', '-lc', '...']`.\n"
+        )
 
     return (
         "You are generating benchmark files for FermiLink goal-driven optimization.\n"
@@ -407,6 +430,7 @@ def build_benchmark_generation_prompt(
         "  from source-analysis output quantities.\n"
         "  If `correctness.mode: field_tolerances`, then\n"
         "  `correctness.field_tolerances` MUST be a non-empty list.\n"
+        "  Never emit an empty `field_tolerances` list.\n"
         "  Use `mode: runner_only` ONLY when no numeric/scientific output fields can be\n"
         "  extracted for comparison. If you must use `runner_only`, set\n"
         "  `allow_runner_only: true` and explain why in review notes.\n"
@@ -416,6 +440,7 @@ def build_benchmark_generation_prompt(
         "    with `--benchmark {benchmark} --emit-json` arguments.\n"
         "    Use the correct interpreter for the language (python/bash).\n"
         "  - `env`: set appropriate thread/parallelism variables\n"
+        f"{pre_commands_guidance}"
         "- `cases`: 3–6 test cases from the source analysis, each with:\n"
         "  - `id`, `weight`, and any case-specific parameters\n"
         "\n"

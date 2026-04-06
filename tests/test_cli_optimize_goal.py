@@ -308,6 +308,42 @@ class TestPromptConstruction:
         assert "MUST be a non-empty list" in prompt
         assert "Never emit an empty `field_tolerances` list." in prompt
 
+    def test_benchmark_generation_prompt_requires_pre_commands_for_native_builds(
+        self,
+    ) -> None:
+        native_goal = (
+            "# Optimization Goal\n\n"
+            "## Package\n"
+            "pyscf\n\n"
+            "## Language\n"
+            "python\n\n"
+            "## Target\n"
+            "Tune native backend.\n\n"
+            "## Editable Scope\n"
+            "- pyscf/lib/vhf/*.c\n\n"
+            "## Build\n"
+            "```bash\n"
+            "cd pyscf/lib/build\n"
+            "cmake ..\n"
+            "cmake --build . -j\n"
+            "```\n"
+        )
+        spec = optimize_goal.parse_goal(native_goal)
+        prompt = optimize_source_analysis.build_benchmark_generation_prompt(
+            goal_spec=spec,
+            goal_rel="goal.md",
+            analysis={"package": "pyscf", "entry_points": []},
+            analysis_rel=".fermilink-optimize/autogen/goal_analysis.json",
+            language="python",
+            runner_template="# runner template",
+            benchmark_template="# benchmark template",
+            autogen_benchmark_rel=".fermilink-optimize/autogen/benchmark.yaml",
+            autogen_runner_rel=".fermilink-optimize/autogen/benchmark_runner.py",
+        )
+        assert "runtime.pre_commands" in prompt
+        assert "REQUIRED for this goal" in prompt
+        assert "bash', '-lc'" in prompt
+
 
 # ---------------------------------------------------------------------------
 # State paths
