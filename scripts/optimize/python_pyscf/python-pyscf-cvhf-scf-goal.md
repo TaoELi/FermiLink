@@ -57,18 +57,14 @@ benchmark cases (including both setup and kernel phases).
 
 ## Build
 ```bash
-python -m pip install -U pip setuptools wheel
-export CMAKE_CONFIGURE_ARGS="${CMAKE_CONFIGURE_ARGS:-} -DBUILD_MARCH_NATIVE=ON"
-python -m pip install -e .
-python -m pip install PyYAML
-```
-
-```bash
 cd pyscf/lib
 mkdir -p build
 cd build
-cmake .. ${CMAKE_CONFIGURE_ARGS:-}
-cmake --build . -j
+cmake ..
+cmake -j
+cd ../../../
+python -m pip install -e .
+python -m pip install PyYAML
 ```
 
 ## Notes
