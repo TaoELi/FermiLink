@@ -305,6 +305,8 @@ class TestPromptConstruction:
         assert "benchmark_yaml" in prompt
         assert "runner_script" in prompt
         assert "runner_only" in prompt or "field_tolerances" in prompt
+        assert "MUST be a non-empty list" in prompt
+        assert "Never emit an empty `field_tolerances` list." in prompt
 
 
 # ---------------------------------------------------------------------------

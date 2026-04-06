@@ -405,6 +405,8 @@ def build_benchmark_generation_prompt(
         "  - `reject_on`: `[crash, timeout, missing_metrics, correctness_failure]`\n"
         "- `correctness`: prefer `mode: field_tolerances` with tolerance specs derived\n"
         "  from source-analysis output quantities.\n"
+        "  If `correctness.mode: field_tolerances`, then\n"
+        "  `correctness.field_tolerances` MUST be a non-empty list.\n"
         "  Use `mode: runner_only` ONLY when no numeric/scientific output fields can be\n"
         "  extracted for comparison. If you must use `runner_only`, set\n"
         "  `allow_runner_only: true` and explain why in review notes.\n"
