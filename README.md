@@ -4,9 +4,10 @@
 
 <p align="center">
   <a href="https://taoeli.github.io/FermiLink/"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge"></a>
-    <a href="https://pypi.org/project/fermilink/"><img src="https://img.shields.io/pypi/v/maxwelllink.svg?label=pypi&logo=pypi" alt="PyPI version"></a>
+    <a href="https://pypi.org/project/fermilink/"><img src="https://img.shields.io/pypi/v/fermilink.svg?label=pypi&logo=pypi" alt="PyPI version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
+  <a href="https://arxiv.org/abs/2604.03460"><img src="https://img.shields.io/badge/arXiv-2604.03460-b31b1b.svg" alt="arXiv:2604.03460"></a>
 </p>
 
 # FermiLink: Unified Agent Framework for Multidomain Autonomous Scientific Simulations
@@ -75,4 +76,4 @@ To accommodate simulations at different scopes, as demonstrated below, **FermiLi
 
 If you find **FermiLink** helpful for your research, please cite the following reference:
 
-- Gang Meng†, Andres Felipe Bocanegra Vargas†, Xinwei Ji†, Federico Garcia-Gaitan, Felipe Reyes-Osorio, Jalil Varela-Manjarres, Yafei Ren, Mohammadhasan Dinpajooh, Branislav K. Nikolić, Tao E. Li. *FermiLink: A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. **Submitted to arXiv** (2026).
+- Gang Meng†, Andres Felipe Bocanegra Vargas†, Xinwei Ji†, Federico Garcia-Gaitan, Felipe Reyes-Osorio, Jalil Varela-Manjarres, Yafei Ren, Mohammadhasan Dinpajooh, Branislav K. Nikolić, Tao E. Li. *FermiLink: A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. [**arXiv:2604.03460** (2026)](https://arxiv.org/abs/2604.03460).
