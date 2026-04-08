@@ -34,19 +34,23 @@ You can also use the manual workflow directly:
 # 1. Install
 pip install fermilink
 
-# 2. Install at least one scientific package knowledge base
+# 2. (Recommended) initialize a workspace with onboarding AGENTS.md
+mkdir my-fermilink-workspace && cd my-fermilink-workspace
+fermilink init .
+
+# 3. Install at least one scientific package knowledge base
 fermilink install meep
 
-# 3. set up the agent provider 
+# 4. set up the agent provider
 fermilink agent codex/claude/gemini
 
-# 4.1. Use command-line tool to do autonomous scientific research
+# 5.1. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
 
-# 4.2. Start web UI service for ChatGPT-like experience
+# 5.2. Start web UI service for ChatGPT-like experience
 fermilink start
 
-# 4.3. Start the gateway for supporting Chatbots via Telegram
+# 5.3. Start the gateway for supporting Chatbots via Telegram
 export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
 export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 fermilink gateway

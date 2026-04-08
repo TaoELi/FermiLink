@@ -28,6 +28,27 @@ Below are the detailed instructions for the three major workflows of FermiLink: 
    :align: center
    :width: 95%
 
+Workspace bootstrap: ``init`` / ``clean``
+-----------------------------------------
+
+Use ``fermilink init`` to bootstrap a local workspace with FermiLink knowledge base:
+
+.. code-block:: bash
+
+   fermilink init
+
+Then you can talk with any AI agent installed in your machine (OpenAI Codex,
+Claude Code, Gemini CLI, their desktop apps, or VS Code extensions, etc) to
+learn how to run FermiLink as a Pro.
+
+After learning the ropes, you can use ``fermilink clean`` to reset the
+workspace to a clean state and start fresh.
+
+.. code-block:: bash
+
+   fermilink clean
+
+
 ``exec``: One-shot execution in the current repo
 ---------------------------------------------------
 
