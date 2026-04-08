@@ -12,8 +12,9 @@ def register_workspace_parsers(
     *,
     cmd_init: CommandHandler,
     cmd_clean: CommandHandler,
+    cmd_hpc: CommandHandler,
 ) -> None:
-    """Register parser arguments for workspace init/clean."""
+    """Register parser arguments for workspace init/clean/hpc."""
 
     init_parser = subparsers.add_parser(
         "init",
@@ -54,3 +55,22 @@ def register_workspace_parsers(
         help="Remove conflicting managed paths even when they were modified.",
     )
     clean_parser.set_defaults(func=cmd_clean)
+
+    hpc_parser = subparsers.add_parser(
+        "hpc",
+        help=(
+            "Manage persistent HPC profile settings used as defaults by "
+            "exec/loop/research/reproduce."
+        ),
+    )
+    hpc_subparsers = hpc_parser.add_subparsers(dest="hpc_command", required=False)
+    hpc_set_parser = hpc_subparsers.add_parser(
+        "set",
+        help="Install a global HPC profile from JSON.",
+    )
+    hpc_set_parser.add_argument(
+        "file",
+        type=str,
+        help="Path to a JSON profile file.",
+    )
+    hpc_parser.set_defaults(func=cmd_hpc)

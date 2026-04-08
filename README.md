@@ -44,13 +44,16 @@ fermilink install meep
 # 4. set up the agent provider
 fermilink agent codex/claude/gemini
 
-# 5.1. Use command-line tool to do autonomous scientific research
+# 5. (Optional) initialize default HPC profile at ~/.fermilink/HPC_PROFILE.json
+fermilink hpc
+
+# 6.1. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
 
-# 5.2. Start web UI service for ChatGPT-like experience
+# 6.2. Start web UI service for ChatGPT-like experience
 fermilink start
 
-# 5.3. Start the gateway for supporting Chatbots via Telegram
+# 6.3. Start the gateway for supporting Chatbots via Telegram
 export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
 export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 fermilink gateway

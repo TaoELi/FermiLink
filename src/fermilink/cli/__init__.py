@@ -368,6 +368,7 @@ _cmd_loop = session_commands.cmd_loop
 _cmd_exec = session_commands.cmd_exec
 _cmd_init = workspace_commands.cmd_init
 _cmd_clean = workspace_commands.cmd_clean
+_cmd_hpc = workspace_commands.cmd_hpc
 _cmd_gateway = gateway_commands.cmd_gateway
 _cmd_optimize = optimize_commands.cmd_optimize
 

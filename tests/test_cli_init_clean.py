@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import tempfile
 
@@ -251,3 +252,103 @@ def test_standalone_init_clean_entrypoints(
     assert not (workdir / "skills").exists()
     assert not (workdir / "CLAUDE.md").exists()
     assert not (workdir / "GEMINI.md").exists()
+
+
+def test_cli_hpc_creates_default_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    profile = home / "HPC_PROFILE.json"
+    assert not profile.exists()
+
+    assert cli.main(["hpc"]) == 0
+    assert profile.is_file()
+    payload = json.loads(profile.read_text(encoding="utf-8"))
+    assert payload["slurm_default_partition"] == "shared"
+    assert payload["slurm_defaults"]
+    assert payload["slurm_resource_policy"]
+
+    first_text = profile.read_text(encoding="utf-8")
+    assert cli.main(["hpc"]) == 0
+    assert profile.read_text(encoding="utf-8") == first_text
+
+
+def test_cli_hpc_migrates_legacy_default_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    home.mkdir(parents=True, exist_ok=True)
+    legacy = home / "hpc_profile.json"
+    legacy.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "debug",
+                "slurm_defaults": "--nodes=1 --ntasks=4 --time=00:10:00",
+                "slurm_resource_policy": "legacy",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["hpc"]) == 0
+    canonical = home / "HPC_PROFILE.json"
+    assert canonical.is_file()
+    payload = json.loads(canonical.read_text(encoding="utf-8"))
+    assert payload["slurm_default_partition"] == "debug"
+    assert payload["slurm_defaults"] == "--nodes=1 --ntasks=4 --time=00:10:00"
+    assert payload["slurm_resource_policy"] == "legacy"
+
+
+def test_cli_hpc_set_installs_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    source = tmp_path / "custom_profile.json"
+    source.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "gpu",
+                "slurm_defaults": "--nodes=1 --gpus=1 --time=02:00:00",
+                "slurm_resource_policy": "Prefer gpu queue",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["hpc", "set", str(source)]) == 0
+    profile = home / "HPC_PROFILE.json"
+    payload = json.loads(profile.read_text(encoding="utf-8"))
+    assert payload["slurm_default_partition"] == "gpu"
+    assert payload["slurm_defaults"] == "--nodes=1 --gpus=1 --time=02:00:00"
+    assert payload["slurm_resource_policy"] == "Prefer gpu queue"
+
+
+def test_cli_hpc_set_rejects_invalid_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    source = tmp_path / "invalid_profile.json"
+    source.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main(["hpc", "set", str(source)]) == 2
+    assert "missing required `slurm_resource_policy`" in capsys.readouterr().err
