@@ -30,6 +30,10 @@ GOAL_RUNNER_FILENAME = "benchmark_runner.py"
 GOAL_SUBMIT_FILENAME = "submit_poll_launcher.py"
 GOAL_SETUP_FILENAME = "setup_env.sh"
 GOAL_RUN_SCRIPT_FILENAME = "run_optimize.sh"
+INPUTS_DIRNAME = "inputs"
+GOAL_INPUTS_ALL_DIRNAME = "all"
+GOAL_INPUTS_WORKER_DIRNAME = "worker"
+GOAL_INPUTS_MANIFEST_FILENAME = "goal_inputs.json"
 
 RESULTS_HEADER = "iteration\tcommit\tstatus\tprimary_metric_name\tprimary_metric_value\tdescription\n"
 
@@ -128,6 +132,22 @@ def goal_setup_path(project_root: Path) -> Path:
 
 def goal_run_script_path(project_root: Path) -> Path:
     return autogen_root(project_root) / GOAL_RUN_SCRIPT_FILENAME
+
+
+def inputs_root(project_root: Path) -> Path:
+    return optimize_root(project_root) / INPUTS_DIRNAME
+
+
+def goal_inputs_all_root(project_root: Path) -> Path:
+    return inputs_root(project_root) / GOAL_INPUTS_ALL_DIRNAME
+
+
+def goal_inputs_worker_root(project_root: Path) -> Path:
+    return inputs_root(project_root) / GOAL_INPUTS_WORKER_DIRNAME
+
+
+def goal_inputs_manifest_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_INPUTS_MANIFEST_FILENAME
 
 
 def default_program_path(project_root: Path) -> Path:

@@ -31,7 +31,7 @@ plus any include-chain files referenced by those LAMMPS inputs).
 
 ## Performance Metric
 Minimize weighted median wall-clock seconds per fixed step block for a
-fixed-size MPI run with exactly 16 ranks.
+fixed-size MPI run with exactly 1 rank.
 
 Benchmark should record both end-to-end runtime and normalized throughput
 (for example, ns/day or steps/second) for the same simulation length, with
@@ -53,16 +53,22 @@ the primary objective set to runtime minimization.
 
 ## Build
 ```bash
-cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
-cmake --build build -j
+mkdir build/
+cd build/ 
+cmake -C ../cmake/presets/most.cmake -C ../cmake/presets/nolib.cmake -D PKG_GPU=off ../cmake
+make -j 4
+# local lmp executable available at build/lmp
+# create symbolic link of lmp so it is usable globally
+rm ~/.local/bin/lmp
+ln -s $(pwd)/lmp ~/.local/bin/lmp
 ```
 
 ## Notes
 - Treat the attached LAMMPS input file(s) as the source of truth for runtime settings and any include-chain files.
 - Prefer localized C++ optimizations over broad architecture rewrites.
 - Keep benchmark execution deterministic: fixed thread settings, fixed random seeds (if any), and explicit launch command.
-- Enforce MPI benchmarking with exactly 16 ranks for both baseline and candidate runs.
-- In generated benchmark runtime command, invoke LAMMPS via MPI launcher with 16 ranks (for example `mpirun -np 16 ...` or `mpiexec -n 16 ...`).
+- Enforce MPI benchmarking with exactly 1 rank for both baseline and candidate runs.
+- In generated benchmark runtime command, invoke LAMMPS via MPI launcher with 1 rank (for example `mpirun -np 16 ...` or `mpiexec -n 16 ...`).
 - Set `OMP_NUM_THREADS=1` unless a case explicitly requires hybrid MPI+OpenMP, and keep this setting identical across baseline/candidate runs.
 - In generated benchmark YAML, include a split block so worker sees train cases only:
   ```yaml

@@ -307,6 +307,10 @@ class TestPromptConstruction:
         assert "runner_only" in prompt or "field_tolerances" in prompt
         assert "MUST be a non-empty list" in prompt
         assert "Never emit an empty `field_tolerances` list." in prompt
+        assert "FERMILINK_GOAL_INPUT_ROOT" in prompt
+        assert "run from the resolved input-root" in prompt
+        assert "Do not infer input roots from fixed benchmark-path parent depth." in prompt
+        assert "hard-coded `..` parent-depth assumptions" in prompt
 
     def test_benchmark_generation_prompt_requires_pre_commands_for_native_builds(
         self,
@@ -368,6 +372,185 @@ class TestGoalStatePaths:
         assert str(benchmark).startswith(autogen)
         assert str(runner).startswith(autogen)
         assert str(manifest).startswith(autogen)
+
+
+# ---------------------------------------------------------------------------
+# Goal input staging
+# ---------------------------------------------------------------------------
+
+
+class TestGoalInputStaging:
+    def test_stage_goal_referenced_inputs_copies_external_workload_files(
+        self, tmp_path: Path
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        goal_root = tmp_path / "goal_bundle"
+        goal_root.mkdir(parents=True, exist_ok=True)
+
+        goal_path = goal_root / "goal.md"
+        goal_path.write_text(MINIMAL_GOAL, encoding="utf-8")
+        (goal_root / "in.tip4p_nve").write_text("run 100\n", encoding="utf-8")
+        (goal_root / "water_216_data.lmp").write_text("atoms\n", encoding="utf-8")
+        (goal_root / "sub").mkdir(parents=True, exist_ok=True)
+        (goal_root / "sub" / "settings.inc").write_text("pair_style\n", encoding="utf-8")
+
+        staged = optimize_controller._stage_goal_referenced_inputs(
+            repo_root,
+            goal_path=goal_path,
+            goal_spec={
+                "raw_text": MINIMAL_GOAL,
+                "workloads": [
+                    "train-small: `lmp -in in.tip4p_nve -var data water_216_data.lmp`",
+                    'train-medium: "--config sub/settings.inc"',
+                    "train-large: missing/data.missing",
+                ],
+            },
+        )
+
+        all_root = optimize_state.goal_inputs_all_root(repo_root)
+        assert staged["all_root"] == all_root
+        assert (all_root / "in.tip4p_nve").is_file()
+        assert (all_root / "water_216_data.lmp").is_file()
+        assert (all_root / "sub" / "settings.inc").is_file()
+        assert set(staged["all_files"]) == {
+            "in.tip4p_nve",
+            "water_216_data.lmp",
+            "sub/settings.inc",
+        }
+        assert staged["case_file_map"] == {
+            "train-small": ["in.tip4p_nve", "water_216_data.lmp"],
+            "train-medium": ["sub/settings.inc"],
+        }
+        missing = staged["missing_references"]
+        assert isinstance(missing, list)
+        assert len(missing) == 1
+        assert missing[0]["case_id"] == "train-large"
+        assert missing[0]["reference"] == "missing/data.missing"
+        manifest = json.loads(
+            optimize_state.goal_inputs_manifest_path(repo_root).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["all_root_rel"] == ".fermilink-optimize/inputs/all"
+        assert manifest["worker_root_rel"] == ".fermilink-optimize/inputs/worker"
+
+    def test_prepare_goal_worker_inputs_subset_uses_train_cases_with_split(
+        self, tmp_path: Path
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        all_root = optimize_state.goal_inputs_all_root(repo_root)
+        all_root.mkdir(parents=True, exist_ok=True)
+        (all_root / "shared").mkdir(parents=True, exist_ok=True)
+        (all_root / "train").mkdir(parents=True, exist_ok=True)
+        (all_root / "test").mkdir(parents=True, exist_ok=True)
+        (all_root / "shared" / "common.in").write_text("common\n", encoding="utf-8")
+        (all_root / "train" / "train-a.in").write_text("train\n", encoding="utf-8")
+        (all_root / "test" / "test-a.in").write_text("test\n", encoding="utf-8")
+
+        optimize_state.ensure_autogen_root(repo_root)
+        optimize_state.write_json_file(
+            optimize_state.goal_inputs_manifest_path(repo_root),
+            {
+                "schema_version": 1,
+                "all_files": [
+                    "shared/common.in",
+                    "train/train-a.in",
+                    "test/test-a.in",
+                ],
+                "shared_files": ["shared/common.in"],
+                "case_file_map": {
+                    "train-a": ["train/train-a.in"],
+                    "test-a": ["test/test-a.in"],
+                },
+            },
+        )
+
+        subset = optimize_controller._prepare_goal_worker_inputs_subset(
+            repo_root,
+            split_enabled=True,
+            train_case_ids=["train-a"],
+        )
+
+        worker_root = optimize_state.goal_inputs_worker_root(repo_root)
+        assert subset["enabled"] is True
+        assert subset["fallback_reason"] == ""
+        assert set(subset["worker_files"]) == {"shared/common.in", "train/train-a.in"}
+        assert (worker_root / "shared" / "common.in").is_file()
+        assert (worker_root / "train" / "train-a.in").is_file()
+        assert not (worker_root / "test" / "test-a.in").exists()
+
+    def test_prepare_goal_worker_inputs_subset_falls_back_when_train_unmapped(
+        self, tmp_path: Path
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        all_root = optimize_state.goal_inputs_all_root(repo_root)
+        all_root.mkdir(parents=True, exist_ok=True)
+        (all_root / "shared").mkdir(parents=True, exist_ok=True)
+        (all_root / "test").mkdir(parents=True, exist_ok=True)
+        (all_root / "shared" / "common.in").write_text("common\n", encoding="utf-8")
+        (all_root / "test" / "test-a.in").write_text("test\n", encoding="utf-8")
+
+        optimize_state.ensure_autogen_root(repo_root)
+        optimize_state.write_json_file(
+            optimize_state.goal_inputs_manifest_path(repo_root),
+            {
+                "schema_version": 1,
+                "all_files": ["shared/common.in", "test/test-a.in"],
+                "shared_files": ["shared/common.in"],
+                "case_file_map": {
+                    "test-a": ["test/test-a.in"],
+                },
+            },
+        )
+
+        subset = optimize_controller._prepare_goal_worker_inputs_subset(
+            repo_root,
+            split_enabled=True,
+            train_case_ids=["train-a"],
+        )
+
+        worker_root = optimize_state.goal_inputs_worker_root(repo_root)
+        assert subset["enabled"] is True
+        assert (
+            subset["fallback_reason"]
+            == "split_case_ids_not_mapped_in_goal_inputs_manifest"
+        )
+        assert set(subset["worker_files"]) == {"shared/common.in", "test/test-a.in"}
+        assert (worker_root / "shared" / "common.in").is_file()
+        assert (worker_root / "test" / "test-a.in").is_file()
+
+    def test_stage_goal_referenced_inputs_tolerates_tilde_nonpath_tokens(
+        self, tmp_path: Path
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        goal_root = tmp_path / "goal_bundle"
+        goal_root.mkdir(parents=True, exist_ok=True)
+
+        goal_path = goal_root / "goal.md"
+        goal_path.write_text(MINIMAL_GOAL, encoding="utf-8")
+        (goal_root / "in.tip4p_nve").write_text("run 100\n", encoding="utf-8")
+
+        staged = optimize_controller._stage_goal_referenced_inputs(
+            repo_root,
+            goal_path=goal_path,
+            goal_spec={
+                "raw_text": MINIMAL_GOAL,
+                "workloads": [
+                    "train-small: ~1000-steps use in.tip4p_nve",
+                    "train-large: ~nonexistent_user/input.lmp",
+                ],
+            },
+        )
+
+        assert "in.tip4p_nve" in set(staged["all_files"])
+        missing_refs = {
+            str(item.get("reference") or "") for item in staged["missing_references"]
+        }
+        assert "~nonexistent_user/input.lmp" in missing_refs
 
 
 # ---------------------------------------------------------------------------

@@ -1060,6 +1060,20 @@ def test_build_optimize_prompt_falls_back_to_nested_incumbent_summary_metrics() 
         editable_paths=["solver.py"],
     )
     assert "Current incumbent weighted_median_wall_seconds: 8" in prompt
+    assert "For Python-targeted experiments, `py-spy` is available" in prompt
+
+
+def test_build_optimize_agents_md_mentions_py_spy_for_python_profiling() -> None:
+    agents_md = optimize_prompts.build_optimize_agents_md(
+        benchmark_rel="scripts/benchmark.yaml",
+        program_rel=".fermilink-optimize/program.md",
+        controller_memory_rel=".fermilink-optimize/memory.md",
+        worker_memory_rel=".fermilink-optimize/worker_memory.md",
+        results_rel=".fermilink-optimize/results.tsv",
+        editable_paths=["solver.py"],
+        immutable_paths=["scripts/**"],
+    )
+    assert "For Python-targeted experiments, `py-spy` is available" in agents_md
 
 
 def test_optimize_quick_mode_plan_only_scaffolds(
@@ -1963,6 +1977,112 @@ def test_optimize_split_hides_test_cases_from_worker_and_evaluates_test_only(
     assert worker_repo.resolve() != repo_dir.resolve()
     assert (worker_repo / ".git").exists()
     assert not (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+
+
+def test_optimize_goal_mode_injects_absolute_goal_input_roots(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_split_optimize_repo(tmp_path)
+
+    all_root = optimize_state.goal_inputs_all_root(repo_dir)
+    all_root.mkdir(parents=True, exist_ok=True)
+    (all_root / "shared.dat").write_text("shared\n", encoding="utf-8")
+    optimize_state.ensure_autogen_root(repo_dir)
+    optimize_state.write_json_file(
+        optimize_state.goal_inputs_manifest_path(repo_dir),
+        {
+            "schema_version": 1,
+            "all_files": ["shared.dat"],
+            "shared_files": ["shared.dat"],
+            "case_file_map": {},
+        },
+    )
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    captured: dict[str, str] = {}
+
+    def fake_run_authoritative_benchmark_suite(*args, **kwargs):
+        payload = kwargs.get("benchmark_payload")
+        runtime = payload.get("runtime") if isinstance(payload, dict) else {}
+        env = runtime.get("env") if isinstance(runtime, dict) else {}
+        if isinstance(env, dict):
+            captured["controller_goal_input_root"] = str(
+                env.get("FERMILINK_GOAL_INPUT_ROOT") or ""
+            )
+        return {
+            "ok": True,
+            "status": "ok",
+            "correctness_ok": True,
+            "summary_metrics": {
+                "weighted_median_wall_seconds": 10.0,
+                "peak_rss_mb": 32.0,
+            },
+            "cases": [
+                {
+                    "id": "test-a",
+                    "converged": True,
+                    "wall_seconds": 10.0,
+                    "error": "",
+                },
+                {
+                    "id": "test-b",
+                    "converged": True,
+                    "wall_seconds": 10.0,
+                    "error": "",
+                },
+            ],
+        }
+
+    monkeypatch.setattr(
+        optimize_controller,
+        "_run_authoritative_benchmark_suite",
+        fake_run_authoritative_benchmark_suite,
+    )
+
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--baseline-only",
+        ]
+    )
+    setattr(args, "_optimize_mode", "goal")
+
+    result = optimize_controller.run_campaign(args)
+    assert result.get("status") == "baseline_only"
+
+    expected_controller_root = str(optimize_state.goal_inputs_all_root(repo_dir).resolve())
+    expected_worker_root = str(optimize_state.goal_inputs_worker_root(repo_dir).resolve())
+    assert captured["controller_goal_input_root"] == expected_controller_root
+    assert Path(captured["controller_goal_input_root"]).is_absolute()
+
+    worker_benchmark = yaml.safe_load(
+        optimize_state.worker_benchmark_path(repo_dir).read_text(encoding="utf-8")
+    )
+    worker_runtime = (
+        worker_benchmark.get("runtime")
+        if isinstance(worker_benchmark, dict)
+        else {}
+    )
+    worker_env = worker_runtime.get("env") if isinstance(worker_runtime, dict) else {}
+    assert isinstance(worker_env, dict)
+    assert worker_env.get("FERMILINK_GOAL_INPUT_ROOT") == expected_worker_root
+    assert Path(str(worker_env.get("FERMILINK_GOAL_INPUT_ROOT") or "")).is_absolute()
 
 
 def test_optimize_reuses_worker_worktree_across_outer_iterations(

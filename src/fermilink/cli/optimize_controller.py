@@ -127,6 +127,13 @@ AUTO_CORRECTNESS_SKIP_CASE_FIELDS = {
 AUTO_FIELD_TOLERANCE_RELATIVE_DELTA = 1.0e-4
 AUTO_FIELD_TOLERANCE_ABS_DELTA_FLOOR = 1.0e-8
 AUTO_FIELD_TOLERANCE_MAX_FIELDS = 16
+GOAL_INPUT_ROOT_ENV_VAR = "FERMILINK_GOAL_INPUT_ROOT"
+GOAL_INPUTS_MANIFEST_SCHEMA_VERSION = 1
+GOAL_INPUTS_SHARED_KEY = "__shared__"
+_GOAL_CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
+_GOAL_DOUBLE_QUOTED_RE = re.compile(r'"([^"\n]+)"')
+_GOAL_SINGLE_QUOTED_RE = re.compile(r"'([^'\n]+)'")
+_GOAL_FRAGMENT_TOKEN_RE = re.compile(r"[A-Za-z0-9_./~+:-]+")
 
 
 def _dict_clone(payload: object) -> dict[str, Any]:
@@ -145,6 +152,406 @@ def _normalize_runtime_env(raw_env: object) -> dict[str, str]:
             continue
         normalized[key] = str(raw_value if raw_value is not None else "")
     return normalized
+
+
+def _is_probably_numeric_text(value: str) -> bool:
+    stripped = str(value or "").strip()
+    if not stripped:
+        return False
+    try:
+        float(stripped)
+    except ValueError:
+        return False
+    return True
+
+
+def _normalize_goal_reference_token(raw: str) -> str:
+    token = str(raw or "").strip()
+    if not token:
+        return ""
+    token = token.strip("`\"'()[]{}<>")
+    token = token.rstrip(",:;")
+    token = token.strip()
+    if not token:
+        return ""
+    if token in {"{benchmark}", "{project_root}", "{run_dir}"}:
+        return ""
+    if token == "~":
+        return ""
+    if token.startswith("$"):
+        return ""
+    if "://" in token:
+        return ""
+    return token
+
+
+def _looks_like_goal_file_reference(token: str) -> bool:
+    candidate = _normalize_goal_reference_token(token)
+    if not candidate:
+        return False
+    if _is_probably_numeric_text(candidate):
+        return False
+    if candidate.startswith("-") and len(candidate) > 1:
+        candidate = candidate[1:]
+    if not candidate:
+        return False
+    if "/" in candidate or "\\" in candidate:
+        return True
+    if candidate.startswith("~"):
+        return candidate.startswith("~/") or candidate.startswith("~\\")
+    suffix = Path(candidate).suffix
+    if suffix and any(ch.isalpha() for ch in suffix):
+        return True
+    return False
+
+
+def _extract_goal_reference_tokens_from_fragment(fragment: str) -> list[str]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for match in _GOAL_FRAGMENT_TOKEN_RE.finditer(str(fragment or "")):
+        candidate = _normalize_goal_reference_token(match.group(0))
+        if not candidate or candidate in seen:
+            continue
+        if not _looks_like_goal_file_reference(candidate):
+            continue
+        seen.add(candidate)
+        tokens.append(candidate)
+    return tokens
+
+
+def _extract_goal_workload_reference_tokens(workload_text: str) -> list[str]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    text = str(workload_text or "")
+    span_matches: list[str] = []
+    span_matches.extend(match.group(1) for match in _GOAL_CODE_SPAN_RE.finditer(text))
+    span_matches.extend(
+        match.group(1) for match in _GOAL_DOUBLE_QUOTED_RE.finditer(text)
+    )
+    span_matches.extend(
+        match.group(1) for match in _GOAL_SINGLE_QUOTED_RE.finditer(text)
+    )
+    for fragment in span_matches + [text]:
+        for token in _extract_goal_reference_tokens_from_fragment(fragment):
+            if token in seen:
+                continue
+            seen.add(token)
+            tokens.append(token)
+    return tokens
+
+
+def _goal_workload_case_id(workload_text: str) -> str:
+    text = str(workload_text or "").strip()
+    if not text:
+        return ""
+    if ":" not in text:
+        return ""
+    case_id = text.split(":", 1)[0].strip()
+    return case_id
+
+
+def _safe_staged_relative_path(raw: str, *, fallback_name: str) -> Path:
+    candidate = Path(str(raw or "").replace("\\", "/"))
+    cleaned_parts: list[str] = []
+    for part in candidate.parts:
+        if part in {"", ".", "/", "\\"}:
+            continue
+        if part == "..":
+            continue
+        cleaned_parts.append(part)
+    if not cleaned_parts:
+        cleaned_parts = [str(fallback_name or "input.dat")]
+    return Path(*cleaned_parts)
+
+
+def _resolve_goal_reference_path(goal_dir: Path, reference: str) -> Path:
+    raw_candidate = Path(str(reference or "").strip())
+    try:
+        candidate = raw_candidate.expanduser()
+    except RuntimeError:
+        candidate = raw_candidate
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (goal_dir / candidate).resolve()
+
+
+def _staged_rel_path_for_goal_reference(
+    *,
+    reference: str,
+    resolved_source: Path,
+    goal_dir: Path,
+) -> Path:
+    reference_path = Path(str(reference or "").strip().replace("\\", "/"))
+    if not reference_path.is_absolute():
+        return _safe_staged_relative_path(
+            str(reference_path),
+            fallback_name=resolved_source.name,
+        )
+    try:
+        rel_from_goal_dir = resolved_source.relative_to(goal_dir)
+    except ValueError:
+        rel_from_goal_dir = Path(resolved_source.name)
+    return _safe_staged_relative_path(
+        str(rel_from_goal_dir).replace("\\", "/"),
+        fallback_name=resolved_source.name,
+    )
+
+
+def _with_runtime_env_var(
+    benchmark_payload: dict[str, Any],
+    *,
+    key: str,
+    value: str,
+) -> dict[str, Any]:
+    payload = copy.deepcopy(benchmark_payload)
+    runtime = payload.get("runtime")
+    if not isinstance(runtime, dict):
+        runtime = {}
+        payload["runtime"] = runtime
+    env = _normalize_runtime_env(runtime.get("env"))
+    env[str(key)] = str(value)
+    runtime["env"] = env
+    return payload
+
+
+def _stage_goal_referenced_inputs(
+    project_root: Path,
+    *,
+    goal_path: Path,
+    goal_spec: dict[str, Any],
+) -> dict[str, Any]:
+    goal_dir = goal_path.parent.resolve()
+    optimize_state.ensure_optimize_root(project_root)
+    optimize_state.ensure_autogen_root(project_root)
+    all_root = optimize_state.goal_inputs_all_root(project_root)
+    worker_root = optimize_state.goal_inputs_worker_root(project_root)
+    manifest_path = optimize_state.goal_inputs_manifest_path(project_root)
+    shutil.rmtree(all_root, ignore_errors=True)
+    shutil.rmtree(worker_root, ignore_errors=True)
+    all_root.mkdir(parents=True, exist_ok=True)
+
+    workloads_raw = goal_spec.get("workloads")
+    workloads = workloads_raw if isinstance(workloads_raw, list) else []
+    references_by_case: dict[str, list[str]] = {}
+    for raw_workload in workloads:
+        workload = str(raw_workload or "").strip()
+        if not workload:
+            continue
+        case_id = _goal_workload_case_id(workload) or GOAL_INPUTS_SHARED_KEY
+        tokens = _extract_goal_workload_reference_tokens(workload)
+        if not tokens:
+            continue
+        bucket = references_by_case.setdefault(case_id, [])
+        for token in tokens:
+            if token not in bucket:
+                bucket.append(token)
+
+    staged_files: list[dict[str, Any]] = []
+    missing_references: list[dict[str, str]] = []
+    case_file_map: dict[str, list[str]] = {}
+    shared_files: list[str] = []
+    resolved_to_staged: dict[str, str] = {}
+    used_rel_paths: set[str] = set()
+
+    for case_id, references in references_by_case.items():
+        for reference in references:
+            source_path = _resolve_goal_reference_path(goal_dir, reference)
+            if not source_path.is_file():
+                missing_references.append(
+                    {
+                        "case_id": case_id,
+                        "reference": reference,
+                        "resolved_source": str(source_path),
+                    }
+                )
+                continue
+            source_key = str(source_path)
+            staged_rel = resolved_to_staged.get(source_key, "")
+            if not staged_rel:
+                preferred_rel = _staged_rel_path_for_goal_reference(
+                    reference=reference,
+                    resolved_source=source_path,
+                    goal_dir=goal_dir,
+                )
+                candidate_rel = str(preferred_rel).replace("\\", "/")
+                if not candidate_rel:
+                    candidate_rel = source_path.name
+                base_path = Path(candidate_rel)
+                stem = base_path.stem
+                suffix = base_path.suffix
+                parent = str(base_path.parent).replace("\\", "/")
+                parent_prefix = f"{parent}/" if parent and parent != "." else ""
+                index = 1
+                while candidate_rel in used_rel_paths:
+                    index += 1
+                    candidate_rel = f"{parent_prefix}{stem}__{index}{suffix}"
+                used_rel_paths.add(candidate_rel)
+                destination = all_root / candidate_rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, destination)
+                resolved_to_staged[source_key] = candidate_rel
+                staged_files.append(
+                    {
+                        "source_path": source_key,
+                        "staged_rel_path": candidate_rel,
+                    }
+                )
+                staged_rel = candidate_rel
+            if case_id == GOAL_INPUTS_SHARED_KEY:
+                if staged_rel not in shared_files:
+                    shared_files.append(staged_rel)
+            else:
+                case_bucket = case_file_map.setdefault(case_id, [])
+                if staged_rel not in case_bucket:
+                    case_bucket.append(staged_rel)
+
+    all_rel = optimize_state.safe_relative(all_root, project_root)
+    worker_rel = optimize_state.safe_relative(worker_root, project_root)
+    manifest_payload = {
+        "schema_version": GOAL_INPUTS_MANIFEST_SCHEMA_VERSION,
+        "goal_path": str(goal_path),
+        "goal_dir": str(goal_dir),
+        "goal_sha256": hashlib.sha256(
+            str(goal_spec.get("raw_text") or "").encode("utf-8")
+        ).hexdigest(),
+        "all_root_rel": all_rel,
+        "worker_root_rel": worker_rel,
+        "all_files": [str(item.get("staged_rel_path") or "") for item in staged_files],
+        "shared_files": shared_files,
+        "case_file_map": case_file_map,
+        "files": staged_files,
+        "missing_references": missing_references,
+        "updated_at_utc": optimize_state.utc_now_z(),
+    }
+    optimize_state.write_json_file(manifest_path, manifest_payload)
+    return {
+        "manifest_path": manifest_path,
+        "all_root": all_root,
+        "worker_root": worker_root,
+        "all_root_rel": all_rel,
+        "worker_root_rel": worker_rel,
+        "all_files": list(manifest_payload["all_files"]),
+        "shared_files": list(shared_files),
+        "case_file_map": copy.deepcopy(case_file_map),
+        "missing_references": copy.deepcopy(missing_references),
+    }
+
+
+def _load_goal_inputs_manifest(project_root: Path) -> dict[str, Any]:
+    manifest = optimize_state.load_json_file(
+        optimize_state.goal_inputs_manifest_path(project_root)
+    )
+    if not isinstance(manifest, dict):
+        return {}
+    all_files = manifest.get("all_files")
+    manifest["all_files"] = (
+        [str(item) for item in all_files if str(item or "").strip()]
+        if isinstance(all_files, list)
+        else []
+    )
+    shared_files = manifest.get("shared_files")
+    manifest["shared_files"] = (
+        [str(item) for item in shared_files if str(item or "").strip()]
+        if isinstance(shared_files, list)
+        else []
+    )
+    case_file_map = manifest.get("case_file_map")
+    normalized_case_file_map: dict[str, list[str]] = {}
+    if isinstance(case_file_map, dict):
+        for raw_case_id, raw_files in case_file_map.items():
+            case_id = str(raw_case_id or "").strip()
+            if not case_id or not isinstance(raw_files, list):
+                continue
+            normalized_case_file_map[case_id] = [
+                str(item) for item in raw_files if str(item or "").strip()
+            ]
+    manifest["case_file_map"] = normalized_case_file_map
+    return manifest
+
+
+def _prepare_goal_worker_inputs_subset(
+    project_root: Path,
+    *,
+    split_enabled: bool,
+    train_case_ids: list[str],
+) -> dict[str, Any]:
+    manifest = _load_goal_inputs_manifest(project_root)
+    all_root = optimize_state.goal_inputs_all_root(project_root)
+    worker_root = optimize_state.goal_inputs_worker_root(project_root)
+    shutil.rmtree(worker_root, ignore_errors=True)
+    worker_root.mkdir(parents=True, exist_ok=True)
+    all_files = [
+        str(item).strip()
+        for item in (manifest.get("all_files") or [])
+        if str(item or "").strip()
+    ]
+    if not all_files:
+        return {
+            "enabled": False,
+            "manifest_path": optimize_state.goal_inputs_manifest_path(project_root),
+            "all_root": all_root,
+            "worker_root": worker_root,
+            "all_root_rel": optimize_state.safe_relative(all_root, project_root),
+            "worker_root_rel": optimize_state.safe_relative(worker_root, project_root),
+            "worker_files": [],
+            "fallback_reason": "",
+        }
+
+    selected: list[str] = []
+    shared_files = [
+        str(item).strip()
+        for item in (manifest.get("shared_files") or [])
+        if str(item or "").strip()
+    ]
+    for rel_path in shared_files:
+        if rel_path not in selected:
+            selected.append(rel_path)
+
+    fallback_reason = ""
+    if split_enabled and train_case_ids:
+        case_file_map = (
+            manifest.get("case_file_map")
+            if isinstance(manifest.get("case_file_map"), dict)
+            else {}
+        )
+        train_file_mapped = False
+        for case_id in train_case_ids:
+            raw_files = case_file_map.get(case_id)
+            if not isinstance(raw_files, list):
+                continue
+            for rel_path in raw_files:
+                normalized = str(rel_path or "").strip()
+                if not normalized:
+                    continue
+                train_file_mapped = True
+                if normalized not in selected:
+                    selected.append(normalized)
+        if not train_file_mapped:
+            fallback_reason = "split_case_ids_not_mapped_in_goal_inputs_manifest"
+            selected = list(all_files)
+    else:
+        selected = list(all_files)
+
+    copied_files: list[str] = []
+    for rel_path in selected:
+        source = (all_root / rel_path).resolve()
+        if not source.is_file():
+            continue
+        destination = worker_root / rel_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        copied_files.append(rel_path)
+
+    return {
+        "enabled": bool(copied_files),
+        "manifest_path": optimize_state.goal_inputs_manifest_path(project_root),
+        "all_root": all_root,
+        "worker_root": worker_root,
+        "all_root_rel": optimize_state.safe_relative(all_root, project_root),
+        "worker_root_rel": optimize_state.safe_relative(worker_root, project_root),
+        "worker_files": copied_files,
+        "fallback_reason": fallback_reason,
+    }
 
 
 def _safe_positive_int(raw: object, *, default: int, allow_zero: bool = False) -> int:
@@ -4939,6 +5346,31 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
     if not package_id_raw:
         package_id_raw = project_root.name or "package"
     package_id = cli.normalize_package_id(package_id_raw)
+    goal_input_stage = _stage_goal_referenced_inputs(
+        project_root,
+        goal_path=goal_path,
+        goal_spec=goal_spec,
+    )
+    staged_inputs_count = len(goal_input_stage.get("all_files") or [])
+    if staged_inputs_count > 0:
+        cli._print_tagged(
+            "optimize",
+            (
+                "goal mode: staged workload inputs under "
+                f"`{goal_input_stage.get('all_root_rel')}` ({staged_inputs_count} file(s))"
+            ),
+        )
+    missing_references = goal_input_stage.get("missing_references")
+    if isinstance(missing_references, list) and missing_references:
+        cli._print_tagged(
+            "optimize",
+            (
+                "goal mode: skipped missing workload input references "
+                f"({len(missing_references)} item(s)); see "
+                f"`{optimize_state.safe_relative(optimize_state.goal_inputs_manifest_path(project_root), project_root)}`"
+            ),
+            stderr=True,
+        )
 
     hpc_profile = str(getattr(args, "hpc_profile", None) or "").strip()
     is_resume = bool(getattr(args, "resume", False))
@@ -5583,6 +6015,66 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         for item in (benchmark_split.get("test_case_ids") or [])
         if str(item or "").strip()
     ]
+    run_mode = str(getattr(args, "_optimize_mode", "expert") or "expert")
+    goal_worker_inputs_context = {
+        "enabled": False,
+        "all_root_rel": "",
+        "worker_root_rel": "",
+        "worker_files": [],
+        "fallback_reason": "",
+    }
+    if run_mode == "goal":
+        goal_worker_inputs_context = _prepare_goal_worker_inputs_subset(
+            project_root,
+            split_enabled=split_enabled,
+            train_case_ids=train_case_ids,
+        )
+        if bool(goal_worker_inputs_context.get("enabled")):
+            worker_input_root_raw = str(
+                goal_worker_inputs_context.get("worker_root") or ""
+            ).strip()
+            controller_input_root_raw = str(
+                goal_worker_inputs_context.get("all_root") or ""
+            ).strip()
+            worker_input_root = worker_input_root_raw
+            controller_input_root = controller_input_root_raw
+            if worker_input_root and not Path(worker_input_root).is_absolute():
+                worker_input_root = str((project_root / worker_input_root).resolve())
+            if controller_input_root and not Path(controller_input_root).is_absolute():
+                controller_input_root = str(
+                    (project_root / controller_input_root).resolve()
+                )
+            if worker_input_root:
+                worker_benchmark_payload = _with_runtime_env_var(
+                    worker_benchmark_payload,
+                    key=GOAL_INPUT_ROOT_ENV_VAR,
+                    value=worker_input_root,
+                )
+            if controller_input_root:
+                controller_benchmark_payload = _with_runtime_env_var(
+                    controller_benchmark_payload,
+                    key=GOAL_INPUT_ROOT_ENV_VAR,
+                    value=controller_input_root,
+                )
+            cli._print_tagged(
+                "optimize",
+                (
+                    "goal mode: benchmark runtime env "
+                    f"{GOAL_INPUT_ROOT_ENV_VAR} configured "
+                    f"(controller=`{controller_input_root or '(unset)'}`, "
+                    f"worker=`{worker_input_root or '(unset)'}`)"
+                ),
+            )
+            fallback_reason = str(goal_worker_inputs_context.get("fallback_reason") or "")
+            if fallback_reason:
+                cli._print_tagged(
+                    "optimize",
+                    (
+                        "goal mode: worker input split fallback used "
+                        f"({fallback_reason})"
+                    ),
+                    stderr=True,
+                )
     benchmark_payload = worker_benchmark_payload
 
     optimize_git.ensure_local_excludes(project_root, [".fermilink-optimize/"])
@@ -5600,7 +6092,6 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             ),
         )
     optimize_git.ensure_clean_repo(project_root, allow_dirty=bool(args.allow_dirty))
-    run_mode = str(getattr(args, "_optimize_mode", "expert") or "expert")
     prompt_path_raw = str(getattr(args, "_optimize_prompt_path", None) or "").strip()
     prompt_path = Path(prompt_path_raw) if prompt_path_raw else None
     _write_campaign_run_lock(
@@ -5937,6 +6428,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         worker_memory_rel,
         results_rel,
     }
+    goal_worker_inputs_rel = str(
+        goal_worker_inputs_context.get("worker_root_rel") or ""
+    ).strip()
+    if goal_worker_inputs_rel:
+        worker_iteration_sync_paths.add(goal_worker_inputs_rel)
     worker_hidden_paths: set[str] = {
         ".fermilink-optimize/runs",
         ".fermilink-optimize/state.json",
