@@ -502,6 +502,14 @@ def register_package_management_parsers(
         help="Comma-separated top-level package entry names.",
     )
     overlay_parser.add_argument(
+        "--remove",
+        action="append",
+        help=(
+            "Top-level package entry name(s) to remove from the current overlay "
+            "set (repeatable; accepts comma-separated values)."
+        ),
+    )
+    overlay_parser.add_argument(
         "--clear",
         action="store_true",
         help="Clear overlay restriction and expose all exportable entries.",

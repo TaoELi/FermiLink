@@ -43,6 +43,12 @@ def _build_parser() -> argparse.ArgumentParser:
         cmd_exec=cli._cmd_exec,
         cmd_loop=cli._cmd_loop,
     )
+    cli.register_workspace_parsers(
+        subparsers,
+        cmd_init=cli._cmd_init,
+        cmd_clean=cli._cmd_clean,
+        cmd_hpc=cli._cmd_hpc,
+    )
     cli.register_gateway_parser(
         subparsers,
         cmd_gateway=cli._cmd_gateway,

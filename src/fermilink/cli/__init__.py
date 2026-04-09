@@ -31,6 +31,7 @@ from fermilink.cli.commands import optimize as optimize_commands
 from fermilink.cli.commands import packages as package_commands
 from fermilink.cli.commands import services as service_commands
 from fermilink.cli.commands import sessions as session_commands
+from fermilink.cli.commands import workspace as workspace_commands
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.cli.compile_prompts import (
     COMPILE_EVIDENCE_DIR_REL_PATH,
@@ -81,6 +82,7 @@ from fermilink.cli.parser_sessions import (
     register_chat_parser,
     register_exec_loop_parsers,
 )
+from fermilink.cli.parser_workspace import register_workspace_parsers
 from fermilink.cli.parser_workflows import register_workflow_parsers
 from fermilink.cli.workflow_prompts import (
     LOOP_DONE_TOKEN,
@@ -364,6 +366,9 @@ _workflow_completion_commit = workflow_commands._workflow_completion_commit
 _cmd_chat = session_commands.cmd_chat
 _cmd_loop = session_commands.cmd_loop
 _cmd_exec = session_commands.cmd_exec
+_cmd_init = workspace_commands.cmd_init
+_cmd_clean = workspace_commands.cmd_clean
+_cmd_hpc = workspace_commands.cmd_hpc
 _cmd_gateway = gateway_commands.cmd_gateway
 _cmd_optimize = optimize_commands.cmd_optimize
 

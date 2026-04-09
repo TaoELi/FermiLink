@@ -10,6 +10,13 @@ from fermilink import cli
 from fermilink.cli.commands import workflows as workflow_commands
 
 
+@pytest.fixture(autouse=True)
+def _isolate_fermilink_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+
+
 def test_research_parser_defaults() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(["research", "idea.md"])
@@ -186,6 +193,66 @@ def test_research_plan_only_writes_plan_without_running_loop(
     assert isinstance(hpc_context, dict)
     assert hpc_context.get("enabled") is False
     assert hpc_context.get("mode") == "local"
+
+
+def test_research_plan_only_uses_default_home_hpc_profile_when_flag_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    profile = home / "HPC_PROFILE.json"
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "debug",
+                "slurm_defaults": "--nodes=1 --ntasks=2 --time=00:15:00",
+                "slurm_resource_policy": "Prefer debug queue",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "idea.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    hpc_context = state.get("hpc_context")
+    assert isinstance(hpc_context, dict)
+    assert hpc_context.get("enabled") is True
+    assert hpc_context.get("source") == "default_home_hpc_profile"
+    assert hpc_context.get("profile_path") == str(profile)
 
 
 def test_research_loop_preamble_enforces_simulation_execution(
@@ -808,7 +875,9 @@ def test_workflow_checkpoint_commit_stages_all_changes_under_limits(
         if git_args == ("rev-parse", "--is-inside-work-tree"):
             return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
         if git_args == ("status", "--porcelain"):
-            return subprocess.CompletedProcess(cmd, 0, stdout=" M notes.txt\n", stderr="")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=" M notes.txt\n", stderr=""
+            )
         if git_args == ("add", "-A"):
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         if git_args == ("diff", "--cached", "--quiet"):
@@ -844,7 +913,9 @@ def test_workflow_checkpoint_commit_falls_back_to_memory_only_when_limits_exceed
     (repo_dir / ".git").mkdir()
     (repo_dir / "large.bin").write_bytes(b"x" * 8)
     memory_path = (
-        repo_dir / workflow_commands.LOOP_MEMORY_DIRNAME / workflow_commands.LOOP_MEMORY_FILENAME
+        repo_dir
+        / workflow_commands.LOOP_MEMORY_DIRNAME
+        / workflow_commands.LOOP_MEMORY_FILENAME
     )
     memory_path.parent.mkdir(parents=True, exist_ok=True)
     memory_path.write_text("memory\n", encoding="utf-8")
@@ -912,7 +983,9 @@ def test_workflow_checkpoint_commit_returns_noop_when_limits_exceeded_without_me
         if git_args == ("rev-parse", "--is-inside-work-tree"):
             return subprocess.CompletedProcess(cmd, 0, stdout="true\n", stderr="")
         if git_args == ("status", "--porcelain"):
-            return subprocess.CompletedProcess(cmd, 0, stdout=" M large.bin\n", stderr="")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=" M large.bin\n", stderr=""
+            )
         raise AssertionError(f"unexpected git args: {git_args}")
 
     monkeypatch.setattr(workflow_commands.shutil, "which", lambda name: "/usr/bin/git")

@@ -38,7 +38,8 @@ _ZERO_ARG_MENU_CHOICES = (
 )
 _ZERO_ARG_DEFAULT_WORKSPACE_NAME = "fermilink-workspace"
 _ZERO_ARG_DEFAULT_HPC_PROFILE_ENV = "FERMILINK_DEFAULT_HPC_PROFILE"
-_ZERO_ARG_DEFAULT_HPC_FILENAME = "hpc_profile.json"
+_ZERO_ARG_DEFAULT_HPC_FILENAME = "HPC_PROFILE.json"
+_ZERO_ARG_LEGACY_HPC_FILENAME = "hpc_profile.json"
 _ZERO_ARG_CODEX_AUTH_MODES = {"login", "oauth", "keychain", "stored"}
 _ZERO_ARG_CODEX_PLACEHOLDER_KEYS = {
     "YOUR_KEY_HERE",
@@ -175,6 +176,8 @@ def _probe_zero_arg_hpc_state() -> dict[str, object]:
         candidates.append(cli._resolve_project_path(raw_env.strip()))
     candidates.append((Path.cwd() / _ZERO_ARG_DEFAULT_HPC_FILENAME).resolve())
     candidates.append(resolve_fermilink_home() / _ZERO_ARG_DEFAULT_HPC_FILENAME)
+    candidates.append((Path.cwd() / _ZERO_ARG_LEGACY_HPC_FILENAME).resolve())
+    candidates.append(resolve_fermilink_home() / _ZERO_ARG_LEGACY_HPC_FILENAME)
 
     seen: set[str] = set()
     chosen_path: Path | None = None
@@ -759,7 +762,6 @@ def _run_zero_arg_telegram_setup(state: dict[str, object]) -> int | None:
 
 
 def _run_zero_arg_hpc_setup(state: dict[str, object]) -> None:
-    cli = _cli()
     hpc = state["hpc"]
     target_path = resolve_fermilink_home() / _ZERO_ARG_DEFAULT_HPC_FILENAME
     if hpc["profile_valid"]:
@@ -981,11 +983,7 @@ def _prompt_zero_arg_memory_scope() -> str | None:
     print("1. all")
     print("2. package-specific (machine-independent/shareable)")
     print("3. machine-specific (local-machine guidance)")
-    answer = (
-        _prompt_line("Choose memory scope [1-3] (Enter for all): ")
-        .strip()
-        .lower()
-    )
+    answer = _prompt_line("Choose memory scope [1-3] (Enter for all): ").strip().lower()
     if answer in {"", "1", "all"}:
         return None
     if answer in {"2", "package-specific", "machine-independent"}:

@@ -3,35 +3,35 @@
   <desc id="desc">Publication-quality package workflow: upstream OSS packages flow into curated packages, then local package knowledge base, package selection, and execution surfaces, with local compile and doc-driven recompile pipelines feeding the local knowledge base.</desc>
 
   <defs>
-    <!-- Soft gradients (matched to the reference SVG vibe) -->
+    <!-- Economist-style gradients derived from the runtime histogram palette -->
     <linearGradient id="gradCol" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#fbfdff"/>
-      <stop offset="100%" stop-color="#f2f7ff"/>
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f6f6f4"/>
     </linearGradient>
 
     <linearGradient id="gradExec" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#e7f2ff"/>
-      <stop offset="100%" stop-color="#f6fbff"/>
+      <stop offset="0%" stop-color="#edf5f8"/>
+      <stop offset="100%" stop-color="#d9e5ec"/>
     </linearGradient>
 
     <linearGradient id="gradNode" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f6f9ff"/>
+      <stop offset="100%" stop-color="#f6f6f4"/>
     </linearGradient>
 
     <linearGradient id="gradNodeWarm" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#fff7ea"/>
+      <stop offset="100%" stop-color="#fbe4e1"/>
     </linearGradient>
 
     <linearGradient id="gradNodePurple" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f5f3ff"/>
+      <stop offset="0%" stop-color="#fff5f4"/>
+      <stop offset="100%" stop-color="#f4c8c4"/>
     </linearGradient>
 
     <linearGradient id="gradNodeGray" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#eef2f7"/>
+      <stop offset="100%" stop-color="#f6f6f4"/>
     </linearGradient>
 
     <!-- Subtle paper texture -->
@@ -52,23 +52,23 @@
 
     <!-- Arrows -->
     <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#325a87"/>
+      <path d="M0,0 L10,4 L0,8 Z" fill="#006CA3"/>
     </marker>
     <marker id="arrowFeed" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#a57522"/>
+      <path d="M0,0 L10,4 L0,8 Z" fill="#ECA300"/>
     </marker>
 
     <!-- Typography + node styling -->
     <style>
       /* Frame */
-      .frame { fill: url(#gradCol); stroke: #c8d5e6; stroke-width: 2.2; filter: url(#paper); }
+      .frame { fill: #F6F6F4; stroke: #D9E5EC; stroke-width: 2.2; }
 
       /* Nodes */
-      .node { fill: url(#gradNode); stroke: #5f7fa3; stroke-width: 2.2; filter: url(#shadow); }
-      .nodeBlue { fill: url(#gradExec); stroke: #5d8fbe; }
-      .nodeWarm { fill: url(#gradNodeWarm); stroke: #bf8d3e; }
-      .nodePurple { fill: url(#gradNodePurple); stroke: #7a66b7; }
-      .nodeGray { fill: url(#gradNodeGray); stroke: #7d8694; }
+      .node { fill: #FFFFFF; stroke: #B0B0B0; stroke-width: 2.2; }
+      .nodeBlue { fill: #D9E5EC; stroke: #006CA3; }
+      .nodeWarm { fill: #FFF7E6; stroke: #ECA300; }
+      .nodePurple { fill: #F8E7B0; stroke: #ECA300; }
+      .nodeGray { fill: #FFFFFF; stroke: #B0B0B0; }
 
       /* Text */
       .txt { font: 800 20.67px Helvetica, Arial, sans-serif; fill: #18324f; }
@@ -77,23 +77,23 @@
       .cmd { font: italic 700 17.2px "Courier New", Courier, monospace; fill: #4b5563; }
 
       /* Arrows */
-      .arr { stroke: #325a87; stroke-width: 3; fill: none; marker-end: url(#arrow); }
-      .arrFeed { stroke: #a57522; stroke-width: 3; fill: none; marker-end: url(#arrowFeed); }
+      .arr { stroke: #006CA3; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrFeed { stroke: #ECA300; stroke-width: 3; fill: none; marker-end: url(#arrowFeed); }
 
       /* Icon palette */
-      .iStroke { stroke: #253246; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-      .iBlue { fill: #cfe8ff; }
-      .iBlue2 { fill: #9dd2ff; }
-      .iGreen { fill: #c9f2d8; }
-      .iYellow { fill: #ffe4a8; }
-      .iOrange { fill: #ffc7a6; }
-      .iPurple { fill: #dfd7ff; }
-      .iGray { fill: #eef2f7; }
-      .iDark { fill: #2b3a55; }
-      .iWhite { fill: #ffffff; }
-      .iTeleBlue { fill: #98d8ff; }
+      .iStroke { stroke: #49657A; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .iBlue { fill: #D9E5EC; }
+      .iBlue2 { fill: #BDD4DE; }
+      .iGreen { fill: #ECF3F6; }
+      .iYellow { fill: #FBE4E1; }
+      .iOrange { fill: #F4C8C4; }
+      .iPurple { fill: #E7EFF3; }
+      .iGray { fill: #F6F6F4; }
+      .iDark { fill: #006CA3; }
+      .iWhite { fill: #FFFFFF; }
+      .iTeleBlue { fill: #D9E5EC; }
       .iTermMint { stroke: #86f7b9; }
-      .iTick { stroke: #2f9d58; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+      .iTick { stroke: #E3000F; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
     </style>
 
     <!-- Reused icons (subset from your reference SVG) -->
@@ -105,7 +105,7 @@
 
     <symbol id="icon-terminal" viewBox="0 0 48 48">
       <rect x="8" y="10" width="32" height="24" rx="6" class="iDark iStroke"/>
-      <rect x="11" y="13" width="26" height="18" rx="3.5" fill="#213850"/>
+      <rect x="11" y="13" width="26" height="18" rx="3.5" fill="#0F3B53"/>
       <path d="M14 17 L21 21 L14 25" class="iStroke iTermMint" fill="none"/>
       <path d="M22 25 H30" class="iStroke iTermMint" fill="none"/>
       <rect x="18" y="36" width="12" height="3" rx="1.5" class="iGray iStroke"/>
@@ -250,7 +250,7 @@
   <text x="1105" y="388" class="small" text-anchor="middle">prompt → best-fit package</text>
   <text x="1105" y="410" class="small" text-anchor="middle">knowledge base</text>
 
-  <rect x="1295" y="295" width="235" height="150" rx="16" class="node nodeWarm"/>
+  <rect x="1295" y="295" width="235" height="150" rx="16" class="node nodeBlue"/>
   <use href="#icon-terminal" x="1310" y="309" width="50" height="50"/>
   <text x="1422" y="332" class="txt" text-anchor="middle">Execution</text>
   <text x="1422" y="356" class="txt" text-anchor="middle">Surfaces</text>

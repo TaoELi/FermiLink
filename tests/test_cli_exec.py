@@ -447,6 +447,94 @@ def test_exec_hpc_profile_requires_lightweight_schema(
     assert "missing required `slurm_default_partition`" in capsys.readouterr().err
 
 
+def test_exec_uses_default_home_hpc_profile_when_flag_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    profile = home / "HPC_PROFILE.json"
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "debug",
+                "slurm_defaults": "--nodes=1 --ntasks=2 --time=00:30:00",
+                "slurm_resource_policy": "Keep jobs small",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(cli, "resolve_scipkg_root", lambda: tmp_path / "scipkg")
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "maxwelllink",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        cli,
+        "_run_exec_provider_prompt",
+        lambda **kwargs: captured.update(kwargs) or 0,
+    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    assert cli.main(["exec", "simulate one cavity"]) == 0
+    prompt = str(captured["prompt"])
+    assert "Execution target constraints:" in prompt
+    assert "execution_target: HPC SLURM." in prompt
+    assert "slurm_default_partition: `debug`." in prompt
+    assert "slurm_defaults: `--nodes=1 --ntasks=2 --time=00:30:00`." in prompt
+    assert "slurm_resource_policy: Keep jobs small." in prompt
+
+
+def test_exec_default_home_hpc_profile_requires_valid_schema(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    profile = home / "HPC_PROFILE.json"
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=1",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    assert cli.main(["exec", "simulate one cavity"]) == 2
+    assert "Default HPC profile missing required `slurm_resource_policy`" in (
+        capsys.readouterr().err
+    )
+
+
 def test_exec_rejects_pdf_prompt_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
 ) -> None:

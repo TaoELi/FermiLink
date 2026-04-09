@@ -19,7 +19,7 @@ def register_optimize_parser(
         "optimize",
         help=(
             "Run optimize expert mode (`<package_id> <project_path> --benchmark ...`), "
-            "quick mode (`prompt.md`), or status (`status`)."
+            "goal mode (`goal.md`), or status (`status`)."
         ),
     )
     add_json_option(optimize_parser)
@@ -27,7 +27,7 @@ def register_optimize_parser(
         "package_id",
         nargs="?",
         help=(
-            "Expert mode package id, quick mode prompt path (for example prompt.md), "
+            "Expert mode package id, goal markdown path (for example goal.md), "
             "or literal `status`."
         ),
     )
@@ -168,6 +168,17 @@ def register_optimize_parser(
             "and `slurm_resource_policy`; when set, the optimize worker-loop prompt "
             "is constrained to this HPC profile and `runtime.mode=submit_poll` "
             "benchmarks can auto-plan/reuse adaptive submission launchers."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--goal",
+        action="store_true",
+        help=(
+            "Treat the input markdown as a goal specification for goal-driven "
+            "optimization.  FermiLink will analyse the source code and "
+            "auto-generate benchmark files before starting the campaign.  "
+            "When omitted, goal mode is auto-detected from the markdown "
+            "structure."
         ),
     )
     optimize_parser.add_argument(

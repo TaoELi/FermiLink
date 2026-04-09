@@ -6,9 +6,14 @@ This gives you an "agent in your pocket" workflow: you chat on your phone, but
 the actual computation happens on the machine running ``fermilink gateway``
 (your laptop/workstation/HPC).
 
+.. figure:: _static/img/fermilink_hpc_bot.jpeg
+   :alt: FermiLink Telegram bot.
+   :align: center
+   :width: 30%
+
 Unlike the Web UI (which streams the agent's chain of thought), the gateway is optimized for
 remote control: it acknowledges queued requests immediately and sends a final completion
-message (plus files/figures) when a run finishes. Internal reasoning steps are not forwarded to the user.
+message (plus files/figures) when a run finishes. **Internal reasoning steps are not forwarded to the user.**
 
 Step-by-Step Setup
 -----------------------
@@ -33,8 +38,11 @@ Configure in working machines
 .. code-block:: bash
 
    export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
+
    # optional: restrict which Telegram accounts can talk to the bot
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
+
+   # allow fermilink to communicate with Telegram API
    fermilink gateway --max-wait-seconds 6000 --max-iterations 10 --hpc-profile hpc_profile.json
 
 By default, the gateway mode will wait for up to 6000 seconds (100 minutes) for waiting the PID/SLRUM jobs, and allow up to 10 iterations in each loop mode. You can adjust these parameters as needed. For example,
@@ -112,6 +120,36 @@ Practical starting pattern:
    local PID or HPC SLURM jobs.
 3. Use ``research`` / ``reproduce`` when you want a workflow
    that produces a final report artifact at a research paper scale, which is great if you need to sleep or travel while the agent is working.
+
+Advanced: An Army of FermiLink Bots
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can simutaneous control many FermiLink bots by running multiple ``fermilink gateway`` processes with different Telegram bot tokens and HPC profiles. This allows you to have an army of FermiLink agents working on different tasks at the same time, all controlled remotely from your phone.
+
+For example, you can submit the following long-run bash job to your HPC:
+
+.. code-block:: bash
+
+   #!/bin/bash
+   #SBATCH --job-name=gateway_lammps
+   #SBATCH --partition=shared
+   #SBATCH --time=4-00:00:00
+   #SBATCH --nodes=1
+   #SBATCH --ntasks=1
+   #SBATCH --cpus-per-task=1
+   #SBATCH --output=fermilink-%j.out
+
+   export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
+
+   FERMILINK_WORKSPACES_ROOT=$SCRATCH/fermilink/workspaces_lammps \
+   fermilink gateway --telegram-token "xxxx" \
+      --session-store $FERMILINK_HOME/runtime/chat_sessions_lammps.json \
+      --max-iterations 30 --max-wait-seconds 36000 \
+      --hpc-profile $HOME/hpc_profile.json
+
+Then, if you create another **telegram bot** with a different token, you can modify the above script (changing **workspaces_lammps**, **xxxx** and **chat_sessions_lammps** above) and submit another job.
+
+See :doc:`tutorial_hpc` for more details about this advanced setting.
 
 Where your work lives
 ~~~~~~~~~~~~~~~~~~~~~

@@ -154,7 +154,9 @@ def test_run_package_second_guess_uses_isolated_workspace_session(
     assert not (workspaces_root / captured_session_ids[0]).exists()
 
 
-def test_pending_snapshot_artifact_paths_includes_modified_and_skips_text_attached() -> None:
+def test_pending_snapshot_artifact_paths_includes_modified_and_skips_text_attached() -> (
+    None
+):
     pending = web_app._pending_snapshot_artifact_paths(
         created_files=["outputs/report.md", "outputs/figure.png"],
         modified_files=["outputs/figure.png", "outputs/figure-2.png"],

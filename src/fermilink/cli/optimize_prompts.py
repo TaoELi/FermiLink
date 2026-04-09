@@ -102,6 +102,7 @@ def build_optimize_agents_md(
         "- Do not add dependencies.\n"
         "- Do not run the authoritative benchmark command from the benchmark contract.\n"
         "- Quick local checks are allowed when cheap and directly relevant.\n"
+        "- Sampling profiling with `py-spy`/`perf`/`xctrace` or other available tools when useful.\n"
         "- Long worker jobs may be launched and monitored with the standard loop wait tags.\n"
         "\n"
         "When the candidate is genuinely ready for the controller's authoritative benchmark, reply with:\n"
@@ -184,6 +185,19 @@ def build_optimize_prompt(
     direction = str(primary.get("direction") or "minimize")
     latest_commit = str(state_payload.get("incumbent_commit") or "unknown")
     latest_metric = state_payload.get("incumbent_primary_metric")
+    if not isinstance(latest_metric, (int, float)):
+        incumbent_metrics = (
+            state_payload.get("incumbent_metrics")
+            if isinstance(state_payload.get("incumbent_metrics"), dict)
+            else {}
+        )
+        summary_metrics = (
+            incumbent_metrics.get("summary_metrics")
+            if isinstance(incumbent_metrics, dict)
+            else {}
+        )
+        if isinstance(summary_metrics, dict):
+            latest_metric = summary_metrics.get(primary_metric)
     latest_metric_text = (
         f"{latest_metric:.12g}"
         if isinstance(latest_metric, (int, float))
@@ -215,6 +229,7 @@ def build_optimize_prompt(
         "Only `worker_memory.md` may be edited under `.fermilink-optimize/`; do not edit controller memory, results, state, run archives, `skills/`, or the benchmark files.\n"
         "Do not run the authoritative benchmark command; the controller will do that.\n"
         "Quick smoke tests are allowed. Long local/HPC worker jobs are allowed when needed.\n"
+        "Sampling profiling with `py-spy`/`perf`/`xctrace` or other available tools when useful.\n"
         "\n"
         "Editable path globs:\n"
         f"{editable_json}\n"

@@ -978,9 +978,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
                         slurm_issue_caused_early_continue = False
                         while alive or pending_slurm_jobs:
                             if _stop_requested():
-                                return _return_with_completion(
-                                    _stop_requested_notice()
-                                )
+                                return _return_with_completion(_stop_requested_notice())
                             now_monotonic = time.monotonic()
                             elapsed = now_monotonic - started
                             remaining = max_wait_seconds - elapsed
@@ -1157,9 +1155,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
                         slept = 0.0
                         while slept < effective_wait:
                             if _stop_requested():
-                                return _return_with_completion(
-                                    _stop_requested_notice()
-                                )
+                                return _return_with_completion(_stop_requested_notice())
                             chunk = min(0.25, effective_wait - slept)
                             time.sleep(chunk)
                             slept += chunk

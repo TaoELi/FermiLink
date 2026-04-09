@@ -20,29 +20,117 @@
         </a>
 
         <nav class="mxl-simple-nav" aria-label="Documentation links">
-          <a href="{{ pathto('overview') }}">Documentation</a>
-          <a href="{{ pathto('installation') }}">Installation</a>
-          <a href="{{ pathto('scientific_packages') }}">Scientific Packages</a>
+          <a href="{{ pathto('overview') }}">Docs</a>
+          <a href="{{ pathto('installation') }}">Install</a>
+          <a href="{{ pathto('scientific_packages') }}">Packages</a>
+          <a href="{{ pathto('architecture') }}">Architecture</a>
         </nav>
       </header>
 
       <main id="mxl-main" class="mxl-simple-main">
-        <section class="mxl-simple-hero">
-          <p class="mxl-simple-kicker">A Unified Agent Framework for</p>
-          <h1>Autonomous Scientific Computing</h1>
-          <p class="mxl-simple-lead">
-            Learn how to setup and use FermiLink in your laptop, HPC server, or cellphone.
-          </p>
-          <div class="mxl-simple-actions">
-            <a class="mxl-simple-btn mxl-simple-btn--primary" href="{{ pathto('overview') }}">
-              Documentation
-            </a>
-            <a class="mxl-simple-btn" href="{{ pathto('installation') }}">Installation</a>
-            <a class="mxl-simple-btn" href="{{ pathto('scientific_packages') }}">Scientific Packages</a>
-          </div>
-        </section>
+        <div class="mxl-hero-wrapper">
+          {# ── Hero section ── #}
+          <section class="mxl-simple-hero">
+            <p class="mxl-simple-kicker">
+              <span class="mxl-kicker-symbol" aria-hidden="true"></span>
+              A Unified Agent Framework
+            </p>
+            <h1>
+              Autonomous Scientific Computing for
+              <span class="mxl-typewriter-wrap">
+                <span class="mxl-typewriter" aria-label="researchers, HPC clusters, your laptop, your phone"></span>
+                <span class="mxl-typewriter-cursor" aria-hidden="true"></span>
+              </span>
+            </h1>
+            <p class="mxl-simple-lead">
+              FermiLink orchestrates scientific workflows across laptops, HPC clusters,
+              and mobile devices&mdash;so you can focus on the science, not the infrastructure.
+            </p>
+            <div class="mxl-simple-actions">
+              <a class="mxl-simple-btn mxl-simple-btn--primary" href="{{ pathto('overview') }}">
+                Get Started
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M3.5 8h9M9 4.5L12.5 8 9 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </a>
+              <a class="mxl-simple-btn" href="{{ pathto('installation') }}">Installation Guide</a>
+              <a class="mxl-simple-btn" href="{{ pathto('scientific_packages') }}">Browse Packages</a>
+            </div>
+          </section>
+
+          {# ── Footer ── #}
+          <footer class="mxl-landing-foot">
+            <div class="mxl-landing-foot__inner">
+              <span class="mxl-landing-foot__brand">FermiLink</span>
+              <nav class="mxl-landing-foot__links" aria-label="Footer links">
+                <a href="{{ pathto('overview') }}">Docs</a>
+                <a href="{{ pathto('contributing') }}">Contributing</a>
+                <a href="{{ pathto('privacy') }}">Privacy</a>
+                <a href="{{ pathto('terms') }}">Terms</a>
+              </nav>
+            </div>
+          </footer>
+        </div>
       </main>
     </div>
+
+    <script>
+    (function () {
+      // Typewriter animation
+      var words = ["researchers", "HPC clusters", "your laptop", "your phone"];
+      var el = document.querySelector(".mxl-typewriter");
+      if (!el) return;
+      var prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReduced) {
+        el.textContent = words[0];
+        return;
+      }
+      var wordIdx = 0;
+      var charIdx = 0;
+      var deleting = false;
+      var pauseMs = 2000;
+      var typeMs = 80;
+      var deleteMs = 40;
+
+      function tick() {
+        var word = words[wordIdx];
+        if (!deleting) {
+          charIdx++;
+          el.textContent = word.slice(0, charIdx);
+          if (charIdx === word.length) {
+            deleting = true;
+            setTimeout(tick, pauseMs);
+            return;
+          }
+          setTimeout(tick, typeMs);
+        } else {
+          charIdx--;
+          el.textContent = word.slice(0, charIdx);
+          if (charIdx === 0) {
+            deleting = false;
+            wordIdx = (wordIdx + 1) % words.length;
+            setTimeout(tick, 300);
+            return;
+          }
+          setTimeout(tick, deleteMs);
+        }
+      }
+      tick();
+
+      // Symbol cycling for kicker
+      var symbols = ["\u25C8", "\u25D3", "\u273D", "\u25D0", "\u25D1", "\u2726"];
+      var symEl = document.querySelector(".mxl-kicker-symbol");
+      if (!symEl) return;
+      var symIdx = 0;
+      symEl.textContent = symbols[0];
+      if (!prefersReduced) {
+        setInterval(function () {
+          symIdx = (symIdx + 1) % symbols.length;
+          symEl.textContent = symbols[symIdx];
+        }, 1200);
+      }
+    })();
+    </script>
   {% else %}
     {{ super() }}
   {% endif %}

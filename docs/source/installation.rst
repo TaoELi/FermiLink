@@ -3,28 +3,28 @@ Installation
 
 The following instructions will guide you through the installation of FermiLink, a framework for autonomous scientific simulation and research.
 
+- Laptop and workstation users, check out the :doc:`tutorial_laptop` for a practical tutorial on using FermiLink on local machines.
+- HPC users, please also check out the :doc:`tutorial_hpc` for step-by-step instructions on running FermiLink on HPC systems.
+
 Fast path 
 ------------
 
 .. code-block:: bash
 
-   # 1. Install FermiLink (from this repo root)
-   pip install .
+   # 1. Install FermiLink 
+   pip install fermilink
 
    # 2. Start the guided beginner entrypoint
    fermilink
 
    # 3. Or, follow the manual setup path below:
-   # Install and authenticate one supported agent provider CLI (Codex or Claude)
-   # Codex option:
+   # Install and authenticate one supported agent provider CLI (Codex/Claude/Gemini)
+   # For example, Codex option:
    npm i -g @openai/codex   # Use ``brew install codex`` for Mac
    codex login
-   # Claude option:
-   # install Claude CLI from its official distribution, then:
-   claude login
 
    # 4. Install at least one scientific package
-   fermilink install meep --activate
+   fermilink install meep
 
    # 5.1. Command line execution (most powerful)
    fermilink exec/loop/research/reproduce "..."
@@ -37,17 +37,7 @@ Fast path
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
    fermilink gateway
 
-The zero-argument ``fermilink`` entrypoint is intended for beginners. In an
-interactive terminal it performs a deterministic machine scan and guides the
-user through provider selection, first package install, web UI startup, Telegram
-setup, optional default HPC profile creation, guided local-package compile, and
-guided recompile updates from manuscripts or workspace memory before any agent
-run is started. Each interactive zero-arg invocation also shows a startup
-terminal hero banner, and the command now renders machine status as a compact
-terminal table.
-
-
-See also :doc:`usage`, :doc:`usage_web_ui`, and :doc:`usage_chatting_apps` for more details about three user interfaces.
+See also :doc:`usage`, :doc:`usage_web_ui`, and :doc:`usage_chatting_apps` for more details about the three user interfaces.
 
 
 Complete installation guide
@@ -62,7 +52,7 @@ FermiLink assumes a standard local developer environment:
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
-- Node.js + ``npm`` (commonly used for local provider CLIs) or ``homebrew`` installed for Mac
+- Node.js + ``npm`` (commonly used for local agent provider CLIs) or ``homebrew`` installed for Mac
 - Supported provider CLI on ``PATH``: Codex (``codex``) or Claude (``claude``) or Gemini (``gemini``)
 
 .. note::
@@ -70,19 +60,17 @@ FermiLink assumes a standard local developer environment:
    For HPC users without sudo access, you need to install Node.js and ``npm`` locally first.
 
 Install provider CLI (Codex or Claude or Gemini)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    # Codex option
    npm i -g @openai/codex  # Use ``brew install codex`` for Mac
-   # Claude option
    # install Claude / Gemini CLI from its official distribution
 
 Provider authentication
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently documents tested agent-provider support for Codex, Claude and Gemini.
 Authenticate the provider you selected **before** starting web UI services or running
 ``fermilink exec/chat/loop/research/reproduce``.
 
@@ -93,16 +81,18 @@ Example login commands:
    # Codex
    codex login
    # Claude
-   claude login
+   claude
+   # Gemini
+   gemini
 
 Install FermiLink
 ~~~~~~~~~~~~~~~~~~
 
-From the Github repository root, you can install FermiLink with pip:
+You can install FermiLink with pip:
 
 .. code-block:: bash
 
-   pip install .
+   pip install fermilink
 
 
 
@@ -129,7 +119,9 @@ with ``fermilink activate <package_id>``.
 
 Note that ``fermilink install`` only downloads 
 the package knowledge base (source code tree + agent skills) to ``FERMILINK_SCIPKG_ROOT`` (default path: ``~/.fermilink/scientific_packages/``) but 
-**does not really install the package for execution**. It is recommended that the users have already installed the packages
+**does not really install the package for execution**. 
+
+It is always recommended that the users have already installed the packages
 in their machines, but agents can install the packages by themselves if they find the relavent package is not installed or cannot run.
 
 Agent runtime policy
@@ -157,25 +149,16 @@ However, some scientific simulations may require access to external files, netwo
 
    When ``fermilink agent --bypass-sandbox`` is needed for maximal functionality, **NEVER run it as a root user.** 
 
-   **Instead, it is suggested to assign a new non-root user account for running FermiLink to reduce the risk, and always backup your simulation data.**
-
-Build documentation
--------------------
-
-User can build the documentation website for FermiLink locally with the following commands:
-
-.. code-block:: bash
-
-   pip install ".[docs]"
-   make doc html
 
 Developer mode
 -------------------
 
-Users can also install FermiLink in the developer mode to modify the source code and test the changes locally. This is recommended for users who want to contribute to the project or customize the framework for their own use cases. 
+Users can install FermiLink in the developer mode to modify the source code and test the changes locally. This is recommended for users who want to contribute to the project or customize the framework for their own use cases. 
 
-To install FermiLink in the developer mode, run the following command in the root directory of the project:
+To install FermiLink in the developer mode, run the following command:
 
 .. code-block:: bash
 
+   git clone git@github.com:TaoELi/FermiLink.git
+   cd FermiLink
    pip install -e ".[dev]"

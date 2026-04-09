@@ -35,12 +35,6 @@ work session:
   concise, factual bullets.
 - Keep entries reproducible and avoid speculative wording.
 
-## Documentation maintenance
-
-- Update docs under `docs/source/` whenever user-facing command behavior,
-  runtime policy, or architecture changes.
-- Keep `README.md` concise and consistent with docs.
-
 ## Boundaries and safety
 
 - Do not revert or rewrite unrelated local changes.
