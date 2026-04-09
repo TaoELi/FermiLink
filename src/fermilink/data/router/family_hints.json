@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-08T12:06:23.193471Z",
+  "updated_at": "2026-03-16T10:02:16.911141Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -6309,6 +6309,44 @@
         "acts",
         "cantera",
         "cirq"
+      ]
+    },
+    "geosx": {
+      "description": "Use this family for intents about subsurface multiphysics and coupled flow-transport-geomechanics simulation, especially reservoir-scale and HPC-oriented geoscience workflows.",
+      "strong_keywords": [
+        "geosx",
+        "subsurface flow",
+        "geomechanics",
+        "coupled flow transport geomechanics",
+        "carbon sequestration",
+        "geothermal energy",
+        "reservoir simulation",
+        "exascale simulation"
+      ],
+      "keywords": [
+        "porous media",
+        "multiphysics simulation",
+        "computational geoscience",
+        "geologic carbon storage",
+        "subsurface transport",
+        "fluid flow in rock",
+        "underground storage",
+        "nonlinear solvers",
+        "finite volume methods",
+        "parallel scalability",
+        "high performance computing"
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "calculix"
       ]
     }
   }
