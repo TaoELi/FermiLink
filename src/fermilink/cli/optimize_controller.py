@@ -4793,7 +4793,7 @@ def _goal_validation_cache_key(
 ) -> str:
     key_material = "\n".join(
         [
-            "goal_validation_v1",
+            "goal_validation_v2",
             str(language or "").strip().lower(),
             hashlib.sha256(benchmark_text.encode("utf-8")).hexdigest(),
             hashlib.sha256(runner_text.encode("utf-8")).hexdigest(),
@@ -4861,6 +4861,180 @@ def _goal_validation_cache_store(
             cache.pop(key, None)
     state_payload[GOAL_VALIDATION_CACHE_STATE_KEY] = cache
     optimize_state.write_state(state_path, state_payload)
+
+
+def _goal_preflight_benchmark_payload(
+    project_root: Path,
+    *,
+    benchmark_payload: dict[str, Any],
+    goal_input_stage: dict[str, Any],
+) -> dict[str, Any]:
+    _, controller_payload, _benchmark_split = _partition_benchmark_payload_by_split(
+        benchmark_payload
+    )
+    payload = copy.deepcopy(controller_payload)
+    controller = payload.get("controller")
+    if not isinstance(controller, dict):
+        controller = {}
+        payload["controller"] = controller
+    controller["warmup_runs"] = 0
+    controller["measured_runs"] = 1
+
+    all_root_raw = str(goal_input_stage.get("all_root") or "").strip()
+    staged_files = goal_input_stage.get("all_files")
+    if all_root_raw and isinstance(staged_files, list) and staged_files:
+        all_root = Path(all_root_raw)
+        if not all_root.is_absolute():
+            all_root = (project_root / all_root).resolve()
+        payload = _with_runtime_env_var(
+            payload,
+            key=GOAL_INPUT_ROOT_ENV_VAR,
+            value=str(all_root),
+        )
+    return payload
+
+
+def _goal_preflight_issue_lines(
+    project_root: Path,
+    *,
+    preflight_result: dict[str, Any],
+    run_dir: Path,
+    benchmark_path: Path,
+) -> list[str]:
+    issues: list[str] = []
+    status = str(preflight_result.get("status") or "unknown").strip() or "unknown"
+    status_failed = (not preflight_result.get("ok", True)) and status != "ok"
+    if status_failed:
+        issues.append(f"Generated benchmark preflight failed with status `{status}`.")
+    elif not bool(preflight_result.get("correctness_ok", True)):
+        issues.append(
+            "Generated benchmark preflight completed but `correctness_ok` was false."
+        )
+
+    reason = " ".join(str(preflight_result.get("reason") or "").split()).strip()
+    if reason:
+        issues.append(f"Preflight reason: {reason}")
+
+    guardrail_errors = preflight_result.get("guardrail_errors")
+    if isinstance(guardrail_errors, list):
+        for raw_error in guardrail_errors[:3]:
+            message = " ".join(str(raw_error or "").split()).strip()
+            if message:
+                issues.append(f"Preflight guardrail: {message}")
+
+    case_failures = 0
+    raw_cases = preflight_result.get("cases")
+    if isinstance(raw_cases, list):
+        for item in raw_cases:
+            if not isinstance(item, dict):
+                continue
+            case_id = str(item.get("id") or "case")
+            parts: list[str] = []
+            if not bool(item.get("converged")):
+                parts.append("not converged")
+            run_success_flag = item.get("run_success_flag")
+            if run_success_flag not in (None, 1):
+                parts.append(f"run_success_flag={run_success_flag}")
+            error_text = " ".join(str(item.get("error") or "").split()).strip()
+            if error_text:
+                parts.append(error_text)
+            if not parts:
+                continue
+            issues.append(f"Case `{case_id}`: {'; '.join(parts)}")
+            case_failures += 1
+            if case_failures >= 3:
+                break
+
+    def render_path(raw_path: str) -> str:
+        path = Path(raw_path).expanduser()
+        if path.is_absolute():
+            return optimize_state.safe_relative(path, project_root)
+        return raw_path
+
+    metrics_path = run_dir / "metrics.json"
+    path_items = [
+        ("Preflight benchmark", str(benchmark_path)),
+        ("Preflight metrics", str(metrics_path) if metrics_path.is_file() else ""),
+        ("Preflight stdout log", str(preflight_result.get("stdout_log") or "").strip()),
+        ("Preflight stderr log", str(preflight_result.get("stderr_log") or "").strip()),
+        (
+            "Preflight result metrics snapshot",
+            str(preflight_result.get("result_metrics_snapshot") or "").strip(),
+        ),
+        (
+            "Preflight result JSON",
+            str(preflight_result.get("result_json_path") or "").strip(),
+        ),
+    ]
+    for label, raw_path in path_items:
+        if not raw_path:
+            continue
+        issues.append(f"{label}: `{render_path(raw_path)}`")
+
+    return issues
+
+
+def _run_goal_generation_repair_turn(
+    *,
+    cli: Any,
+    project_root: Path,
+    goal_rel: str,
+    analysis_rel: str,
+    autogen_rel: str,
+    autogen_benchmark_rel: str,
+    autogen_runner_rel: str,
+    provider: str,
+    provider_bin_override: str | None,
+    sandbox_mode: str | None,
+    sandbox_policy: str,
+    model: str | None,
+    reasoning_effort: str | None,
+    issue_lines: list[str],
+) -> str:
+    from fermilink.cli import optimize_source_analysis as osa
+
+    issue_block = "\n".join(
+        f"- {line}" for line in issue_lines if str(line or "").strip()
+    ).strip()
+    if not issue_block:
+        issue_block = "- (no details captured)"
+    repair_prompt = (
+        "The previously generated benchmark files failed validation or "
+        "generation-time preflight checks.\n"
+        "Issues:\n"
+        f"{issue_block}\n\n"
+        "Please fix the files and write corrected versions to:\n"
+        f"- `{autogen_benchmark_rel}`\n"
+        f"- `{autogen_runner_rel}`\n\n"
+        "The files must conform to the FermiLink benchmark contract as "
+        "described in the previous turn. Output the corrected files in\n"
+        f"<{osa.BENCHMARK_YAML_TAG}>...</{osa.BENCHMARK_YAML_TAG}>\n"
+        f"<{osa.RUNNER_SCRIPT_TAG}>...</{osa.RUNNER_SCRIPT_TAG}>\n"
+        "tags.\n\n"
+        f"{cli.LOOP_DONE_TOKEN}\n"
+    )
+
+    repair_agents = osa.build_benchmark_generation_agents_md(
+        goal_rel=goal_rel,
+        analysis_rel=analysis_rel,
+        autogen_rel=autogen_rel,
+    )
+    with optimize_git.temporary_optimize_agents(
+        project_root,
+        provider=provider,
+        content=repair_agents,
+    ):
+        repair_result = cli._run_exec_chat_turn(
+            repo_dir=project_root,
+            prompt=repair_prompt,
+            sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
+            provider_bin_override=provider_bin_override,
+            provider=provider,
+            sandbox_policy=sandbox_policy,
+            model=model,
+            reasoning_effort=reasoning_effort,
+        )
+    return str(repair_result.get("assistant_text") or "")
 
 
 def _goal_runner_contract_errors(
@@ -5679,80 +5853,20 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         validation_cache_key,
     )
 
+    benchmark_payload: dict[str, Any] | None = None
+    bench_error = ""
+    runner_error = ""
+    validation_errors: list[str] = []
+    preflight_errors: list[str] = []
+
     if validation_cache_entry is not None:
         cli._print_tagged(
             "optimize",
-            "goal mode: validation cache hit; skipping repeated benchmark/runner validation",
+            "goal mode: validation cache hit; skipping repeated benchmark/runner validation and preflight",
         )
         benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
-        runner_error = ""
     else:
-        benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
-        runner_error = _validate_goal_runner(
-            runner_path,
-            language=language,
-            project_root=project_root,
-            benchmark_path=bench_path,
-            benchmark_payload=benchmark_payload,
-        )
-
-    if (validation_cache_entry is None) and (bench_error or runner_error):
-        errors = [e for e in (bench_error, runner_error) if e]
-        cli._print_tagged("optimize", f"validation issues: {'; '.join(errors)}")
-        # Attempt one repair cycle
-        for repair_attempt in range(1, GOAL_MAX_REPAIR_ATTEMPTS + 1):
-            cli._print_tagged(
-                "optimize",
-                f"goal mode: repair attempt {repair_attempt}",
-            )
-            repair_prompt = (
-                "The previously generated benchmark files have validation errors.\n"
-                f"Errors: {'; '.join(errors)}\n\n"
-                "Please fix the files and write corrected versions to:\n"
-                f"- `{autogen_benchmark_rel}`\n"
-                f"- `{autogen_runner_rel}`\n\n"
-                "The files must conform to the FermiLink benchmark contract as "
-                "described in the previous turn.  Output the corrected files in\n"
-                f"<{optimize_source_analysis.BENCHMARK_YAML_TAG}>...</{optimize_source_analysis.BENCHMARK_YAML_TAG}>\n"
-                f"<{optimize_source_analysis.RUNNER_SCRIPT_TAG}>...</{optimize_source_analysis.RUNNER_SCRIPT_TAG}>\n"
-                "tags.\n\n"
-                f"{cli.LOOP_DONE_TOKEN}\n"
-            )
-            from fermilink.cli import optimize_source_analysis as osa
-
-            repair_agents = osa.build_benchmark_generation_agents_md(
-                goal_rel=goal_rel,
-                analysis_rel=analysis_rel,
-                autogen_rel=autogen_rel,
-            )
-            with optimize_git.temporary_optimize_agents(
-                project_root,
-                provider=provider,
-                content=repair_agents,
-            ):
-                repair_result = cli._run_exec_chat_turn(
-                    repo_dir=project_root,
-                    prompt=repair_prompt,
-                    sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-                    provider_bin_override=provider_bin_override,
-                    provider=provider,
-                    sandbox_policy=sandbox_policy,
-                    model=model,
-                    reasoning_effort=reasoning_effort,
-                )
-            repair_text = str(repair_result.get("assistant_text") or "")
-            repaired_yaml = osa.extract_benchmark_yaml(repair_text)
-            repaired_runner = osa.extract_runner_script(repair_text)
-            if repaired_yaml:
-                bench_path.write_text(repaired_yaml, encoding="utf-8")
-            if repaired_runner:
-                runner_path.write_text(repaired_runner, encoding="utf-8")
-                optimize_state.ensure_executable(runner_path)
-            # Re-read from disk (agent may have written directly)
-            if bench_path.is_file():
-                benchmark_yaml_text = bench_path.read_text(encoding="utf-8")
-            if runner_path.is_file():
-                runner_script_text = runner_path.read_text(encoding="utf-8")
+        for repair_attempt in range(0, GOAL_MAX_REPAIR_ATTEMPTS + 1):
             benchmark_payload, bench_error = _validate_goal_benchmark(bench_path)
             runner_error = _validate_goal_runner(
                 runner_path,
@@ -5761,13 +5875,104 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 benchmark_path=bench_path,
                 benchmark_payload=benchmark_payload,
             )
-            if not bench_error and not runner_error:
+            validation_errors = [e for e in (bench_error, runner_error) if e]
+            preflight_errors = []
+
+            if not validation_errors and isinstance(benchmark_payload, dict):
+                cli._print_tagged("optimize", "goal mode: running benchmark preflight")
+                preflight_payload = _goal_preflight_benchmark_payload(
+                    project_root,
+                    benchmark_payload=benchmark_payload,
+                    goal_input_stage=goal_input_stage,
+                )
+                preflight_run_dir = (
+                    optimize_state.runs_root(project_root)
+                    / f"goal_preflight_{repair_attempt:02d}"
+                )
+                shutil.rmtree(preflight_run_dir, ignore_errors=True)
+                preflight_run_dir.mkdir(parents=True, exist_ok=True)
+                preflight_benchmark_path = preflight_run_dir / "benchmark.preflight.yaml"
+                _write_benchmark_contract_file(
+                    preflight_benchmark_path,
+                    preflight_payload,
+                )
+                preflight_timeout = _safe_positive_int(
+                    _controller_config(preflight_payload).get("timeout_seconds"),
+                    default=QUICK_DEFAULT_TIMEOUT_SECONDS,
+                )
+                preflight_result = _run_benchmark_suite(
+                    project_root,
+                    benchmark_path=preflight_benchmark_path,
+                    benchmark_payload=preflight_payload,
+                    run_dir=preflight_run_dir,
+                    timeout_seconds=preflight_timeout,
+                )
+                preflight_status = str(preflight_result.get("status") or "unknown")
+                preflight_failed = (
+                    (not preflight_result.get("ok", True))
+                    and preflight_status != "ok"
+                ) or (
+                    preflight_status == "ok"
+                    and not bool(preflight_result.get("correctness_ok", True))
+                )
+                if preflight_failed:
+                    preflight_errors = _goal_preflight_issue_lines(
+                        project_root,
+                        preflight_result=preflight_result,
+                        run_dir=preflight_run_dir,
+                        benchmark_path=preflight_benchmark_path,
+                    )
+
+            if not validation_errors and not preflight_errors:
                 break
+            repair_issue_lines = validation_errors + preflight_errors
+            if repair_attempt >= GOAL_MAX_REPAIR_ATTEMPTS:
+                break
+            cli._print_tagged(
+                "optimize",
+                f"goal mode: repair attempt {repair_attempt + 1}",
+            )
+            repair_text = _run_goal_generation_repair_turn(
+                cli=cli,
+                project_root=project_root,
+                goal_rel=goal_rel,
+                analysis_rel=analysis_rel,
+                autogen_rel=autogen_rel,
+                autogen_benchmark_rel=autogen_benchmark_rel,
+                autogen_runner_rel=autogen_runner_rel,
+                provider=provider,
+                provider_bin_override=provider_bin_override,
+                sandbox_mode=sandbox_mode,
+                sandbox_policy=sandbox_policy,
+                model=model,
+                reasoning_effort=reasoning_effort,
+                issue_lines=repair_issue_lines,
+            )
+            repaired_yaml = optimize_source_analysis.extract_benchmark_yaml(repair_text)
+            repaired_runner = optimize_source_analysis.extract_runner_script(
+                repair_text
+            )
+            if repaired_yaml:
+                bench_path.write_text(repaired_yaml, encoding="utf-8")
+            if repaired_runner:
+                runner_path.write_text(repaired_runner, encoding="utf-8")
+                optimize_state.ensure_executable(runner_path)
+            if bench_path.is_file():
+                benchmark_yaml_text = bench_path.read_text(encoding="utf-8")
+            if runner_path.is_file():
+                runner_script_text = runner_path.read_text(encoding="utf-8")
 
     if benchmark_payload is None:
         raise cli.PackageError(f"Generated benchmark.yaml is invalid: {bench_error}")
+    if bench_error:
+        raise cli.PackageError(f"Generated benchmark.yaml is invalid: {bench_error}")
     if runner_error:
         raise cli.PackageError(f"Generated runner script is invalid: {runner_error}")
+    if preflight_errors:
+        raise cli.PackageError(
+            "Generated benchmark artifacts failed preflight: "
+            + "; ".join(preflight_errors)
+        )
     validation_cache_key = _goal_validation_cache_key(
         language=language,
         benchmark_text=benchmark_yaml_text,

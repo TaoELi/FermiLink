@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import pytest
 from fermilink import cli
 from fermilink.cli import optimize_goal
 from fermilink.cli import optimize_controller
+from fermilink.cli import optimize_git
 from fermilink.cli import optimize_source_analysis
 from fermilink.cli import optimize_state
 from fermilink.cli.commands.optimize import _resolve_optimize_mode
@@ -774,6 +776,262 @@ class TestGoalResume:
 
         assert captured["benchmark"] == str(fallback_benchmark_path)
         assert payload["goal_resume"] is True
+
+
+# ---------------------------------------------------------------------------
+# Goal preflight behavior
+# ---------------------------------------------------------------------------
+
+
+class TestGoalPreflight:
+    def test_preflight_issue_lines_include_case_errors_and_paths(
+        self, tmp_path: Path
+    ) -> None:
+        project_root = tmp_path / "repo"
+        project_root.mkdir(parents=True, exist_ok=True)
+        run_dir = project_root / ".fermilink-optimize" / "runs" / "goal_preflight_00"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        benchmark_path = run_dir / "benchmark.preflight.yaml"
+        benchmark_path.write_text("schema_version: 1\n", encoding="utf-8")
+        metrics_path = run_dir / "metrics.json"
+        metrics_path.write_text("{}", encoding="utf-8")
+        stdout_path = run_dir / "measured_1.stdout.log"
+        stderr_path = run_dir / "measured_1.stderr.log"
+        stdout_path.write_text("", encoding="utf-8")
+        stderr_path.write_text("fatal\n", encoding="utf-8")
+
+        issues = optimize_controller._goal_preflight_issue_lines(
+            project_root,
+            preflight_result={
+                "status": "ok",
+                "correctness_ok": False,
+                "cases": [
+                    {
+                        "id": "test-b",
+                        "converged": False,
+                        "run_success_flag": 0,
+                        "error": "dump custom requires explicit fields like id fx fy fz",
+                    }
+                ],
+                "stdout_log": str(stdout_path),
+                "stderr_log": str(stderr_path),
+            },
+            run_dir=run_dir,
+            benchmark_path=benchmark_path,
+        )
+
+        assert any("correctness_ok" in item for item in issues)
+        assert any("Case `test-b`" in item for item in issues)
+        assert any("id fx fy fz" in item for item in issues)
+        assert any(".fermilink-optimize/runs/goal_preflight_00/metrics.json" in item for item in issues)
+        assert any(".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log" in item for item in issues)
+
+    def test_run_goal_campaign_repairs_after_preflight_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        goal_path = repo_root / "goal.md"
+        goal_path.write_text(
+            (
+                "# Optimization Goal\n\n"
+                "## Package\n"
+                "mypackage\n\n"
+                "## Target\n"
+                "Improve solver performance.\n\n"
+                "## Representative Workloads\n"
+                "- train-a: `input.dat`\n"
+                "- test-b: `input.dat`\n"
+            ),
+            encoding="utf-8",
+        )
+        (repo_root / "solver.py").write_text("MODE = 'BASELINE'\n", encoding="utf-8")
+        (repo_root / "input.dat").write_text("payload\n", encoding="utf-8")
+
+        benchmark_yaml = (
+            "schema_version: 1\n"
+            "benchmark_id: goal-preflight\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - solver.py\n"
+            "controller:\n"
+            "  timeout_seconds: 30\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "    direction: minimize\n"
+            "correctness:\n"
+            "  mode: runner_only\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - .fermilink-optimize/autogen/benchmark_runner.py\n"
+            "    - --benchmark\n"
+            '    - "{benchmark}"\n'
+            "    - --emit-json\n"
+            "cases:\n"
+            "  - id: train-a\n"
+            "    weight: 1.0\n"
+            "  - id: test-b\n"
+            "    weight: 1.0\n"
+            "split:\n"
+            "  train_case_ids:\n"
+            "    - train-a\n"
+        )
+        runner_script = "import argparse\n"
+        analysis_payload = {
+            "package": "mypackage",
+            "language": "python",
+            "entry_points": [],
+            "editable_paths": ["solver.py"],
+            "immutable_paths": [".fermilink-optimize/**", "skills/**"],
+        }
+
+        repair_prompts: list[str] = []
+        preflight_calls = {"count": 0}
+        campaign_capture: dict[str, str] = {}
+
+        monkeypatch.chdir(repo_root)
+        monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _repo: False)
+        monkeypatch.setattr(
+            cli,
+            "resolve_agent_runtime_policy",
+            lambda: argparse.Namespace(
+                provider="codex",
+                sandbox_policy="enforce",
+                sandbox_mode="workspace-write",
+                model=None,
+                reasoning_effort=None,
+            ),
+        )
+        monkeypatch.setattr(
+            optimize_git,
+            "temporary_optimize_agents",
+            lambda *args, **kwargs: contextlib.nullcontext(),
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_analysis_turn",
+            lambda **_kwargs: {
+                "assistant_text": (
+                    f"<source_analysis>\n{json.dumps(analysis_payload)}\n</source_analysis>\n"
+                    "<analysis_summary>ok</analysis_summary>\n"
+                )
+            },
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_collect_tracked_files",
+            lambda _project_root: ["goal.md", "input.dat", "solver.py"],
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_generation_turn",
+            lambda **_kwargs: {
+                "assistant_text": (
+                    f"<benchmark_yaml>\n{benchmark_yaml}\n</benchmark_yaml>\n"
+                    f"<runner_script>\n{runner_script}\n</runner_script>\n"
+                )
+            },
+        )
+
+        def fake_exec_chat_turn(**kwargs):
+            repair_prompts.append(str(kwargs.get("prompt") or ""))
+            return {
+                "assistant_text": (
+                    f"<benchmark_yaml>\n{benchmark_yaml}\n</benchmark_yaml>\n"
+                    f"<runner_script>\n{runner_script}\n</runner_script>\n"
+                )
+            }
+
+        monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_exec_chat_turn)
+
+        def fake_run_benchmark_suite(
+            project_root: Path,
+            *,
+            benchmark_path: Path,
+            benchmark_payload: dict[str, object],
+            run_dir: Path,
+            timeout_seconds: int,
+            runtime_override: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            del project_root, benchmark_path, timeout_seconds, runtime_override
+            preflight_calls["count"] += 1
+            runtime = (
+                benchmark_payload.get("runtime")
+                if isinstance(benchmark_payload, dict)
+                else {}
+            )
+            env = runtime.get("env") if isinstance(runtime, dict) else {}
+            assert isinstance(env, dict)
+            assert env.get("FERMILINK_GOAL_INPUT_ROOT") == str(
+                optimize_state.goal_inputs_all_root(repo_root).resolve()
+            )
+            cases = benchmark_payload.get("cases") if isinstance(benchmark_payload, dict) else []
+            case_ids = [
+                str(item.get("id") or "")
+                for item in cases
+                if isinstance(item, dict)
+            ]
+            assert case_ids == ["test-b"]
+            if preflight_calls["count"] == 1:
+                run_dir.mkdir(parents=True, exist_ok=True)
+                stdout_path = run_dir / "measured_1.stdout.log"
+                stderr_path = run_dir / "measured_1.stderr.log"
+                stdout_path.write_text("", encoding="utf-8")
+                stderr_path.write_text("Command exited with non-zero status 1\n", encoding="utf-8")
+                return {
+                    "ok": False,
+                    "status": "crash",
+                    "reason": "Command exited with non-zero status 1",
+                    "stdout_log": str(stdout_path),
+                    "stderr_log": str(stderr_path),
+                }
+            return {
+                "status": "ok",
+                "correctness_ok": True,
+                "summary_metrics": {
+                    "weighted_median_wall_seconds": 1.0,
+                    "peak_rss_mb": 8.0,
+                },
+                "cases": [
+                    {
+                        "id": "test-b",
+                        "converged": True,
+                        "error": "",
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_benchmark_suite",
+            fake_run_benchmark_suite,
+        )
+
+        def fake_run_campaign(campaign_args: argparse.Namespace) -> dict[str, object]:
+            campaign_capture["benchmark"] = str(getattr(campaign_args, "benchmark", ""))
+            return {"status": "completed"}
+
+        monkeypatch.setattr(optimize_controller, "run_campaign", fake_run_campaign)
+
+        args = argparse.Namespace(
+            package_id="goal.md",
+            hpc_profile=None,
+            sandbox=None,
+            skills_source="existing",
+            resume=False,
+        )
+        payload = optimize_controller.run_goal_campaign(args)
+
+        assert payload["goal_mode"] is True
+        assert campaign_capture["benchmark"] == str(
+            optimize_state.goal_benchmark_path(repo_root)
+        )
+        assert preflight_calls["count"] == 2
+        assert len(repair_prompts) == 1
+        assert "Generated benchmark preflight failed with status `crash`." in repair_prompts[0]
+        assert ".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log" in repair_prompts[0]
 
 
 # ---------------------------------------------------------------------------
