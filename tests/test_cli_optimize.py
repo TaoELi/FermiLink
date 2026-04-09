@@ -1101,7 +1101,7 @@ def test_build_optimize_prompt_falls_back_to_nested_incumbent_summary_metrics() 
         editable_paths=["solver.py"],
     )
     assert "Current incumbent weighted_median_wall_seconds: 8" in prompt
-    assert "For Python-targeted experiments, `py-spy` is available" in prompt
+    assert "Sampling profiling with `py-spy`/`perf`/`xctrace`" in prompt
 
 
 def test_build_optimize_agents_md_mentions_py_spy_for_python_profiling() -> None:
@@ -1114,7 +1114,7 @@ def test_build_optimize_agents_md_mentions_py_spy_for_python_profiling() -> None
         editable_paths=["solver.py"],
         immutable_paths=["scripts/**"],
     )
-    assert "For Python-targeted experiments, `py-spy` is available" in agents_md
+    assert "Sampling profiling with `py-spy`/`perf`/`xctrace`" in agents_md
 
 
 def test_optimize_quick_mode_plan_only_scaffolds(
@@ -3484,6 +3484,13 @@ def test_optimize_removes_stale_temporary_agents_before_clean_check(
         ),
         encoding="utf-8",
     )
+    (repo_dir / "GEMINI.md").write_text(
+        (
+            f"{optimize_git.OPTIMIZE_TEMP_AGENTS_HEADER}"
+            "temporary optimize alias instructions\n"
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(
         cli,
@@ -3535,6 +3542,35 @@ def test_optimize_removes_stale_temporary_agents_before_clean_check(
     assert code == 0
     assert not (repo_dir / "AGENTS.md").exists()
     assert not (repo_dir / "CLAUDE.md").exists()
+    assert not (repo_dir / "GEMINI.md").exists()
+
+
+def test_temporary_optimize_agents_creates_and_cleans_dual_alias_links(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    with optimize_git.temporary_optimize_agents(
+        repo_dir,
+        provider="codex",
+        content="temporary optimize instructions\n",
+    ):
+        agents_path = repo_dir / "AGENTS.md"
+        assert agents_path.is_file()
+        assert agents_path.read_text(encoding="utf-8").startswith(
+            optimize_git.OPTIMIZE_TEMP_AGENTS_HEADER
+        )
+        for alias_name in ("CLAUDE.md", "GEMINI.md"):
+            alias_path = repo_dir / alias_name
+            assert alias_path.is_symlink() or alias_path.is_file()
+            assert alias_path.read_text(encoding="utf-8").startswith(
+                optimize_git.OPTIMIZE_TEMP_AGENTS_HEADER
+            )
+
+    assert not (repo_dir / "AGENTS.md").exists()
+    assert not (repo_dir / "CLAUDE.md").exists()
+    assert not (repo_dir / "GEMINI.md").exists()
 
 
 def test_cleanup_stale_temporary_agents_preserves_tracked_agents(

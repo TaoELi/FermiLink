@@ -7,9 +7,7 @@ pyscf
 python
 
 ## Target
-Optimize DIIS (Direct Inversion in the Iterative Subspace) behavior for SCF in
-PySCF, with primary focus on `pyscf/lib/diis.py` and SCF call sites that
-invoke DIIS during iterative convergence.
+Optimize DIIS (Direct Inversion in the Iterative Subspace) behavior for SCF in PySCF, with primary focus on `pyscf/lib/diis.py` and SCF call sites that invoke DIIS during iterative convergence.
 
 Target optimization opportunities include:
 - reduced overhead in DIIS history management and error-vector assembly
@@ -24,8 +22,7 @@ Target optimization opportunities include:
 ## Performance Metric
 Minimize end-to-end SCF convergence time.
 
-Primary objective should be weighted median total wall-clock time across all
-benchmark cases (including both setup and kernel phases).
+Primary objective should be weighted median total wall-clock time across all benchmark cases (including both setup and kernel phases).
 
 ## Correctness Constraints
 - Total SCF energy absolute delta <= 5e-8 Hartree vs incumbent baseline
@@ -44,9 +41,7 @@ benchmark cases (including both setup and kernel phases).
 
 ## Build
 ```bash
-python -m pip install -U pip
 python -m pip install -e .
-python -m pip install PyYAML
 ```
 
 ## Notes

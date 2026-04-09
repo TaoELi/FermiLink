@@ -141,11 +141,13 @@ def test_copy_workspace_payload_skips_missing_tracked_files(
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / "present.txt").write_text("ok\n", encoding="utf-8")
 
-    namespace["_iter_tracked_files"] = lambda _: [
+    copy_workspace_payload.__globals__["_iter_tracked_files"] = lambda _: [
         Path("present.txt"),
         Path("missing.txt"),
     ]
-    namespace["_resolve_payload_source"] = lambda root, rel: root / rel
+    copy_workspace_payload.__globals__["_resolve_payload_source"] = (
+        lambda root, rel: root / rel
+    )
 
     payload_root = tmp_path / "payload"
     copy_workspace_payload(repo_root, payload_root)

@@ -620,31 +620,44 @@ def temporary_optimize_agents(
         except OSError:
             original_agents_text = ""
 
-    agent = get_provider_agent(provider)
-    alias_name = agent.workspace_instruction_alias_name()
-    alias_path = (
-        repo_dir / alias_name if isinstance(alias_name, str) and alias_name else None
-    )
-    alias_state: tuple[bool, bool, str] | None = None
-    if isinstance(alias_path, Path) and alias_path.exists():
-        if alias_path.is_symlink():
-            try:
-                alias_state = (True, True, os.readlink(alias_path))
-            except OSError:
-                alias_state = (True, True, "")
+    provider_candidates = list(_WORKSPACE_INSTRUCTION_ALIAS_PROVIDERS)
+    provider_name = str(provider or "").strip()
+    if provider_name and provider_name not in provider_candidates:
+        provider_candidates.append(provider_name)
+
+    alias_names: set[str] = set()
+    for candidate in provider_candidates:
+        alias_name = get_provider_agent(candidate).workspace_instruction_alias_name()
+        if isinstance(alias_name, str) and alias_name.strip():
+            alias_names.add(alias_name.strip())
+
+    alias_states: dict[str, tuple[bool, bool, str]] = {}
+    for alias_name in sorted(alias_names):
+        alias_path = repo_dir / alias_name
+        if alias_path.exists() or alias_path.is_symlink():
+            if alias_path.is_symlink():
+                try:
+                    alias_states[alias_name] = (True, True, os.readlink(alias_path))
+                except OSError:
+                    alias_states[alias_name] = (True, True, "")
+            else:
+                try:
+                    alias_states[alias_name] = (
+                        True,
+                        False,
+                        alias_path.read_text(encoding="utf-8"),
+                    )
+                except OSError:
+                    alias_states[alias_name] = (True, False, "")
         else:
-            try:
-                alias_state = (True, False, alias_path.read_text(encoding="utf-8"))
-            except OSError:
-                alias_state = (True, False, "")
-    else:
-        alias_state = (False, False, "")
+            alias_states[alias_name] = (False, False, "")
 
     repo_agents.write_text(
         _temporary_optimize_agents_content(content),
         encoding="utf-8",
     )
-    agent.ensure_workspace_instruction_alias(repo_dir)
+    for candidate in provider_candidates:
+        get_provider_agent(candidate).ensure_workspace_instruction_alias(repo_dir)
     try:
         yield
     finally:
@@ -656,18 +669,20 @@ def temporary_optimize_agents(
             except OSError:
                 pass
 
-        if isinstance(alias_path, Path):
+        for alias_name in sorted(alias_states):
+            alias_path = repo_dir / alias_name
             try:
                 alias_path.unlink(missing_ok=True)
             except OSError:
                 pass
-            if alias_state and alias_state[0]:
-                existed, was_symlink, stored = alias_state
-                if existed:
-                    try:
-                        if was_symlink:
-                            os.symlink(stored or "AGENTS.md", alias_path)
-                        else:
-                            alias_path.write_text(stored, encoding="utf-8")
-                    except OSError:
-                        pass
+            alias_state = alias_states.get(alias_name)
+            if not alias_state or not alias_state[0]:
+                continue
+            _, was_symlink, stored = alias_state
+            try:
+                if was_symlink:
+                    os.symlink(stored or "AGENTS.md", alias_path)
+                else:
+                    alias_path.write_text(stored, encoding="utf-8")
+            except OSError:
+                pass
