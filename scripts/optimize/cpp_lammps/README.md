@@ -16,16 +16,6 @@ These files provide benchmark inputs adapted from the i-PI LAMMPS example:
 - `water_216_data.lmp`: upstream LAMMPS data file (216 waters).
 - `water_216.xyz`: upstream XYZ configuration (216 waters).
 
-## Adaptation notes
-
-- i-PI socket coupling (`fix ... ipi ...`) is replaced with local LAMMPS `fix nve`.
-- TIP4P pair style and coefficients are retained from the upstream example.
-- Both inputs keep `timestep 0.5`.
-- Thermo output includes `etotal`, `pe`, `ke`, and `press` for correctness checks.
-- Keep deterministic runtime settings for fair baseline/candidate comparison:
-  - same input files and seeds
-  - same MPI/OMP settings
-- In LAMMPS input the water system size is enlarged by 64 times.
 
 ## Tutorial: optimize LAMMPS TIP4P NVE with `fermilink optimize`
 
@@ -58,7 +48,22 @@ git pull --ff-only origin develop
 git worktree add -b fermilink-optimize/lammps-tip4p "$LAMMPS_OPT" develop
 ```
 
-### 3) Launch goal-mode optimize
+### 3) Compile LAMMPS once
+
+Then install lammps in the new git worktree following the `## Build` section in [goal.md](./cpp-lammps-tip4p-water-nve-goal.md) file:
+
+```bash
+cd "$LAMMPS_OPT"
+# the commands below are identical to the `## Build` section in goal.md
+mkdir -p build/
+cd build/ 
+cmake -C ../cmake/presets/most.cmake -C ../cmake/presets/nolib.cmake -D PKG_GPU=off ../cmake
+make -j 4
+```
+
+If the above command does not work for your environment, modify the above script, and **update the working build script to the `## Build` section in [goal.md](./cpp-lammps-tip4p-water-nve-goal.md) file**. This is because the agent will call this  `## Build` section to compile the LAMMPS source code.
+
+### 4) Launch goal-mode optimize
 
 The current goal is configured for deterministic 64-rank MPI runs with `OMP_NUM_THREADS=1`.
 
@@ -74,7 +79,7 @@ fermilink optimize "$GOAL" \
   --timeout-seconds 6000
 ```
 
-### 4) Monitor and resume
+### 5) Monitor and resume
 
 ```bash
 # at the repo root of $LAMMPS_OPT
@@ -91,7 +96,7 @@ fermilink optimize "$GOAL" --resume \
   --branch fermilink-optimize/lammps-tip4p 
 ```
 
-### 5) Review outputs
+### 6) Review outputs
 
 ```bash
 ls -la .fermilink-optimize/autogen
