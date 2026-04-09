@@ -898,6 +898,47 @@ def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None
     assert "force_norm abs_delta exceeds threshold" in "; ".join(failing["errors"])
 
 
+def test_compare_correctness_field_tolerances_supports_flat_dotted_case_keys() -> None:
+    benchmark_payload = {
+        "correctness": {
+            "mode": "field_tolerances",
+            "field_tolerances": [
+                {
+                    "field": "thermo.etotal",
+                    "relative_delta": 1.0e-6,
+                }
+            ],
+        }
+    }
+    incumbent_metrics = {
+        "cases": [
+            {
+                "id": "case-1",
+                "converged": True,
+                "thermo.etotal": -1.2909504,
+            }
+        ]
+    }
+    passing_candidate = {
+        "cases": [
+            {
+                "id": "case-1",
+                "converged": True,
+                "thermo.etotal": -1.2909503,
+            }
+        ]
+    }
+
+    comparison = optimize_controller._compare_correctness(
+        benchmark_payload,
+        incumbent_metrics=incumbent_metrics,
+        candidate_metrics=passing_candidate,
+    )
+
+    assert comparison["ok"] is True
+    assert comparison["errors"] == []
+
+
 def test_parse_benchmark_stdout_validates_required_schema() -> None:
     benchmark_payload = {
         "benchmark_id": "mock-contract",

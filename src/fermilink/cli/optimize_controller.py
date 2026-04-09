@@ -880,6 +880,7 @@ def _run_runtime_pre_commands_once(
     log_prefix: str = "pre_command",
     reason_context: str = "runtime.pre_commands",
 ) -> dict[str, Any] | None:
+    cli = _cli()
     pre_commands = _runtime_pre_commands(runtime)
     marker_path = run_dir / str(marker_filename or "pre_commands.ok.json").strip()
     if not pre_commands or marker_path.is_file():
@@ -900,6 +901,14 @@ def _run_runtime_pre_commands_once(
             benchmark_path=benchmark_path,
             project_root=project_root,
             run_dir=run_dir,
+        )
+        command_text = shlex.join(command) if command else "(missing command)"
+        cli._print_tagged(
+            "optimize",
+            (
+                f"controller {reason_context} {index}/{len(pre_commands)}: "
+                f"`{command_text}`"
+            ),
         )
         stdout_path = run_dir / f"{log_prefix}_{index}.stdout.log"
         stderr_path = run_dir / f"{log_prefix}_{index}.stderr.log"
@@ -1950,9 +1959,15 @@ def _value_at_field_path(payload: object, field_path: str) -> object:
     ]
     if not tokens:
         return FIELD_PATH_MISSING
-    for token in tokens:
+    for index, token in enumerate(tokens):
         if isinstance(current, dict):
             if token not in current:
+                # Goal-mode benchmark runners may emit flat keys that contain
+                # dots (for example: "thermo.etotal"). Support that form as a
+                # fallback while preserving nested traversal priority.
+                remaining = ".".join(tokens[index:])
+                if remaining in current:
+                    return current[remaining]
                 return FIELD_PATH_MISSING
             current = current[token]
             continue
@@ -3182,6 +3197,11 @@ def _run_benchmark_once(
             if not isinstance(key, str):
                 continue
             env[key] = str(value)
+    command_text = shlex.join(command) if command else "(missing command)"
+    cli._print_tagged(
+        "optimize",
+        f"controller benchmark {run_label} ({runtime_mode}): `{command_text}`",
+    )
     run_dir.mkdir(parents=True, exist_ok=True)
     stdout_path = run_dir / f"{run_label}.stdout.log"
     stderr_path = run_dir / f"{run_label}.stderr.log"
@@ -6529,7 +6549,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 worker_benchmark_path = benchmark_path
             cli._print_tagged(
                 "optimize",
-                "running worker runtime.pre_commands before first worker iteration",
+                "running worker runtime.pre_commands (usually compiling the code) before first worker iteration",
             )
             worker_prebuild_failure = _run_runtime_pre_commands_once(
                 worker_repo_dir,

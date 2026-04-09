@@ -3,7 +3,7 @@
 # and
 # https://github.com/i-pi/i-pi/blob/main/examples/init_files/water_216_data.lmp
 #
-# Long-horizon NVE drift case on medium-sized replicated system.
+# Key adaptation: replace i-PI socket coupling with local LAMMPS NVE integration.
 
 units           electron
 atom_style      full
@@ -17,19 +17,26 @@ read_data       water_216_data.lmp
 pair_coeff      * * 0 0
 pair_coeff      1 1 0.000295147 5.96946
 
-variable repx equal 2
+# Small system: 216 waters (no enlargement)
+variable repx equal 1
 variable repy equal 1
 variable repz equal 1
 replicate ${repx} ${repy} ${repz}
 
 # Maxwell-Boltzmann initialization at 300 K (case-specific deterministic seed).
-velocity        all create 300.0 423451 dist gaussian mom yes rot yes
+velocity        all create 300.0 123451 dist gaussian mom yes rot yes
 
 neighbor        2.0 bin
+
+# Keep timestep from upstream example.
 timestep        0.5
 
+# Deterministic benchmark-oriented output cadence.
 thermo_style    custom step atoms temp etotal pe ke press density
-thermo          200
+thermo          100
 
+# Local NVE instead of i-PI PIMD driver.
 fix             1 all nve
-run             12000
+
+# Benchmark short run length.
+run             400

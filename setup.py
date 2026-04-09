@@ -104,10 +104,10 @@ def _copy_workspace_payload(repo_root: Path, payload_root: Path) -> None:
     for rel_path in tracked_files:
         source = _resolve_payload_source(repo_root, rel_path)
         if not source.exists():
-            raise FileNotFoundError(
-                "Missing tracked file for workspace payload: "
-                f"{source} (from {rel_path})"
-            )
+            # Allow packaging from a dirty tree where tracked files may be
+            # deleted locally (for example, file removals not yet committed).
+            # In that case, stage only currently materialized payload files.
+            continue
         if source.is_dir():
             continue
         destination = payload_root / rel_path

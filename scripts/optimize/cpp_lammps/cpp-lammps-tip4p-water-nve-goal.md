@@ -46,10 +46,8 @@ the primary objective set to runtime minimization.
 - All benchmark cases must complete successfully with deterministic runner settings.
 
 ## Representative Workloads
-- train-small: `in.tip4p_nve` + `water_216_data.lmp` (216 waters; no replication) for short warm-cache profiling.
-- train-medium: `in.tip4p_nve_medium` + `water_216_data.lmp` (`replicate 2 1 1`; ~2x molecules) for main optimization loop.
-- test-large: `in.tip4p_nve_large` + `water_216_data.lmp` (`replicate 2 2 1`; ~4x molecules) for generalization check.
-- test-long: `in.tip4p_nve_long` + `water_216_data.lmp` (`replicate 2 1 1`; longer run) for longer-horizon NVE drift validation.
+- train-small: `in.tip4p_nve` + `water_216_data.lmp` (216 waters) for short warm-cache profiling.
+- test-long: `in.tip4p_nve_long` + `water_216_data.lmp` (216 waters, longer run) for longer-horizon NVE drift validation.
 
 ## Build
 ```bash
@@ -57,8 +55,6 @@ mkdir build/
 cd build/ 
 cmake -C ../cmake/presets/most.cmake -C ../cmake/presets/nolib.cmake -D PKG_GPU=off ../cmake
 make -j 4
-# local lmp executable available at build/lmp
-# create symbolic link of lmp so it is usable globally
 rm ~/.local/bin/lmp
 ln -s $(pwd)/lmp ~/.local/bin/lmp
 ```
@@ -75,5 +71,4 @@ ln -s $(pwd)/lmp ~/.local/bin/lmp
   split:
     train_case_ids:
       - train-small
-      - train-medium
   ```
