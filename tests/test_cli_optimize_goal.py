@@ -313,6 +313,11 @@ class TestPromptConstruction:
         assert "run from the resolved input-root" in prompt
         assert "Do not infer input roots from fixed benchmark-path parent depth." in prompt
         assert "hard-coded `..` parent-depth assumptions" in prompt
+        assert "`goal_context`" in prompt
+        assert "`target`" in prompt
+        assert "`initial_hypothesis`" in prompt
+        assert "`intent_level`" in prompt
+        assert "set to `guidance`" in prompt
 
     def test_benchmark_generation_prompt_requires_pre_commands_for_native_builds(
         self,

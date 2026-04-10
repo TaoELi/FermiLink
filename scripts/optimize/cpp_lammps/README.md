@@ -38,7 +38,7 @@ test -f "$GOAL"
 ### 2) Prepare a clean LAMMPS checkout and controller worktree
 
 ```bash
-git clone https://github.com/lammps/lammps.git "$LAMMPS_ROOT"
+git clone https://github.com/skilled-scipkg/lammps.git "$LAMMPS_ROOT"
 cd "$LAMMPS_ROOT"
 git fetch origin
 # note that the main branch of lammps is called "develop"
