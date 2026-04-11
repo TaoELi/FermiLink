@@ -106,7 +106,10 @@ def test_cli_init_and_clean_manage_workspace_links(
     _assert_points_to(workdir / "src", payload_root / "src")
     _assert_points_to(workdir / "tests", payload_root / "tests")
     _assert_points_to(workdir / "scripts", payload_root / "scripts")
-    _assert_points_to(workdir / "skills", payload_root / "skills")
+    skills_path = workdir / "skills"
+    assert skills_path.is_dir()
+    assert not skills_path.is_symlink()
+    assert (skills_path / "README.md").read_text(encoding="utf-8") == "skills\n"
     assert not (workdir / ".github").exists()
     assert not (workdir / ".env").exists()
 
@@ -209,6 +212,28 @@ def test_cli_clean_agents_copy_conflict_requires_force(
     assert not (workdir / "AGENTS.md").exists()
 
 
+def test_cli_clean_skills_copy_conflict_requires_force(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    payload_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workdir = tmp_path / "workspace"
+    workdir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        workspace_commands, "_resolve_payload_root", lambda: payload_root
+    )
+
+    assert cli.main(["init", str(workdir)]) == 0
+    (workdir / "skills" / "README.md").write_text("edited\n", encoding="utf-8")
+
+    assert cli.main(["clean", str(workdir)]) == 2
+    assert "expected managed copied directory content" in capsys.readouterr().err
+
+    assert cli.main(["clean", str(workdir), "--force"]) == 0
+    assert not (workdir / "skills").exists()
+
+
 def test_cli_clean_does_not_remove_hidden_local_paths(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -243,7 +268,8 @@ def test_standalone_init_clean_entrypoints(
 
     assert workspace_commands.fermilink_init_main([str(workdir)]) == 0
     _assert_points_to(workdir / "src", payload_root / "src")
-    _assert_points_to(workdir / "skills", payload_root / "skills")
+    assert (workdir / "skills").is_dir()
+    assert not (workdir / "skills").is_symlink()
     _assert_points_to(workdir / "CLAUDE.md", workdir / "AGENTS.md")
     _assert_points_to(workdir / "GEMINI.md", workdir / "AGENTS.md")
 
@@ -252,6 +278,26 @@ def test_standalone_init_clean_entrypoints(
     assert not (workdir / "skills").exists()
     assert not (workdir / "CLAUDE.md").exists()
     assert not (workdir / "GEMINI.md").exists()
+
+
+def test_cli_init_replaces_managed_skills_symlink_with_copy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    payload_root: Path,
+) -> None:
+    workdir = tmp_path / "workspace"
+    workdir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        workspace_commands, "_resolve_payload_root", lambda: payload_root
+    )
+
+    legacy_skills = workdir / "skills"
+    legacy_skills.symlink_to(payload_root / "skills", target_is_directory=True)
+
+    assert cli.main(["init", str(workdir)]) == 0
+    assert legacy_skills.is_dir()
+    assert not legacy_skills.is_symlink()
+    assert (legacy_skills / "README.md").read_text(encoding="utf-8") == "skills\n"
 
 
 def test_cli_hpc_creates_default_profile(

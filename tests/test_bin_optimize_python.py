@@ -51,6 +51,33 @@ def _init_python_repo(repo_dir: Path) -> None:
     )
 
 
+def _write_goal_file(goal_path: Path) -> None:
+    goal_path.write_text(
+        (
+            "# Optimization Goal\n"
+            "\n"
+            "## Package\n"
+            "mockpkg\n"
+            "\n"
+            "## Target\n"
+            "Improve runtime for representative SCF workloads.\n"
+            "\n"
+            "## Editable Scope\n"
+            "- mockpkg/**\n"
+            "\n"
+            "## Performance Metric\n"
+            "Wall-clock time.\n"
+            "\n"
+            "## Representative Workloads\n"
+            "- Example workload\n"
+            "\n"
+            "## Language\n"
+            "python\n"
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_fake_python_with_stub_venv(fake_python: Path) -> None:
     fake_python.write_text(
         (
@@ -101,25 +128,12 @@ def _write_fake_python_with_stub_venv(fake_python: Path) -> None:
     fake_python.chmod(0o755)
 
 
-def test_optimize_python_launcher_auto_commits_prep_files(tmp_path: Path) -> None:
+def test_optimize_python_launcher_prepares_goal_mode_worktree(tmp_path: Path) -> None:
     repo_dir = tmp_path / "repo"
     _init_python_repo(repo_dir)
 
-    bench_src = tmp_path / "mock_bench.py"
-    bench_src.write_text("print('bench')\n", encoding="utf-8")
-    benchmark_src = tmp_path / "benchmark.yaml"
-    benchmark_src.write_text(
-        (
-            "schema_version: 1\n"
-            "benchmark_id: mock\n"
-            "runtime:\n"
-            "  mode: direct\n"
-            "  command:\n"
-            "    - python3\n"
-            "    - scripts/mock_bench.py\n"
-        ),
-        encoding="utf-8",
-    )
+    goal_path = tmp_path / "mock-goal.md"
+    _write_goal_file(goal_path)
 
     completed = subprocess.run(
         [
@@ -127,14 +141,12 @@ def test_optimize_python_launcher_auto_commits_prep_files(tmp_path: Path) -> Non
             str(_script_path()),
             "--project-root",
             str(repo_dir),
+            "--goal",
+            str(goal_path),
             "--branch",
-            "fermilink-optimize/mock-branch",
+            "fermilink-optimize/mock-goal",
             "--base-ref",
             "main",
-            "--benchmark",
-            str(benchmark_src),
-            "--bench",
-            str(bench_src),
             "--skills-source",
             "existing",
             "--no-venv",
@@ -147,35 +159,33 @@ def test_optimize_python_launcher_auto_commits_prep_files(tmp_path: Path) -> Non
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
-    assert "Committed prep files at" in completed.stdout
+    assert "Prepared goal-mode optimize run (python workflow):" in completed.stdout
+    assert "Committed prep files" not in completed.stdout
     true_bin = shutil.which("true")
     assert true_bin
     assert f"  fermilink_bin:  {true_bin}" in completed.stdout
-    assert f"  {true_bin} optimize " in completed.stdout
+    assert f"  {true_bin} optimize {goal_path} --goal --branch fermilink-optimize/mock-goal " in completed.stdout
 
-    worktree_dir = (
-        tmp_path / ".fermilink-worktrees" / "repo" / "fermilink-optimize__mock-branch"
-    )
+    worktree_dir = tmp_path / ".fermilink-worktrees" / "repo" / "mock-goal"
     assert worktree_dir.is_dir()
+    assert not (worktree_dir / goal_path.name).exists()
 
     status = _git(worktree_dir, "status", "--porcelain")
     assert (status.stdout or "").strip() == ""
 
     head_subject = _git(worktree_dir, "show", "-s", "--format=%s", "HEAD")
-    assert (
-        head_subject.stdout or ""
-    ).strip() == "chore: sync optimize benchmark prep files"
+    assert (head_subject.stdout or "").strip() == "initial"
 
     exclude_raw = _git(worktree_dir, "rev-parse", "--git-path", "info/exclude")
     exclude_path = Path((exclude_raw.stdout or "").strip())
     if not exclude_path.is_absolute():
         exclude_path = (worktree_dir / exclude_path).resolve()
     exclude_lines = exclude_path.read_text(encoding="utf-8").splitlines()
-    assert ".venv/" in exclude_lines
     assert ".fermilink-optimize/" in exclude_lines
+    assert ".fermilink-home/" in exclude_lines
 
 
-def test_optimize_python_launcher_help_lists_bench_dep_flags() -> None:
+def test_optimize_python_launcher_help_lists_goal_and_venv_flags() -> None:
     completed = subprocess.run(
         ["bash", str(_script_path()), "--help"],
         text=True,
@@ -183,31 +193,14 @@ def test_optimize_python_launcher_help_lists_bench_dep_flags() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
-    assert "--bench-dep SPEC" in completed.stdout
-    assert "--bench-deps-file PATH" in completed.stdout
+    assert "--goal, --goal-file PATH" in completed.stdout
+    assert "--venv-root PATH" in completed.stdout
+    assert "--pip-install SPEC" in completed.stdout
 
 
-def test_optimize_python_launcher_rejects_missing_bench_deps_file(
-    tmp_path: Path,
-) -> None:
+def test_optimize_python_launcher_rejects_missing_goal_file(tmp_path: Path) -> None:
     repo_dir = tmp_path / "repo"
     _init_python_repo(repo_dir)
-
-    bench_src = tmp_path / "mock_bench.py"
-    bench_src.write_text("print('bench')\n", encoding="utf-8")
-    benchmark_src = tmp_path / "benchmark.yaml"
-    benchmark_src.write_text(
-        (
-            "schema_version: 1\n"
-            "benchmark_id: mock\n"
-            "runtime:\n"
-            "  mode: direct\n"
-            "  command:\n"
-            "    - python3\n"
-            "    - scripts/mock_bench.py\n"
-        ),
-        encoding="utf-8",
-    )
 
     completed = subprocess.run(
         [
@@ -215,18 +208,8 @@ def test_optimize_python_launcher_rejects_missing_bench_deps_file(
             str(_script_path()),
             "--project-root",
             str(repo_dir),
-            "--branch",
-            "fermilink-optimize/mock-branch",
-            "--base-ref",
-            "main",
-            "--benchmark",
-            str(benchmark_src),
-            "--bench",
-            str(bench_src),
-            "--bench-deps-file",
-            str(tmp_path / "missing-requirements.txt"),
-            "--skills-source",
-            "existing",
+            "--goal",
+            str(tmp_path / "missing-goal.md"),
             "--no-venv",
             "--fermilink-bin",
             "true",
@@ -237,30 +220,15 @@ def test_optimize_python_launcher_rejects_missing_bench_deps_file(
         check=False,
     )
     assert completed.returncode != 0
-    assert "Benchmark dependency file does not exist" in completed.stderr
+    assert "Goal file does not exist" in completed.stderr
 
 
-def test_optimize_python_launcher_supports_empty_bench_deps_with_venv(
-    tmp_path: Path,
-) -> None:
+def test_optimize_python_launcher_defaults_venv_outside_repo(tmp_path: Path) -> None:
     repo_dir = tmp_path / "repo"
     _init_python_repo(repo_dir)
 
-    bench_src = tmp_path / "mock_bench.py"
-    bench_src.write_text("print('bench')\n", encoding="utf-8")
-    benchmark_src = tmp_path / "benchmark.yaml"
-    benchmark_src.write_text(
-        (
-            "schema_version: 1\n"
-            "benchmark_id: mock\n"
-            "runtime:\n"
-            "  mode: direct\n"
-            "  command:\n"
-            "    - python3\n"
-            "    - scripts/mock_bench.py\n"
-        ),
-        encoding="utf-8",
-    )
+    goal_path = tmp_path / "mock-goal.md"
+    _write_goal_file(goal_path)
 
     fake_python = tmp_path / "fake-python"
     _write_fake_python_with_stub_venv(fake_python)
@@ -271,14 +239,10 @@ def test_optimize_python_launcher_supports_empty_bench_deps_with_venv(
             str(_script_path()),
             "--project-root",
             str(repo_dir),
+            "--goal",
+            str(goal_path),
             "--branch",
             "fermilink-optimize/mock-branch",
-            "--base-ref",
-            "main",
-            "--benchmark",
-            str(benchmark_src),
-            "--bench",
-            str(bench_src),
             "--python-bin",
             str(fake_python),
             "--skills-source",
@@ -292,4 +256,6 @@ def test_optimize_python_launcher_supports_empty_bench_deps_with_venv(
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
-    assert "Prepared worktree optimize run (python workflow):" in completed.stdout
+    expected_venv = tmp_path / ".venvs" / "repo-mock-branch"
+    assert expected_venv.is_dir()
+    assert f"  venv:           {expected_venv}" in completed.stdout

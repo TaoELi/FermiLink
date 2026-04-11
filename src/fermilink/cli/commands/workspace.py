@@ -22,6 +22,7 @@ _REQUIRED_PAYLOAD_ITEMS = ("README.md", "src")
 _PAYLOAD_INTERNAL_NAMES = {"__pycache__"}
 _AGENTS_FILENAME = "AGENTS.md"
 _AGENTS_ALIAS_FILENAMES = ("CLAUDE.md", "GEMINI.md")
+_COPIED_PAYLOAD_DIRECTORIES = {"skills"}
 _INIT_TEMPLATE_AGENTS_REL_PATH = Path("src/fermilink/init_template/AGENTS.md")
 _HPC_PROFILE_FILENAME = "HPC_PROFILE.json"
 _LEGACY_HPC_PROFILE_FILENAME = "hpc_profile.json"
@@ -128,6 +129,31 @@ def _files_match(path_a: Path, path_b: Path) -> bool:
         return False
 
 
+def _directories_match(path_a: Path, path_b: Path) -> bool:
+    if not path_a.is_dir() or not path_b.is_dir():
+        return False
+    try:
+        entries_a = sorted(path_a.iterdir(), key=lambda p: p.name)
+        entries_b = sorted(path_b.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return False
+
+    if [entry.name for entry in entries_a] != [entry.name for entry in entries_b]:
+        return False
+
+    for entry_a, entry_b in zip(entries_a, entries_b):
+        if entry_a.is_dir() and entry_b.is_dir():
+            if not _directories_match(entry_a, entry_b):
+                return False
+            continue
+        if entry_a.is_file() and entry_b.is_file():
+            if not _files_match(entry_a, entry_b):
+                return False
+            continue
+        return False
+    return True
+
+
 def _resolve_payload_agents_source(payload_root: Path) -> Path:
     template_source = payload_root / _INIT_TEMPLATE_AGENTS_REL_PATH
     if template_source.is_file():
@@ -200,6 +226,42 @@ def _ensure_agents_file(
     shutil.copy2(source_path, target_path)
 
 
+def _ensure_copied_directory(source_path: Path, target_path: Path, *, force: bool) -> None:
+    if not source_path.is_dir():
+        raise FileNotFoundError(f"Missing source directory for managed copy: {source_path}")
+
+    if _path_exists(target_path):
+        if target_path.is_symlink():
+            if _symlink_matches(target_path, source_path):
+                _remove_path(target_path)
+            elif not force:
+                raise FileExistsError(
+                    f"Conflict at {target_path}: already exists. "
+                    "Use --force to overwrite."
+                )
+            else:
+                _remove_path(target_path)
+        elif target_path.is_dir():
+            if _directories_match(target_path, source_path):
+                return
+            if not force:
+                raise FileExistsError(
+                    f"Conflict at {target_path}: local directory content differs "
+                    "from managed copy. Use --force to overwrite."
+                )
+            _remove_path(target_path)
+        else:
+            if not force:
+                raise FileExistsError(
+                    f"Conflict at {target_path}: already exists. "
+                    "Use --force to overwrite."
+                )
+            _remove_path(target_path)
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_path, target_path)
+
+
 def _remove_managed_agents_file(
     target_path: Path,
     expected_source: Path,
@@ -234,6 +296,40 @@ def _remove_managed_agents_file(
         )
     raise FileExistsError(
         f"Conflict at {target_path}: expected managed {_AGENTS_FILENAME} file/symlink. "
+        "Use --force to remove anyway."
+    )
+
+
+def _remove_managed_copied_directory(
+    target_path: Path,
+    expected_source: Path,
+    *,
+    force: bool,
+) -> None:
+    if not _path_exists(target_path):
+        return
+    if force:
+        _remove_path(target_path)
+        return
+
+    if target_path.is_symlink():
+        if _symlink_matches(target_path, expected_source):
+            _remove_path(target_path)
+            return
+        raise FileExistsError(
+            f"Conflict at {target_path}: expected managed copied directory "
+            f"or symlink to {expected_source}. Use --force to remove anyway."
+        )
+    if target_path.is_dir():
+        if _directories_match(target_path, expected_source):
+            _remove_path(target_path)
+            return
+        raise FileExistsError(
+            f"Conflict at {target_path}: expected managed copied directory content. "
+            "Use --force to remove anyway."
+        )
+    raise FileExistsError(
+        f"Conflict at {target_path}: expected managed copied directory. "
         "Use --force to remove anyway."
     )
 
@@ -314,6 +410,9 @@ def initialize_workspace(
                 ),
             )
             continue
+        if source_path.name in _COPIED_PAYLOAD_DIRECTORIES:
+            _ensure_copied_directory(source_path, target_path, force=force)
+            continue
         _ensure_symlink(source_path, target_path, force=force)
     if has_agents_entry:
         _ensure_agents_aliases(destination, force=force)
@@ -344,6 +443,13 @@ def clean_workspace(destination: Path, payload_root: Path, force: bool = False) 
                 managed_symlink_sources=_managed_agents_symlink_sources(
                     payload_root, agents_source, source_path
                 ),
+            )
+            continue
+        if source_path.name in _COPIED_PAYLOAD_DIRECTORIES:
+            _remove_managed_copied_directory(
+                target_path,
+                source_path,
+                force=force,
             )
             continue
         _remove_managed_symlink(
