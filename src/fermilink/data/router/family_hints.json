@@ -1,10 +1,6 @@
 {
   "schema_version": 2,
-<<<<<<< HEAD
   "updated_at": "2026-03-16T10:02:16.911141Z",
-=======
-  "updated_at": "2026-03-14T22:20:27.016608Z",
->>>>>>> 0568551572b4be552103dd7505cbff59c398c6c3
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -6352,7 +6348,6 @@
         "cirq"
       ]
     },
-<<<<<<< HEAD
     "geosx": {
       "description": "Use this family for intents about subsurface multiphysics and coupled flow-transport-geomechanics simulation, especially reservoir-scale and HPC-oriented geoscience workflows.",
       "strong_keywords": [
@@ -6377,7 +6372,20 @@
         "finite volume methods",
         "parallel scalability",
         "high performance computing"
-=======
+      ],
+      "negative_keywords": [
+        "abinit",
+        "acts",
+        "aiida-core",
+        "astropy",
+        "astroquery",
+        "biopython",
+        "brian2",
+        "cantera",
+        "cp2k",
+        "calculix"
+      ]
+    },
     "sunny-jl": {
       "description": "Use this family for computational magnetism tasks involving spin Hamiltonians, spin-wave calculations, thermal spin dynamics, and magnetic scattering comparisons to experiments.",
       "strong_keywords": [
@@ -6479,28 +6487,18 @@
         "nanomagnetics",
         "mumax3 script",
         "oommf alternative"
->>>>>>> 0568551572b4be552103dd7505cbff59c398c6c3
       ],
       "negative_keywords": [
         "abinit",
         "acts",
         "aiida-core",
-<<<<<<< HEAD
-=======
         "anndata",
         "arbor",
->>>>>>> 0568551572b4be552103dd7505cbff59c398c6c3
         "astropy",
         "astroquery",
         "biopython",
         "brian2",
-<<<<<<< HEAD
-        "cantera",
-        "cp2k",
-        "calculix"
-=======
         "cp2k"
->>>>>>> 0568551572b4be552103dd7505cbff59c398c6c3
       ]
     }
   }
