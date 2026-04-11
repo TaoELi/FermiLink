@@ -41,7 +41,7 @@ and unambiguous. If multiple reasonable interpretations exist, ask the user.
 1. Identify the actual hot path and write a narrow `## Editable Scope`.
 2. Define a primary metric that isolates the targeted computation, not a vague whole-program goal unless that is truly the target.
 3. Write scientific correctness constraints as explicit numeric invariants and forbidden relaxations.
-4. Choose 3-6 representative workloads with real train/test diversity. Avoid toy cases for algorithm-level work.
+4. Choose 3-6 representative workloads with real train/test diversity. Avoid toy cases for algorithm-level work. 
 5. Include deterministic `## Build` commands. If the package needs build/install before benchmarking, say so explicitly in `## Notes`.
 6. If workloads need input files, mention their filenames directly in `## Representative Workloads` and keep those files bundled with the goal file. FermiLink stages file references from workload bullets into `FERMILINK_GOAL_INPUT_ROOT`.
 7. Keep the recognizable goal headings exactly as shown in `assets/goal-template.md`.

@@ -43,8 +43,8 @@ Primary objective should be weighted median total wall-clock time across all ben
 - train-rks-bp86-casida-benzene-631gss: benzene geometry from `examples/2-benchmark/bz.py` / 6-31g** / RKS / `xc='b88,p86'` / `CasidaTDDFT` / singlet / `nstates=12`
 - train-rks-b3lyp-tddft-benzene-631gss: benzene geometry from `examples/2-benchmark/bz.py` / 6-31g** / RKS / `xc='b3lyp5'` / `TDDFT` / singlet / `nstates=10`
 - train-uks-bp86-casida-allyl-def2tzvp: allyl radical geometry from `examples/mp/12-dfump2-natorbs.py` / def2-TZVP / spin=1 / UKS / `xc='b88,p86'` / `CasidaTDDFT` / `nstates=8`
-- test-rks-b3lyp-tda-benzene-631gss: benzene geometry from `examples/2-benchmark/bz.py` / 6-31g** / RKS / `xc='b3lyp5'` / `TDA` / singlet / `nstates=12`
-- test-uks-b3lyp-tddft-allyl-def2tzvp: allyl radical geometry from `examples/mp/12-dfump2-natorbs.py` / def2-TZVP / spin=1 / UKS / `xc='b3lyp5'` / `TDDFT` / `nstates=6`
+- test-rks-b3lyp-tda-c3h7oh-631gss: C3H7OH geometry from `examples/local_orb/08-cholesky.py` / 6-31g** / RKS / `xc='b3lyp5'` / `TDA` / singlet / `nstates=12`
+- test-uks-b3lyp-tddft-o2-dimer-def2tzvp: separated O2 + O2 geometry from `examples/mcscf/23-local_spin.py` / def2-TZVP / spin=4 / `symmetry=True` / UKS / `xc='b3lyp5'` / `TDDFT` / `nstates=6`
 
 ## Build
 ```bash
@@ -64,8 +64,11 @@ python -m pip install -e .
 - Base the benchmark setups on the larger single-machine geometries already shipped in the local PySCF tree:
   - benzene from `examples/2-benchmark/bz.py`
   - allyl radical from `examples/mp/12-dfump2-natorbs.py`
+  - C3H7OH from `examples/local_orb/08-cholesky.py`
+  - separated O2 + O2 from `examples/mcscf/23-local_spin.py`
 - Prefer a smaller number of materially larger cases over many toy test cases, so the benchmark is dominated by Davidson/subspace work rather than Python overhead or SCF startup noise.
 - For DFT cases, mirror the upstream test setup with `dft.radi.ATOM_SPECIFIC_TREUTLER_GRIDS = False` and `mf.grids.prune = None` so the benchmark is dominated by TDDFT/TDA solver behavior instead of grid-noise differences.
+- Keep held-out test cases on molecules different from the train set while staying in the same AO-count regime; for example C3H7OH / `6-31g**` stays close to the benzene / `6-31g**` train size, and the separated O2-dimer / `def2-TZVP` UKS case stays close to the allyl-radical / `def2-TZVP` train size.
 - Keep benchmark behavior deterministic across repeated runs.
 - If the benchmark runner can expose them, record per-case Davidson iteration count, matrix-vector application count, and total TD kernel wall time.
 - Keep all workloads runnable on a single workstation-class machine with BLAS thread counts pinned to 1; prefer increasing molecular size or `nstates` only until TD kernel time clearly dominates SCF time.

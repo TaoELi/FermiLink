@@ -48,12 +48,15 @@ Primary objective should be weighted median `scf_kernel_seconds` across all benc
 - train-rhf-benzene-631gss: benzene geometry from `examples/2-benchmark/bz.py` / RHF / 6-31g** / `diis_space=12` / `init_guess='minao'`
 - train-rhf-glycine-631gs: glycine geometry from `examples/scf/glycine.xyz` / RHF / 6-31g* / `diis_space=12` / `init_guess='minao'`
 - train-uhf-allyl-def2tzvp: allyl radical geometry from `examples/mp/12-dfump2-natorbs.py` / UHF / spin=1 / def2-TZVP / `diis_space=12` / `init_guess='minao'`
-- test-rhf-n2-ccpvtz: `N 0 0 0; N 0 0 1.1` / RHF / cc-pVTZ / `diis_space=12` / `init_guess='minao'`
-- test-uhf-o2-ccpvdz: `O 0 0 0; O 0 0 1.2` / UHF / spin=2 / cc-pVDZ / `diis_space=12` / `init_guess='minao'`
-- test-rohf-o-ccpvdz-symmetry: atomic O setup from `pyscf/scf/test/test_diis.py` / ROHF / spin=2 / cc-pVDZ / `symmetry=True` / `init_guess='1e'` / fixed `irrep_nelec`
+- test-rhf-c3h7oh-631gss: C3H7OH geometry from `examples/local_orb/08-cholesky.py` / RHF / 6-31g** / `diis_space=12` / `init_guess='minao'`
+- test-uhf-o2-dimer-def2tzvp: separated O2 + O2 geometry from `examples/mcscf/23-local_spin.py` / UHF / spin=4 / `symmetry=True` / def2-TZVP / `diis_space=12` / `init_guess='minao'`
+- test-rohf-o2-dimer-def2tzvp-symmetry: separated O2 + O2 geometry from `examples/mcscf/23-local_spin.py` / ROHF / spin=4 / `symmetry=True` / def2-TZVP / `diis_space=12` / fixed `irrep_nelec`
 
 ## Build
 ```bash
+export VENV=/anvil/projects/x-che250091/taoeli/fermilink_optimize/project_pyscf/.venvs/pyscf-optimize-diis
+source "$VENV/bin/activate"
+module remove cmake
 cd pyscf/lib
 mkdir -p build
 cd build
@@ -65,10 +68,13 @@ python -m pip install -e .
 
 ## Notes
 - Base the benchmark setups on the DIIS-focused upstream tests in `pyscf/scf/test/test_diis.py` and `pyscf/lib/test/test_diis.py`, plus the larger local SCF examples in `examples/2-benchmark/` and `examples/scf/`.
+- Keep held-out test cases on different molecules than the train set so benchmark improvements generalize beyond benzene, glycine, and allyl-specific behavior.
+- Keep held-out test cases in roughly the same AO-count regime as the train set so controller-side performance remains representative; for example C3H7OH / 6-31g** is close to the benzene/glycine RHF workloads, and the separated O2 + O2 / def2-TZVP UHF/ROHF cases stay near the allyl / def2-TZVP orbital dimension instead of dropping to tiny diatomics.
 - Prefer a smaller number of materially larger RHF/UHF cases plus one behavior-protection ROHF symmetry case, so the benchmark is dominated by iterative SCF/DIIS behavior rather than tiny-system timing noise.
 - Use `init_guess='minao'` unless a case explicitly specifies otherwise.
 - Keep benchmark behavior deterministic across repeated runs, with thread counts pinned explicitly in benchmark runtime config.
 - In the generated benchmark YAML, include `runtime.pre_commands` derived from the `## Build` section so authoritative benchmark runs use the current PySCF checkout deterministically.
+- For the symmetry-constrained ROHF O2-dimer case, it is acceptable to seed `irrep_nelec` from a converged symmetry-adapted reference; one valid pattern is `{'Ag': (4,4), 'B1g': (1,1), 'B2g': (3,2), 'B3g': (1,0), 'Au': (1,0), 'B1u': (3,2), 'B2u': (1,1), 'B3u': (4,4)}`.
 - If the benchmark runner can expose them, record per-case `scf_cycles`, `diis_update_seconds`, `get_fock_seconds`, `eig_seconds`, and total `scf_kernel_seconds`.
 - In the generated benchmark YAML, include a top-level split block:
   ```yaml
