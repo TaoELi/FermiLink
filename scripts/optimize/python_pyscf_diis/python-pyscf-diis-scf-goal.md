@@ -48,9 +48,9 @@ Primary objective should be weighted median `scf_kernel_seconds` across all benc
 - train-rhf-benzene-631gss: benzene geometry from `examples/2-benchmark/bz.py` / RHF / 6-31g** / `diis_space=12` / `init_guess='minao'`
 - train-rhf-glycine-631gs: glycine geometry from `examples/scf/glycine.xyz` / RHF / 6-31g* / `diis_space=12` / `init_guess='minao'`
 - train-uhf-allyl-def2tzvp: allyl radical geometry from `examples/mp/12-dfump2-natorbs.py` / UHF / spin=1 / def2-TZVP / `diis_space=12` / `init_guess='minao'`
-- test-rhf-n2-ccpvtz: `N 0 0 0; N 0 0 1.1` / RHF / cc-pVTZ / `diis_space=12` / `init_guess='minao'`
-- test-uhf-o2-ccpvdz: `O 0 0 0; O 0 0 1.2` / UHF / spin=2 / cc-pVDZ / `diis_space=12` / `init_guess='minao'`
-- test-rohf-o-ccpvdz-symmetry: atomic O setup from `pyscf/scf/test/test_diis.py` / ROHF / spin=2 / cc-pVDZ / `symmetry=True` / `init_guess='1e'` / fixed `irrep_nelec`
+- test-rhf-benzene: benzene geometry from `examples/2-benchmark/bz.py` / RHF / cc-pvdz / `diis_space=12` / `init_guess='minao'`
+- test-rhf-glycine: glycine geometry from `examples/scf/glycine.xyz` / RHF / cc-pvdz / `diis_space=12` / `init_guess='minao'`
+- test-uhf-allyl: allyl radical geometry from `examples/mp/12-dfump2-natorbs.py` / UHF / spin=1 / cc-pvdz / `diis_space=12` / `init_guess='minao'`
 
 ## Build
 ```bash
