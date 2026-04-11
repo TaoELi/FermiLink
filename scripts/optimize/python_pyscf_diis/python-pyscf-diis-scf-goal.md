@@ -54,6 +54,9 @@ Primary objective should be weighted median `scf_kernel_seconds` across all benc
 
 ## Build
 ```bash
+export VENV=/anvil/projects/x-che250091/taoeli/fermilink_optimize/project_pyscf/.venvs/pyscf-optimize-diis
+source "$VENV/bin/activate"
+module remove cmake
 cd pyscf/lib
 mkdir -p build
 cd build
