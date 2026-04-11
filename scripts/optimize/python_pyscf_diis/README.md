@@ -1,8 +1,8 @@
-# Tutorial: Optimizing PySCF with the Sample Goal File
+# Tutorial: Optimizing PySCF DIIS with the Sample Goal File
 
 This is a toy-model example of `fermilink optimize` aiming to showcase the performance improvement workflow of FermiLink. More practical optimization examples are given elsewhere in `scripts/optimize/`.
 
-This walkthrough uses the sample goal file shipped with FermiLink (`scripts/optimize/python_pyscf/python-pyscf-diis-scf-goal.md`) to run a goal-mode campaign against a local PySCF clone. The controller operates inside a **git worktree** so the original clone stays untouched.
+This walkthrough uses the sample DIIS goal file shipped with FermiLink (`scripts/optimize/python_pyscf_diis/python-pyscf-diis-scf-goal.md`) to run a goal-mode campaign against a local PySCF clone. The controller operates inside a **git worktree** so the original clone stays untouched.
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ Replace the above `/path/to/fermilink` with the actual location of your FermiLin
 Point an environment variable at the sample goal file shipped with FermiLink. This avoids copying the file into the worktree (which would create an untracked file in the git tree):
 
 ```bash
-export GOAL=/path/to/fermilink/scripts/optimize/python_pyscf/python-pyscf-diis-scf-goal.md
+export GOAL=/path/to/fermilink/scripts/optimize/python_pyscf_diis/python-pyscf-diis-scf-goal.md
 test -f "$GOAL"
 ```
 
