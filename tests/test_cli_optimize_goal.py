@@ -319,27 +319,25 @@ class TestPromptConstruction:
         assert "`intent_level`" in prompt
         assert "set to `guidance`" in prompt
 
-    def test_benchmark_generation_prompt_requires_pre_commands_for_native_builds(
+    def test_benchmark_generation_prompt_requires_pre_commands_when_build_commands_exist(
         self,
     ) -> None:
-        native_goal = (
+        build_goal = (
             "# Optimization Goal\n\n"
             "## Package\n"
             "pyscf\n\n"
             "## Language\n"
             "python\n\n"
             "## Target\n"
-            "Tune native backend.\n\n"
+            "Tune SCF setup/runtime path.\n\n"
             "## Editable Scope\n"
-            "- pyscf/lib/vhf/*.c\n\n"
+            "- pyscf/scf/diis.py\n\n"
             "## Build\n"
             "```bash\n"
-            "cd pyscf/lib/build\n"
-            "cmake ..\n"
-            "cmake --build . -j\n"
+            "python -m pip install -e .\n"
             "```\n"
         )
-        spec = optimize_goal.parse_goal(native_goal)
+        spec = optimize_goal.parse_goal(build_goal)
         prompt = optimize_source_analysis.build_benchmark_generation_prompt(
             goal_spec=spec,
             goal_rel="goal.md",

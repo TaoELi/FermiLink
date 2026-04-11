@@ -54,12 +54,6 @@ REVIEW_NOTES_RE = re.compile(
     rf"<{REVIEW_NOTES_TAG}>\s*(.*?)\s*</{REVIEW_NOTES_TAG}>",
     re.IGNORECASE | re.DOTALL,
 )
-_NATIVE_EDITABLE_PATH_RE = re.compile(
-    r"\.(?:c|cc|cpp|cxx|h|hpp|f|f90|f95|f03|f08)(?:$|[^a-z0-9])",
-    re.IGNORECASE,
-)
-
-
 # ---------------------------------------------------------------------------
 # Extraction helpers
 # ---------------------------------------------------------------------------
@@ -357,18 +351,11 @@ def build_benchmark_generation_prompt(
     has_build_commands = isinstance(build_commands, list) and any(
         str(item or "").strip() for item in build_commands
     )
-    editable_scope = goal_spec.get("editable_scope")
-    has_native_editable_scope = False
-    if isinstance(editable_scope, list):
-        has_native_editable_scope = any(
-            _NATIVE_EDITABLE_PATH_RE.search(str(item or "").strip().lower())
-            for item in editable_scope
-        )
     pre_commands_guidance = ""
-    if has_build_commands and has_native_editable_scope:
+    if has_build_commands:
         pre_commands_guidance = (
             "- `runtime.pre_commands`: REQUIRED for this goal. Include one or more\n"
-            "  command token lists that rebuild/install the native backend before\n"
+            "  command token lists that rebuild/install the project before\n"
             "  benchmark execution. Derive these from the goal `## Build` section.\n"
             "  For shell pipelines, wrap as `['bash', '-lc', '...']`.\n"
         )
