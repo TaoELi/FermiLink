@@ -58,7 +58,7 @@ cd "$LAMMPS_OPT"
 mkdir -p build/
 cd build/ 
 cmake -C ../cmake/presets/most.cmake -C ../cmake/presets/nolib.cmake -D PKG_GPU=off ../cmake
-make -j 4
+cmake --build . -j
 ```
 
 If the above command does not work for your environment, modify the above script, and **update the working build script to the `## Build` section in [goal.md](./cpp-lammps-tip4p-water-nve-goal.md) file**. This is because the agent will call this  `## Build` section to compile the LAMMPS source code.

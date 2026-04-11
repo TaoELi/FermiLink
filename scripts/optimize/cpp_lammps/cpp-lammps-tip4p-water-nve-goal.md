@@ -47,7 +47,7 @@ Benchmark should also record `loop_seconds`, `pair_seconds`, `kspace_seconds`, `
 mkdir -p build
 cd build
 cmake -C ../cmake/presets/most.cmake -C ../cmake/presets/nolib.cmake -D PKG_GPU=off ../cmake
-cmake --build . -j 4
+cmake --build . -j
 ```
 
 ## Notes
