@@ -28,6 +28,27 @@ Below are the detailed instructions for the three major workflows of FermiLink: 
    :align: center
    :width: 95%
 
+Workspace bootstrap: ``init`` / ``clean``
+-----------------------------------------
+
+Use ``fermilink init`` to bootstrap a local workspace with FermiLink knowledge base:
+
+.. code-block:: bash
+
+   fermilink init
+
+Then you can talk with any AI agent installed in your machine (OpenAI Codex,
+Claude Code, Gemini CLI, their desktop apps, or VS Code extensions, etc) to
+learn how to run FermiLink as a Pro.
+
+After learning the ropes, you can use ``fermilink clean`` to reset the
+workspace to a clean state and start fresh.
+
+.. code-block:: bash
+
+   fermilink clean
+
+
 ``exec``: One-shot execution in the current repo
 ---------------------------------------------------
 
@@ -66,9 +87,24 @@ Useful flags:
 HPC default settings
 ~~~~~~~~~~~~~~~~~~~~~~
 
-If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink exec/loop/research/reproduce``, FermiLink will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration.
+Use ``fermilink hpc`` once to initialize the default home profile:
 
-A sample HPC profile (``hpc_profile.json``) looks like this:
+.. code-block:: bash
+
+   fermilink hpc
+
+This creates ``~/.fermilink/HPC_PROFILE.json`` (or
+``$FERMILINK_HOME/HPC_PROFILE.json`` when ``FERMILINK_HOME`` is set).
+
+Runtime behavior for ``exec/loop/research/reproduce``:
+
+- If ``--hpc-profile <json>`` is provided, that explicit file is used.
+- Otherwise, FermiLink checks the default home profile
+  ``HPC_PROFILE.json`` and uses it when valid.
+- If neither profile is available, FermiLink runs locally using PID-based
+  waits/iteration behavior.
+
+A sample HPC profile (``HPC_PROFILE.json``) looks like this:
 
 .. code-block:: json
 

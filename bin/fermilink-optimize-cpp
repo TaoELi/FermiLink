@@ -1,0 +1,511 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+
+usage() {
+  cat <<'EOF'
+Create or reuse a controller git worktree and launch goal-mode `fermilink optimize`
+for a native-code package repository.
+
+This launcher is opinionated for C/C++/Fortran repos:
+  - it runs `fermilink optimize <goal.md> --goal`
+  - it creates a sibling git worktree next to the source repo by default
+  - it keeps the original source checkout untouched by working from a git worktree
+
+Usage:
+  fermilink-optimize-cpp \
+    --goal /path/to/goal.md \
+    [launcher options] \
+    -- [extra fermilink optimize args]
+
+If `--project-root` is omitted, the current working git repo is used.
+
+Required options:
+  --goal, --goal-file PATH         Goal markdown file for `fermilink optimize`.
+
+Common launcher options:
+  --project-root, --repo PATH      Clean git repo clone to optimize.
+                                   Default: current working git repo root
+  --branch NAME                    Worktree branch name.
+                                   Default: fermilink-optimize/<repo>-<task>
+  --base-ref REF                   Base ref when creating a new branch.
+                                   Default: repo default branch (`origin/HEAD`
+                                   when available, else current branch or HEAD)
+  --worktree-root PATH             Parent dir for generated worktrees.
+                                   Default: <repo-parent>
+  --worktree-name NAME             Explicit worktree directory name.
+                                   Default: <repo>-<task>
+  --hpc-profile PATH               Forwarded to `fermilink optimize --hpc-profile`.
+  --allow-dirty-base               Allow uncommitted changes in --project-root.
+  --dry-run                        Print the resolved command after setup and exit.
+
+Runtime options:
+  --fermilink-bin BIN              `fermilink` executable to run (default: fermilink).
+  --isolate-fermilink-home         Set `FERMILINK_HOME` under this worktree.
+  --fermilink-home PATH            Explicit `FERMILINK_HOME` (implies isolation).
+  -h, --help                       Show this help.
+
+Extra optimize arguments:
+  Everything after `--` is forwarded to `fermilink optimize`.
+
+Examples:
+  ./bin/fermilink-optimize-cpp \
+    --goal scripts/optimize/cpp_lammps/cpp-lammps-tip4p-water-nve-neighbor-goal.md \
+    -- --max-iterations 30 --stop-on-consecutive-rejections 8
+
+  ./bin/fermilink-optimize-cpp \
+    --project-root /data/lammps \
+    --goal /path/to/cpp-lammps-tip4p-water-nve-comm-goal.md \
+    --branch fermilink-optimize/lammps-tip4p-comm \
+    --hpc-profile scripts/hpc_profile_anvil.json \
+    -- --resume --timeout-seconds 6000
+
+EOF
+}
+
+log() {
+  printf '[opt-workflow-cpp] %s\n' "$*"
+}
+
+warn() {
+  printf '[opt-workflow-cpp] warning: %s\n' "$*" >&2
+}
+
+err() {
+  printf '[opt-workflow-cpp] error: %s\n' "$*" >&2
+}
+
+die() {
+  err "$*"
+  exit 1
+}
+
+require_cmd() {
+  local cmd="$1"
+  command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: $cmd"
+}
+
+resolve_executable() {
+  local raw="$1"
+  if [[ "$raw" == */* ]]; then
+    local abs_raw
+    abs_raw="$(abs_path "$PWD" "$raw")"
+    [[ -x "$abs_raw" ]] || die "Executable not found or not executable: $raw"
+    printf '%s' "$abs_raw"
+    return 0
+  fi
+  local resolved
+  resolved="$(type -P "$raw" 2>/dev/null || true)"
+  if [[ -z "$resolved" ]]; then
+    resolved="$(command -v "$raw" 2>/dev/null || true)"
+  fi
+  [[ -n "$resolved" ]] || die "Required command not found: $raw"
+  printf '%s' "$resolved"
+}
+
+abs_path() {
+  # abs_path <base_dir> <path_text>
+  python3 - "$1" "$2" <<'PY'
+import os
+import sys
+base = sys.argv[1]
+raw = sys.argv[2]
+value = os.path.expanduser(raw)
+if not os.path.isabs(value):
+    value = os.path.join(base, value)
+print(os.path.abspath(value))
+PY
+}
+
+is_subpath() {
+  # is_subpath <root_abs> <path_abs> -> prints 1 or 0
+  python3 - "$1" "$2" <<'PY'
+import os
+import sys
+root = os.path.abspath(sys.argv[1])
+path = os.path.abspath(sys.argv[2])
+try:
+    print(1 if os.path.commonpath([root, path]) == root else 0)
+except ValueError:
+    print(0)
+PY
+}
+
+rel_path() {
+  # rel_path <root_abs> <path_abs>
+  python3 - "$1" "$2" <<'PY'
+import os
+import sys
+root = os.path.abspath(sys.argv[1])
+path = os.path.abspath(sys.argv[2])
+print(os.path.relpath(path, root))
+PY
+}
+
+slugify() {
+  local raw="$1"
+  local value="$raw"
+  value="${value//\//__}"
+  value="${value//:/-}"
+  value="${value//@/-}"
+  value="${value// /-}"
+  value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9._-')"
+  [[ -n "$value" ]] || value="optimize"
+  printf '%s' "$value"
+}
+
+resolve_project_root() {
+  local raw="$1"
+  local resolved=""
+  if [[ -n "$raw" ]]; then
+    resolved="$(abs_path "$PWD" "$raw")"
+    [[ -d "$resolved" ]] || die "Project root does not exist: $resolved"
+    git -C "$resolved" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+      || die "Not a git repository: $resolved"
+    git -C "$resolved" rev-parse --show-toplevel
+    return 0
+  fi
+
+  resolved="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$resolved" ]] || die "--project-root is required when the current directory is not inside a git repository."
+  printf '%s' "$resolved"
+}
+
+default_base_ref() {
+  local repo_abs="$1"
+  local ref=""
+  ref="$(git -C "$repo_abs" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [[ -n "$ref" ]]; then
+    printf '%s' "$ref"
+    return 0
+  fi
+  ref="$(git -C "$repo_abs" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [[ -n "$ref" ]]; then
+    printf '%s' "$ref"
+    return 0
+  fi
+  printf 'HEAD'
+}
+
+default_task_name() {
+  local repo_name="$1"
+  local goal_slug="$2"
+  local repo_slug
+  local task_slug
+  repo_slug="$(slugify "$repo_name")"
+  task_slug="$goal_slug"
+
+  if [[ "$task_slug" == *-goal ]]; then
+    task_slug="${task_slug%-goal}"
+  fi
+
+  for prefix in \
+    "cpp-$repo_slug-" \
+    "cxx-$repo_slug-" \
+    "c-$repo_slug-" \
+    "fortran-$repo_slug-" \
+    "f90-$repo_slug-" \
+    "$repo_slug-"; do
+    if [[ "$task_slug" == "$prefix"* ]]; then
+      task_slug="${task_slug#"$prefix"}"
+      break
+    fi
+  done
+
+  for exact in \
+    "cpp-$repo_slug" \
+    "cxx-$repo_slug" \
+    "c-$repo_slug" \
+    "fortran-$repo_slug" \
+    "f90-$repo_slug" \
+    "$repo_slug"; do
+    if [[ "$task_slug" == "$exact" ]]; then
+      task_slug="optimize"
+      break
+    fi
+  done
+
+  [[ -n "$task_slug" ]] || task_slug="$goal_slug"
+  printf '%s' "$task_slug"
+}
+
+default_branch_name() {
+  local repo_name="$1"
+  local task_slug="$2"
+  printf 'fermilink-optimize/%s-%s' "$(slugify "$repo_name")" "$task_slug"
+}
+
+default_worktree_name() {
+  local branch_name="$1"
+  local candidate="$branch_name"
+  if [[ "$candidate" == fermilink-optimize/* ]]; then
+    candidate="${candidate#fermilink-optimize/}"
+  fi
+  candidate="$(slugify "$candidate")"
+  [[ -n "$candidate" ]] || candidate="optimize"
+  printf '%s' "$candidate"
+}
+
+ensure_local_excludes() {
+  # ensure_local_excludes <repo_abs> <pattern1> [pattern2 ...]
+  local repo_abs="$1"
+  shift
+  local exclude_path_raw
+  exclude_path_raw="$(git -C "$repo_abs" rev-parse --git-path info/exclude)"
+  local exclude_abs="$exclude_path_raw"
+  if [[ "$exclude_abs" != /* ]]; then
+    exclude_abs="$repo_abs/$exclude_abs"
+  fi
+  mkdir -p "$(dirname "$exclude_abs")"
+  touch "$exclude_abs"
+
+  local pattern=""
+  for pattern in "$@"; do
+    [[ -n "$pattern" ]] || continue
+    if ! grep -Fqx "$pattern" "$exclude_abs"; then
+      printf '%s\n' "$pattern" >>"$exclude_abs"
+    fi
+  done
+}
+
+append_exclude_if_inside() {
+  # append_exclude_if_inside <worktree_abs> <path_abs> <array_name>
+  local worktree_abs="$1"
+  local path_abs="$2"
+  local array_name="$3"
+  local inside
+  inside="$(is_subpath "$worktree_abs" "$path_abs")"
+  if [[ "$inside" != "1" ]]; then
+    return 0
+  fi
+  local rel
+  rel="$(rel_path "$worktree_abs" "$path_abs")"
+  rel="${rel%/}/"
+  eval "$array_name+=(\"\$rel\")"
+}
+
+check_goal_markdown_path() {
+  local goal_abs="$1"
+  local lowered_goal
+  [[ -f "$goal_abs" ]] || die "Goal file does not exist: $goal_abs"
+  lowered_goal="$(printf '%s' "$goal_abs" | tr '[:upper:]' '[:lower:]')"
+  case "$lowered_goal" in
+    *.md|*.markdown) ;;
+    *)
+      die "Goal file must be markdown (.md or .markdown): $goal_abs"
+      ;;
+  esac
+}
+
+project_root_raw=""
+goal_raw=""
+branch_name=""
+base_ref_raw=""
+worktree_root_raw=""
+worktree_name=""
+hpc_profile_raw=""
+fermilink_bin="fermilink"
+allow_dirty_base=0
+dry_run=0
+isolate_fermilink_home=0
+fermilink_home_raw=""
+extra_optimize_args=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --project-root|--repo)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      project_root_raw="$2"
+      shift 2
+      ;;
+    --goal|--goal-file|--goal-md)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      goal_raw="$2"
+      shift 2
+      ;;
+    --branch)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      branch_name="$2"
+      shift 2
+      ;;
+    --base-ref)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      base_ref_raw="$2"
+      shift 2
+      ;;
+    --worktree-root)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      worktree_root_raw="$2"
+      shift 2
+      ;;
+    --worktree-name)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      worktree_name="$2"
+      shift 2
+      ;;
+    --hpc-profile)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      hpc_profile_raw="$2"
+      shift 2
+      ;;
+    --fermilink-bin)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      fermilink_bin="$2"
+      shift 2
+      ;;
+    --isolate-fermilink-home)
+      isolate_fermilink_home=1
+      shift
+      ;;
+    --fermilink-home)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      fermilink_home_raw="$2"
+      isolate_fermilink_home=1
+      shift 2
+      ;;
+    --allow-dirty-base)
+      allow_dirty_base=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      extra_optimize_args=("$@")
+      break
+      ;;
+    *)
+      die "Unknown option: $1 (use -- to forward options to fermilink optimize)"
+      ;;
+  esac
+done
+
+[[ -n "$goal_raw" ]] || die "--goal is required"
+
+require_cmd git
+require_cmd python3
+
+project_root_abs="$(resolve_project_root "$project_root_raw")"
+goal_abs="$(abs_path "$PWD" "$goal_raw")"
+check_goal_markdown_path "$goal_abs"
+
+if [[ "$allow_dirty_base" -ne 1 ]]; then
+  if [[ -n "$(git -C "$project_root_abs" status --porcelain)" ]]; then
+    die "Base repo is dirty. Commit/stash first, or pass --allow-dirty-base."
+  fi
+fi
+
+hpc_profile_abs=""
+if [[ -n "$hpc_profile_raw" ]]; then
+  hpc_profile_abs="$(abs_path "$PWD" "$hpc_profile_raw")"
+  [[ -f "$hpc_profile_abs" ]] || die "HPC profile file does not exist: $hpc_profile_abs"
+fi
+
+repo_name="$(basename "$project_root_abs")"
+goal_stem="$(basename "$goal_abs")"
+goal_stem="${goal_stem%.*}"
+goal_slug="$(slugify "$goal_stem")"
+task_slug="$(default_task_name "$repo_name" "$goal_slug")"
+
+if [[ -z "$base_ref_raw" ]]; then
+  base_ref_raw="$(default_base_ref "$project_root_abs")"
+fi
+if [[ -z "$branch_name" ]]; then
+  branch_name="$(default_branch_name "$repo_name" "$task_slug")"
+fi
+if [[ -z "$worktree_root_raw" ]]; then
+  worktree_root_raw="$(dirname "$project_root_abs")"
+fi
+worktree_root_abs="$(abs_path "$PWD" "$worktree_root_raw")"
+mkdir -p "$worktree_root_abs"
+
+if [[ -z "$worktree_name" ]]; then
+  worktree_name="$(default_worktree_name "$branch_name")"
+fi
+worktree_abs="$worktree_root_abs/$worktree_name"
+
+if [[ -e "$worktree_abs" ]]; then
+  git -C "$worktree_abs" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    || die "Existing worktree path is not a git worktree: $worktree_abs"
+  current_branch="$(git -C "$worktree_abs" rev-parse --abbrev-ref HEAD)"
+  [[ "$current_branch" == "$branch_name" ]] \
+    || die "Worktree exists on branch '$current_branch' (expected '$branch_name'): $worktree_abs"
+  log "Reusing existing worktree: $worktree_abs"
+else
+  if git -C "$project_root_abs" show-ref --verify --quiet "refs/heads/$branch_name"; then
+    log "Creating worktree for existing branch '$branch_name' at $worktree_abs"
+    git -C "$project_root_abs" worktree add "$worktree_abs" "$branch_name"
+  else
+    log "Creating worktree and new branch '$branch_name' from '$base_ref_raw' at $worktree_abs"
+    git -C "$project_root_abs" worktree add -b "$branch_name" "$worktree_abs" "$base_ref_raw"
+  fi
+fi
+
+exclude_patterns=(".fermilink-optimize/" ".fermilink-home/")
+
+if [[ "$isolate_fermilink_home" -eq 1 ]]; then
+  if [[ -n "$fermilink_home_raw" ]]; then
+    fermilink_home_abs="$(abs_path "$PWD" "$fermilink_home_raw")"
+  else
+    fermilink_home_abs="$worktree_abs/.fermilink-home"
+  fi
+  append_exclude_if_inside "$worktree_abs" "$fermilink_home_abs" exclude_patterns
+fi
+
+ensure_local_excludes "$worktree_abs" "${exclude_patterns[@]}"
+
+if [[ "$isolate_fermilink_home" -eq 1 ]]; then
+  mkdir -p "$fermilink_home_abs"
+  export FERMILINK_HOME="$fermilink_home_abs"
+fi
+
+fermilink_bin_resolved="$(resolve_executable "$fermilink_bin")"
+
+optimize_cmd=(
+  "$fermilink_bin_resolved"
+  optimize
+  "$goal_abs"
+  --goal
+  --branch
+  "$branch_name"
+)
+
+if [[ -n "$hpc_profile_abs" ]]; then
+  optimize_cmd+=(--hpc-profile "$hpc_profile_abs")
+fi
+if [[ ${#extra_optimize_args[@]} -gt 0 ]]; then
+  optimize_cmd+=("${extra_optimize_args[@]}")
+fi
+
+log "Prepared goal-mode optimize run (cpp workflow):"
+log "  project_root:   $project_root_abs"
+log "  goal:           $goal_abs"
+log "  worktree:       $worktree_abs"
+log "  branch:         $branch_name"
+log "  base_ref:       $base_ref_raw"
+if [[ -n "${FERMILINK_HOME:-}" ]]; then
+  log "  FERMILINK_HOME: $FERMILINK_HOME"
+fi
+if [[ -n "$hpc_profile_abs" ]]; then
+  log "  hpc_profile:    $hpc_profile_abs"
+fi
+log "  fermilink_bin:  $fermilink_bin_resolved"
+log "Command:"
+printf '  '
+printf '%q ' "${optimize_cmd[@]}"
+printf '\n'
+
+if [[ "$dry_run" -eq 1 ]]; then
+  log "Dry-run requested; exiting."
+  exit 0
+fi
+
+cd "$worktree_abs"
+exec "${optimize_cmd[@]}"
