@@ -1387,7 +1387,9 @@ def _objective_primary_for_context(
 
 def _compact_metrics_for_state(metrics: dict[str, Any]) -> dict[str, Any]:
     """Drop heavy per-run details before persisting campaign state."""
-    return {key: copy.deepcopy(value) for key, value in metrics.items() if key != "raw_runs"}
+    return {
+        key: copy.deepcopy(value) for key, value in metrics.items() if key != "raw_runs"
+    }
 
 
 def _compact_existing_state_metrics(state_payload: dict[str, Any]) -> bool:
@@ -5891,7 +5893,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 shutil.rmtree(preflight_run_dir, ignore_errors=True)
                 preflight_run_dir.mkdir(parents=True, exist_ok=True)
-                preflight_benchmark_path = preflight_run_dir / "benchmark.preflight.yaml"
+                preflight_benchmark_path = (
+                    preflight_run_dir / "benchmark.preflight.yaml"
+                )
                 _write_benchmark_contract_file(
                     preflight_benchmark_path,
                     preflight_payload,
@@ -5909,8 +5913,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 preflight_status = str(preflight_result.get("status") or "unknown")
                 preflight_failed = (
-                    (not preflight_result.get("ok", True))
-                    and preflight_status != "ok"
+                    (not preflight_result.get("ok", True)) and preflight_status != "ok"
                 ) or (
                     preflight_status == "ok"
                     and not bool(preflight_result.get("correctness_ok", True))
@@ -6290,7 +6293,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                     f"worker=`{worker_input_root or '(unset)'}`)"
                 ),
             )
-            fallback_reason = str(goal_worker_inputs_context.get("fallback_reason") or "")
+            fallback_reason = str(
+                goal_worker_inputs_context.get("fallback_reason") or ""
+            )
             if fallback_reason:
                 cli._print_tagged(
                     "optimize",

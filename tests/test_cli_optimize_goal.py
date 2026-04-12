@@ -311,7 +311,9 @@ class TestPromptConstruction:
         assert "Never emit an empty `field_tolerances` list." in prompt
         assert "FERMILINK_GOAL_INPUT_ROOT" in prompt
         assert "run from the resolved input-root" in prompt
-        assert "Do not infer input roots from fixed benchmark-path parent depth." in prompt
+        assert (
+            "Do not infer input roots from fixed benchmark-path parent depth." in prompt
+        )
         assert "hard-coded `..` parent-depth assumptions" in prompt
         assert "`goal_context`" in prompt
         assert "`target`" in prompt
@@ -398,7 +400,9 @@ class TestGoalInputStaging:
         (goal_root / "in.tip4p_nve").write_text("run 100\n", encoding="utf-8")
         (goal_root / "water_216_data.lmp").write_text("atoms\n", encoding="utf-8")
         (goal_root / "sub").mkdir(parents=True, exist_ok=True)
-        (goal_root / "sub" / "settings.inc").write_text("pair_style\n", encoding="utf-8")
+        (goal_root / "sub" / "settings.inc").write_text(
+            "pair_style\n", encoding="utf-8"
+        )
 
         staged = optimize_controller._stage_goal_referenced_inputs(
             repo_root,
@@ -826,8 +830,14 @@ class TestGoalPreflight:
         assert any("correctness_ok" in item for item in issues)
         assert any("Case `test-b`" in item for item in issues)
         assert any("id fx fy fz" in item for item in issues)
-        assert any(".fermilink-optimize/runs/goal_preflight_00/metrics.json" in item for item in issues)
-        assert any(".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log" in item for item in issues)
+        assert any(
+            ".fermilink-optimize/runs/goal_preflight_00/metrics.json" in item
+            for item in issues
+        )
+        assert any(
+            ".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log" in item
+            for item in issues
+        )
 
     def test_run_goal_campaign_repairs_after_preflight_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -970,11 +980,13 @@ class TestGoalPreflight:
             assert env.get("FERMILINK_GOAL_INPUT_ROOT") == str(
                 optimize_state.goal_inputs_all_root(repo_root).resolve()
             )
-            cases = benchmark_payload.get("cases") if isinstance(benchmark_payload, dict) else []
+            cases = (
+                benchmark_payload.get("cases")
+                if isinstance(benchmark_payload, dict)
+                else []
+            )
             case_ids = [
-                str(item.get("id") or "")
-                for item in cases
-                if isinstance(item, dict)
+                str(item.get("id") or "") for item in cases if isinstance(item, dict)
             ]
             assert case_ids == ["test-b"]
             if preflight_calls["count"] == 1:
@@ -982,7 +994,9 @@ class TestGoalPreflight:
                 stdout_path = run_dir / "measured_1.stdout.log"
                 stderr_path = run_dir / "measured_1.stderr.log"
                 stdout_path.write_text("", encoding="utf-8")
-                stderr_path.write_text("Command exited with non-zero status 1\n", encoding="utf-8")
+                stderr_path.write_text(
+                    "Command exited with non-zero status 1\n", encoding="utf-8"
+                )
                 return {
                     "ok": False,
                     "status": "crash",
@@ -1033,8 +1047,14 @@ class TestGoalPreflight:
         )
         assert preflight_calls["count"] == 2
         assert len(repair_prompts) == 1
-        assert "Generated benchmark preflight failed with status `crash`." in repair_prompts[0]
-        assert ".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log" in repair_prompts[0]
+        assert (
+            "Generated benchmark preflight failed with status `crash`."
+            in repair_prompts[0]
+        )
+        assert (
+            ".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log"
+            in repair_prompts[0]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1075,7 +1095,9 @@ class TestValidationHelpers:
         error = _validate_goal_runner(runner, language="fortran")
         assert error == ""
 
-    def test_validate_goal_runner_contract_requires_emit_json(self, tmp_path: Path) -> None:
+    def test_validate_goal_runner_contract_requires_emit_json(
+        self, tmp_path: Path
+    ) -> None:
         from fermilink.cli.optimize_controller import _validate_goal_runner
 
         benchmark = tmp_path / "benchmark.yaml"
@@ -1100,7 +1122,9 @@ class TestValidationHelpers:
             ),
             encoding="utf-8",
         )
-        benchmark_payload, error = optimize_controller._validate_goal_benchmark(benchmark)
+        benchmark_payload, error = optimize_controller._validate_goal_benchmark(
+            benchmark
+        )
         assert error == ""
         assert benchmark_payload is not None
         runner = tmp_path / "benchmark_runner.py"
@@ -1140,7 +1164,9 @@ class TestValidationHelpers:
             ),
             encoding="utf-8",
         )
-        benchmark_payload, error = optimize_controller._validate_goal_benchmark(benchmark)
+        benchmark_payload, error = optimize_controller._validate_goal_benchmark(
+            benchmark
+        )
         assert error == ""
         assert benchmark_payload is not None
         runner = tmp_path / "benchmark_runner.py"

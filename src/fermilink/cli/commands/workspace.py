@@ -34,8 +34,7 @@ _HPC_PROFILE_REQUIRED_KEYS = (
 _DEFAULT_HPC_PROFILE_PAYLOAD = {
     "slurm_default_partition": "shared",
     "slurm_defaults": (
-        "--nodes=1 --ntasks=1 --ntasks-per-node=1 "
-        "--cpus-per-task=1 --time=24:00:00"
+        "--nodes=1 --ntasks=1 --ntasks-per-node=1 " "--cpus-per-task=1 --time=24:00:00"
     ),
     "slurm_resource_policy": (
         "Use serial/single-node defaults unless the method explicitly "
@@ -189,7 +188,9 @@ def _ensure_agents_file(
     managed_symlink_sources: tuple[Path, ...],
 ) -> None:
     if not source_path.is_file():
-        raise FileNotFoundError(f"Missing source file for {_AGENTS_FILENAME}: {source_path}")
+        raise FileNotFoundError(
+            f"Missing source file for {_AGENTS_FILENAME}: {source_path}"
+        )
 
     if _path_exists(target_path):
         if target_path.is_symlink():
@@ -226,9 +227,13 @@ def _ensure_agents_file(
     shutil.copy2(source_path, target_path)
 
 
-def _ensure_copied_directory(source_path: Path, target_path: Path, *, force: bool) -> None:
+def _ensure_copied_directory(
+    source_path: Path, target_path: Path, *, force: bool
+) -> None:
     if not source_path.is_dir():
-        raise FileNotFoundError(f"Missing source directory for managed copy: {source_path}")
+        raise FileNotFoundError(
+            f"Missing source directory for managed copy: {source_path}"
+        )
 
     if _path_exists(target_path):
         if target_path.is_symlink():
@@ -494,9 +499,7 @@ def _load_hpc_profile_payload(path: Path) -> dict[str, str]:
     except OSError as exc:
         raise ValueError(f"Failed to read HPC profile: {path}: {exc}") from exc
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"HPC profile must contain valid JSON: {path}: {exc}"
-        ) from exc
+        raise ValueError(f"HPC profile must contain valid JSON: {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"HPC profile root JSON must be an object: {path}")
     return _normalize_hpc_profile_payload(payload, profile_label=str(path))
@@ -519,7 +522,9 @@ def _ensure_default_hpc_profile() -> tuple[Path, bool, bool]:
     if legacy.is_file():
         normalized = _load_hpc_profile_payload(legacy)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(json.dumps(normalized, indent=2) + "\n", encoding="utf-8")
+        destination.write_text(
+            json.dumps(normalized, indent=2) + "\n", encoding="utf-8"
+        )
         return destination, True, True
 
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -548,7 +553,9 @@ def cmd_init(args: argparse.Namespace) -> int:
         raise cli.PackageError(str(exc)) from exc
 
     print(f"[fermilink-init] Workspace initialized in {destination}")
-    print("[fermilink-init] You can run `fermilink clean` to remove the workspace links/files if needed.")
+    print(
+        "[fermilink-init] You can run `fermilink clean` to remove the workspace links/files if needed."
+    )
     return 0
 
 
@@ -641,7 +648,9 @@ def fermilink_init_main(argv: list[str] | None = None) -> int:
         return 2
 
     print("[fermilink-init] Workspace initialized in", destination)
-    print("[fermilink-init] You can run `fermilink clean` to remove the workspace links/files if needed.")
+    print(
+        "[fermilink-init] You can run `fermilink clean` to remove the workspace links/files if needed."
+    )
     return 0
 
 

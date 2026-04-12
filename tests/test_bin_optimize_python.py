@@ -90,11 +90,11 @@ def _write_fake_python_with_stub_venv(fake_python: Path, log_path: Path) -> None
             'if [[ "$#" -ge 3 && "$1" == "-m" && "$2" == "venv" ]]; then\n'
             '  venv_path="$3"\n'
             '  mkdir -p "$venv_path/bin"\n'
-            "  cat >\"$venv_path/bin/activate\" <<STUBACT\n"
+            '  cat >"$venv_path/bin/activate" <<STUBACT\n'
             "#!/usr/bin/env bash\n"
-            "VIRTUAL_ENV=\"$venv_path\"\n"
+            'VIRTUAL_ENV="$venv_path"\n'
             "export VIRTUAL_ENV\n"
-            "PATH=\"\\$VIRTUAL_ENV/bin:\\$PATH\"\n"
+            'PATH="\\$VIRTUAL_ENV/bin:\\$PATH"\n'
             "export PATH\n"
             "STUBACT\n"
             '  chmod +x "$venv_path/bin/activate"\n'
@@ -102,7 +102,7 @@ def _write_fake_python_with_stub_venv(fake_python: Path, log_path: Path) -> None
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
             f'log_path="{log_literal}"\n'
-            "printf '%s\\n' \"$*\" >>\"$log_path\"\n"
+            'printf \'%s\\n\' "$*" >>"$log_path"\n'
             'if [[ "$#" -ge 2 && "$1" == "-m" && "$2" == "pip" ]]; then\n'
             "  exit 0\n"
             "fi\n"
@@ -172,7 +172,10 @@ def test_optimize_python_launcher_defaults_to_repo_root_and_branch_venv(
     assert f"  worktree:       {tmp_path / 'mockpkg-feature'}" in completed.stdout
     assert "  branch:         fermilink-optimize/mockpkg-feature" in completed.stdout
     assert "  base_ref:       main" in completed.stdout
-    assert f"  venv:           {tmp_path / 'venvs' / 'fermilink-optimize' / 'mockpkg-feature'}" in completed.stdout
+    assert (
+        f"  venv:           {tmp_path / 'venvs' / 'fermilink-optimize' / 'mockpkg-feature'}"
+        in completed.stdout
+    )
     assert "skills_source" not in completed.stdout
     true_bin = shutil.which("true")
     assert true_bin

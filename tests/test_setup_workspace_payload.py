@@ -76,7 +76,9 @@ def test_copy_workspace_payload_includes_skills_directory(
     copy_workspace_payload(repo_root, payload_root)
 
     assert (payload_root / "skills").is_dir()
-    assert (payload_root / "skills" / "README.md").read_text(encoding="utf-8") == "keep\n"
+    assert (payload_root / "skills" / "README.md").read_text(
+        encoding="utf-8"
+    ) == "keep\n"
 
 
 def test_copy_workspace_payload_materializes_empty_skills_directory(

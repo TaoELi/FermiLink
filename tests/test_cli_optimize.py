@@ -2107,8 +2107,12 @@ def test_optimize_goal_mode_injects_absolute_goal_input_roots(
     result = optimize_controller.run_campaign(args)
     assert result.get("status") == "baseline_only"
 
-    expected_controller_root = str(optimize_state.goal_inputs_all_root(repo_dir).resolve())
-    expected_worker_root = str(optimize_state.goal_inputs_worker_root(repo_dir).resolve())
+    expected_controller_root = str(
+        optimize_state.goal_inputs_all_root(repo_dir).resolve()
+    )
+    expected_worker_root = str(
+        optimize_state.goal_inputs_worker_root(repo_dir).resolve()
+    )
     assert captured["controller_goal_input_root"] == expected_controller_root
     assert Path(captured["controller_goal_input_root"]).is_absolute()
 
@@ -2116,9 +2120,7 @@ def test_optimize_goal_mode_injects_absolute_goal_input_roots(
         optimize_state.worker_benchmark_path(repo_dir).read_text(encoding="utf-8")
     )
     worker_runtime = (
-        worker_benchmark.get("runtime")
-        if isinstance(worker_benchmark, dict)
-        else {}
+        worker_benchmark.get("runtime") if isinstance(worker_benchmark, dict) else {}
     )
     worker_env = worker_runtime.get("env") if isinstance(worker_runtime, dict) else {}
     assert isinstance(worker_env, dict)

@@ -11,9 +11,7 @@ from fermilink.cli.commands import workflows as workflow_commands
 
 
 @pytest.fixture(autouse=True)
-def _isolate_fermilink_home(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def _isolate_fermilink_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
 
 
