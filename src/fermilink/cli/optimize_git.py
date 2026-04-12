@@ -244,6 +244,10 @@ def worker_worktree_path(
     return storage_root / _worker_key(controller_branch)
 
 
+def _worker_storage_root(repo_dir: Path) -> Path:
+    return (_git_common_dir(repo_dir) / WORKER_WORKTREE_STORAGE_DIRNAME).resolve()
+
+
 def _list_worktrees(repo_dir: Path) -> list[dict[str, str]]:
     completed = run_git(repo_dir, ["worktree", "list", "--porcelain"])
     entries: list[dict[str, str]] = []
@@ -307,15 +311,64 @@ def _resolve_existing_worktree_for_path(
     return None
 
 
-def _remove_orphaned_worker_root(repo_dir: Path, *, worker_root: Path) -> bool:
+def _parse_gitdir_pointer(metadata_path: Path) -> Path | None:
+    try:
+        lines = metadata_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    first_line = lines[0].strip() if lines else ""
+    if not first_line.lower().startswith("gitdir:"):
+        return None
+    raw_target = first_line.split(":", 1)[1].strip()
+    if not raw_target:
+        return None
+    candidate = Path(raw_target)
+    if not candidate.is_absolute():
+        candidate = (metadata_path.parent / candidate).resolve()
+    return candidate
+
+
+def inspect_worker_git_metadata(worker_repo_dir: Path) -> dict[str, str | bool]:
+    git_path, hidden_path = _worker_git_paths(worker_repo_dir)
+    worker_root_exists = worker_repo_dir.exists() or worker_repo_dir.is_symlink()
+    git_exists = git_path.exists()
+    hidden_exists = hidden_path.exists()
+
+    metadata_path: Path | None = None
+    status = "missing"
+    if git_exists and hidden_exists:
+        status = "conflicting"
+    elif git_exists:
+        metadata_path = git_path
+        status = "broken_visible"
+    elif hidden_exists:
+        metadata_path = hidden_path
+        status = "broken_hidden"
+
+    gitdir_path = _parse_gitdir_pointer(metadata_path) if metadata_path else None
+    admin_dir_exists = bool(gitdir_path and gitdir_path.is_dir())
+
+    if status == "broken_visible" and admin_dir_exists:
+        status = "healthy_visible"
+    elif status == "broken_hidden" and admin_dir_exists:
+        status = "healthy_hidden"
+
+    return {
+        "status": status,
+        "worker_root_exists": worker_root_exists,
+        "git_path_exists": git_exists,
+        "hidden_path_exists": hidden_exists,
+        "git_metadata_path": str(metadata_path) if metadata_path else "",
+        "gitdir_path": str(gitdir_path) if gitdir_path else "",
+        "admin_dir_exists": admin_dir_exists,
+    }
+
+
+def _remove_worker_root_path(repo_dir: Path, *, worker_root: Path) -> bool:
     if not (worker_root.exists() or worker_root.is_symlink()):
         return False
-    if _resolve_existing_worktree_for_path(repo_dir, worktree_path=worker_root):
-        return False
 
-    storage_root = (
-        _git_common_dir(repo_dir) / WORKER_WORKTREE_STORAGE_DIRNAME
-    ).resolve()
+    storage_root = _worker_storage_root(repo_dir)
     try:
         worker_root.parent.resolve().relative_to(storage_root)
     except ValueError as exc:
@@ -338,6 +391,24 @@ def _remove_orphaned_worker_root(repo_dir: Path, *, worker_root: Path) -> bool:
     return True
 
 
+def _remove_orphaned_worker_root(repo_dir: Path, *, worker_root: Path) -> bool:
+    if not (worker_root.exists() or worker_root.is_symlink()):
+        return False
+    if _resolve_existing_worktree_for_path(repo_dir, worktree_path=worker_root):
+        return False
+    return _remove_worker_root_path(repo_dir, worker_root=worker_root)
+
+
+def _is_operational_worktree(worker_repo_dir: Path) -> bool:
+    completed = run_git(
+        worker_repo_dir,
+        ["rev-parse", "--is-inside-work-tree"],
+        check=False,
+        capture_output=True,
+    )
+    return completed.returncode == 0 and (completed.stdout or "").strip() == "true"
+
+
 def ensure_worker_worktree(
     repo_dir: Path,
     *,
@@ -358,6 +429,25 @@ def ensure_worker_worktree(
     else:
         created_branch = False
 
+    desired_worker_root = worker_worktree_path(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+    desired_worker_root.parent.mkdir(parents=True, exist_ok=True)
+    restored_git = False
+    worker_health = inspect_worker_git_metadata(desired_worker_root)
+    worker_status = str(worker_health.get("status") or "").strip()
+    if worker_status == "healthy_hidden":
+        restored_git = restore_worker_git_metadata(desired_worker_root) or restored_git
+    elif worker_status in {
+        "broken_visible",
+        "broken_hidden",
+        "conflicting",
+    } or (
+        worker_status == "missing" and bool(worker_health.get("worker_root_exists"))
+    ):
+        _remove_worker_root_path(repo_dir, worker_root=desired_worker_root)
+
     run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)
     existing = _resolve_existing_worktree_for_branch(
         repo_dir,
@@ -365,11 +455,16 @@ def ensure_worker_worktree(
     )
     worker_root = existing
     created_worktree = False
+    if worker_root is not None:
+        existing_health = inspect_worker_git_metadata(worker_root)
+        if str(existing_health.get("status") or "").strip() == "healthy_hidden":
+            restored_git = restore_worker_git_metadata(worker_root) or restored_git
+        if not _is_operational_worktree(worker_root):
+            _remove_worker_root_path(repo_dir, worker_root=worker_root)
+            run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)
+            worker_root = None
     if worker_root is None:
-        worker_root = worker_worktree_path(
-            repo_dir,
-            controller_branch=controller_branch,
-        )
+        worker_root = desired_worker_root
         worker_root.parent.mkdir(parents=True, exist_ok=True)
         if worker_root.exists() or worker_root.is_symlink():
             if not _remove_orphaned_worker_root(repo_dir, worker_root=worker_root):
@@ -390,7 +485,14 @@ def ensure_worker_worktree(
         )
         created_worktree = True
 
-    restored_git = restore_worker_git_metadata(worker_root)
+    restored_git = restore_worker_git_metadata(worker_root) or restored_git
+    if not _is_operational_worktree(worker_root):
+        state = inspect_worker_git_metadata(worker_root)
+        raise _cli().PackageError(
+            "Optimize worker worktree is not a valid git worktree after recovery: "
+            f"{worker_root} (status={state.get('status') or 'unknown'}, "
+            f"gitdir={state.get('gitdir_path') or 'missing'})"
+        )
     return {
         "worker_branch": worker_branch,
         "worker_root": str(worker_root),

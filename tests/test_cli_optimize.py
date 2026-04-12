@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +39,14 @@ def _write_solver_in_worker(kwargs: dict[str, object], *, mode: str) -> None:
         raise AssertionError("missing repo_dir for worker turn")
     worker_repo = Path(repo_dir_raw)
     (worker_repo / "solver.py").write_text(f"MODE = '{mode}'\n", encoding="utf-8")
+
+
+def _worker_admin_dir(worker_repo: Path) -> Path:
+    state = optimize_git.inspect_worker_git_metadata(worker_repo)
+    gitdir_raw = str(state.get("gitdir_path") or "").strip()
+    if not gitdir_raw:
+        raise AssertionError(f"missing worker gitdir metadata for {worker_repo}")
+    return Path(gitdir_raw)
 
 
 def _write_mock_benchmark_files(
@@ -2205,6 +2214,87 @@ def test_optimize_reuses_worker_worktree_across_outer_iterations(
     assert state["iteration"] == 2
 
 
+def test_optimize_recovers_broken_worker_metadata_between_iterations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+
+    worker_repo_paths: list[str] = []
+    worker_turn_count = {"count": 0}
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        worker_turn_count["count"] += 1
+        worker_repo = Path(str(kwargs.get("repo_dir") or "")).resolve()
+        worker_repo_paths.append(str(worker_repo))
+        assert not (worker_repo / ".git").exists()
+        assert (worker_repo / optimize_git.WORKER_GIT_HIDDEN_BASENAME).exists()
+        if worker_turn_count["count"] == 1:
+            hidden_state = optimize_git.inspect_worker_git_metadata(worker_repo)
+            assert hidden_state["status"] == "healthy_hidden"
+            shutil.rmtree(_worker_admin_dir(worker_repo))
+        _write_solver_in_worker(kwargs, mode=f"FAST_{worker_turn_count['count']}")
+        return {
+            "assistant_text": (
+                f"<experiment_description>fast path {worker_turn_count['count']}</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "2",
+            "--stop-on-consecutive-rejections",
+            "2",
+        ]
+    )
+
+    assert code == 0
+    assert len(worker_repo_paths) == 2
+    assert len(set(worker_repo_paths)) == 1
+    worker_repo = Path(worker_repo_paths[0]).resolve()
+    assert optimize_git.inspect_worker_git_metadata(worker_repo)["status"] == (
+        "healthy_visible"
+    )
+    state = json.loads(
+        (repo_dir / ".fermilink-optimize" / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["accepted_count"] == 2
+    assert state["iteration"] == 2
+
+
 def test_optimize_worker_prebuild_runs_once_before_first_worker_turn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -2345,6 +2435,68 @@ def test_optimize_recovers_orphaned_worker_worktree_root(tmp_path: Path) -> None
     assert bool(recovered.get("created_worktree")) is True
     assert git_path.exists()
     assert not hidden_path.exists()
+
+
+def test_optimize_restores_healthy_hidden_worker_metadata(tmp_path: Path) -> None:
+    repo_dir, _ = _init_optimize_repo(tmp_path)
+    controller_branch = "fermilink-optimize/mockpkg"
+
+    setup = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+    worker_root = Path(str(setup.get("worker_root") or "")).resolve()
+    git_path = worker_root / ".git"
+    hidden_path = worker_root / optimize_git.WORKER_GIT_HIDDEN_BASENAME
+    assert _worker_admin_dir(worker_root).is_dir()
+
+    git_path.rename(hidden_path)
+    hidden_state = optimize_git.inspect_worker_git_metadata(worker_root)
+    assert hidden_state["status"] == "healthy_hidden"
+
+    recovered = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+
+    assert Path(str(recovered.get("worker_root") or "")).resolve() == worker_root
+    assert bool(recovered.get("created_worktree")) is False
+    assert bool(recovered.get("restored_git_metadata")) is True
+    assert git_path.exists()
+    assert not hidden_path.exists()
+    assert optimize_git.inspect_worker_git_metadata(worker_root)["status"] == (
+        "healthy_visible"
+    )
+
+
+def test_optimize_recovers_visible_worker_with_missing_admin_dir(tmp_path: Path) -> None:
+    repo_dir, _ = _init_optimize_repo(tmp_path)
+    controller_branch = "fermilink-optimize/mockpkg"
+
+    setup = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+    worker_root = Path(str(setup.get("worker_root") or "")).resolve()
+    shutil.rmtree(_worker_admin_dir(worker_root))
+
+    broken_state = optimize_git.inspect_worker_git_metadata(worker_root)
+    assert broken_state["status"] == "broken_visible"
+
+    recovered = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+
+    assert Path(str(recovered.get("worker_root") or "")).resolve() == worker_root
+    assert bool(recovered.get("created_worktree")) is True
+    assert optimize_git.inspect_worker_git_metadata(worker_root)["status"] == (
+        "healthy_visible"
+    )
+    optimize_git.reset_worker_to_commit(
+        worker_root,
+        commit_sha=optimize_git.head_sha(repo_dir),
+    )
 
 
 def test_optimize_channel_bootstraps_skills(

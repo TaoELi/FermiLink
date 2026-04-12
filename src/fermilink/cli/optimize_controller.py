@@ -6629,27 +6629,35 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             "status": "baseline_only",
         }
 
-    worker_setup = optimize_git.ensure_worker_worktree(
-        project_root,
-        controller_branch=branch_name,
-        start_commit=optimize_git.head_sha(project_root),
+    def _ensure_worker_repo_ready(start_commit: str, *, sync_skills: bool = False) -> Path:
+        worker_setup = optimize_git.ensure_worker_worktree(
+            project_root,
+            controller_branch=branch_name,
+            start_commit=start_commit,
+        )
+        worker_repo_dir_raw = str(worker_setup.get("worker_root") or "").strip()
+        if not worker_repo_dir_raw:
+            raise cli.PackageError("Failed to resolve optimize worker worktree path.")
+        worker_repo = Path(worker_repo_dir_raw).resolve()
+        if not worker_repo.is_dir():
+            raise cli.PackageError(
+                f"Optimize worker worktree does not exist: {worker_repo}"
+            )
+        optimize_git.ensure_local_excludes(worker_repo, [".fermilink-optimize/"])
+        if (project_root / "skills").exists():
+            optimize_git.ensure_local_excludes(worker_repo, ["skills/"])
+            if sync_skills or bool(worker_setup.get("created_worktree")):
+                _sync_controller_inputs_to_worker_repo(
+                    project_root=project_root,
+                    worker_root=worker_repo,
+                    rel_paths={"skills"},
+                )
+        return worker_repo
+
+    worker_repo_dir = _ensure_worker_repo_ready(
+        optimize_git.head_sha(project_root),
+        sync_skills=True,
     )
-    worker_repo_dir_raw = str(worker_setup.get("worker_root") or "").strip()
-    if not worker_repo_dir_raw:
-        raise cli.PackageError("Failed to resolve optimize worker worktree path.")
-    worker_repo_dir = Path(worker_repo_dir_raw).resolve()
-    if not worker_repo_dir.is_dir():
-        raise cli.PackageError(
-            f"Optimize worker worktree does not exist: {worker_repo_dir}"
-        )
-    optimize_git.ensure_local_excludes(worker_repo_dir, [".fermilink-optimize/"])
-    if (project_root / "skills").exists():
-        optimize_git.ensure_local_excludes(worker_repo_dir, ["skills/"])
-        _sync_controller_inputs_to_worker_repo(
-            project_root=project_root,
-            worker_root=worker_repo_dir,
-            rel_paths={"skills"},
-        )
 
     worker_iteration_sync_paths: set[str] = {
         benchmark_rel,
@@ -6744,6 +6752,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         )
         _write_run_text(run_dir, "worker_prompt.txt", prompt)
         cli._print_tagged("optimize", f"iteration {iteration}")
+        worker_repo_dir = _ensure_worker_repo_ready(start_sha)
         optimize_git.reset_worker_to_commit(worker_repo_dir, commit_sha=start_sha)
         optimize_git.clean_worker_untracked(worker_repo_dir)
         _sync_controller_inputs_to_worker_repo(
