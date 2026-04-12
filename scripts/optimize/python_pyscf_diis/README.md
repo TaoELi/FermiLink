@@ -48,7 +48,7 @@ Recommended for HPC: keep the virtual environment **outside** the git
 worktree so optimize clean-tree checks are not affected.
 
 ```bash
-export VENV="$HOME/.venvs/pyscf-optimize-diis"
+export VENV="$HOME/.venvs/fermilink-optimize/pyscf-diis"
 python -m venv "$VENV"
 source "$VENV/bin/activate"
 # before pip install, we need to compile the C library of pyscf

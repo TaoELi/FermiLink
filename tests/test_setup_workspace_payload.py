@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import runpy
+import tomllib
 
 import setuptools
 
@@ -154,3 +155,13 @@ def test_copy_workspace_payload_skips_missing_tracked_files(
 
     assert (payload_root / "present.txt").read_text(encoding="utf-8") == "ok\n"
     assert not (payload_root / "missing.txt").exists()
+
+
+def test_pyproject_exposes_native_shell_launchers_as_script_files() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    with (repo_root / "pyproject.toml").open("rb") as fh:
+        pyproject = tomllib.load(fh)
+
+    script_files = pyproject["tool"]["setuptools"]["script-files"]
+    assert "bin/fermilink-optimize-python" in script_files
+    assert "bin/fermilink-optimize-cpp" in script_files

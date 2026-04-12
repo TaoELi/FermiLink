@@ -40,7 +40,7 @@ Recommended for HPC: keep the virtual environment outside the git worktree so
 optimize clean-tree checks are not affected.
 
 ```bash
-export VENV="$HOME/.venvs/pyscf-optimize-davidson"
+export VENV="$HOME/.venvs/fermilink-optimize/pyscf-davidson"
 python -m venv "$VENV"
 source "$VENV/bin/activate"
 

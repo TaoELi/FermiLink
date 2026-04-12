@@ -2,21 +2,19 @@
 set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
-START_DIR="$PWD"
 
 usage() {
   cat <<'EOF'
-Create or reuse a controller git worktree, a per-branch venv, and launch
-goal-mode `fermilink optimize` for a Python package repository.
+Create or reuse a controller git worktree and launch goal-mode `fermilink optimize`
+for a native-code package repository.
 
-This launcher is opinionated for Python repos:
+This launcher is opinionated for C/C++/Fortran repos:
   - it runs `fermilink optimize <goal.md> --goal`
   - it creates a sibling git worktree next to the source repo by default
-  - it creates a sibling venv under `../venvs/` named after the worktree branch
   - it keeps the original source checkout untouched by working from a git worktree
 
 Usage:
-  fermilink-optimize-python \
+  fermilink-optimize-cpp \
     --goal /path/to/goal.md \
     [launcher options] \
     -- [extra fermilink optimize args]
@@ -42,14 +40,6 @@ Common launcher options:
   --allow-dirty-base               Allow uncommitted changes in --project-root.
   --dry-run                        Print the resolved command after setup and exit.
 
-Python environment options:
-  --python-bin BIN                 Python executable for venv setup (default: python3).
-  --venv-root PATH                 Parent dir for per-branch venvs.
-                                   Default: <repo-parent>/venvs
-  --venv-name NAME                 Override the default venv directory name.
-                                   Default: fermilink-optimize/<repo>-<task>
-  --venv-path PATH                 Explicit venv path.
-
 Runtime options:
   --fermilink-bin BIN              `fermilink` executable to run (default: fermilink).
   --isolate-fermilink-home         Set `FERMILINK_HOME` under this worktree.
@@ -60,30 +50,30 @@ Extra optimize arguments:
   Everything after `--` is forwarded to `fermilink optimize`.
 
 Examples:
-  ./bin/fermilink-optimize-python \
-    --goal scripts/optimize/python_pyscf_diis/python-pyscf-diis-scf-goal.md \
-    -- --baseline-only --timeout-seconds 900
+  ./bin/fermilink-optimize-cpp \
+    --goal scripts/optimize/cpp_lammps/cpp-lammps-tip4p-water-nve-neighbor-goal.md \
+    -- --max-iterations 30 --stop-on-consecutive-rejections 8
 
-  ./bin/fermilink-optimize-python \
-    --project-root /data/pyscf \
-    --goal /path/to/python-pyscf-diis-scf-goal.md \
-    --branch fermilink-optimize/pyscf-diis \
+  ./bin/fermilink-optimize-cpp \
+    --project-root /data/lammps \
+    --goal /path/to/cpp-lammps-tip4p-water-nve-comm-goal.md \
+    --branch fermilink-optimize/lammps-tip4p-comm \
     --hpc-profile scripts/hpc_profile_anvil.json \
-    -- --max-iterations 40 --worker-max-iterations 8 --resume
+    -- --resume --timeout-seconds 6000
 
 EOF
 }
 
 log() {
-  printf '[opt-workflow-python] %s\n' "$*"
+  printf '[opt-workflow-cpp] %s\n' "$*"
 }
 
 warn() {
-  printf '[opt-workflow-python] warning: %s\n' "$*" >&2
+  printf '[opt-workflow-cpp] warning: %s\n' "$*" >&2
 }
 
 err() {
-  printf '[opt-workflow-python] error: %s\n' "$*" >&2
+  printf '[opt-workflow-cpp] error: %s\n' "$*" >&2
 }
 
 die() {
@@ -100,7 +90,7 @@ resolve_executable() {
   local raw="$1"
   if [[ "$raw" == */* ]]; then
     local abs_raw
-    abs_raw="$(abs_path "$START_DIR" "$raw")"
+    abs_raw="$(abs_path "$PWD" "$raw")"
     [[ -x "$abs_raw" ]] || die "Executable not found or not executable: $raw"
     printf '%s' "$abs_raw"
     return 0
@@ -169,7 +159,7 @@ resolve_project_root() {
   local raw="$1"
   local resolved=""
   if [[ -n "$raw" ]]; then
-    resolved="$(abs_path "$START_DIR" "$raw")"
+    resolved="$(abs_path "$PWD" "$raw")"
     [[ -d "$resolved" ]] || die "Project root does not exist: $resolved"
     git -C "$resolved" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
       || die "Not a git repository: $resolved"
@@ -211,8 +201,6 @@ default_task_name() {
   fi
 
   for prefix in \
-    "python-$repo_slug-" \
-    "py-$repo_slug-" \
     "cpp-$repo_slug-" \
     "cxx-$repo_slug-" \
     "c-$repo_slug-" \
@@ -226,8 +214,6 @@ default_task_name() {
   done
 
   for exact in \
-    "python-$repo_slug" \
-    "py-$repo_slug" \
     "cpp-$repo_slug" \
     "cxx-$repo_slug" \
     "c-$repo_slug" \
@@ -259,11 +245,6 @@ default_worktree_name() {
   candidate="$(slugify "$candidate")"
   [[ -n "$candidate" ]] || candidate="optimize"
   printf '%s' "$candidate"
-}
-
-default_venv_name() {
-  local branch_name="$1"
-  printf '%s' "$branch_name"
 }
 
 ensure_local_excludes() {
@@ -317,15 +298,6 @@ check_goal_markdown_path() {
   esac
 }
 
-activate_venv() {
-  local venv_abs="$1"
-  local activate_script="$venv_abs/bin/activate"
-  [[ -f "$activate_script" ]] || die "Venv activate script does not exist: $activate_script"
-  log "Activating venv: $venv_abs"
-  # shellcheck source=/dev/null
-  source "$activate_script"
-}
-
 project_root_raw=""
 goal_raw=""
 branch_name=""
@@ -333,10 +305,6 @@ base_ref_raw=""
 worktree_root_raw=""
 worktree_name=""
 hpc_profile_raw=""
-python_bin="python3"
-venv_root_raw=""
-venv_name=""
-venv_path_raw=""
 fermilink_bin="fermilink"
 allow_dirty_base=0
 dry_run=0
@@ -381,26 +349,6 @@ while [[ $# -gt 0 ]]; do
       hpc_profile_raw="$2"
       shift 2
       ;;
-    --python-bin)
-      [[ $# -ge 2 ]] || die "Missing value for $1"
-      python_bin="$2"
-      shift 2
-      ;;
-    --venv-root)
-      [[ $# -ge 2 ]] || die "Missing value for $1"
-      venv_root_raw="$2"
-      shift 2
-      ;;
-    --venv-name)
-      [[ $# -ge 2 ]] || die "Missing value for $1"
-      venv_name="$2"
-      shift 2
-      ;;
-    --venv-path)
-      [[ $# -ge 2 ]] || die "Missing value for $1"
-      venv_path_raw="$2"
-      shift 2
-      ;;
     --fermilink-bin)
       [[ $# -ge 2 ]] || die "Missing value for $1"
       fermilink_bin="$2"
@@ -419,17 +367,6 @@ while [[ $# -gt 0 ]]; do
     --allow-dirty-base)
       allow_dirty_base=1
       shift
-      ;;
-    --skills-source|--no-venv|--sync-editable|--pip-install|--requirements|--pip-requirements|--bench-dep|--bench-deps-file|--venv-dir)
-      die "$1 is no longer supported by this launcher. This workflow always creates a per-branch venv and installs fermilink into it."
-      ;;
-    --package-id)
-      [[ $# -ge 2 ]] || die "Missing value for $1"
-      warn "--package-id is ignored in goal mode; use the goal markdown and repo name to define the campaign."
-      shift 2
-      ;;
-    --benchmark|--yaml|--bench|--bench-script)
-      die "$1 is no longer supported by this launcher. Use --goal /path/to/goal.md and let goal mode generate benchmark files."
       ;;
     --dry-run)
       dry_run=1
@@ -456,7 +393,7 @@ require_cmd git
 require_cmd python3
 
 project_root_abs="$(resolve_project_root "$project_root_raw")"
-goal_abs="$(abs_path "$START_DIR" "$goal_raw")"
+goal_abs="$(abs_path "$PWD" "$goal_raw")"
 check_goal_markdown_path "$goal_abs"
 
 if [[ "$allow_dirty_base" -ne 1 ]]; then
@@ -467,7 +404,7 @@ fi
 
 hpc_profile_abs=""
 if [[ -n "$hpc_profile_raw" ]]; then
-  hpc_profile_abs="$(abs_path "$START_DIR" "$hpc_profile_raw")"
+  hpc_profile_abs="$(abs_path "$PWD" "$hpc_profile_raw")"
   [[ -f "$hpc_profile_abs" ]] || die "HPC profile file does not exist: $hpc_profile_abs"
 fi
 
@@ -486,15 +423,13 @@ fi
 if [[ -z "$worktree_root_raw" ]]; then
   worktree_root_raw="$(dirname "$project_root_abs")"
 fi
-worktree_root_abs="$(abs_path "$START_DIR" "$worktree_root_raw")"
+worktree_root_abs="$(abs_path "$PWD" "$worktree_root_raw")"
 mkdir -p "$worktree_root_abs"
 
 if [[ -z "$worktree_name" ]]; then
   worktree_name="$(default_worktree_name "$branch_name")"
 fi
 worktree_abs="$worktree_root_abs/$worktree_name"
-
-cd "$project_root_abs"
 
 if [[ -e "$worktree_abs" ]]; then
   git -C "$worktree_abs" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -504,35 +439,20 @@ if [[ -e "$worktree_abs" ]]; then
     || die "Worktree exists on branch '$current_branch' (expected '$branch_name'): $worktree_abs"
   log "Reusing existing worktree: $worktree_abs"
 else
-  if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+  if git -C "$project_root_abs" show-ref --verify --quiet "refs/heads/$branch_name"; then
     log "Creating worktree for existing branch '$branch_name' at $worktree_abs"
-    git worktree add "$worktree_abs" "$branch_name"
+    git -C "$project_root_abs" worktree add "$worktree_abs" "$branch_name"
   else
     log "Creating worktree and new branch '$branch_name' from '$base_ref_raw' at $worktree_abs"
-    git worktree add -b "$branch_name" "$worktree_abs" "$base_ref_raw"
+    git -C "$project_root_abs" worktree add -b "$branch_name" "$worktree_abs" "$base_ref_raw"
   fi
 fi
 
 exclude_patterns=(".fermilink-optimize/" ".fermilink-home/")
-python_bin_resolved="$(resolve_executable "$python_bin")"
-
-if [[ -n "$venv_path_raw" ]]; then
-  venv_abs="$(abs_path "$START_DIR" "$venv_path_raw")"
-else
-  if [[ -z "$venv_root_raw" ]]; then
-    venv_root_raw="$(dirname "$project_root_abs")/venvs"
-  fi
-  venv_root_abs="$(abs_path "$START_DIR" "$venv_root_raw")"
-  if [[ -z "$venv_name" ]]; then
-    venv_name="$(default_venv_name "$branch_name")"
-  fi
-  venv_abs="$venv_root_abs/$venv_name"
-fi
-append_exclude_if_inside "$worktree_abs" "$venv_abs" exclude_patterns
 
 if [[ "$isolate_fermilink_home" -eq 1 ]]; then
   if [[ -n "$fermilink_home_raw" ]]; then
-    fermilink_home_abs="$(abs_path "$START_DIR" "$fermilink_home_raw")"
+    fermilink_home_abs="$(abs_path "$PWD" "$fermilink_home_raw")"
   else
     fermilink_home_abs="$worktree_abs/.fermilink-home"
   fi
@@ -540,16 +460,6 @@ if [[ "$isolate_fermilink_home" -eq 1 ]]; then
 fi
 
 ensure_local_excludes "$worktree_abs" "${exclude_patterns[@]}"
-
-if [[ ! -x "$venv_abs/bin/python" ]]; then
-  mkdir -p "$(dirname "$venv_abs")"
-  log "Creating venv: $venv_abs"
-  "$python_bin_resolved" -m venv "$venv_abs"
-fi
-
-activate_venv "$venv_abs"
-log "Installing fermilink into venv: $venv_abs"
-python -m pip install fermilink
 
 if [[ "$isolate_fermilink_home" -eq 1 ]]; then
   mkdir -p "$fermilink_home_abs"
@@ -574,13 +484,12 @@ if [[ ${#extra_optimize_args[@]} -gt 0 ]]; then
   optimize_cmd+=("${extra_optimize_args[@]}")
 fi
 
-log "Prepared goal-mode optimize run (python workflow):"
+log "Prepared goal-mode optimize run (cpp workflow):"
 log "  project_root:   $project_root_abs"
 log "  goal:           $goal_abs"
 log "  worktree:       $worktree_abs"
 log "  branch:         $branch_name"
 log "  base_ref:       $base_ref_raw"
-log "  venv:           $venv_abs"
 if [[ -n "${FERMILINK_HOME:-}" ]]; then
   log "  FERMILINK_HOME: $FERMILINK_HOME"
 fi

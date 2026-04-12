@@ -548,6 +548,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         raise cli.PackageError(str(exc)) from exc
 
     print(f"[fermilink-init] Workspace initialized in {destination}")
+    print("[fermilink-init] You can run `fermilink clean` to remove the workspace links/files if needed.")
     return 0
 
 
@@ -640,6 +641,7 @@ def fermilink_init_main(argv: list[str] | None = None) -> int:
         return 2
 
     print("[fermilink-init] Workspace initialized in", destination)
+    print("[fermilink-init] You can run `fermilink clean` to remove the workspace links/files if needed.")
     return 0
 
 

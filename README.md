@@ -19,49 +19,63 @@ Once you describe a goal, **FermiLink** takes care of the rest — routing tasks
 
 
 ## Quick Start
-For beginners, start with:
+Install the **FermiLink** package with pip:
 
 ```bash
-# install fermilink
 pip install fermilink
-# start the fermilink initialization helper
-fermilink
 ```
 
-You can also use the manual workflow directly:
+To use any **FermiLink** feature, open a clean directory,
 
 ```bash
-# 1. Install
-pip install fermilink
+mkdir myproject
+cd myproject
+fermilink init
+```
 
-# 2. (Recommended) initialize a workspace with onboarding AGENTS.md
-mkdir my-fermilink-workspace && cd my-fermilink-workspace
-fermilink init .
+Then open **any local agent** (OpenAI Codex, Claude Code, Gemini CLI, their desktop apps, or VS Code extension, etc) within this directory and ask how to use:
+- **exec/chat/loop/research/reproduce** command line tools 
+- **Web UI** 
+- **Telegram remote control**
+- or a general question regarding how to setup or run simulations with **FermiLink**
 
-# 3. Install at least one scientific package knowledge base
+
+You can also simply type in:
+```bash
+fermilink
+```
+for a step-by-step guide regarding how to setup the environment of **FermiLink**.
+
+<details>
+<summary>Advanced FermiLink command line usage</summary>
+
+```bash
+# 1. Install at least one scientific package knowledge base
 fermilink install meep
 
-# 4. set up the agent provider
+# 2. set up the agent provider
 fermilink agent codex/claude/gemini
 
-# 5. (Optional) initialize default HPC profile at ~/.fermilink/HPC_PROFILE.json
+# 3. (Optional) initialize default HPC profile at ~/.fermilink/HPC_PROFILE.json
 fermilink hpc
 
-# 6.1. Use command-line tool to do autonomous scientific research
+# 4.1. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
 
-# 6.2. Start web UI service for ChatGPT-like experience
+# 4.2. Start web UI service for ChatGPT-like experience
 fermilink start
 
-# 6.3. Start the gateway for supporting Chatbots via Telegram
+# 4.3. Start the gateway for supporting Chatbots via Telegram
 export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
 export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 fermilink gateway
+
 ```
 
 <p align="center">
   <img src="docs/source/_static/img/fermilink_hpc_bot.jpeg" alt="FermiLink Telegram Bot" width="300">
 </p>
+</details>
 
 ## Documentation
 

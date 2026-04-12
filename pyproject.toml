@@ -79,6 +79,10 @@ fermilink-clean = "fermilink.cli.commands.workspace:fermilink_clean_main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 include-package-data = true
+script-files = [
+  "bin/fermilink-optimize-python",
+  "bin/fermilink-optimize-cpp",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
