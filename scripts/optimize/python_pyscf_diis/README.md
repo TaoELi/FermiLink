@@ -118,7 +118,7 @@ fermilink optimize "$GOAL" \
   --timeout-seconds 900 --resume
 ```
 
-The worker operates in its own nested git worktree inside the campaign directory (`fermilink-optimize-worktrees/`); the controller worktree you created in Step 2 is the authoritative checkout.
+The worker operates in its own hidden sibling git worktree next to the original source repo (`.<repo>-fermilink-optimize-worktrees/`); the controller worktree you created in Step 2 is the authoritative checkout.
 
 ## Step 7. Monitor progress
 

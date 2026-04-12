@@ -2405,6 +2405,72 @@ def test_optimize_worker_prebuild_runs_once_before_first_worker_turn(
     assert worker_prebuild_indices[0] < worker_turn_indices[0]
 
 
+def test_optimize_worker_uses_repo_parent_sibling_storage_root(tmp_path: Path) -> None:
+    repo_dir, _ = _init_optimize_repo(tmp_path)
+    controller_dir = tmp_path / "controllers" / "repo-worktree"
+    controller_dir.parent.mkdir(parents=True, exist_ok=True)
+    controller_branch = "worktree-optimize-base"
+    _git(
+        repo_dir,
+        "worktree",
+        "add",
+        "-b",
+        controller_branch,
+        str(controller_dir),
+        "main",
+    )
+
+    setup = optimize_git.ensure_worker_worktree(
+        controller_dir,
+        controller_branch=controller_branch,
+    )
+
+    worker_root = Path(str(setup.get("worker_root") or "")).resolve()
+    expected_root = optimize_git.worker_worktree_path(
+        controller_dir,
+        controller_branch=controller_branch,
+    ).resolve()
+    legacy_storage_root = optimize_git._legacy_worker_storage_root(controller_dir)
+
+    assert worker_root == expected_root
+    assert worker_root.parent == repo_dir.parent / ".repo-fermilink-optimize-worktrees"
+    assert worker_root.parent != controller_dir.parent.resolve()
+    assert worker_root.parent != legacy_storage_root
+
+
+def test_optimize_relocates_legacy_worker_worktree_to_sibling_storage_root(
+    tmp_path: Path,
+) -> None:
+    repo_dir, _ = _init_optimize_repo(tmp_path)
+    controller_branch = "fermilink-optimize/mockpkg"
+    worker_branch = optimize_git.worker_branch_name(controller_branch)
+    legacy_worker_root = (
+        optimize_git._legacy_worker_storage_root(repo_dir)
+        / optimize_git._worker_key(controller_branch)
+    )
+    _git(repo_dir, "branch", worker_branch, optimize_git.head_sha(repo_dir))
+    _git(repo_dir, "worktree", "add", "--force", str(legacy_worker_root), worker_branch)
+
+    setup = optimize_git.ensure_worker_worktree(
+        repo_dir,
+        controller_branch=controller_branch,
+    )
+
+    worker_root = Path(str(setup.get("worker_root") or "")).resolve()
+    expected_root = optimize_git.worker_worktree_path(
+        repo_dir,
+        controller_branch=controller_branch,
+    ).resolve()
+    listed_worktrees = _git(repo_dir, "worktree", "list", "--porcelain")
+
+    assert worker_root == expected_root
+    assert bool(setup.get("created_branch")) is False
+    assert bool(setup.get("created_worktree")) is True
+    assert not legacy_worker_root.exists()
+    assert str(legacy_worker_root) not in listed_worktrees
+    assert str(worker_root) in listed_worktrees
+
+
 def test_optimize_recovers_orphaned_worker_worktree_root(tmp_path: Path) -> None:
     repo_dir, _ = _init_optimize_repo(tmp_path)
     controller_branch = "fermilink-optimize/mockpkg"

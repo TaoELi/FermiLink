@@ -220,6 +220,13 @@ def _git_common_dir(repo_dir: Path) -> Path:
     return candidate
 
 
+def _main_repo_root(repo_dir: Path) -> Path:
+    common_dir = _git_common_dir(repo_dir)
+    if common_dir.name == ".git":
+        return common_dir.parent.resolve()
+    return repo_dir.resolve()
+
+
 def _worker_key(controller_branch: str) -> str:
     branch = str(controller_branch or "").strip()
     if not branch:
@@ -240,12 +247,37 @@ def worker_worktree_path(
     *,
     controller_branch: str,
 ) -> Path:
-    storage_root = _git_common_dir(repo_dir) / WORKER_WORKTREE_STORAGE_DIRNAME
+    storage_root = _worker_storage_root(repo_dir)
     return storage_root / _worker_key(controller_branch)
 
 
 def _worker_storage_root(repo_dir: Path) -> Path:
+    main_repo_root = _main_repo_root(repo_dir)
+    repo_name = re.sub(r"[^A-Za-z0-9._-]+", "-", main_repo_root.name).strip("-._")
+    if not repo_name:
+        repo_name = "repo"
+    return (
+        main_repo_root.parent / f".{repo_name}-{WORKER_WORKTREE_STORAGE_DIRNAME}"
+    ).resolve()
+
+
+def _legacy_worker_storage_root(repo_dir: Path) -> Path:
     return (_git_common_dir(repo_dir) / WORKER_WORKTREE_STORAGE_DIRNAME).resolve()
+
+
+def _worker_storage_roots(repo_dir: Path) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    seen: set[str] = set()
+    for candidate in (
+        _worker_storage_root(repo_dir),
+        _legacy_worker_storage_root(repo_dir),
+    ):
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append(candidate)
+    return tuple(roots)
 
 
 def _list_worktrees(repo_dir: Path) -> list[dict[str, str]]:
@@ -368,14 +400,15 @@ def _remove_worker_root_path(repo_dir: Path, *, worker_root: Path) -> bool:
     if not (worker_root.exists() or worker_root.is_symlink()):
         return False
 
-    storage_root = _worker_storage_root(repo_dir)
-    try:
-        worker_root.parent.resolve().relative_to(storage_root)
-    except ValueError as exc:
+    allowed_roots = _worker_storage_roots(repo_dir)
+    parent_dir = worker_root.parent.resolve()
+    if not any(
+        _is_relative_to(parent_dir, storage_root) for storage_root in allowed_roots
+    ):
         raise _cli().PackageError(
             "Refusing to remove optimize worker path outside "
-            f"{storage_root}: {worker_root}"
-        ) from exc
+            f"{', '.join(str(root) for root in allowed_roots)}: {worker_root}"
+        )
 
     try:
         if worker_root.is_symlink():
@@ -389,6 +422,41 @@ def _remove_worker_root_path(repo_dir: Path, *, worker_root: Path) -> bool:
             f"Failed to remove stale optimize worker path {worker_root}: {exc}"
         ) from exc
     return True
+
+
+def _is_relative_to(path: Path, other: Path) -> bool:
+    try:
+        path.relative_to(other)
+    except ValueError:
+        return False
+    return True
+
+
+def _remove_registered_worktree(repo_dir: Path, *, worker_root: Path) -> None:
+    worker_health = inspect_worker_git_metadata(worker_root)
+    if str(worker_health.get("status") or "").strip() == "healthy_hidden":
+        restore_worker_git_metadata(worker_root)
+
+    completed = run_git(
+        repo_dir,
+        ["worktree", "remove", "--force", str(worker_root)],
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode == 0:
+        run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)
+        return
+
+    if worker_root.exists() or worker_root.is_symlink():
+        _remove_worker_root_path(repo_dir, worker_root=worker_root)
+    run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)
+
+    if _resolve_existing_worktree_for_path(repo_dir, worktree_path=worker_root):
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise _cli().PackageError(
+            "Failed to relocate optimize worker worktree "
+            f"{worker_root}: {detail or completed.returncode}"
+        )
 
 
 def _remove_orphaned_worker_root(repo_dir: Path, *, worker_root: Path) -> bool:
@@ -456,13 +524,20 @@ def ensure_worker_worktree(
     worker_root = existing
     created_worktree = False
     if worker_root is not None:
-        existing_health = inspect_worker_git_metadata(worker_root)
-        if str(existing_health.get("status") or "").strip() == "healthy_hidden":
-            restored_git = restore_worker_git_metadata(worker_root) or restored_git
-        if not _is_operational_worktree(worker_root):
-            _remove_worker_root_path(repo_dir, worker_root=worker_root)
+        if worker_root.resolve() != desired_worker_root.resolve():
+            _remove_registered_worktree(repo_dir, worker_root=worker_root)
             run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)
             worker_root = None
+        else:
+            existing_health = inspect_worker_git_metadata(worker_root)
+            if str(existing_health.get("status") or "").strip() == "healthy_hidden":
+                restored_git = restore_worker_git_metadata(worker_root) or restored_git
+            if not _is_operational_worktree(worker_root):
+                _remove_worker_root_path(repo_dir, worker_root=worker_root)
+                run_git(
+                    repo_dir, ["worktree", "prune"], check=False, capture_output=True
+                )
+                worker_root = None
     if worker_root is None:
         worker_root = desired_worker_root
         worker_root.parent.mkdir(parents=True, exist_ok=True)
