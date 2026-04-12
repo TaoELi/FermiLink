@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
+from fermilink.config import resolve_fermilink_home
 from fermilink.cli.workflow_prompts import (
     LOOP_MEMORY_DIRNAME,
     LOOP_MEMORY_FILENAME,
@@ -309,6 +310,9 @@ WORKFLOW_HPC_FEEDBACK_MAX_ISSUES = 80
 WORKFLOW_TASK_SIMULATION_SCRIPT_FILENAME = "run_simulation.sh"
 WORKFLOW_TASK_POSTPROCESS_SCRIPT_FILENAME = "run_postprocess.sh"
 WORKFLOW_TASK_PLOT_SCRIPT_FILENAME = "run_plot.sh"
+WORKFLOW_DEFAULT_HPC_PROFILE_FILENAME = "HPC_PROFILE.json"
+WORKFLOW_LEGACY_HPC_PROFILE_FILENAME = "hpc_profile.json"
+WORKFLOW_DEFAULT_HOME_HPC_COMMANDS = {"exec", "loop", "research", "reproduce"}
 
 WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS = (
     "Unified-memory requirements (apply in this stage):\n"
@@ -451,7 +455,10 @@ def _default_local_hpc_context() -> dict[str, object]:
 
 
 def _normalize_hpc_profile(
-    *, raw_profile: dict[str, object], profile_path: Path
+    *,
+    raw_profile: dict[str, object],
+    profile_path: Path,
+    error_prefix: str = "--hpc-profile",
 ) -> dict[str, object]:
     cli = _cli()
     profile_label = str(profile_path)
@@ -465,52 +472,98 @@ def _normalize_hpc_profile(
         raw_value = raw_profile.get(key)
         if raw_value is None:
             raise cli.PackageError(
-                f"--hpc-profile missing required `{key}` in {profile_label}."
+                f"{error_prefix} missing required `{key}` in {profile_label}."
             )
         if not isinstance(raw_value, str):
             raise cli.PackageError(
-                f"--hpc-profile `{key}` must be a non-empty string in {profile_label}."
+                f"{error_prefix} `{key}` must be a non-empty string in {profile_label}."
             )
         text_value = " ".join(raw_value.strip().split())
         if not text_value:
             raise cli.PackageError(
-                f"--hpc-profile `{key}` must be a non-empty string in {profile_label}."
+                f"{error_prefix} `{key}` must be a non-empty string in {profile_label}."
             )
         normalized[key] = text_value
     return normalized
+
+
+def _resolve_default_home_hpc_profile_path() -> Path | None:
+    home = resolve_fermilink_home()
+    for filename in (
+        WORKFLOW_DEFAULT_HPC_PROFILE_FILENAME,
+        WORKFLOW_LEGACY_HPC_PROFILE_FILENAME,
+    ):
+        candidate = home / filename
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _resolve_invocation_hpc_context(
     *, repo_dir: Path, args: argparse.Namespace
 ) -> dict[str, object]:
     cli = _cli()
+    command = str(getattr(args, "command", "") or "").strip().lower()
     raw_hpc_profile = str(getattr(args, "hpc_profile", "") or "").strip()
-    if not raw_hpc_profile:
-        return _default_local_hpc_context()
-
-    resolved_profile_path = cli._resolve_project_path(raw_hpc_profile)
-    if not resolved_profile_path.exists():
-        raise cli.PackageError(f"--hpc-profile does not exist: {resolved_profile_path}")
-    if not resolved_profile_path.is_file():
-        raise cli.PackageError(f"--hpc-profile must be a file: {resolved_profile_path}")
-    try:
-        payload = json.loads(resolved_profile_path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise cli.PackageError(
-            f"Failed to read --hpc-profile: {resolved_profile_path}: {exc}"
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise cli.PackageError(
-            f"--hpc-profile must contain valid JSON: {resolved_profile_path}: {exc}"
-        ) from exc
-    if not isinstance(payload, dict):
-        raise cli.PackageError(
-            f"--hpc-profile root JSON must be an object: {resolved_profile_path}"
+    source = "cli_hpc_profile"
+    profile_path_input = raw_hpc_profile
+    if raw_hpc_profile:
+        resolved_profile_path = cli._resolve_project_path(raw_hpc_profile)
+        if not resolved_profile_path.exists():
+            raise cli.PackageError(
+                f"--hpc-profile does not exist: {resolved_profile_path}"
+            )
+        if not resolved_profile_path.is_file():
+            raise cli.PackageError(
+                f"--hpc-profile must be a file: {resolved_profile_path}"
+            )
+        try:
+            payload = json.loads(resolved_profile_path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to read --hpc-profile: {resolved_profile_path}: {exc}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise cli.PackageError(
+                f"--hpc-profile must contain valid JSON: {resolved_profile_path}: {exc}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise cli.PackageError(
+                f"--hpc-profile root JSON must be an object: {resolved_profile_path}"
+            )
+        normalized_profile = _normalize_hpc_profile(
+            raw_profile=payload,
+            profile_path=resolved_profile_path,
         )
+    else:
+        if command not in WORKFLOW_DEFAULT_HOME_HPC_COMMANDS:
+            return _default_local_hpc_context()
+        resolved_profile_path = _resolve_default_home_hpc_profile_path()
+        if resolved_profile_path is None:
+            return _default_local_hpc_context()
+        try:
+            payload = json.loads(resolved_profile_path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to read default HPC profile: {resolved_profile_path}: {exc}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise cli.PackageError(
+                "Default HPC profile must contain valid JSON: "
+                f"{resolved_profile_path}: {exc}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise cli.PackageError(
+                f"Default HPC profile root JSON must be an object: {resolved_profile_path}"
+            )
+        normalized_profile = _normalize_hpc_profile(
+            raw_profile=payload,
+            profile_path=resolved_profile_path,
+            error_prefix="Default HPC profile",
+        )
+        source = "default_home_hpc_profile"
+        profile_path_input = str(resolved_profile_path)
 
-    normalized_profile = _normalize_hpc_profile(
-        raw_profile=payload, profile_path=resolved_profile_path
-    )
     fingerprint = hashlib.sha256(
         json.dumps(normalized_profile, sort_keys=True, separators=(",", ":")).encode(
             "utf-8"
@@ -520,9 +573,9 @@ def _resolve_invocation_hpc_context(
         "enabled": True,
         "mode": "hpc_slurm",
         "scheduler": "slurm",
-        "source": "cli_hpc_profile",
+        "source": source,
         "profile_path": str(resolved_profile_path),
-        "profile_path_input": raw_hpc_profile,
+        "profile_path_input": profile_path_input,
         "profile_relpath": _repo_relative_path(repo_dir, resolved_profile_path),
         "fingerprint": fingerprint,
         "profile": normalized_profile,

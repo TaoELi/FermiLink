@@ -9,6 +9,13 @@ from fermilink import cli
 from fermilink.cli.commands import workflows as workflow_commands
 
 
+@pytest.fixture(autouse=True)
+def _isolate_fermilink_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("FERMILINK_HOME", str(tmp_path / ".fermilink"))
+
+
 def test_reproduce_parser_defaults() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(["reproduce", "paper.md"])
@@ -159,6 +166,66 @@ def test_reproduce_plan_only_writes_plan_without_running_loop(
     assert isinstance(hpc_context, dict)
     assert hpc_context.get("enabled") is False
     assert hpc_context.get("mode") == "local"
+
+
+def test_reproduce_plan_only_uses_default_home_hpc_profile_when_flag_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    profile = home / "HPC_PROFILE.json"
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "debug",
+                "slurm_defaults": "--nodes=1 --ntasks=2 --time=00:15:00",
+                "slurm_resource_policy": "Prefer debug queue",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda _args: (_ for _ in ()).throw(
+            AssertionError("loop should not run in --plan-only")
+        ),
+    )
+
+    assert cli.main(["reproduce", "paper.md", "--plan-only"]) == 0
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    hpc_context = state.get("hpc_context")
+    assert isinstance(hpc_context, dict)
+    assert hpc_context.get("enabled") is True
+    assert hpc_context.get("source") == "default_home_hpc_profile"
+    assert hpc_context.get("profile_path") == str(profile)
 
 
 def test_reproduce_plan_only_uses_simulation_mode_and_persists_state(

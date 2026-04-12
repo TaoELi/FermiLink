@@ -353,6 +353,82 @@ def test_loop_hpc_profile_requires_lightweight_schema(
     assert "missing required `slurm_default_partition`" in capsys.readouterr().err
 
 
+def test_loop_uses_default_home_hpc_profile_when_flag_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    home = tmp_path / ".fermilink"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+    profile = home / "HPC_PROFILE.json"
+    profile.parent.mkdir(parents=True, exist_ok=True)
+    profile.write_text(
+        json.dumps(
+            {
+                "slurm_default_partition": "shared",
+                "slurm_defaults": "--nodes=1 --ntasks=2 --time=00:20:00",
+                "slurm_resource_policy": "Prefer small queues",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli, "resolve_scipkg_root", lambda: tmp_path / "scientific_packages"
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_resolve_exec_package_selection",
+        lambda **_kwargs: {
+            "package_id": "pkg-a",
+            "source": "default",
+            "reason": "default_fallback",
+            "note": "default_fallback",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_overlay_exec_package",
+        lambda **_kwargs: {
+            "linked_count": 1,
+            "collision_count": 0,
+            "linked_dependency_count": 0,
+        },
+    )
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        cli,
+        "_run_exec_chat_turn",
+        lambda **kwargs: captured.update(kwargs)
+        or {
+            "assistant_text": f"{cli.LOOP_DONE_TOKEN}\n",
+            "return_code": 0,
+            "stderr": "",
+        },
+    )
+    monkeypatch.setattr(cli, "_cleanup_exec_overlay_symlinks", lambda **_kwargs: None)
+
+    assert cli.main(["loop", "finish it"]) == 0
+    prompt = str(captured.get("prompt") or "")
+    assert "Execution target constraints:" in prompt
+    assert "execution_target: HPC SLURM." in prompt
+    assert "slurm_default_partition: `shared`." in prompt
+    assert "slurm_defaults: `--nodes=1 --ntasks=2 --time=00:20:00`." in prompt
+    assert "slurm_resource_policy: Prefer small queues." in prompt
+
+
 def test_resolve_exec_like_user_prompt_accepts_long_single_token_text() -> None:
     long_prompt = "x" * 5000
     text, prompt_file = cli._resolve_exec_like_user_prompt(

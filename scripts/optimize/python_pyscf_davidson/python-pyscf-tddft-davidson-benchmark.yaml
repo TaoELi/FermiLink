@@ -1,0 +1,266 @@
+# Expert-mode benchmark template for algorithm-level PySCF TDDFT Davidson tuning.
+# The runtime command resolves the sibling runner from this benchmark path, so
+# the template can be used in place or copied into a PySCF worktree.
+
+schema_version: 1
+benchmark_id: pyscf-tddft-davidson
+
+goal_context:
+  target: >-
+    Optimize the Davidson-style subspace eigensolver used by PySCF TDDFT/TDA,
+    with primary focus on pyscf/tdscf/_lr_eig.py and the TD response call sites
+    in pyscf/tdscf/rhf.py, pyscf/tdscf/rks.py, pyscf/tdscf/uhf.py, and
+    pyscf/tdscf/uks.py.
+  initial_hypothesis: >-
+    The highest-value speedups should come from reducing projected-subspace
+    update cost, restart/compression overhead, and residual/trial-vector churn
+    inside lr_eigh, lr_eig, and real_eig, rather than from local Python
+    micro-optimizations.
+  intent_level: guidance
+
+repo:
+  editable_paths:
+    - pyscf/tdscf/_lr_eig.py
+    - pyscf/tdscf/rhf.py
+    - pyscf/tdscf/rks.py
+    - pyscf/tdscf/uhf.py
+    - pyscf/tdscf/uks.py
+    - pyscf/lib/linalg_helper.py
+  immutable_paths:
+    - pyscf/tdscf/test/**
+    - scripts/**
+
+controller:
+  timeout_seconds: 3600
+  warmup_runs: 0
+  measured_runs: 1
+  aggregation:
+    timing: median
+    iterations: median
+    memory: max
+  objective:
+    primary_metric: weighted_median_wall_seconds
+    direction: minimize
+    min_relative_improvement: 0.03
+
+campaign:
+  max_iterations: 18
+  stop_on_consecutive_rejections: 8
+
+worker:
+  max_iterations: 6
+  wait_seconds: 5
+  max_wait_seconds: 1800
+  pid_stall_seconds: 1800
+
+correctness:
+  mode: field_tolerances
+  require_all_cases_converged: true
+  field_tolerances:
+    - field: excitation_energies_hartree
+      max_abs_delta: 5.0e-6
+      label: excitation energies
+    - field: oscillator_strengths_length
+      max_abs_delta: 1.0e-4
+      label: oscillator strengths
+    - field: nroots_found
+      abs_delta: 0.0
+      label: converged roots
+
+split:
+  train_case_ids:
+    - train-rks-bp86-casida-benzene-631gss
+    - train-rks-b3lyp-tddft-benzene-631gss
+    - train-uks-bp86-casida-allyl-def2tzvp
+
+runtime:
+  mode: direct
+  env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+    VECLIB_MAXIMUM_THREADS: "1"
+    NUMEXPR_NUM_THREADS: "1"
+    OMP_DYNAMIC: "FALSE"
+    MKL_DYNAMIC: "FALSE"
+    PYTHONHASHSEED: "0"
+  pre_commands:
+    - - bash
+      - -lc
+      - cd pyscf/lib && mkdir -p build && cd build && cmake .. && cmake --build . -j4
+    - - python
+      - -m
+      - pip
+      - install
+      - -e
+      - .
+  command:
+    - python
+    - -c
+    - |
+      import pathlib
+      import runpy
+      import sys
+      benchmark = pathlib.Path(sys.argv[1]).resolve()
+      runner = benchmark.with_name("python-pyscf-tddft-davidson-bench.py")
+      sys.argv = [str(runner), "--benchmark", str(benchmark), "--emit-json"]
+      runpy.run_path(str(runner), run_name="__main__")
+    - "{benchmark}"
+
+cases:
+  - id: train-rks-bp86-casida-benzene-631gss
+    weight: 1.0
+    atom: |
+      C   1.217739890298750 -0.703062453466927  0.000000000000000
+      H   2.172991468538160 -1.254577209307266  0.000000000000000
+      C   1.217739890298750  0.703062453466927  0.000000000000000
+      H   2.172991468538160  1.254577209307266  0.000000000000000
+      C   0.000000000000000  1.406124906933854  0.000000000000000
+      H   0.000000000000000  2.509154418614532  0.000000000000000
+      C  -1.217739890298750  0.703062453466927  0.000000000000000
+      H  -2.172991468538160  1.254577209307266  0.000000000000000
+      C  -1.217739890298750 -0.703062453466927  0.000000000000000
+      H  -2.172991468538160 -1.254577209307266  0.000000000000000
+      C   0.000000000000000 -1.406124906933854  0.000000000000000
+      H   0.000000000000000 -2.509154418614532  0.000000000000000
+    basis: 6-31g**
+    charge: 0
+    spin: 0
+    scf_family: rks
+    xc: b88,p86
+    td_method: CasidaTDDFT
+    nstates: 12
+    singlet: true
+    scf_conv_tol: 1.0e-10
+    td_conv_tol: 1.0e-5
+    td_lindep: 1.0e-12
+    td_max_cycle: 150
+    positive_eig_threshold: 1.0e-3
+    deg_eia_thresh: 1.0e-3
+    grids_prune_none: true
+    atom_specific_treutler_grids: false
+    command_preview: RKS BP86 CasidaTDDFT on benzene / 6-31g** / 12 roots
+
+  - id: train-rks-b3lyp-tddft-benzene-631gss
+    weight: 1.0
+    atom: |
+      C   1.217739890298750 -0.703062453466927  0.000000000000000
+      H   2.172991468538160 -1.254577209307266  0.000000000000000
+      C   1.217739890298750  0.703062453466927  0.000000000000000
+      H   2.172991468538160  1.254577209307266  0.000000000000000
+      C   0.000000000000000  1.406124906933854  0.000000000000000
+      H   0.000000000000000  2.509154418614532  0.000000000000000
+      C  -1.217739890298750  0.703062453466927  0.000000000000000
+      H  -2.172991468538160  1.254577209307266  0.000000000000000
+      C  -1.217739890298750 -0.703062453466927  0.000000000000000
+      H  -2.172991468538160 -1.254577209307266  0.000000000000000
+      C   0.000000000000000 -1.406124906933854  0.000000000000000
+      H   0.000000000000000 -2.509154418614532  0.000000000000000
+    basis: 6-31g**
+    charge: 0
+    spin: 0
+    scf_family: rks
+    xc: b3lyp5
+    td_method: TDDFT
+    nstates: 10
+    singlet: true
+    scf_conv_tol: 1.0e-10
+    td_conv_tol: 1.0e-5
+    td_lindep: 1.0e-12
+    td_max_cycle: 150
+    positive_eig_threshold: 1.0e-3
+    deg_eia_thresh: 1.0e-3
+    grids_prune_none: true
+    atom_specific_treutler_grids: false
+    command_preview: RKS B3LYP TDDFT on benzene / 6-31g** / 10 roots
+
+  - id: train-uks-bp86-casida-allyl-def2tzvp
+    weight: 1.0
+    atom: |
+      C    -1.1528    -0.1151    -0.4645
+      C     0.2300    -0.1171    -0.3508
+      C     0.9378     0.2246     0.7924
+      H     0.4206     0.5272     1.7055
+      H     2.0270     0.2021     0.8159
+      H    -1.6484    -0.3950    -1.3937
+      H    -1.7866     0.1687     0.3784
+      H     0.8086    -0.4120    -1.2337
+    basis: def2-TZVP
+    charge: 0
+    spin: 1
+    scf_family: uks
+    scf_newton: true
+    xc: b88,p86
+    td_method: CasidaTDDFT
+    nstates: 8
+    scf_conv_tol: 1.0e-11
+    td_conv_tol: 1.0e-5
+    td_lindep: 1.0e-12
+    td_max_cycle: 150
+    positive_eig_threshold: 1.0e-3
+    deg_eia_thresh: 1.0e-3
+    grids_prune_none: true
+    atom_specific_treutler_grids: false
+    command_preview: UKS BP86 CasidaTDDFT on allyl radical / def2-TZVP / 8 roots
+
+  - id: test-rks-b3lyp-tda-benzene-631gss
+    weight: 1.0
+    atom: |
+      C   1.217739890298750 -0.703062453466927  0.000000000000000
+      H   2.172991468538160 -1.254577209307266  0.000000000000000
+      C   1.217739890298750  0.703062453466927  0.000000000000000
+      H   2.172991468538160  1.254577209307266  0.000000000000000
+      C   0.000000000000000  1.406124906933854  0.000000000000000
+      H   0.000000000000000  2.509154418614532  0.000000000000000
+      C  -1.217739890298750  0.703062453466927  0.000000000000000
+      H  -2.172991468538160  1.254577209307266  0.000000000000000
+      C  -1.217739890298750 -0.703062453466927  0.000000000000000
+      H  -2.172991468538160 -1.254577209307266  0.000000000000000
+      C   0.000000000000000 -1.406124906933854  0.000000000000000
+      H   0.000000000000000 -2.509154418614532  0.000000000000000
+    basis: 6-31g**
+    charge: 0
+    spin: 0
+    scf_family: rks
+    xc: b3lyp5
+    td_method: TDA
+    nstates: 12
+    singlet: true
+    scf_conv_tol: 1.0e-10
+    td_conv_tol: 1.0e-5
+    td_lindep: 1.0e-12
+    td_max_cycle: 150
+    positive_eig_threshold: 1.0e-3
+    deg_eia_thresh: 1.0e-3
+    grids_prune_none: true
+    atom_specific_treutler_grids: false
+    command_preview: RKS B3LYP TDA on benzene / 6-31g** / 12 roots
+
+  - id: test-uks-b3lyp-tddft-allyl-def2tzvp
+    weight: 1.0
+    atom: |
+      C    -1.1528    -0.1151    -0.4645
+      C     0.2300    -0.1171    -0.3508
+      C     0.9378     0.2246     0.7924
+      H     0.4206     0.5272     1.7055
+      H     2.0270     0.2021     0.8159
+      H    -1.6484    -0.3950    -1.3937
+      H    -1.7866     0.1687     0.3784
+      H     0.8086    -0.4120    -1.2337
+    basis: def2-TZVP
+    charge: 0
+    spin: 1
+    scf_family: uks
+    scf_newton: true
+    xc: b3lyp5
+    td_method: TDDFT
+    nstates: 6
+    scf_conv_tol: 1.0e-11
+    td_conv_tol: 1.0e-5
+    td_lindep: 1.0e-12
+    td_max_cycle: 150
+    positive_eig_threshold: 1.0e-3
+    deg_eia_thresh: 1.0e-3
+    grids_prune_none: true
+    atom_specific_treutler_grids: false
+    command_preview: UKS B3LYP TDDFT on allyl radical / def2-TZVP / 6 roots

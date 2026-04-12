@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "channel_id": "skilled-scipkg",
-  "updated_at": "2026-03-14T22:20:27.016608Z",
+  "updated_at": "2026-03-16T10:02:16.911141Z",
   "packages": [
     {
       "package_id": "abinit",
@@ -1436,6 +1436,35 @@
         "detector-simulation",
         "medical-physics",
         "nuclear-physics"
+      ]
+    },
+    {
+      "package_id": "geosx",
+      "title": "GEOSX Subsurface Multiphysics Framework",
+      "description": "GEOSX is an open-source high-performance simulation framework for coupled subsurface flow, transport, and geomechanics, targeting carbon sequestration, geothermal energy, and large-scale reservoir modeling.",
+      "upstream_repo_url": "https://github.com/EngSubsurfaceModeling/GEOSX",
+      "homepage_url": "https://github.com/EngSubsurfaceModeling/GEOSX",
+      "zip_url": "https://github.com/skilled-scipkg/GEOSX/archive/refs/heads/develop.zip",
+      "default_version": "branch-head",
+      "versions": [
+        {
+          "version_id": "branch-head",
+          "source_archive_url": "https://github.com/skilled-scipkg/GEOSX/archive/refs/heads/develop.zip",
+          "source_ref": {
+            "type": "branch",
+            "value": "develop"
+          },
+          "verified": false
+        }
+      ],
+      "tags": [
+        "subsurface",
+        "geomechanics",
+        "multiphysics",
+        "reservoir",
+        "hpc",
+        "carbon-sequestration",
+        "geothermal"
       ]
     },
     {

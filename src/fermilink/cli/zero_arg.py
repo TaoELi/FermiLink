@@ -38,7 +38,8 @@ _ZERO_ARG_MENU_CHOICES = (
 )
 _ZERO_ARG_DEFAULT_WORKSPACE_NAME = "fermilink-workspace"
 _ZERO_ARG_DEFAULT_HPC_PROFILE_ENV = "FERMILINK_DEFAULT_HPC_PROFILE"
-_ZERO_ARG_DEFAULT_HPC_FILENAME = "hpc_profile.json"
+_ZERO_ARG_DEFAULT_HPC_FILENAME = "HPC_PROFILE.json"
+_ZERO_ARG_LEGACY_HPC_FILENAME = "hpc_profile.json"
 _ZERO_ARG_CODEX_AUTH_MODES = {"login", "oauth", "keychain", "stored"}
 _ZERO_ARG_CODEX_PLACEHOLDER_KEYS = {
     "YOUR_KEY_HERE",
@@ -175,6 +176,8 @@ def _probe_zero_arg_hpc_state() -> dict[str, object]:
         candidates.append(cli._resolve_project_path(raw_env.strip()))
     candidates.append((Path.cwd() / _ZERO_ARG_DEFAULT_HPC_FILENAME).resolve())
     candidates.append(resolve_fermilink_home() / _ZERO_ARG_DEFAULT_HPC_FILENAME)
+    candidates.append((Path.cwd() / _ZERO_ARG_LEGACY_HPC_FILENAME).resolve())
+    candidates.append(resolve_fermilink_home() / _ZERO_ARG_LEGACY_HPC_FILENAME)
 
     seen: set[str] = set()
     chosen_path: Path | None = None
