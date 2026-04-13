@@ -19,11 +19,13 @@ def test_cli_design_invokes_design_pipeline(monkeypatch, tmp_path: Path, capsys)
         captured["project_root"] = getattr(args, "project_root", None)
         captured["provider"] = getattr(args, "provider", None)
         captured["search_profile"] = getattr(args, "search_profile", None)
+        captured["baseline_publications"] = getattr(args, "baseline_publications", None)
         return {
             "shortlist_report_path": "/tmp/shortlist.md",
             "baseline_report_path": "/tmp/baseline.md",
             "archive_jsonl_path": "/tmp/archive.jsonl",
             "search_profile": getattr(args, "search_profile", None),
+            "baseline_publications": getattr(args, "baseline_publications", None),
             "shortlist": [
                 {
                     "rank": 1,
@@ -47,6 +49,7 @@ def test_cli_design_invokes_design_pipeline(monkeypatch, tmp_path: Path, capsys)
             "codex",
             "--search-profile",
             "novelty-seeking",
+            "--baseline-publications",
         ]
     )
 
@@ -55,9 +58,11 @@ def test_cli_design_invokes_design_pipeline(monkeypatch, tmp_path: Path, capsys)
     assert captured["project_root"] == str(project_root)
     assert captured["provider"] == "codex"
     assert captured["search_profile"] == "novelty-seeking"
+    assert captured["baseline_publications"] is True
     out = capsys.readouterr().out
     assert "shortlist report" in out
     assert "search profile: novelty-seeking" in out
+    assert "baseline publications: True" in out
     assert "Low-rank DIIS" in out
 
 
@@ -74,6 +79,7 @@ def test_cli_design_supports_json_output(monkeypatch, tmp_path: Path, capsys) ->
             "baseline_report_path": "/tmp/baseline.md",
             "archive_jsonl_path": "/tmp/archive.jsonl",
             "search_profile": getattr(args, "search_profile", None),
+            "baseline_publications": getattr(args, "baseline_publications", None),
             "shortlist": [],
         },
     )
@@ -95,11 +101,13 @@ def test_cli_design_defaults_search_profile_to_balanced(
 
     def fake_run_pipeline(args):
         captured["search_profile"] = getattr(args, "search_profile", None)
+        captured["baseline_publications"] = getattr(args, "baseline_publications", None)
         return {
             "shortlist_report_path": "/tmp/shortlist.md",
             "baseline_report_path": "/tmp/baseline.md",
             "archive_jsonl_path": "/tmp/archive.jsonl",
             "search_profile": getattr(args, "search_profile", None),
+            "baseline_publications": getattr(args, "baseline_publications", None),
             "shortlist": [],
         }
 
@@ -110,5 +118,7 @@ def test_cli_design_defaults_search_profile_to_balanced(
 
     assert code == 0
     assert captured["search_profile"] == "balanced"
+    assert captured["baseline_publications"] is False
     out = capsys.readouterr().out
     assert "search profile: balanced" in out
+    assert "baseline publications: False" in out

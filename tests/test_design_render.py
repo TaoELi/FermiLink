@@ -25,8 +25,57 @@ def _baseline() -> AlgorithmSketch:
 
 
 def test_render_baseline_report_contains_core_sections() -> None:
-    text = render_baseline_report(_baseline(), "Baseline summary.")
+    text = render_baseline_report(
+        _baseline(),
+        "Baseline summary.",
+        extractor_summary="Extractor summary.",
+        audit_payload={
+            "field_verdicts": [
+                {
+                    "field": "family",
+                    "status": "confirmed_by_code",
+                    "evidence": "Matches the implementation path.",
+                    "source_paths": ["solver.py"],
+                }
+            ],
+            "disagreements": [
+                {
+                    "field": "mechanism",
+                    "extractor_claim": "Lanczos-like restart",
+                    "audit_finding": "Davidson-style projected solve",
+                    "basis": "Residual correction vectors are explicitly formed.",
+                }
+            ],
+            "uncertainties": ["Exact crossover regime remains uncertain."],
+        },
+        audit_summary="Audit summary.",
+        publication_payload={
+            "internet_used": True,
+            "references": [
+                {
+                    "title": "Canonical Davidson paper",
+                    "url": "https://example.com/davidson",
+                    "type": "paper",
+                }
+            ],
+            "publication_conflicts": [
+                {
+                    "field": "mechanism",
+                    "publication_claim": "Original formulation",
+                    "code_finding": "Current code includes block heuristics",
+                    "resolution": "prefer_code",
+                }
+            ],
+            "canonical_terms": ["Davidson", "subspace iteration"],
+            "evidence_gaps": ["Need implementation-age-specific citations."],
+        },
+        publication_summary="Publication summary.",
+    )
     assert "# Baseline Sketch" in text
+    assert "## Extractor Summary" in text
+    assert "## Audit Summary" in text
+    assert "## Field Verdicts" in text
+    assert "## Publication Check" in text
     assert "## Main Steps" in text
     assert "## Bottlenecks" in text
 

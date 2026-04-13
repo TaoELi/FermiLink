@@ -87,6 +87,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--baseline-publications",
+        action="store_true",
+        help=(
+            "Run an additional publication-check turn after the mandatory "
+            "baseline audit. Code remains authoritative if literature disagrees."
+        ),
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Reuse existing baseline and archive artifacts when present.",
@@ -123,6 +131,29 @@ def _resolve_goal_rel(goal_path: Path, project_root: Path) -> str:
         return str(goal_path.resolve())
 
 
+def _read_optional_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    payload = state.read_json(path)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _publication_unavailable_payload(reason: str) -> dict[str, Any]:
+    return {
+        "status": "unavailable",
+        "internet_used": False,
+        "references": [],
+        "publication_support": [],
+        "publication_conflicts": [],
+        "canonical_terms": [],
+        "evidence_gaps": [str(reason or "publication retrieval unavailable")],
+        "publication_summary": (
+            "Publication check could not complete. Continue using the "
+            "audited code-grounded baseline."
+        ),
+    }
+
+
 def _materialize_baseline(
     *,
     paths: state.DesignPaths,
@@ -134,34 +165,111 @@ def _materialize_baseline(
     policy: AgentRuntimePolicy,
     provider_bin_override: str | None,
     resume: bool,
+    enable_publication_check: bool,
 ) -> tuple[AlgorithmSketch, str]:
-    if resume and paths.baseline_sketch_path.exists():
-        sketch = AlgorithmSketch.from_payload(
-            state.read_json(paths.baseline_sketch_path),
+    output_rel = (
+        paths.state_root.relative_to(paths.project_root).as_posix()
+        if paths.state_root.is_relative_to(paths.project_root)
+        else str(paths.state_root)
+    )
+
+    extractor_payload = _read_optional_json(paths.baseline_extractor_path) if resume else {}
+    extractor_summary = str(extractor_payload.get("analysis_summary") or "")
+    raw_extractor_sketch = extractor_payload.get("sketch")
+    if isinstance(raw_extractor_sketch, dict):
+        extracted_sketch = AlgorithmSketch.from_payload(
+            raw_extractor_sketch,
             role="baseline",
             hypothesis_id="baseline",
         )
-        summary = ""
-        if paths.baseline_report_path.exists():
-            summary = paths.baseline_report_path.read_text(encoding="utf-8")
-        return sketch, summary
+    else:
+        extracted_sketch, extractor_summary, _ = baseline.run_baseline_analysis(
+            repo_dir=paths.project_root,
+            goal_spec=goal_spec,
+            goal_rel=goal_rel,
+            repo_summary=repo_summary,
+            evidence_summary=evidence_summary,
+            family_catalog=family_catalog,
+            policy=policy,
+            provider_bin_override=provider_bin_override,
+            output_rel=output_rel,
+        )
+        extractor_payload = {
+            "sketch": extracted_sketch.to_dict(),
+            "analysis_summary": extractor_summary,
+        }
+        state.write_json(paths.baseline_extractor_path, extractor_payload)
 
-    sketch, summary, _ = baseline.run_baseline_analysis(
-        repo_dir=paths.project_root,
-        goal_spec=goal_spec,
-        goal_rel=goal_rel,
-        repo_summary=repo_summary,
-        evidence_summary=evidence_summary,
-        family_catalog=family_catalog,
-        policy=policy,
-        provider_bin_override=provider_bin_override,
-        output_rel=paths.state_root.relative_to(paths.project_root).as_posix()
-        if paths.state_root.is_relative_to(paths.project_root)
-        else str(paths.state_root),
+    audit_payload = _read_optional_json(paths.baseline_audit_path) if resume else {}
+    audit_summary = str(audit_payload.get("audit_summary") or "")
+    raw_audited_sketch = audit_payload.get("resolved_sketch")
+    if isinstance(raw_audited_sketch, dict):
+        audited_sketch = AlgorithmSketch.from_payload(
+            raw_audited_sketch,
+            role="baseline",
+            hypothesis_id="baseline",
+        )
+    else:
+        audited_sketch, audit_payload, audit_summary, _ = baseline.run_baseline_audit(
+            repo_dir=paths.project_root,
+            goal_spec=goal_spec,
+            goal_rel=goal_rel,
+            extracted_sketch=extracted_sketch,
+            repo_summary=repo_summary,
+            evidence_summary=evidence_summary,
+            policy=policy,
+            provider_bin_override=provider_bin_override,
+            output_rel=output_rel,
+        )
+        audit_payload = dict(audit_payload)
+        audit_payload["resolved_sketch"] = audited_sketch.to_dict()
+        audit_payload["audit_summary"] = audit_summary
+        state.write_json(paths.baseline_audit_path, audit_payload)
+
+    publication_payload: dict[str, Any] = {}
+    publication_summary = ""
+    if enable_publication_check:
+        publication_payload = (
+            _read_optional_json(paths.baseline_publication_path) if resume else {}
+        )
+        publication_summary = str(publication_payload.get("publication_summary") or "")
+        if not publication_payload:
+            try:
+                publication_payload, publication_summary, _ = baseline.run_publication_check(
+                    repo_dir=paths.project_root,
+                    goal_spec=goal_spec,
+                    goal_rel=goal_rel,
+                    audited_sketch=audited_sketch,
+                    audit_payload=audit_payload,
+                    evidence_summary=evidence_summary,
+                    policy=policy,
+                    provider_bin_override=provider_bin_override,
+                    output_rel=output_rel,
+                )
+                publication_payload = dict(publication_payload)
+                publication_payload["publication_summary"] = publication_summary
+            except PackageError as exc:
+                publication_payload = _publication_unavailable_payload(str(exc))
+                publication_summary = str(
+                    publication_payload.get("publication_summary") or ""
+                )
+            state.write_json(paths.baseline_publication_path, publication_payload)
+
+    summary = audit_summary or extractor_summary
+    state.write_json(paths.baseline_sketch_path, audited_sketch.to_dict())
+    state.write_text(
+        paths.baseline_report_path,
+        render.render_baseline_report(
+            audited_sketch,
+            summary,
+            extractor_summary=extractor_summary,
+            audit_payload=audit_payload,
+            audit_summary=audit_summary,
+            publication_payload=publication_payload,
+            publication_summary=publication_summary,
+        ),
     )
-    state.write_json(paths.baseline_sketch_path, sketch.to_dict())
-    state.write_text(paths.baseline_report_path, render.render_baseline_report(sketch, summary))
-    return sketch, summary
+    return audited_sketch, summary
 
 
 def _materialize_archive(
@@ -181,6 +289,7 @@ def _materialize_archive(
     provider_bin_override: str | None,
     resume: bool,
     baseline_summary: str,
+    baseline_publications: bool,
 ) -> dict[str, Any]:
     if resume and paths.summary_json_path.exists():
         return state.read_json(paths.summary_json_path)
@@ -252,6 +361,7 @@ def _materialize_archive(
         "goal_path": goal_rel,
         "baseline_hypothesis_id": baseline_sketch.hypothesis_id,
         "search_profile": search_profile,
+        "baseline_publications": bool(baseline_publications),
         "shortlist_report_path": str(paths.shortlist_report_path),
         "baseline_report_path": str(paths.baseline_report_path),
         "archive_jsonl_path": str(paths.archive_jsonl_path),
@@ -308,6 +418,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         policy=policy,
         provider_bin_override=args.provider_bin,
         resume=bool(args.resume),
+        enable_publication_check=bool(args.baseline_publications),
     )
     summary = _materialize_archive(
         paths=paths,
@@ -325,7 +436,12 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         provider_bin_override=args.provider_bin,
         resume=bool(args.resume),
         baseline_summary=baseline_summary,
+        baseline_publications=bool(args.baseline_publications),
     )
+    summary["search_profile"] = str(args.search_profile or "balanced")
+    summary["baseline_publications"] = bool(args.baseline_publications)
+    if bool(args.baseline_publications) and paths.baseline_publication_path.exists():
+        summary["baseline_publication_check_path"] = str(paths.baseline_publication_path)
 
     manifest_path = paths.new_session_manifest_path()
     state.write_json(
@@ -333,6 +449,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         {
             "goal_path": goal_rel,
             "search_profile": str(args.search_profile or "balanced"),
+            "baseline_publications": bool(args.baseline_publications),
             "policy": policy.as_dict(),
             "summary_path": str(paths.summary_json_path),
         },
@@ -370,8 +487,12 @@ def build_summary_lines(payload: dict[str, Any]) -> list[str]:
         f"[design] baseline report: {payload.get('baseline_report_path')}",
         f"[design] archive ledger: {payload.get('archive_jsonl_path')}",
         f"[design] search profile: {payload.get('search_profile', 'balanced')}",
+        f"[design] baseline publications: {bool(payload.get('baseline_publications'))}",
         f"[design] shortlisted hypotheses: {len(shortlist)}",
     ]
+    publication_path = payload.get("baseline_publication_check_path")
+    if publication_path:
+        lines.append(f"[design] publication check: {publication_path}")
     for item in shortlist[:5]:
         sketch = item.get("sketch") or {}
         novelty = item.get("novelty") or {}

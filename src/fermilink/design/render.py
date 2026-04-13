@@ -15,7 +15,33 @@ def _render_list(title: str, values: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_baseline_report(sketch: AlgorithmSketch, summary: str) -> str:
+def _render_dict_list(
+    title: str,
+    values: list[dict[str, Any]],
+    formatter,
+) -> str:
+    if not values:
+        return f"## {title}\n- (none)\n"
+    lines = [f"## {title}"]
+    for item in values:
+        rendered = formatter(item)
+        if rendered:
+            lines.extend(rendered)
+    return "\n".join(lines) + "\n"
+
+
+def render_baseline_report(
+    sketch: AlgorithmSketch,
+    summary: str,
+    *,
+    extractor_summary: str = "",
+    audit_payload: dict[str, Any] | None = None,
+    audit_summary: str = "",
+    publication_payload: dict[str, Any] | None = None,
+    publication_summary: str = "",
+) -> str:
+    audit_payload = audit_payload or {}
+    publication_payload = publication_payload or {}
     parts = [
         f"# Baseline Sketch: {sketch.title}",
         "",
@@ -25,8 +51,65 @@ def render_baseline_report(sketch: AlgorithmSketch, summary: str) -> str:
         f"Dominant kernel: {sketch.dominant_kernel}",
         "",
     ]
-    if summary:
+    if summary and summary not in {extractor_summary, audit_summary}:
         parts.extend(["## Summary", summary, ""])
+    if extractor_summary:
+        parts.extend(["## Extractor Summary", extractor_summary, ""])
+    if audit_summary:
+        parts.extend(["## Audit Summary", audit_summary, ""])
+    verdicts = audit_payload.get("field_verdicts")
+    if isinstance(verdicts, list):
+        parts.append(
+            _render_dict_list(
+                "Field Verdicts",
+                [item for item in verdicts if isinstance(item, dict)],
+                lambda item: [
+                    "- `{field}`: `{status}`".format(
+                        field=str(item.get("field") or "?"),
+                        status=str(item.get("status") or "unknown"),
+                    ),
+                    "  evidence: {evidence}".format(
+                        evidence=str(item.get("evidence") or "(none)")
+                    ),
+                ]
+                + (
+                    [
+                        "  source paths: {paths}".format(
+                            paths=", ".join(
+                                str(path)
+                                for path in (item.get("source_paths") or [])
+                                if str(path).strip()
+                            )
+                            or "(none)"
+                        )
+                    ]
+                ),
+            ).rstrip()
+        )
+        parts.append("")
+    disagreements = audit_payload.get("disagreements")
+    if isinstance(disagreements, list):
+        parts.append(
+            _render_dict_list(
+                "Audit Disagreements",
+                [item for item in disagreements if isinstance(item, dict)],
+                lambda item: [
+                    "- `{field}`: extractor=`{extractor}` audit=`{audit}`".format(
+                        field=str(item.get("field") or "?"),
+                        extractor=str(item.get("extractor_claim") or ""),
+                        audit=str(item.get("audit_finding") or ""),
+                    ),
+                    "  basis: {basis}".format(
+                        basis=str(item.get("basis") or "(none)")
+                    ),
+                ],
+            ).rstrip()
+        )
+        parts.append("")
+    uncertainties = audit_payload.get("uncertainties")
+    if isinstance(uncertainties, list):
+        parts.append(_render_list("Audit Uncertainties", [str(v) for v in uncertainties]).rstrip())
+        parts.append("")
     parts.append(_render_list("Main Steps", sketch.rendered_steps()).rstrip())
     parts.append("")
     parts.append(_render_list("Bottlenecks", sketch.bottlenecks).rstrip())
@@ -42,6 +125,61 @@ def render_baseline_report(sketch: AlgorithmSketch, summary: str) -> str:
     )
     parts.append(_render_list("Required Invariants", sketch.required_invariants).rstrip())
     parts.append("")
+    if publication_summary:
+        parts.extend(["## Publication Summary", publication_summary, ""])
+    if publication_payload:
+        parts.extend(
+            [
+                "## Publication Check",
+                f"- Internet used: {publication_payload.get('internet_used', False)}",
+                "",
+            ]
+        )
+        canonical_terms = publication_payload.get("canonical_terms")
+        if isinstance(canonical_terms, list):
+            parts.append(
+                _render_list("Canonical Terms", [str(v) for v in canonical_terms]).rstrip()
+            )
+            parts.append("")
+        references = publication_payload.get("references")
+        if isinstance(references, list):
+            parts.append(
+                _render_dict_list(
+                    "References",
+                    [item for item in references if isinstance(item, dict)],
+                    lambda item: [
+                        "- {title}".format(title=str(item.get("title") or "(untitled)")),
+                        "  type: {kind}".format(kind=str(item.get("type") or "other")),
+                        "  url: {url}".format(url=str(item.get("url") or "(none)")),
+                    ],
+                ).rstrip()
+            )
+            parts.append("")
+        conflicts = publication_payload.get("publication_conflicts")
+        if isinstance(conflicts, list):
+            parts.append(
+                _render_dict_list(
+                    "Publication Conflicts",
+                    [item for item in conflicts if isinstance(item, dict)],
+                    lambda item: [
+                        "- `{field}`: publication=`{publication}` code=`{code}`".format(
+                            field=str(item.get("field") or "?"),
+                            publication=str(item.get("publication_claim") or ""),
+                            code=str(item.get("code_finding") or ""),
+                        ),
+                        "  resolution: {resolution}".format(
+                            resolution=str(item.get("resolution") or "prefer_code")
+                        ),
+                    ],
+                ).rstrip()
+            )
+            parts.append("")
+        evidence_gaps = publication_payload.get("evidence_gaps")
+        if isinstance(evidence_gaps, list):
+            parts.append(
+                _render_list("Publication Evidence Gaps", [str(v) for v in evidence_gaps]).rstrip()
+            )
+            parts.append("")
     return "\n".join(parts).strip() + "\n"
 
 

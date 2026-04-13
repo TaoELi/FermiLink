@@ -56,6 +56,19 @@ def test_design_main_run_pipeline_writes_phase1_artifacts(
         role="baseline",
         hypothesis_id="baseline",
     )
+    audited_sketch = AlgorithmSketch.from_payload(
+        {
+            "title": "Audited Davidson baseline",
+            "family": "iterative solver",
+            "mechanism": "projected Davidson correction iteration",
+            "target_regime": "moderate systems",
+            "dominant_kernel": "matvec and orthogonalization",
+            "main_steps": ["build subspace", "form correction vectors", "solve reduced problem"],
+            "bottlenecks": ["orthogonalization", "projected solve"],
+        },
+        role="baseline",
+        hypothesis_id="baseline",
+    )
     candidate = AlgorithmSketch.from_payload(
         {
             "title": "Low-rank block candidate",
@@ -81,11 +94,66 @@ def test_design_main_run_pipeline_writes_phase1_artifacts(
     def fake_run_baseline_analysis(**_kwargs):
         return baseline_sketch, "Baseline summary.", DesignTurnResult("", 0, "", False)
 
+    def fake_run_baseline_audit(**_kwargs):
+        captured["audit_input_title"] = _kwargs["extracted_sketch"].title
+        return (
+            audited_sketch,
+            {
+                "resolved_sketch": audited_sketch.to_dict(),
+                "field_verdicts": [
+                    {
+                        "field": "mechanism",
+                        "status": "confirmed_by_code",
+                        "evidence": "Matches the projected correction loop.",
+                        "source_paths": ["solver.py"],
+                    }
+                ],
+                "disagreements": [
+                    {
+                        "field": "mechanism",
+                        "extractor_claim": baseline_sketch.mechanism,
+                        "audit_finding": audited_sketch.mechanism,
+                        "basis": "Correction vectors are explicit in the code.",
+                        "source_paths": ["solver.py"],
+                    }
+                ],
+                "uncertainties": [],
+                "source_paths": ["solver.py"],
+            },
+            "Audit summary.",
+            DesignTurnResult("", 0, "", False),
+        )
+
+    def fake_run_publication_check(**_kwargs):
+        captured["publication_input_title"] = _kwargs["audited_sketch"].title
+        return (
+            {
+                "internet_used": False,
+                "references": [],
+                "publication_support": [],
+                "publication_conflicts": [
+                    {
+                        "field": "mechanism",
+                        "publication_claim": "Paper language is looser than the code.",
+                        "code_finding": audited_sketch.mechanism,
+                        "resolution": "prefer_code",
+                    }
+                ],
+                "canonical_terms": ["Davidson"],
+                "evidence_gaps": ["No external publication fetched in test."],
+            },
+            "Publication summary.",
+            DesignTurnResult("", 0, "", False),
+        )
+
     def fake_run_candidate_search(**_kwargs):
         captured["search_profile"] = _kwargs.get("search_profile")
+        captured["candidate_baseline_title"] = _kwargs["baseline"].title
         return [candidate], "Search summary.", DesignTurnResult("", 0, "", False)
 
     monkeypatch.setattr(design_main.baseline, "run_baseline_analysis", fake_run_baseline_analysis)
+    monkeypatch.setattr(design_main.baseline, "run_baseline_audit", fake_run_baseline_audit)
+    monkeypatch.setattr(design_main.baseline, "run_publication_check", fake_run_publication_check)
     monkeypatch.setattr(design_main.search, "run_candidate_search", fake_run_candidate_search)
 
     payload = design_main.run_pipeline(
@@ -100,6 +168,7 @@ def test_design_main_run_pipeline_writes_phase1_artifacts(
                 "2",
                 "--search-profile",
                 "moonshot",
+                "--baseline-publications",
             ]
         )
     )
@@ -107,14 +176,28 @@ def test_design_main_run_pipeline_writes_phase1_artifacts(
     design_root = project_root / ".fermilink-design"
     assert payload["shortlist"]
     assert payload["search_profile"] == "moonshot"
+    assert payload["baseline_publications"] is True
+    assert payload["baseline_publication_check_path"].endswith("publication_check.json")
     assert captured["search_profile"] == "moonshot"
+    assert captured["audit_input_title"] == "Davidson baseline"
+    assert captured["publication_input_title"] == "Audited Davidson baseline"
+    assert captured["candidate_baseline_title"] == "Audited Davidson baseline"
     assert (design_root / "goal.json").exists()
+    assert (design_root / "baseline" / "extractor.json").exists()
+    assert (design_root / "baseline" / "audit.json").exists()
+    assert (design_root / "baseline" / "publication_check.json").exists()
     assert (design_root / "baseline" / "sketch.json").exists()
     assert (design_root / "reports" / "shortlist.md").exists()
     assert (design_root / "candidates" / candidate.hypothesis_id / "pseudocode.md").exists()
+    baseline_text = (design_root / "baseline" / "report.md").read_text(encoding="utf-8")
+    assert "## Audit Summary" in baseline_text
+    assert "## Publication Check" in baseline_text
+    stored_baseline = (design_root / "baseline" / "sketch.json").read_text(encoding="utf-8")
+    assert "Audited Davidson baseline" in stored_baseline
     summary_text = (design_root / "reports" / "shortlist.md").read_text(encoding="utf-8")
     assert "Search profile: `moonshot`" in summary_text
     session_dirs = sorted((design_root / "sessions").glob("*"))
     assert session_dirs
     manifest_text = (session_dirs[-1] / "manifest.json").read_text(encoding="utf-8")
     assert '"search_profile": "moonshot"' in manifest_text
+    assert '"baseline_publications": true' in manifest_text

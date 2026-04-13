@@ -59,3 +59,99 @@ def run_baseline_analysis(
     )
     summary = prompts.extract_analysis_summary(result.assistant_text) or ""
     return sketch, summary, result
+
+
+def run_baseline_audit(
+    *,
+    repo_dir: Path,
+    goal_spec: dict[str, object],
+    goal_rel: str,
+    extracted_sketch: AlgorithmSketch,
+    repo_summary: str,
+    evidence_summary: str,
+    policy: AgentRuntimePolicy,
+    provider_bin_override: str | None,
+    output_rel: str,
+    runner=run_design_turn,
+) -> tuple[AlgorithmSketch, dict[str, object], str, DesignTurnResult]:
+    prompt = prompts.build_baseline_audit_prompt(
+        goal_spec=goal_spec,
+        goal_rel=goal_rel,
+        extracted_sketch=extracted_sketch.to_dict(),
+        repo_summary=repo_summary,
+        evidence_summary=evidence_summary,
+    )
+    instruction_text = prompts.build_design_agents_md(
+        goal_rel=goal_rel,
+        output_rel=output_rel,
+        phase_name="baseline-audit",
+    )
+    result = runner(
+        repo_dir=repo_dir,
+        prompt=prompt,
+        policy=policy,
+        instruction_text=instruction_text,
+        provider_bin_override=provider_bin_override,
+    )
+    if result.return_code != 0:
+        raise PackageError(
+            f"baseline audit failed with exit code {result.return_code}: "
+            f"{result.stderr or 'no stderr'}"
+        )
+    payload = prompts.extract_baseline_audit(result.assistant_text)
+    if not isinstance(payload, dict):
+        raise PackageError("baseline audit did not produce <baseline_audit> JSON.")
+    raw_sketch = payload.get("resolved_sketch")
+    if not isinstance(raw_sketch, dict):
+        raise PackageError("baseline audit did not provide `resolved_sketch`.")
+    sketch = AlgorithmSketch.from_payload(
+        raw_sketch,
+        role="baseline",
+        hypothesis_id="baseline",
+    )
+    summary = prompts.extract_audit_summary(result.assistant_text) or ""
+    return sketch, payload, summary, result
+
+
+def run_publication_check(
+    *,
+    repo_dir: Path,
+    goal_spec: dict[str, object],
+    goal_rel: str,
+    audited_sketch: AlgorithmSketch,
+    audit_payload: dict[str, object],
+    evidence_summary: str,
+    policy: AgentRuntimePolicy,
+    provider_bin_override: str | None,
+    output_rel: str,
+    runner=run_design_turn,
+) -> tuple[dict[str, object], str, DesignTurnResult]:
+    prompt = prompts.build_publication_check_prompt(
+        goal_spec=goal_spec,
+        goal_rel=goal_rel,
+        audited_sketch=audited_sketch.to_dict(),
+        audit_payload=audit_payload,
+        evidence_summary=evidence_summary,
+    )
+    instruction_text = prompts.build_design_agents_md(
+        goal_rel=goal_rel,
+        output_rel=output_rel,
+        phase_name="publication-check",
+    )
+    result = runner(
+        repo_dir=repo_dir,
+        prompt=prompt,
+        policy=policy,
+        instruction_text=instruction_text,
+        provider_bin_override=provider_bin_override,
+    )
+    if result.return_code != 0:
+        raise PackageError(
+            f"publication check failed with exit code {result.return_code}: "
+            f"{result.stderr or 'no stderr'}"
+        )
+    payload = prompts.extract_publication_check(result.assistant_text)
+    if not isinstance(payload, dict):
+        raise PackageError("publication check did not produce <publication_check> JSON.")
+    summary = prompts.extract_publication_summary(result.assistant_text) or ""
+    return payload, summary, result

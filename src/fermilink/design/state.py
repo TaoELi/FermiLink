@@ -36,6 +36,18 @@ class DesignPaths:
         return self.baseline_dir / "sketch.json"
 
     @property
+    def baseline_extractor_path(self) -> Path:
+        return self.baseline_dir / "extractor.json"
+
+    @property
+    def baseline_audit_path(self) -> Path:
+        return self.baseline_dir / "audit.json"
+
+    @property
+    def baseline_publication_path(self) -> Path:
+        return self.baseline_dir / "publication_check.json"
+
+    @property
     def baseline_report_path(self) -> Path:
         return self.baseline_dir / "report.md"
 

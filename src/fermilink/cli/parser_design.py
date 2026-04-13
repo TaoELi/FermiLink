@@ -92,6 +92,14 @@ def register_design_parser(
         ),
     )
     design_parser.add_argument(
+        "--baseline-publications",
+        action="store_true",
+        help=(
+            "Run an additional publication-check turn after the mandatory "
+            "baseline audit. Code remains authoritative if literature disagrees."
+        ),
+    )
+    design_parser.add_argument(
         "--resume",
         action="store_true",
         help="Reuse existing baseline and archive artifacts when present.",
