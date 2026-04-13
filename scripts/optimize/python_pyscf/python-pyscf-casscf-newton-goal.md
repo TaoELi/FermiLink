@@ -72,7 +72,7 @@ python -m pip install -e .
 - Use the density-fitting decoration pattern from `examples/mcscf/16-density_fitting.py` on a moderate-size molecule such as HF rather than the heavier benzene/cc-pVTZ demo, so the DF case stays in the same rough cost regime as the other train/test cases.
 - If the four-root H2O state-averaged Newton case is too small on the target machine, scale that branch with the larger CAS(6o,8e) state-average pattern in `examples/mcscf/15-state_average.py` or a symmetry-enabled variant from `pyscf/mcscf/test/test_h2o.py`, while keeping held-out test molecules distinct from the train set.
 - Keep benchmark behavior deterministic across repeated runs.
-- It is acceptable to use 2-4 OpenMP or BLAS threads if single-thread timings are too short, but thread counts should be pinned explicitly and kept identical for baseline and candidate runs.
+- On large CPU nodes, pin `OMP_NUM_THREADS=8` and matching BLAS thread settings such as `OPENBLAS_NUM_THREADS=8` and `MKL_NUM_THREADS=8` in the generated benchmark runtime config, with dynamic threading disabled; keep the same settings for every case and every baseline/candidate run.
 - If the benchmark runner can expose them, record per-case `macro_cycles`, `micro_cycles`, `ao2mo_seconds`, `casci_seconds`, `fcisolver_seconds`, `update_orb_ci_seconds`, `ah_seconds`, `jk_seconds`, `kf_steps`, `hx_steps`, and total `casscf_kernel_seconds`.
 - In the generated benchmark YAML, include `runtime.pre_commands` derived from the `## Build` section so authoritative benchmark runs rebuild and reinstall the local PySCF checkout deterministically.
 - In the generated benchmark YAML, include a top-level split block:

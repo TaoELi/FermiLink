@@ -77,7 +77,7 @@ python -m pip install -e .
 - Preserve that choice across incumbent and optimized runs.
 - Treat `pyscf/mp/dfump2_slow.py` as a behavioral reference for legacy UHF semantics if needed, but benchmark the public legacy and native paths above rather than optimizing only the standalone slow fallback.
 - Keep benchmark behavior deterministic across repeated runs.
-- Pin BLAS/OpenMP thread counts explicitly; `OMP_NUM_THREADS=4` is acceptable if single-thread timings are too small on the target machine, but the same thread count must be used for every case and every candidate.
+- On large CPU nodes, pin `OMP_NUM_THREADS=16` and matching BLAS thread settings such as `OPENBLAS_NUM_THREADS=16` and `MKL_NUM_THREADS=16` in the generated benchmark runtime config, with dynamic threading disabled; keep the same settings for every case and every baseline/candidate run.
 - In the generated benchmark YAML, include `runtime.pre_commands` derived from the `## Build` section so authoritative runs rebuild and reinstall the local PySCF checkout deterministically.
 - If the benchmark runner can expose them, record per-case `dfmp2_stage_seconds`, `ao2mo_seconds`, `ints3c_seconds`, `emp2_contract_seconds`, `same_spin_seconds`, `opposite_spin_seconds`, `outcore_read_seconds`, `outcore_write_seconds`, and the occupied/auxiliary block sizes chosen at runtime.
 - Keep all workloads within a single-workstation regime that would still be reasonable for follow-on multireference calculations such as CASSCF; do not scale beyond the listed benzene, glycine, C3H7OH, allyl, and separated O2-dimer systems just to make the benchmark longer.
