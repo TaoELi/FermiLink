@@ -26,6 +26,7 @@ from fermilink.cli.zero_arg import (
     _run_zero_arg_entrypoint,
 )
 from fermilink.cli.commands import agent as agent_commands
+from fermilink.cli.commands import design as design_commands
 from fermilink.cli.commands import gateway as gateway_commands
 from fermilink.cli.commands import optimize as optimize_commands
 from fermilink.cli.commands import packages as package_commands
@@ -71,6 +72,7 @@ from fermilink.cli.compile_prompts import (
     RECOMPILE_PROMPT_3,
 )
 from fermilink.cli.parser_agent import register_agent_parser
+from fermilink.cli.parser_design import register_design_parser
 from fermilink.cli.parser_gateway import register_gateway_parser
 from fermilink.cli.parser_optimize import register_optimize_parser
 from fermilink.cli.parser_packages import (
@@ -371,6 +373,7 @@ _cmd_clean = workspace_commands.cmd_clean
 _cmd_hpc = workspace_commands.cmd_hpc
 _cmd_gateway = gateway_commands.cmd_gateway
 _cmd_optimize = optimize_commands.cmd_optimize
+_cmd_design = design_commands.cmd_design
 
 _cmd_plan_workflow = workflow_commands.cmd_plan_workflow
 _cmd_reproduce = workflow_commands.cmd_reproduce

@@ -38,6 +38,11 @@ def _build_parser() -> argparse.ArgumentParser:
         add_json_option=_add_json_option,
         cmd_optimize=cli._cmd_optimize,
     )
+    cli.register_design_parser(
+        subparsers,
+        add_json_option=_add_json_option,
+        cmd_design=cli._cmd_design,
+    )
     cli.register_exec_loop_parsers(
         subparsers,
         cmd_exec=cli._cmd_exec,

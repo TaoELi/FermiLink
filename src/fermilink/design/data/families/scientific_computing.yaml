@@ -1,0 +1,91 @@
+families:
+  - id: low_rank_factorization
+    name: Low-rank / factorized representation
+    description: Replace dense intermediates with low-rank, tensor, or factorized forms.
+    mechanism_tags:
+      - low-rank
+      - factorization
+      - compression
+    use_when:
+      - latent rank is small
+      - operator blocks are compressible
+      - repeated dense contractions dominate
+    actions:
+      - dense -> low-rank
+      - dense tensor -> tensor network / factorized blocks
+      - full recompute -> cached factors
+    avoid_when:
+      - rank is known to be near-full
+      - extreme numerical robustness is required with no error budget
+  - id: locality_screening
+    name: Locality / screening / sparsity
+    description: Exploit sparsity, near-sightedness, or screened interactions.
+    mechanism_tags:
+      - sparsity
+      - screening
+      - locality
+    use_when:
+      - interactions decay with distance
+      - screened thresholds are scientifically acceptable
+      - sparse data structures can be maintained
+    actions:
+      - all-pairs -> screened neighbors
+      - global dense loop -> sparse traversal
+      - uniform update -> active-set update
+    avoid_when:
+      - problem is uniformly dense
+      - threshold tuning would break invariants
+  - id: hierarchical_decomposition
+    name: Hierarchical / multilevel decomposition
+    description: Use trees, multigrid, domain decomposition, or hierarchical blocking.
+    mechanism_tags:
+      - hierarchical
+      - multilevel
+      - treecode
+    use_when:
+      - asymptotic scaling is dominated by global interactions
+      - long-range structure exists
+      - large-N crossover matters
+    actions:
+      - flat loop -> tree / multilevel traversal
+      - monolithic solve -> multigrid / domain decomposition
+      - uniform mesh -> adaptive hierarchy
+    avoid_when:
+      - system sizes are too small for crossover
+      - hierarchy setup cost dominates
+  - id: iterative_solver_substitution
+    name: Iterative solver / preconditioner substitution
+    description: Replace direct or naive iterative methods with better-conditioned iterative schemes.
+    mechanism_tags:
+      - solver
+      - preconditioner
+      - subspace
+    use_when:
+      - repeated solves dominate
+      - preconditioners or block structure are available
+      - convergence rate controls total cost
+    actions:
+      - direct solve -> iterative solve
+      - naive iterative -> block / restarted / preconditioned iterative
+      - scalar update -> batched subspace update
+    avoid_when:
+      - robustness is more important than throughput
+      - preconditioner construction is prohibitive
+  - id: mixed_precision_refinement
+    name: Mixed precision with refinement
+    description: Shift expensive kernels to lower precision and recover accuracy by refinement.
+    mechanism_tags:
+      - mixed precision
+      - refinement
+      - accelerator
+    use_when:
+      - kernels are memory-bound or accelerator-friendly
+      - accuracy can be repaired iteratively
+      - large systems amplify throughput gains
+    actions:
+      - uniform precision -> mixed precision
+      - expensive exact update -> approximate update + correction
+      - host-heavy kernel -> accelerator-oriented kernel
+    avoid_when:
+      - error budgets are extremely tight
+      - conditioning is poor and refinement is unstable
