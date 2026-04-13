@@ -869,6 +869,115 @@ def _runtime_pre_commands(runtime: dict[str, Any]) -> list[list[str]]:
     return commands
 
 
+def _changed_path_signatures(
+    entries: list[dict[str, str]],
+) -> set[tuple[str, str]]:
+    signatures: set[tuple[str, str]] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        path_text = _normalize_rel_path(str(entry.get("path") or ""))
+        if not path_text:
+            continue
+        status_text = str(entry.get("status") or "").strip()
+        if status_text == "??":
+            continue
+        signatures.add((status_text, path_text))
+    return signatures
+
+
+def _path_is_within_rel_root(path_text: str, root_text: str) -> bool:
+    normalized_path = _normalize_rel_path(path_text)
+    normalized_root = _normalize_rel_path(root_text)
+    if not normalized_path or not normalized_root:
+        return False
+    return normalized_path == normalized_root or normalized_path.startswith(
+        f"{normalized_root}/"
+    )
+
+
+def _relative_repo_path(path: Path, *, repo_root: Path) -> str:
+    try:
+        return _normalize_rel_path(str(path.resolve().relative_to(repo_root.resolve())))
+    except ValueError:
+        return ""
+
+
+def _collect_pre_command_repo_side_effects(
+    project_root: Path,
+    *,
+    baseline_untracked: set[str],
+    baseline_changed_signatures: set[tuple[str, str]],
+    preserve_rel_roots: set[str],
+) -> tuple[list[str], list[dict[str, str]]]:
+    post_untracked = {
+        _normalize_rel_path(path)
+        for path in optimize_git.list_untracked_paths(project_root)
+        if _normalize_rel_path(path)
+    }
+    cleanup_untracked: list[str] = []
+    for rel_path in sorted(post_untracked - baseline_untracked):
+        if any(
+            _path_is_within_rel_root(rel_path, preserve_root)
+            for preserve_root in preserve_rel_roots
+        ):
+            continue
+        cleanup_untracked.append(rel_path)
+    if cleanup_untracked:
+        optimize_git.cleanup_paths(project_root, cleanup_untracked)
+
+    new_changed_paths: list[dict[str, str]] = []
+    seen_signatures: set[tuple[str, str]] = set()
+    for entry in optimize_git.list_changed_paths(project_root):
+        if not isinstance(entry, dict):
+            continue
+        path_text = _normalize_rel_path(str(entry.get("path") or ""))
+        if not path_text:
+            continue
+        status_text = str(entry.get("status") or "").strip()
+        if status_text == "??":
+            continue
+        signature = (status_text, path_text)
+        if signature in baseline_changed_signatures or signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        new_changed_paths.append({"status": status_text, "path": path_text})
+    return cleanup_untracked, new_changed_paths
+
+
+def _append_pre_command_repo_side_effect_notes(
+    stderr_path: Path,
+    *,
+    cleanup_untracked: list[str],
+    new_changed_paths: list[dict[str, str]],
+) -> None:
+    notes: list[str] = []
+    if cleanup_untracked:
+        notes.append(
+            "FermiLink cleanup removed new untracked paths left by runtime.pre_commands:"
+        )
+        notes.extend(f"- {path}" for path in cleanup_untracked)
+    if new_changed_paths:
+        notes.append("runtime.pre_commands left tracked repository changes:")
+        notes.extend(
+            f"- {str(entry.get('status') or '').strip()} {str(entry.get('path') or '').strip()}"
+            for entry in new_changed_paths
+            if str(entry.get("path") or "").strip()
+        )
+    if not notes:
+        return
+    try:
+        existing = stderr_path.read_text(encoding="utf-8")
+    except OSError:
+        existing = ""
+    rendered = "\n".join(notes).rstrip() + "\n"
+    updated = existing.rstrip()
+    if updated:
+        updated += "\n\n"
+    updated += rendered
+    stderr_path.write_text(updated, encoding="utf-8")
+
+
 def _run_runtime_pre_commands_once(
     project_root: Path,
     *,
@@ -888,6 +997,22 @@ def _run_runtime_pre_commands_once(
 
     run_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
+    baseline_untracked = {
+        _normalize_rel_path(path)
+        for path in optimize_git.list_untracked_paths(project_root)
+        if _normalize_rel_path(path)
+    }
+    baseline_changed_signatures = _changed_path_signatures(
+        optimize_git.list_changed_paths(project_root)
+    )
+    preserve_rel_roots = {
+        rel_path
+        for rel_path in (
+            _relative_repo_path(run_dir, repo_root=project_root),
+            _relative_repo_path(marker_path, repo_root=project_root),
+        )
+        if rel_path
+    }
     runtime_env = runtime.get("env")
     if isinstance(runtime_env, dict):
         for key, value in runtime_env.items():
@@ -895,6 +1020,8 @@ def _run_runtime_pre_commands_once(
                 continue
             env[key] = str(value)
 
+    stdout_path = run_dir / f"{log_prefix}_0.stdout.log"
+    stderr_path = run_dir / f"{log_prefix}_0.stderr.log"
     for index, command_template in enumerate(pre_commands, start=1):
         command = _expand_runtime_command(
             command_template,
@@ -925,6 +1052,19 @@ def _run_runtime_pre_commands_once(
         except subprocess.TimeoutExpired as exc:
             stdout_path.write_text(str(exc.stdout or ""), encoding="utf-8")
             stderr_path.write_text(str(exc.stderr or ""), encoding="utf-8")
+            cleanup_untracked, new_changed_paths = (
+                _collect_pre_command_repo_side_effects(
+                    project_root,
+                    baseline_untracked=baseline_untracked,
+                    baseline_changed_signatures=baseline_changed_signatures,
+                    preserve_rel_roots=preserve_rel_roots,
+                )
+            )
+            _append_pre_command_repo_side_effect_notes(
+                stderr_path,
+                cleanup_untracked=cleanup_untracked,
+                new_changed_paths=new_changed_paths,
+            )
             return _benchmark_failure_payload(
                 status="timeout",
                 stdout_path=stdout_path,
@@ -933,10 +1073,25 @@ def _run_runtime_pre_commands_once(
                     "reason": f"{reason_context}[{index}] timed out",
                     "pre_command": command,
                     "pre_command_index": index,
+                    "cleanup_untracked": cleanup_untracked,
+                    "tracked_changes": new_changed_paths,
                 },
             )
         except (OSError, ValueError) as exc:
             stderr_path.write_text(str(exc), encoding="utf-8")
+            cleanup_untracked, new_changed_paths = (
+                _collect_pre_command_repo_side_effects(
+                    project_root,
+                    baseline_untracked=baseline_untracked,
+                    baseline_changed_signatures=baseline_changed_signatures,
+                    preserve_rel_roots=preserve_rel_roots,
+                )
+            )
+            _append_pre_command_repo_side_effect_notes(
+                stderr_path,
+                cleanup_untracked=cleanup_untracked,
+                new_changed_paths=new_changed_paths,
+            )
             return _benchmark_failure_payload(
                 status="crash",
                 stdout_path=stdout_path,
@@ -945,6 +1100,8 @@ def _run_runtime_pre_commands_once(
                     "reason": str(exc),
                     "pre_command": command,
                     "pre_command_index": index,
+                    "cleanup_untracked": cleanup_untracked,
+                    "tracked_changes": new_changed_paths,
                 },
             )
 
@@ -953,6 +1110,19 @@ def _run_runtime_pre_commands_once(
         stdout_path.write_text(stdout_text, encoding="utf-8")
         stderr_path.write_text(stderr_text, encoding="utf-8")
         if completed.returncode != 0:
+            cleanup_untracked, new_changed_paths = (
+                _collect_pre_command_repo_side_effects(
+                    project_root,
+                    baseline_untracked=baseline_untracked,
+                    baseline_changed_signatures=baseline_changed_signatures,
+                    preserve_rel_roots=preserve_rel_roots,
+                )
+            )
+            _append_pre_command_repo_side_effect_notes(
+                stderr_path,
+                cleanup_untracked=cleanup_untracked,
+                new_changed_paths=new_changed_paths,
+            )
             return _benchmark_failure_payload(
                 status="crash",
                 stdout_path=stdout_path,
@@ -965,8 +1135,35 @@ def _run_runtime_pre_commands_once(
                     "return_code": int(completed.returncode),
                     "pre_command": command,
                     "pre_command_index": index,
+                    "cleanup_untracked": cleanup_untracked,
+                    "tracked_changes": new_changed_paths,
                 },
             )
+
+    cleanup_untracked, new_changed_paths = _collect_pre_command_repo_side_effects(
+        project_root,
+        baseline_untracked=baseline_untracked,
+        baseline_changed_signatures=baseline_changed_signatures,
+        preserve_rel_roots=preserve_rel_roots,
+    )
+    _append_pre_command_repo_side_effect_notes(
+        stderr_path,
+        cleanup_untracked=cleanup_untracked,
+        new_changed_paths=new_changed_paths,
+    )
+    if new_changed_paths:
+        return _benchmark_failure_payload(
+            status="crash",
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            extra={
+                "reason": f"{reason_context} left tracked repository changes",
+                "pre_command": pre_commands[-1],
+                "pre_command_index": len(pre_commands),
+                "cleanup_untracked": cleanup_untracked,
+                "tracked_changes": new_changed_paths,
+            },
+        )
 
     marker_path.write_text(
         json.dumps(

@@ -33,6 +33,21 @@ def _git(repo_dir: Path, *args: str) -> str:
     return (completed.stdout or "").strip()
 
 
+def _init_git_repo(repo_dir: Path) -> None:
+    _git(repo_dir, "init", "-b", "main")
+    _git(repo_dir, "add", ".")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "initial",
+    )
+
+
 def _write_solver_in_worker(kwargs: dict[str, object], *, mode: str) -> None:
     repo_dir_raw = str(kwargs.get("repo_dir") or "").strip()
     if not repo_dir_raw:
@@ -685,7 +700,7 @@ def test_run_benchmark_suite_executes_runtime_pre_commands_once_per_suite(
         encoding="utf-8",
     )
     benchmark_path = repo_dir / "benchmark.yaml"
-    pre_counter = repo_dir / "pre_count.txt"
+    pre_counter = tmp_path / "pre_count.txt"
     benchmark_payload = {
         "schema_version": 1,
         "benchmark_id": "pre-command-test",
@@ -709,11 +724,12 @@ def test_run_benchmark_suite_executes_runtime_pre_commands_once_per_suite(
                     "-c",
                     (
                         "from pathlib import Path; "
-                        "p = Path('pre_count.txt'); "
+                        f"p = Path({str(pre_counter)!r}); "
+                        "p.parent.mkdir(parents=True, exist_ok=True); "
                         "n = int(p.read_text(encoding='utf-8')) if p.exists() else 0; "
                         "p.write_text(str(n + 1), encoding='utf-8')"
                     ),
-                ]
+                ],
             ],
             "command": [
                 sys.executable,
@@ -733,6 +749,7 @@ def test_run_benchmark_suite_executes_runtime_pre_commands_once_per_suite(
         ),
         encoding="utf-8",
     )
+    _init_git_repo(repo_dir)
     loaded_payload = optimize_controller._load_benchmark(benchmark_path)
     run_dir = repo_dir / "runs" / "suite"
 
@@ -814,6 +831,7 @@ def test_run_benchmark_suite_returns_failure_on_runtime_pre_command_crash(
         ),
         encoding="utf-8",
     )
+    _init_git_repo(repo_dir)
     loaded_payload = optimize_controller._load_benchmark(benchmark_path)
     run_dir = repo_dir / "runs" / "suite"
 
@@ -830,6 +848,142 @@ def test_run_benchmark_suite_returns_failure_on_runtime_pre_command_crash(
     assert "runtime.pre_commands[1] failed" in str(result.get("reason") or "")
     assert (run_dir / "pre_command_1.stdout.log").is_file()
     assert (run_dir / "pre_command_1.stderr.log").is_file()
+
+
+def test_run_benchmark_suite_cleans_new_untracked_pre_command_artifacts(
+    tmp_path: Path,
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+    assert isinstance(benchmark_payload, dict)
+    runtime = benchmark_payload.get("runtime")
+    assert isinstance(runtime, dict)
+    artifact_path = repo_dir / "a.out"
+    runtime["pre_commands"] = [
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; "
+                "Path('a.out').write_text('probe', encoding='utf-8')"
+            ),
+        ]
+    ]
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    loaded_payload = optimize_controller._load_benchmark(benchmark_path)
+    run_dir = repo_dir / "runs" / "suite-cleanup-success"
+
+    result = optimize_controller._run_benchmark_suite(
+        repo_dir,
+        benchmark_path=benchmark_path,
+        benchmark_payload=loaded_payload,
+        run_dir=run_dir,
+        timeout_seconds=30,
+    )
+
+    assert result["status"] == "ok"
+    assert result["correctness_ok"] is True
+    assert not artifact_path.exists()
+    stderr_text = (run_dir / "pre_command_1.stderr.log").read_text(encoding="utf-8")
+    assert "removed new untracked paths" in stderr_text
+    assert "- a.out" in stderr_text
+
+
+def test_run_benchmark_suite_cleans_new_untracked_pre_command_artifacts_on_failure(
+    tmp_path: Path,
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+    assert isinstance(benchmark_payload, dict)
+    runtime = benchmark_payload.get("runtime")
+    assert isinstance(runtime, dict)
+    artifact_path = repo_dir / "a.out"
+    runtime["pre_commands"] = [
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; "
+                "Path('a.out').write_text('probe', encoding='utf-8'); "
+                "raise SystemExit(3)"
+            ),
+        ]
+    ]
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    loaded_payload = optimize_controller._load_benchmark(benchmark_path)
+    run_dir = repo_dir / "runs" / "suite-cleanup-failure"
+
+    result = optimize_controller._run_benchmark_suite(
+        repo_dir,
+        benchmark_path=benchmark_path,
+        benchmark_payload=loaded_payload,
+        run_dir=run_dir,
+        timeout_seconds=30,
+    )
+
+    assert result["status"] == "crash"
+    assert not artifact_path.exists()
+    stderr_text = (run_dir / "pre_command_1.stderr.log").read_text(encoding="utf-8")
+    assert "removed new untracked paths" in stderr_text
+    assert "- a.out" in stderr_text
+
+
+def test_run_benchmark_suite_rejects_tracked_changes_left_by_pre_commands(
+    tmp_path: Path,
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+    benchmark_payload = yaml.safe_load(benchmark_path.read_text(encoding="utf-8"))
+    assert isinstance(benchmark_payload, dict)
+    runtime = benchmark_payload.get("runtime")
+    assert isinstance(runtime, dict)
+    runtime["pre_commands"] = [
+        [
+            sys.executable,
+            "-c",
+            (
+                "from pathlib import Path; "
+                "Path('solver.py').write_text(\"MODE = 'PREBUILD'\\n\", encoding='utf-8')"
+            ),
+        ]
+    ]
+    benchmark_path.write_text(
+        yaml.safe_dump(
+            benchmark_payload,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    loaded_payload = optimize_controller._load_benchmark(benchmark_path)
+    run_dir = repo_dir / "runs" / "suite-tracked-change"
+
+    result = optimize_controller._run_benchmark_suite(
+        repo_dir,
+        benchmark_path=benchmark_path,
+        benchmark_payload=loaded_payload,
+        run_dir=run_dir,
+        timeout_seconds=30,
+    )
+
+    assert result["status"] == "crash"
+    assert "left tracked repository changes" in str(result.get("reason") or "")
+    stderr_text = (run_dir / "pre_command_1.stderr.log").read_text(encoding="utf-8")
+    assert "tracked repository changes" in stderr_text
+    assert "solver.py" in stderr_text
 
 
 def test_compare_correctness_runner_only_uses_generic_case_checks() -> None:
