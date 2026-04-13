@@ -334,6 +334,7 @@ def build_benchmark_generation_prompt(
     benchmark_template: str,
     autogen_benchmark_rel: str,
     autogen_runner_rel: str,
+    controller_timeout_seconds: int | None = None,
 ) -> str:
     """Build the prompt for the benchmark-generation agent turn.
 
@@ -359,6 +360,9 @@ def build_benchmark_generation_prompt(
             "  benchmark execution. Derive these from the goal `## Build` section.\n"
             "  For shell pipelines, wrap as `['bash', '-lc', '...']`.\n"
         )
+    timeout_seconds = 1800
+    if isinstance(controller_timeout_seconds, int) and controller_timeout_seconds > 0:
+        timeout_seconds = controller_timeout_seconds
 
     return (
         "You are generating benchmark files for FermiLink goal-driven optimization.\n"
@@ -411,7 +415,7 @@ def build_benchmark_generation_prompt(
         "- `campaign`: `max_iterations: 120`, `stop_on_consecutive_rejections: 30`\n"
         "- `worker`: `max_iterations: 8`, `wait_seconds: 1`\n"
         "- `controller`:\n"
-        "  - `timeout_seconds: 1800`\n"
+        f"  - `timeout_seconds: {timeout_seconds}`\n"
         "  - `warmup_runs: 1`, `measured_runs: 3`\n"
         "  - `objective.primary_metric`: a concrete metric name that your runner emits\n"
         "  - `objective.direction`: `minimize` or `maximize`\n"

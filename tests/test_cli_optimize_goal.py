@@ -302,10 +302,12 @@ class TestPromptConstruction:
             benchmark_template="# benchmark template",
             autogen_benchmark_rel=".fermilink-optimize/autogen/benchmark.yaml",
             autogen_runner_rel=".fermilink-optimize/autogen/benchmark_runner.py",
+            controller_timeout_seconds=7200,
         )
         assert "pyscf" in prompt
         assert "benchmark_yaml" in prompt
         assert "runner_script" in prompt
+        assert "`timeout_seconds: 7200`" in prompt
         assert "runner_only" in prompt or "field_tolerances" in prompt
         assert "MUST be a non-empty list" in prompt
         assert "Never emit an empty `field_tolerances` list." in prompt
@@ -1054,6 +1056,168 @@ class TestGoalPreflight:
         assert (
             ".fermilink-optimize/runs/goal_preflight_00/measured_1.stderr.log"
             in repair_prompts[0]
+        )
+
+    def test_run_goal_campaign_applies_cli_timeout_to_generated_benchmark(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir(parents=True, exist_ok=True)
+        goal_path = repo_root / "goal.md"
+        goal_path.write_text(
+            (
+                "# Optimization Goal\n\n"
+                "## Package\n"
+                "mypackage\n\n"
+                "## Target\n"
+                "Improve solver performance.\n\n"
+            ),
+            encoding="utf-8",
+        )
+        (repo_root / "solver.py").write_text("MODE = 'BASELINE'\n", encoding="utf-8")
+
+        benchmark_yaml = (
+            "schema_version: 1\n"
+            "benchmark_id: goal-timeout\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - solver.py\n"
+            "controller:\n"
+            "  timeout_seconds: 1800\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "    direction: minimize\n"
+            "correctness:\n"
+            "  mode: runner_only\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - .fermilink-optimize/autogen/benchmark_runner.py\n"
+            "    - --benchmark\n"
+            '    - "{benchmark}"\n'
+            "    - --emit-json\n"
+            "cases:\n"
+            "  - id: train-a\n"
+            "    weight: 1.0\n"
+        )
+        runner_script = "import argparse\n"
+        analysis_payload = {
+            "package": "mypackage",
+            "language": "python",
+            "entry_points": [],
+            "editable_paths": ["solver.py"],
+            "immutable_paths": [".fermilink-optimize/**", "skills/**"],
+        }
+
+        preflight_capture: dict[str, int] = {}
+
+        monkeypatch.chdir(repo_root)
+        monkeypatch.setattr(cli, "_ensure_compile_repo_ready", lambda _repo: False)
+        monkeypatch.setattr(
+            cli,
+            "resolve_agent_runtime_policy",
+            lambda: argparse.Namespace(
+                provider="codex",
+                sandbox_policy="enforce",
+                sandbox_mode="workspace-write",
+                model=None,
+                reasoning_effort=None,
+            ),
+        )
+        monkeypatch.setattr(
+            optimize_git,
+            "temporary_optimize_agents",
+            lambda *args, **kwargs: contextlib.nullcontext(),
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_analysis_turn",
+            lambda **_kwargs: {
+                "assistant_text": (
+                    f"<source_analysis>\n{json.dumps(analysis_payload)}\n</source_analysis>\n"
+                    "<analysis_summary>ok</analysis_summary>\n"
+                )
+            },
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_collect_tracked_files",
+            lambda _project_root: ["goal.md", "solver.py"],
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_goal_generation_turn",
+            lambda **_kwargs: {
+                "assistant_text": (
+                    f"<benchmark_yaml>\n{benchmark_yaml}\n</benchmark_yaml>\n"
+                    f"<runner_script>\n{runner_script}\n</runner_script>\n"
+                )
+            },
+        )
+
+        def fake_run_benchmark_suite(
+            project_root: Path,
+            *,
+            benchmark_path: Path,
+            benchmark_payload: dict[str, object],
+            run_dir: Path,
+            timeout_seconds: int,
+            runtime_override: dict[str, object] | None = None,
+        ) -> dict[str, object]:
+            del project_root, benchmark_path, run_dir, runtime_override
+            preflight_capture["timeout_seconds"] = timeout_seconds
+            controller = (
+                benchmark_payload.get("controller")
+                if isinstance(benchmark_payload, dict)
+                else {}
+            )
+            if isinstance(controller, dict):
+                preflight_capture["controller_timeout_seconds"] = int(
+                    controller.get("timeout_seconds") or 0
+                )
+            return {
+                "status": "ok",
+                "correctness_ok": True,
+                "summary_metrics": {
+                    "weighted_median_wall_seconds": 1.0,
+                },
+                "cases": [
+                    {
+                        "id": "train-a",
+                        "converged": True,
+                        "error": "",
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(
+            optimize_controller,
+            "_run_benchmark_suite",
+            fake_run_benchmark_suite,
+        )
+        monkeypatch.setattr(
+            optimize_controller,
+            "run_campaign",
+            lambda _campaign_args: {"status": "completed"},
+        )
+
+        args = argparse.Namespace(
+            package_id="goal.md",
+            hpc_profile=None,
+            sandbox=None,
+            skills_source="existing",
+            resume=False,
+            timeout_seconds=7200,
+        )
+        payload = optimize_controller.run_goal_campaign(args)
+
+        assert payload["goal_mode"] is True
+        assert preflight_capture["timeout_seconds"] == 7200
+        assert preflight_capture["controller_timeout_seconds"] == 7200
+        assert (
+            "timeout_seconds: 7200"
+            in optimize_state.goal_benchmark_path(repo_root).read_text(encoding="utf-8")
         )
 
 

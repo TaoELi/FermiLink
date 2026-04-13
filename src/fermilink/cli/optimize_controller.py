@@ -5093,6 +5093,25 @@ def _goal_preflight_benchmark_payload(
     return payload
 
 
+def _apply_goal_benchmark_timeout_override(
+    benchmark_text: str, *, timeout_seconds: int | None
+) -> str:
+    if not (isinstance(timeout_seconds, int) and timeout_seconds > 0):
+        return benchmark_text
+    try:
+        payload = yaml.safe_load(benchmark_text)
+    except yaml.YAMLError:
+        return benchmark_text
+    if not isinstance(payload, dict):
+        return benchmark_text
+    controller = payload.get("controller")
+    if not isinstance(controller, dict):
+        controller = {}
+        payload["controller"] = controller
+    controller["timeout_seconds"] = int(timeout_seconds)
+    return yaml.safe_dump(payload, sort_keys=False, default_flow_style=False)
+
+
 def _goal_preflight_issue_lines(
     project_root: Path,
     *,
@@ -5523,6 +5542,7 @@ def _run_goal_generation_turn(
     autogen_benchmark_rel: str,
     autogen_runner_rel: str,
     autogen_rel: str,
+    controller_timeout_seconds: int | None,
     provider: str,
     provider_bin_override: str | None,
     sandbox_mode: str | None,
@@ -5549,6 +5569,7 @@ def _run_goal_generation_turn(
         benchmark_template=benchmark_template,
         autogen_benchmark_rel=autogen_benchmark_rel,
         autogen_runner_rel=autogen_runner_rel,
+        controller_timeout_seconds=controller_timeout_seconds,
     )
     with optimize_git.temporary_optimize_agents(
         project_root,
@@ -5766,6 +5787,10 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     hpc_profile = str(getattr(args, "hpc_profile", None) or "").strip()
+    controller_timeout_override = _safe_positive_int(
+        getattr(args, "timeout_seconds", None),
+        default=0,
+    )
     is_resume = bool(getattr(args, "resume", False))
     if is_resume:
         resume_benchmark_path = _resolve_goal_resume_benchmark_path(project_root)
@@ -5986,6 +6011,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             autogen_benchmark_rel=autogen_benchmark_rel,
             autogen_runner_rel=autogen_runner_rel,
             autogen_rel=autogen_rel,
+            controller_timeout_seconds=(
+                controller_timeout_override or None
+            ),
             provider=provider,
             provider_bin_override=provider_bin_override,
             sandbox_mode=sandbox_mode,
@@ -6034,6 +6062,11 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             "Benchmark generation failed to produce both benchmark.yaml and "
             f"benchmark_runner.py after {GOAL_MAX_GENERATION_TURNS} attempts."
         )
+    benchmark_yaml_text = _apply_goal_benchmark_timeout_override(
+        benchmark_yaml_text,
+        timeout_seconds=controller_timeout_override or None,
+    )
+    bench_path.write_text(benchmark_yaml_text, encoding="utf-8")
 
     # ------------------------------------------------------------------
     # Phase 3: Validate generated files
