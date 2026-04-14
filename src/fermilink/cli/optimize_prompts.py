@@ -147,6 +147,7 @@ def build_controller_agents_md(
         "- Update only the optimize memory with a thoughtful postmortem of this iteration.\n"
         "- Record what changed, what happened in benchmarking, what was learned, and what to try next.\n"
         "- Decide whether this candidate should become the new incumbent.\n"
+        "- Reject candidates whose gains depend on persistent caches or simply taking final answers reused across authoritative runs, unless they are specifically allowed in the yaml configuration.\n"
         "- Your decision must respect any hard scientific failures described in the prompt.\n"
         "\n"
         "When finished, reply with exactly these tags and no long free-form summary:\n"
