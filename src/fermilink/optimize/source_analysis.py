@@ -115,6 +115,29 @@ def extract_review_notes(text: str) -> str | None:
     return value or None
 
 
+def _build_commands_pin_python_env(build_commands: object) -> bool:
+    """Return True when goal build commands establish a specific Python env."""
+
+    if not isinstance(build_commands, list):
+        return False
+    rendered = "\n".join(str(item or "") for item in build_commands).lower()
+    if not rendered.strip():
+        return False
+    markers = (
+        "/bin/activate",
+        "python -m venv",
+        "virtualenv",
+        "virtual_env",
+        "export venv=",
+        "conda activate",
+        "conda run",
+        "conda_prefix",
+        "mamba activate",
+        "micromamba activate",
+    )
+    return any(marker in rendered for marker in markers)
+
+
 # ---------------------------------------------------------------------------
 # AGENTS.md templates
 # ---------------------------------------------------------------------------
@@ -352,6 +375,17 @@ def build_benchmark_generation_prompt(
     has_build_commands = isinstance(build_commands, list) and any(
         str(item or "").strip() for item in build_commands
     )
+    explicit_python_env_guidance = ""
+    if language.strip().lower() == "python" and _build_commands_pin_python_env(
+        build_commands
+    ):
+        explicit_python_env_guidance = (
+            "  - This Python goal's `## Build` section pins a specific venv/conda\n"
+            "    environment. Do not rely on ambient system `python` lookups.\n"
+            "    Use that environment's explicit interpreter path in `runtime.command`,\n"
+            "    and in `benchmark_runner.py` use the same explicit path for any Python\n"
+            "    subprocesses instead of bare `python`/PATH resolution.\n"
+        )
     pre_commands_guidance = ""
     if has_build_commands:
         pre_commands_guidance = (
@@ -434,6 +468,7 @@ def build_benchmark_generation_prompt(
         f"  - `command`: list that runs the benchmark runner at `{autogen_runner_rel}`\n"
         "    with `--benchmark {benchmark} --emit-json` arguments.\n"
         "    Use the correct interpreter for the language (python/bash).\n"
+        f"{explicit_python_env_guidance}"
         "  - `env`: set appropriate thread/parallelism variables.\n"
         "    Include `FERMILINK_GOAL_INPUT_ROOT` when workload files are required,\n"
         "    and treat it as the root directory for case input files.\n"

@@ -357,6 +357,47 @@ class TestPromptConstruction:
         assert "REQUIRED for this goal" in prompt
         assert "bash', '-lc'" in prompt
 
+    def test_benchmark_generation_prompt_requires_explicit_python_path_for_pinned_env(
+        self,
+    ) -> None:
+        build_goal = (
+            "# Optimization Goal\n\n"
+            "## Package\n"
+            "pyscf\n\n"
+            "## Language\n"
+            "python\n\n"
+            "## Target\n"
+            "Tune SCF setup/runtime path.\n\n"
+            "## Editable Scope\n"
+            "- pyscf/scf/diis.py\n\n"
+            "## Build\n"
+            "```bash\n"
+            "export VENV=/shared/venvs/pyscf-diis\n"
+            "source \"$VENV/bin/activate\"\n"
+            "python -m pip install -e .\n"
+            "```\n"
+        )
+        spec = optimize_goal.parse_goal(build_goal)
+        prompt = optimize_source_analysis.build_benchmark_generation_prompt(
+            goal_spec=spec,
+            goal_rel="goal.md",
+            analysis={"package": "pyscf", "entry_points": []},
+            analysis_rel=".fermilink-optimize/autogen/goal_analysis.json",
+            language="python",
+            runner_template="# runner template",
+            benchmark_template="# benchmark template",
+            autogen_benchmark_rel=".fermilink-optimize/autogen/benchmark.yaml",
+            autogen_runner_rel=".fermilink-optimize/autogen/benchmark_runner.py",
+        )
+        assert "pins a specific venv/conda" in prompt
+        assert "Do not rely on ambient system `python` lookups." in prompt
+        assert "explicit interpreter path in `runtime.command`" in prompt
+        assert (
+            "in `benchmark_runner.py` use the same explicit path for any Python"
+            in prompt
+        )
+        assert "subprocesses instead of bare `python`/PATH resolution." in prompt
+
 
 # ---------------------------------------------------------------------------
 # State paths
