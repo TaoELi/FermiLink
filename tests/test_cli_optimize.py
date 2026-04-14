@@ -13,12 +13,12 @@ import yaml
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
-from fermilink.cli import optimize_git
-from fermilink.cli import optimize_controller
-from fermilink.cli import optimize_prompts
-from fermilink.cli import optimize_state
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workflows as workflow_commands
+from fermilink.optimize import git as optimize_git
+from fermilink.optimize import main as optimize_controller
+from fermilink.optimize import prompts as optimize_prompts
+from fermilink.optimize import state as optimize_state
 from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
 
 

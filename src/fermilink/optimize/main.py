@@ -20,7 +20,9 @@ from typing import Any
 
 import yaml
 
-from fermilink.cli import optimize_git, optimize_prompts, optimize_state
+from . import git as optimize_git
+from . import prompts as optimize_prompts
+from . import state as optimize_state
 
 
 def _cli():
@@ -5209,7 +5211,7 @@ def _run_goal_generation_repair_turn(
     reasoning_effort: str | None,
     issue_lines: list[str],
 ) -> str:
-    from fermilink.cli import optimize_source_analysis as osa
+    from . import source_analysis as osa
 
     issue_block = "\n".join(
         f"- {line}" for line in issue_lines if str(line or "").strip()
@@ -5498,7 +5500,7 @@ def _run_goal_analysis_turn(
 ) -> dict[str, Any]:
     """Run the source-analysis agent turn and return the result dict."""
 
-    from fermilink.cli import optimize_source_analysis
+    from . import source_analysis as optimize_source_analysis
 
     agents_md = optimize_source_analysis.build_source_analysis_agents_md(
         goal_rel=goal_rel,
@@ -5552,7 +5554,7 @@ def _run_goal_generation_turn(
 ) -> dict[str, Any]:
     """Run the benchmark-generation agent turn and return the result dict."""
 
-    from fermilink.cli import optimize_source_analysis
+    from . import source_analysis as optimize_source_analysis
 
     agents_md = optimize_source_analysis.build_benchmark_generation_agents_md(
         goal_rel=goal_rel,
@@ -5737,7 +5739,8 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
     6. Fall through to ``run_campaign()`` with generated benchmark.
     """
 
-    from fermilink.cli import optimize_goal, optimize_source_analysis
+    from . import goal as optimize_goal
+    from . import source_analysis as optimize_source_analysis
 
     cli = _cli()
     project_root = Path.cwd().resolve()

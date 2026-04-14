@@ -10,12 +10,12 @@ from pathlib import Path
 import pytest
 
 from fermilink import cli
-from fermilink.cli import optimize_goal
-from fermilink.cli import optimize_controller
-from fermilink.cli import optimize_git
-from fermilink.cli import optimize_source_analysis
-from fermilink.cli import optimize_state
 from fermilink.cli.commands.optimize import _resolve_optimize_mode
+from fermilink.optimize import git as optimize_git
+from fermilink.optimize import goal as optimize_goal
+from fermilink.optimize import main as optimize_controller
+from fermilink.optimize import source_analysis as optimize_source_analysis
+from fermilink.optimize import state as optimize_state
 
 
 # ---------------------------------------------------------------------------
@@ -1228,7 +1228,7 @@ class TestGoalPreflight:
 
 class TestValidationHelpers:
     def test_validate_goal_runner_valid_python(self, tmp_path: Path) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_runner
+        from fermilink.optimize.main import _validate_goal_runner
 
         runner = tmp_path / "runner.py"
         runner.write_text("import sys\nprint('ok')\n", encoding="utf-8")
@@ -1236,7 +1236,7 @@ class TestValidationHelpers:
         assert error == ""
 
     def test_validate_goal_runner_syntax_error(self, tmp_path: Path) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_runner
+        from fermilink.optimize.main import _validate_goal_runner
 
         runner = tmp_path / "runner.py"
         runner.write_text("def broken(\n", encoding="utf-8")
@@ -1244,14 +1244,14 @@ class TestValidationHelpers:
         assert "syntax error" in error.lower()
 
     def test_validate_goal_runner_missing(self, tmp_path: Path) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_runner
+        from fermilink.optimize.main import _validate_goal_runner
 
         runner = tmp_path / "nonexistent.py"
         error = _validate_goal_runner(runner, language="python")
         assert "not generated" in error.lower()
 
     def test_validate_goal_runner_non_python(self, tmp_path: Path) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_runner
+        from fermilink.optimize.main import _validate_goal_runner
 
         runner = tmp_path / "runner.sh"
         runner.write_text("#!/bin/bash\necho ok\n", encoding="utf-8")
@@ -1262,7 +1262,7 @@ class TestValidationHelpers:
     def test_validate_goal_runner_contract_requires_emit_json(
         self, tmp_path: Path
     ) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_runner
+        from fermilink.optimize.main import _validate_goal_runner
 
         benchmark = tmp_path / "benchmark.yaml"
         benchmark.write_text(
@@ -1303,7 +1303,7 @@ class TestValidationHelpers:
         assert "emit-json" in runner_error.lower()
 
     def test_validate_goal_runner_contract_happy_path(self, tmp_path: Path) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_runner
+        from fermilink.optimize.main import _validate_goal_runner
 
         benchmark = tmp_path / "benchmark.yaml"
         benchmark.write_text(
@@ -1345,7 +1345,7 @@ class TestValidationHelpers:
         assert runner_error == ""
 
     def test_validate_goal_benchmark_missing(self, tmp_path: Path) -> None:
-        from fermilink.cli.optimize_controller import _validate_goal_benchmark
+        from fermilink.optimize.main import _validate_goal_benchmark
 
         path = tmp_path / "nonexistent.yaml"
         payload, error = _validate_goal_benchmark(path)

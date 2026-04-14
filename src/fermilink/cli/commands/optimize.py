@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from fermilink.cli import optimize_controller, optimize_goal, optimize_state
+from fermilink.optimize import goal as optimize_goal
+from fermilink.optimize import main as optimize_controller
+from fermilink.optimize import state as optimize_state
 
 
 def _cli():
