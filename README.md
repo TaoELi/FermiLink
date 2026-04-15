@@ -48,8 +48,32 @@ fermilink
 ```
 for a step-by-step guide regarding how to setup the environment of **FermiLink**.
 
+## Usage
+
+
+### FermiLink as a package knowledge base provider
+
+If you simply want to use **FermiLink** for easily accessing 150+ package knowledge bases and then use your **own custom agent** for running simulations:
+
 <details>
-<summary>Advanced FermiLink command line usage</summary>
+
+```bash
+# 1. Install the scientific package knowledge base
+fermilink install meep
+# 2. Enter a working directory
+cd myproject/
+# 3. Create a local environment with package knowledge bases
+fermilink init meep
+# 3. Open any local agent for simulations with this package knowledge base
+codex/claude/gemini/deepseek
+```
+</details>
+
+### FermiLink as a simulation workflow provider
+
+If you want to use the existing **workflows in  FermiLink** for doing simulations:
+
+<details>
 
 ```bash
 # 1. Install at least one scientific package knowledge base
@@ -61,17 +85,36 @@ fermilink agent codex/claude/gemini
 # 3. (Optional) initialize default HPC profile at ~/.fermilink/HPC_PROFILE.json
 fermilink hpc
 
-# 4.1. Use command-line tool to do autonomous scientific research
+# 4. Use command-line tool to do autonomous scientific research
 fermilink exec/loop/reproduce/research goal.md
+```
 
+</details>
+
+### FermiLink as a Web UI provider 
+
+For teaching and demonstration purposes, run the following command to [get a ChatGPT-like interface](https://fermilink.org/usage_web_ui.html):
+
+<details>
+
+```bash
 # 4.2. Start web UI service for ChatGPT-like experience
 fermilink start
+```
 
-# 4.3. Start the gateway for supporting Chatbots via Telegram
+</details>
+
+### FermiLink as a cellphone controller of HPC
+
+For [remotely controlling the HPC and running simulations](https://fermilink.org/usage_chatting_apps.html):
+
+<details>
+
+```bash
+# Start the gateway for supporting Chatbots via Telegram
 export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
 export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 fermilink gateway
-
 ```
 
 <p align="center">

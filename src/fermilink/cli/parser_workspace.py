@@ -20,14 +20,24 @@ def register_workspace_parsers(
         "init",
         help=(
             "Initialize a destination folder with managed FermiLink payload "
-            "artifacts (symlinked entries plus copied onboarding AGENTS.md)."
+            "artifacts, or create a package-linked local workspace via "
+            "`fermilink init <pkg-id>`."
+        ),
+    )
+    init_parser.add_argument(
+        "init_target",
+        nargs="?",
+        default=".",
+        help=(
+            "Destination directory for classic init, or an installed package id "
+            "for package-linked init."
         ),
     )
     init_parser.add_argument(
         "destination",
         nargs="?",
-        default=".",
-        help="Destination directory (default: current directory).",
+        default=None,
+        help="Optional destination directory for `fermilink init <pkg-id> <destination>`.",
     )
     init_parser.add_argument(
         "--force",
