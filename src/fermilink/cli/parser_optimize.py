@@ -12,6 +12,7 @@ def register_optimize_parser(
     *,
     add_json_option: Callable[[argparse.ArgumentParser], None],
     cmd_optimize: CommandHandler,
+    supported_providers: tuple[str, ...],
 ) -> None:
     """Register the standalone optimize command parser."""
 
@@ -131,6 +132,23 @@ def register_optimize_parser(
         help=(
             "Override the inner optimize-worker loop iteration cap. Defaults to "
             "the benchmark worker.max_iterations setting or an internal default."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--worker-provider",
+        choices=supported_providers,
+        default=None,
+        help=(
+            "Override only the optimize worker provider "
+            f"({', '.join(supported_providers)})."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--worker-model",
+        default=None,
+        help=(
+            "Override only the optimize worker model (for example "
+            "`gemini-2.5-pro`)."
         ),
     )
     optimize_parser.add_argument(

@@ -171,3 +171,44 @@ def test_optimize_cpp_launcher_rejects_missing_goal_file(tmp_path: Path) -> None
     )
     assert completed.returncode != 0
     assert "Goal file does not exist" in completed.stderr
+
+
+def test_optimize_cpp_launcher_forwards_worker_runtime_overrides(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "lammps"
+    _init_cpp_repo(repo_dir, branch="develop")
+
+    goal_path = tmp_path / "cpp-lammps-comm-goal.md"
+    _write_goal_file(goal_path, package="lammps")
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(_script_path()),
+            "--goal",
+            str(goal_path),
+            "--worker-provider",
+            "gemini",
+            "--worker-model",
+            "gemini-2.5-pro",
+            "--fermilink-bin",
+            "true",
+            "--dry-run",
+            "--",
+            "--max-iterations",
+            "12",
+        ],
+        cwd=str(repo_dir),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "  worker_provider: gemini" in completed.stdout
+    assert "  worker_model:   gemini-2.5-pro" in completed.stdout
+    assert (
+        "--worker-provider gemini --worker-model gemini-2.5-pro --max-iterations 12 "
+        in completed.stdout
+    )

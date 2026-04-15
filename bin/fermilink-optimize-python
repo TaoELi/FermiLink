@@ -39,6 +39,8 @@ Common launcher options:
   --worktree-name NAME             Explicit worktree directory name.
                                    Default: <repo>-<task>
   --hpc-profile PATH               Forwarded to `fermilink optimize --hpc-profile`.
+  --worker-provider NAME           Forwarded to `fermilink optimize --worker-provider`.
+  --worker-model MODEL             Forwarded to `fermilink optimize --worker-model`.
   --allow-dirty-base               Allow uncommitted changes in --project-root.
   --dry-run                        Print the resolved command after setup and exit.
 
@@ -333,6 +335,8 @@ base_ref_raw=""
 worktree_root_raw=""
 worktree_name=""
 hpc_profile_raw=""
+worker_provider=""
+worker_model=""
 python_bin="python3"
 venv_root_raw=""
 venv_name=""
@@ -379,6 +383,16 @@ while [[ $# -gt 0 ]]; do
     --hpc-profile)
       [[ $# -ge 2 ]] || die "Missing value for $1"
       hpc_profile_raw="$2"
+      shift 2
+      ;;
+    --worker-provider)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      worker_provider="$2"
+      shift 2
+      ;;
+    --worker-model)
+      [[ $# -ge 2 ]] || die "Missing value for $1"
+      worker_model="$2"
       shift 2
       ;;
     --python-bin)
@@ -570,6 +584,12 @@ optimize_cmd=(
 if [[ -n "$hpc_profile_abs" ]]; then
   optimize_cmd+=(--hpc-profile "$hpc_profile_abs")
 fi
+if [[ -n "$worker_provider" ]]; then
+  optimize_cmd+=(--worker-provider "$worker_provider")
+fi
+if [[ -n "$worker_model" ]]; then
+  optimize_cmd+=(--worker-model "$worker_model")
+fi
 if [[ ${#extra_optimize_args[@]} -gt 0 ]]; then
   optimize_cmd+=("${extra_optimize_args[@]}")
 fi
@@ -586,6 +606,12 @@ if [[ -n "${FERMILINK_HOME:-}" ]]; then
 fi
 if [[ -n "$hpc_profile_abs" ]]; then
   log "  hpc_profile:    $hpc_profile_abs"
+fi
+if [[ -n "$worker_provider" ]]; then
+  log "  worker_provider: $worker_provider"
+fi
+if [[ -n "$worker_model" ]]; then
+  log "  worker_model:   $worker_model"
 fi
 log "  fermilink_bin:  $fermilink_bin_resolved"
 log "Command:"

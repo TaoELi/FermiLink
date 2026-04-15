@@ -178,6 +178,12 @@ def cmd_optimize(args: argparse.Namespace) -> int:
     """Execute optimize goal mode, expert mode, or campaign status."""
 
     cli = _cli()
+    raw_worker_model = getattr(args, "worker_model", None)
+    if raw_worker_model is not None:
+        worker_model_text = str(raw_worker_model).strip()
+        if not worker_model_text:
+            raise cli.PackageError("--worker-model cannot be empty.")
+        args.worker_model = worker_model_text
     if bool(getattr(args, "baseline_only", False)) and bool(
         getattr(args, "plan_only", False)
     ):

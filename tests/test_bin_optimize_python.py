@@ -286,3 +286,50 @@ def test_optimize_python_launcher_uses_branch_named_venv_for_explicit_branch(
     assert f"  worktree:       {expected_worktree}" in completed.stdout
     assert f"  venv:           {expected_venv}" in completed.stdout
     assert "-m pip install fermilink" in pip_log.read_text(encoding="utf-8")
+
+
+def test_optimize_python_launcher_forwards_worker_runtime_overrides(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "mockpkg"
+    _init_python_repo(repo_dir, branch="main")
+
+    goal_path = tmp_path / "python-mockpkg-feature-goal.md"
+    _write_goal_file(goal_path)
+
+    fake_python = tmp_path / "fake-python"
+    pip_log = tmp_path / "fake-pip.log"
+    _write_fake_python_with_stub_venv(fake_python, pip_log)
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(_script_path()),
+            "--goal",
+            str(goal_path),
+            "--python-bin",
+            str(fake_python),
+            "--worker-provider",
+            "gemini",
+            "--worker-model",
+            "gemini-2.5-pro",
+            "--fermilink-bin",
+            "true",
+            "--dry-run",
+            "--",
+            "--max-iterations",
+            "12",
+        ],
+        cwd=str(repo_dir),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "  worker_provider: gemini" in completed.stdout
+    assert "  worker_model:   gemini-2.5-pro" in completed.stdout
+    assert (
+        "--worker-provider gemini --worker-model gemini-2.5-pro --max-iterations 12 "
+        in completed.stdout
+    )

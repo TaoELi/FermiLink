@@ -5618,6 +5618,7 @@ def _goal_scaffold(
     run_script_path = optimize_state.goal_run_script_path(project_root)
     manifest_path = optimize_state.goal_manifest_path(project_root)
     analysis_path = optimize_state.goal_analysis_path(project_root)
+    goal_copy_path = optimize_state.goal_copy_path(project_root)
 
     goal_rel = optimize_state.safe_relative(goal_path, project_root)
     benchmark_rel = optimize_state.safe_relative(benchmark_path, project_root)
@@ -5628,6 +5629,14 @@ def _goal_scaffold(
     # Write analysis
     optimize_state.write_json_file(analysis_path, analysis)
     created_files["analysis"] = True
+
+    # Snapshot the original goal markdown alongside generated artifacts.
+    goal_copy_path.parent.mkdir(parents=True, exist_ok=True)
+    goal_copy_path.write_text(
+        str(goal_spec.get("raw_text") or goal_path.read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
+    created_files["goal_markdown"] = True
 
     # Write benchmark YAML
     benchmark_path.parent.mkdir(parents=True, exist_ok=True)
@@ -5669,6 +5678,7 @@ def _goal_scaffold(
         "package_id": package_id,
         "project_root": str(project_root),
         "goal_path": str(goal_path),
+        "goal_copy_path": str(goal_copy_path),
         "goal_sha256": hashlib.sha256(
             str(goal_spec.get("raw_text") or "").encode("utf-8")
         ).hexdigest(),
@@ -5687,6 +5697,7 @@ def _goal_scaffold(
     return {
         "project_root": project_root,
         "goal_path": goal_path,
+        "goal_copy_path": goal_copy_path,
         "manifest_path": manifest_path,
         "benchmark_path": benchmark_path,
         "runner_path": runner_path,
@@ -5798,6 +5809,11 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
     if is_resume:
         resume_benchmark_path = _resolve_goal_resume_benchmark_path(project_root)
         if isinstance(resume_benchmark_path, Path):
+            optimize_state.ensure_autogen_root(project_root)
+            optimize_state.goal_copy_path(project_root).write_text(
+                goal_text,
+                encoding="utf-8",
+            )
             resume_runner_path = optimize_state.goal_runner_path(project_root)
             resume_language = goal_language
             if not resume_language:
@@ -6691,6 +6707,24 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         provider,
         raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
     )
+    worker_provider = str(getattr(args, "worker_provider", None) or provider).strip()
+    raw_worker_model = getattr(args, "worker_model", None)
+    if raw_worker_model is not None:
+        worker_model_text = str(raw_worker_model).strip()
+        if not worker_model_text:
+            raise cli.PackageError("--worker-model cannot be empty.")
+        worker_model: str | None = worker_model_text
+    elif worker_provider == provider:
+        worker_model = model
+    else:
+        worker_model = None
+    worker_provider_bin_override = cli.resolve_provider_binary_override(
+        worker_provider,
+        raw_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+    )
+    worker_sandbox_policy = sandbox_policy
+    worker_sandbox_mode = sandbox_mode
+    worker_reasoning_effort = reasoning_effort
     hpc_constraints_block = _build_optimize_hpc_constraints_block(
         project_root,
         args=args,
@@ -7033,12 +7067,16 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             result = cli._run_exec_chat_turn(
                 repo_dir=worker_repo_dir,
                 prompt=prompt_text,
-                sandbox=sandbox_mode if sandbox_policy == "enforce" else None,
-                provider_bin_override=provider_bin_override,
-                provider=provider,
-                sandbox_policy=sandbox_policy,
-                model=model,
-                reasoning_effort=reasoning_effort,
+                sandbox=(
+                    worker_sandbox_mode
+                    if worker_sandbox_policy == "enforce"
+                    else None
+                ),
+                provider_bin_override=worker_provider_bin_override,
+                provider=worker_provider,
+                sandbox_policy=worker_sandbox_policy,
+                model=worker_model,
+                reasoning_effort=worker_reasoning_effort,
             )
             _write_run_json(
                 run_dir,
@@ -7054,7 +7092,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
         with optimize_git.with_worker_git_disabled(worker_repo_dir):
             with optimize_git.temporary_optimize_agents(
                 worker_repo_dir,
-                provider=provider,
+                provider=worker_provider,
                 content=agents_md,
             ):
                 worker_loop_result = _run_optimize_worker_loop(

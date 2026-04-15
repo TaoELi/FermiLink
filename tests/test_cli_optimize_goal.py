@@ -409,16 +409,19 @@ class TestGoalStatePaths:
         root = tmp_path / "project"
         root.mkdir()
         analysis = optimize_state.goal_analysis_path(root)
+        goal_copy = optimize_state.goal_copy_path(root)
         benchmark = optimize_state.goal_benchmark_path(root)
         runner = optimize_state.goal_runner_path(root)
         manifest = optimize_state.goal_manifest_path(root)
         assert str(analysis).endswith("goal_analysis.json")
+        assert str(goal_copy).endswith("goal.md")
         assert str(benchmark).endswith("benchmark.yaml")
         assert str(runner).endswith("benchmark_runner.py")
         assert str(manifest).endswith("goal_mode.json")
         # All under autogen
         autogen = str(optimize_state.autogen_root(root))
         assert str(analysis).startswith(autogen)
+        assert str(goal_copy).startswith(autogen)
         assert str(benchmark).startswith(autogen)
         assert str(runner).startswith(autogen)
         assert str(manifest).startswith(autogen)
@@ -746,6 +749,9 @@ class TestGoalResume:
         assert payload["goal_mode"] is True
         assert payload["goal_resume"] is True
         assert payload["scaffold_benchmark_path"] == str(benchmark_path)
+        assert optimize_state.goal_copy_path(repo_root).read_text(
+            encoding="utf-8"
+        ) == MINIMAL_GOAL
 
     def test_goal_resume_falls_back_to_state_benchmark_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1088,6 +1094,9 @@ class TestGoalPreflight:
         assert campaign_capture["benchmark"] == str(
             optimize_state.goal_benchmark_path(repo_root)
         )
+        assert optimize_state.goal_copy_path(repo_root).read_text(
+            encoding="utf-8"
+        ) == goal_path.read_text(encoding="utf-8")
         assert preflight_calls["count"] == 2
         assert len(repair_prompts) == 1
         assert (

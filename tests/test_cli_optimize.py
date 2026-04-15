@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -496,6 +497,40 @@ def test_optimize_parser_supports_core_flags() -> None:
     assert args.forever is True
 
 
+@pytest.mark.parametrize(
+    ("extra_args", "expected_provider", "expected_model"),
+    [
+        (["--worker-provider", "gemini"], "gemini", None),
+        (["--worker-model", "gemini-2.5-pro"], None, "gemini-2.5-pro"),
+        (
+            ["--worker-provider", "gemini", "--worker-model", "gemini-2.5-pro"],
+            "gemini",
+            "gemini-2.5-pro",
+        ),
+    ],
+)
+def test_optimize_parser_supports_worker_runtime_overrides(
+    extra_args: list[str],
+    expected_provider: str | None,
+    expected_model: str | None,
+) -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "pyscf",
+            "/tmp/pyscf",
+            "--benchmark",
+            "/tmp/pyscf/scripts/benchmark.yaml",
+            *extra_args,
+        ]
+    )
+
+    assert args.command == "optimize"
+    assert args.worker_provider == expected_provider
+    assert args.worker_model == expected_model
+
+
 def test_optimize_parser_supports_status_mode() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(
@@ -511,6 +546,30 @@ def test_optimize_parser_supports_status_mode() -> None:
     assert args.package_id == "status"
     assert args.project_path == "/tmp/repo"
     assert args.tail == 40
+
+
+def test_optimize_rejects_empty_worker_model(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--plan-only",
+            "--worker-model",
+            "   ",
+        ]
+    )
+
+    assert code == 2
+    assert "--worker-model cannot be empty." in capsys.readouterr().err
 
 
 def test_load_benchmark_rejects_unknown_correctness_mode(tmp_path: Path) -> None:
@@ -1718,6 +1777,271 @@ def test_optimize_accepts_better_candidate(
     assert _git(repo_dir, "log", "--format=%s", "-1") == (
         "fermilink optimize iter 1: fast path"
     )
+
+
+def test_optimize_worker_runtime_overrides_only_apply_to_worker_turns(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="danger-full-access",
+            model="gpt-5.4-codex",
+            reasoning_effort="high",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_provider_binary_override",
+        lambda provider, raw_override=None: f"bin::{provider}",
+    )
+
+    exec_calls: list[tuple[str, dict[str, object]]] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            exec_calls.append(("controller", dict(kwargs)))
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>worker override accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        exec_calls.append(("worker", dict(kwargs)))
+        _write_solver_in_worker(kwargs, mode="FAST")
+        return {
+            "assistant_text": (
+                "<experiment_description>worker provider override</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    temp_agent_calls: list[tuple[str, str]] = []
+    real_temporary_optimize_agents = optimize_git.temporary_optimize_agents
+
+    @contextmanager
+    def wrapped_temporary_optimize_agents(
+        repo_dir: Path,
+        *,
+        provider: str,
+        content: str,
+    ):
+        temp_agent_calls.append((str(Path(repo_dir).resolve()), provider))
+        with real_temporary_optimize_agents(
+            repo_dir,
+            provider=provider,
+            content=content,
+        ):
+            yield
+
+    monkeypatch.setattr(
+        optimize_git,
+        "temporary_optimize_agents",
+        wrapped_temporary_optimize_agents,
+    )
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-provider",
+            "gemini",
+            "--worker-model",
+            "gemini-2.5-pro",
+        ]
+    )
+
+    assert code == 0
+    assert [kind for kind, _ in exec_calls] == ["worker", "controller"]
+    worker_call = next(kwargs for kind, kwargs in exec_calls if kind == "worker")
+    controller_call = next(kwargs for kind, kwargs in exec_calls if kind == "controller")
+
+    assert controller_call["provider"] == "codex"
+    assert controller_call["provider_bin_override"] == "bin::codex"
+    assert controller_call["model"] == "gpt-5.4-codex"
+    assert controller_call["sandbox"] == "danger-full-access"
+    assert controller_call["sandbox_policy"] == "enforce"
+    assert controller_call["reasoning_effort"] == "high"
+
+    assert worker_call["provider"] == "gemini"
+    assert worker_call["provider_bin_override"] == "bin::gemini"
+    assert worker_call["model"] == "gemini-2.5-pro"
+    assert worker_call["sandbox"] == "danger-full-access"
+    assert worker_call["sandbox_policy"] == "enforce"
+    assert worker_call["reasoning_effort"] == "high"
+
+    controller_repo = str(repo_dir.resolve())
+    assert (controller_repo, "codex") in temp_agent_calls
+    worker_temp_calls = [
+        (repo, provider)
+        for repo, provider in temp_agent_calls
+        if repo != controller_repo
+    ]
+    assert len(worker_temp_calls) == 1
+    assert worker_temp_calls[0][1] == "gemini"
+
+
+def test_optimize_worker_model_falls_back_to_provider_default_when_provider_changes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+            model="gpt-5.4-codex",
+            reasoning_effort="medium",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "resolve_provider_binary_override",
+        lambda provider, raw_override=None: f"bin::{provider}",
+    )
+
+    exec_calls: list[tuple[str, dict[str, object]]] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            exec_calls.append(("controller", dict(kwargs)))
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        exec_calls.append(("worker", dict(kwargs)))
+        _write_solver_in_worker(kwargs, mode="FAST")
+        return {
+            "assistant_text": (
+                "<experiment_description>cross-provider fallback</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-provider",
+            "gemini",
+        ]
+    )
+
+    assert code == 0
+    worker_call = next(kwargs for kind, kwargs in exec_calls if kind == "worker")
+    controller_call = next(kwargs for kind, kwargs in exec_calls if kind == "controller")
+    assert controller_call["provider"] == "codex"
+    assert controller_call["model"] == "gpt-5.4-codex"
+    assert worker_call["provider"] == "gemini"
+    assert worker_call["provider_bin_override"] == "bin::gemini"
+    assert worker_call["model"] is None
+
+
+def test_optimize_worker_inherits_global_model_for_same_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir, benchmark_path = _init_optimize_repo(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "resolve_agent_runtime_policy",
+        lambda: AgentRuntimePolicy(
+            provider="codex",
+            sandbox_policy="enforce",
+            sandbox_mode="workspace-write",
+            model="gpt-5.4-codex",
+            reasoning_effort="medium",
+        ),
+    )
+
+    exec_calls: list[tuple[str, dict[str, object]]] = []
+
+    def fake_run_exec_chat_turn(**kwargs):
+        prompt = str(kwargs.get("prompt") or "")
+        if "controller for a completed FermiLink optimize iteration" in prompt:
+            exec_calls.append(("controller", dict(kwargs)))
+            return {
+                "assistant_text": (
+                    "<decision>ACCEPTED</decision>\n"
+                    "<controller_summary>accepted</controller_summary>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        exec_calls.append(("worker", dict(kwargs)))
+        _write_solver_in_worker(kwargs, mode="FAST")
+        return {
+            "assistant_text": (
+                "<experiment_description>same-provider inheritance</experiment_description>\n"
+                f"{cli.LOOP_DONE_TOKEN}\n"
+            ),
+            "return_code": 0,
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+
+    code = cli.main(
+        [
+            "optimize",
+            "mockpkg",
+            str(repo_dir),
+            "--benchmark",
+            str(benchmark_path),
+            "--skills-source",
+            "existing",
+            "--max-iterations",
+            "1",
+            "--worker-provider",
+            "codex",
+        ]
+    )
+
+    assert code == 0
+    worker_call = next(kwargs for kind, kwargs in exec_calls if kind == "worker")
+    assert worker_call["provider"] == "codex"
+    assert worker_call["model"] == "gpt-5.4-codex"
 
 
 def test_optimize_state_compacts_raw_runs_for_baseline_and_incumbent(

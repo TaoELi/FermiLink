@@ -25,6 +25,7 @@ QUICK_SETUP_FILENAME = "setup_env.sh"
 QUICK_RUN_SCRIPT_FILENAME = "run_optimize.sh"
 GOAL_MANIFEST_FILENAME = "goal_mode.json"
 GOAL_ANALYSIS_FILENAME = "goal_analysis.json"
+GOAL_COPY_FILENAME = "goal.md"
 GOAL_BENCHMARK_FILENAME = "benchmark.yaml"
 GOAL_RUNNER_FILENAME = "benchmark_runner.py"
 GOAL_SUBMIT_FILENAME = "submit_poll_launcher.py"
@@ -112,6 +113,10 @@ def goal_manifest_path(project_root: Path) -> Path:
 
 def goal_analysis_path(project_root: Path) -> Path:
     return autogen_root(project_root) / GOAL_ANALYSIS_FILENAME
+
+
+def goal_copy_path(project_root: Path) -> Path:
+    return autogen_root(project_root) / GOAL_COPY_FILENAME
 
 
 def goal_benchmark_path(project_root: Path) -> Path:
