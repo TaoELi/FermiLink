@@ -98,8 +98,12 @@ For teaching and demonstration purposes, run the following command to [get a Cha
 <details>
 
 ```bash
-# 4.2. Start web UI service for ChatGPT-like experience
+# start the web UI
 fermilink start
+# end the web UI
+fermilink stop
+# restart the web UI
+fermilink restart
 ```
 
 </details>
