@@ -1,0 +1,103 @@
+---
+name: optimize-report
+description: Generate a Sphinx-ready report bundle (plots, RST, contract, per-accepted-commit pages) from a completed `fermilink optimize` workspace. Use when the user asks to visualize, export, or publish optimization results from a `.fermilink-optimize` directory, or wants to prepare material for the Project Optimization website.
+---
+
+# FermiLink Optimize Report
+
+Use this skill when the user asks to visualize or publish the results of a
+finished `fermilink optimize` run. The input is a `.fermilink-optimize`
+directory (e.g. `<workspace>/<task>/.fermilink-optimize/`). The output is a
+self-contained bundle that is ready to drop into an external Sphinx site.
+
+## When to use
+
+- "visualize the optimize results", "plot metric vs iteration"
+- "export the optimization outcome", "make a report"
+- "prepare this optimize run for the Project Optimization website"
+
+## Inputs
+
+Ask the user for (or infer from the current working directory):
+
+1. Path to the `.fermilink-optimize` directory. It must contain `results.tsv`
+   and (usually) `runs/iter_XXXX/` subdirectories plus `autogen/`.
+2. Optional output directory. Default is
+   `<optimize-dir>/../optimize-report/`.
+3. Optional title, metric label, and direction (`lower` or `higher`). If
+   omitted, direction is auto-detected from the baseline/accepted trajectory
+   and label is pulled from `primary_metric_name` in `results.tsv`.
+
+Do not silently invent a path. If the user has not named one, ask.
+
+## How to run
+
+Call the generator as a plain Python script. It depends only on the standard
+library + matplotlib:
+
+```bash
+python skills/optimize-report/assets/build_report.py \
+    <path-to>/.fermilink-optimize \
+    --out <path-to>/optimize-report
+```
+
+Optional flags: `--title`, `--metric-label`, `--direction {lower,higher}`.
+
+The script is idempotent — it wipes and rewrites the output directory on each
+run.
+
+## Output bundle
+
+```
+optimize-report/
+  index.rst                      # title, summary, headline plots, full table, toctree
+  img/
+    metric_vs_iter.{png,svg}     # all iterations, colored by status
+    improvement_cumulative.{png,svg}  # running-incumbent staircase
+  iterations/
+    iter_XXXX_accepted.rst       # one page per accepted commit
+    _diffs/iter_XXXX_<sha>.diff  # raw diff for download
+  contract/
+    benchmark.yaml               # copied from autogen/
+    benchmark_runner.py          # copied from autogen/
+    goal_inputs.json             # if present
+    ...                          # goal_analysis.json, goal_mode.json, run_optimize.sh, setup_env.sh
+  data/
+    results.tsv                  # copied verbatim
+    summary.json                 # machine-readable roll-up
+```
+
+Each `iter_XXXX_accepted.rst` page contains:
+
+- change summary (from the `description` field, with the trailing rationale
+  stripped)
+- acceptance rationale (the bracketed `[...]` tail from the description)
+- guardrails & metrics table (from `review_context.json` +
+  `controller_result.json`: decision, correctness, hard-reject flag, incumbent
+  vs candidate metric, Δ%, changed paths)
+- diffstat (from `candidate_diff_stat.txt`)
+- truncated diff block + download link for the full `candidate.diff`
+
+Rejected and correctness-failure iterations appear in the index table and in
+the plot, but do not get their own pages — the index stays focused on the
+commits that actually shipped.
+
+## Behavior notes
+
+- Safe to run before the optimize job has produced any accepted iterations;
+  the index will still render with only a baseline row.
+- The plotter auto-detects metric direction from the baseline→accepted trend,
+  but the user can override with `--direction`.
+- Commit hashes are truncated to 12 characters in all rendered output.
+- Diffs longer than 600 lines are truncated inline; the full file is still
+  written to `iterations/_diffs/` and linked for download.
+- The script does not require pandas or jinja — only `matplotlib` plus the
+  standard library.
+
+## Scope boundaries
+
+- This skill only produces the per-task bundle. It does not publish a website
+  or modify any hero-page link in `src/fermilink/`. Those are separate
+  follow-ups once the external Project Optimization repo exists.
+- Do not modify anything inside the source `.fermilink-optimize` directory —
+  only read from it.
