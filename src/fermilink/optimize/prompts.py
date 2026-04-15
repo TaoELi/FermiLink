@@ -299,7 +299,7 @@ def build_controller_prompt(
         "\n"
         "Your tasks:\n"
         "1. Update `memory.md` with a reflective entry for this iteration.\n"
-        "2. Include: hypothesis, changed files, benchmark outcome, lesson learned, and next different hypothesis (choosing a different strategy).\n"
+        "2. Include: hypothesis, changed files, benchmark outcome, lesson learned, and next hypothesis.\n"
         "3. Decide whether this candidate should be ACCEPTED or REJECTED.\n"
         "4. If the evaluation context says `hard_reject=true`, you must output REJECTED.\n"
         "\n"
