@@ -158,18 +158,133 @@
     return null;
   }
 
+  const HERO_TYPEWRITER_WORDS = [
+    "HPC simulations.",
+    "DFT calculations.",
+    "LAMMPS jobs.",
+    "code optimization.",
+  ];
+  const HERO_KICKER_SYMBOLS = [
+    "\u25C8",
+    "\u25D3",
+    "\u273D",
+    "\u25D0",
+    "\u25D1",
+    "\u2726",
+  ];
+
+  function startHeroAnimations(panel) {
+    const prefersReduced =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const typewriterEl = panel.querySelector(".cl-login-hero-typewriter");
+    if (typewriterEl) {
+      if (prefersReduced) {
+        typewriterEl.textContent = HERO_TYPEWRITER_WORDS[0];
+      } else {
+        let wordIdx = 0;
+        let charIdx = 0;
+        let deleting = false;
+        const pauseMs = 2000;
+        const typeMs = 80;
+        const deleteMs = 40;
+        const tick = () => {
+          if (!panel.isConnected) return;
+          const word = HERO_TYPEWRITER_WORDS[wordIdx];
+          if (!deleting) {
+            charIdx++;
+            typewriterEl.textContent = word.slice(0, charIdx);
+            if (charIdx === word.length) {
+              deleting = true;
+              window.setTimeout(tick, pauseMs);
+              return;
+            }
+            window.setTimeout(tick, typeMs);
+          } else {
+            charIdx--;
+            typewriterEl.textContent = word.slice(0, charIdx);
+            if (charIdx === 0) {
+              deleting = false;
+              wordIdx = (wordIdx + 1) % HERO_TYPEWRITER_WORDS.length;
+              window.setTimeout(tick, 300);
+              return;
+            }
+            window.setTimeout(tick, deleteMs);
+          }
+        };
+        tick();
+      }
+    }
+
+    const symbolEl = panel.querySelector(".cl-login-hero-kicker-symbol");
+    if (symbolEl) {
+      symbolEl.textContent = HERO_KICKER_SYMBOLS[0];
+      if (!prefersReduced) {
+        let symIdx = 0;
+        const interval = window.setInterval(() => {
+          if (!panel.isConnected) {
+            window.clearInterval(interval);
+            return;
+          }
+          symIdx = (symIdx + 1) % HERO_KICKER_SYMBOLS.length;
+          symbolEl.textContent = HERO_KICKER_SYMBOLS[symIdx];
+        }, 1200);
+      }
+    }
+  }
+
   function buildHeroPanel() {
     const panel = document.createElement("section");
     panel.setAttribute(LOGIN_HERO_ATTR, "true");
     panel.className = "cl-login-hero-content";
 
-    const title = document.createElement("h2");
-    title.textContent = "Scientific simulations, simplified.";
+    const kicker = document.createElement("p");
+    kicker.className = "cl-login-hero-kicker";
+    const kickerSymbol = document.createElement("span");
+    kickerSymbol.className = "cl-login-hero-kicker-symbol";
+    kickerSymbol.setAttribute("aria-hidden", "true");
+    kickerSymbol.textContent = HERO_KICKER_SYMBOLS[0];
+    const kickerText = document.createElement("span");
+    kickerText.className = "cl-login-hero-kicker-text";
+    kickerText.textContent = "Autonomous Scientific Computing";
+    kicker.append(kickerSymbol, kickerText);
+
+    const headline = document.createElement("h2");
+    headline.className = "cl-login-hero-headline";
+
+    const firstLine = document.createElement("span");
+    firstLine.className = "cl-login-hero-headline-line";
+    firstLine.appendChild(document.createTextNode("Write a "));
+    const codePill = document.createElement("code");
+    codePill.className = "cl-login-hero-code-pill";
+    codePill.textContent = "prompt";
+    firstLine.appendChild(codePill);
+    firstLine.appendChild(document.createTextNode("."));
+
+    const secondLine = document.createElement("span");
+    secondLine.className = "cl-login-hero-headline-line";
+    secondLine.appendChild(document.createTextNode("Let AI handle the rest"));
+    const typeWrap = document.createElement("span");
+    typeWrap.className = "cl-login-hero-typewriter-wrap";
+    const typeText = document.createElement("span");
+    typeText.className = "cl-login-hero-typewriter";
+    typeText.setAttribute(
+      "aria-label",
+      HERO_TYPEWRITER_WORDS.join(", ")
+    );
+    const typeCursor = document.createElement("span");
+    typeCursor.className = "cl-login-hero-typewriter-cursor";
+    typeCursor.setAttribute("aria-hidden", "true");
+    typeWrap.append(typeText, typeCursor);
+    secondLine.appendChild(typeWrap);
+
+    headline.append(firstLine, secondLine);
 
     const description = document.createElement("p");
     description.className = "cl-login-hero-description";
     description.textContent =
-      "Research-grade AI agents for computational science workflows.";
+      "With a simple prompt describing your scientific computing goal, FermiLink autonomously runs simulations and analyzes results on your laptop or HPC clusters.";
 
     const featureList = document.createElement("ul");
     featureList.className = "cl-login-feature-list";
@@ -184,7 +299,7 @@
         detail: "Grounds responses in package source code tree and skills.",
       },
       {
-        title: "Scientific accuracy and reproducibility",
+        title: "Accuracy and reproducibility",
         detail: "Preserves simulation reasoning for reproducibility and review.",
       },
     ].forEach((entry) => {
@@ -199,7 +314,8 @@
       featureList.appendChild(item);
     });
 
-    panel.append(title, description, featureList);
+    panel.append(kicker, headline, description, featureList);
+    startHeroAnimations(panel);
     return panel;
   }
 
@@ -640,8 +756,14 @@
           const subtitle = document.createElement("p");
           subtitle.setAttribute(LOGIN_SUBTITLE_ATTR, "true");
           subtitle.className = "cl-login-subtitle";
-          subtitle.textContent =
-            "A journey for experiencing autonomous scientific simulations.";
+          const subtitleDot = document.createElement("span");
+          subtitleDot.className = "cl-login-subtitle-dot";
+          subtitleDot.setAttribute("aria-hidden", "true");
+          const subtitleText = document.createElement("span");
+          subtitleText.className = "cl-login-subtitle-text";
+          subtitleText.textContent =
+            "Sign in to launch autonomous scientific simulations.";
+          subtitle.append(subtitleDot, subtitleText);
           formShell.insertBefore(subtitle, formShell.firstChild);
         }
       }
