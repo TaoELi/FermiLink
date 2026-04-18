@@ -146,8 +146,7 @@ Run a single prompt in a clean project directory.
 
    # one-shot execution with an HPC profile
    fermilink exec "run a single two-level system coupled to a single-mode cavity" \
-     --hpc-profile "$HOME/hpc_profile.json" \
-     --init-git
+     --hpc-profile "$HOME/hpc_profile.json"
 
 What ``exec`` does:
 
@@ -155,6 +154,9 @@ What ``exec`` does:
 - overlays the package knowledge base into the current repo
 - initializes or updates ``projects/memory.md``
 - submits and monitors SLURM jobs when ``--hpc-profile`` is provided
+
+If the directory is not already a git repository, ``exec`` now auto-initializes one by default.
+Use ``--no-init-git`` only if you want the command to fail instead.
 
 .. note::
 
@@ -173,8 +175,7 @@ completion and can run multiple iterations until the goal is reached.
    fermilink loop goal.md \
      --hpc-profile "$HOME/hpc_profile.json" \
      --max-iterations 10 \
-     --max-wait-seconds 7200 \
-     --init-git
+     --max-wait-seconds 7200
 
 Here, ``--max-wait-seconds`` is the maximal wait time between agent iterations. The agent will wait for up to
 this time to recheck the SLURM process. 
@@ -193,10 +194,10 @@ with ``exec`` or ``loop`` first** to debug your prompt and HPC settings before y
 .. code-block:: bash
 
    # start from an idea
-   fermilink research idea.md --hpc-profile "$HOME/hpc_profile.json" --init-git
+   fermilink research idea.md --hpc-profile "$HOME/hpc_profile.json"
 
    # reproduce a paper
-   fermilink reproduce paper.tex --hpc-profile "$HOME/hpc_profile.json" --init-git
+   fermilink reproduce paper.tex --hpc-profile "$HOME/hpc_profile.json"
 
 Artifacts are written under:
 
@@ -225,8 +226,7 @@ batch job. Create ``fermilink_job.sh``:
    #SBATCH --output=fermilink-%j.out
 
    fermilink exec "run a single two-level system coupled to a single-mode cavity" \
-     --hpc-profile "$HOME/hpc_profile.json" \
-     --init-git
+     --hpc-profile "$HOME/hpc_profile.json"
 
 Submit it with:
 
@@ -381,7 +381,7 @@ Then run:
 
 .. code-block:: bash
 
-    fermilink exec goal.md --hpc-profile "$HOME/hpc_profile.json" --init-git
+    fermilink exec goal.md --hpc-profile "$HOME/hpc_profile.json"
 
 
 Further reading (optional)

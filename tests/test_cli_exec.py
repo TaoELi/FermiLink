@@ -289,6 +289,47 @@ def test_ensure_exec_repo_ready_fails_when_git_missing_and_no_init(
         cli._ensure_exec_repo_ready(repo_dir, args)
 
 
+def test_ensure_exec_repo_ready_auto_initializes_git_when_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    source_dir = tmp_path / "software"
+    source_dir.mkdir(parents=True, exist_ok=True)
+
+    state = {"is_valid_repo": False}
+    ensure_calls: list[Path] = []
+    template_calls: list[tuple[Path, Path]] = []
+
+    def fake_ensure_git_repo(path: Path) -> None:
+        ensure_calls.append(path)
+        state["is_valid_repo"] = True
+
+    dummy_runner = SimpleNamespace(
+        _is_valid_git_repo=lambda _path: bool(state["is_valid_repo"]),
+        _ensure_git_repo=fake_ensure_git_repo,
+        _resolve_source_dir=lambda: source_dir,
+        _ensure_template_agents_file=lambda src, dst: template_calls.append(
+            (Path(src), Path(dst))
+        ),
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: dummy_runner)
+    monkeypatch.setattr(
+        "builtins.input",
+        lambda _prompt="": pytest.fail("interactive git-init prompt should not run"),
+    )
+    args = SimpleNamespace(init_git=False, no_init_git=False)
+
+    cli._ensure_exec_repo_ready(repo_dir, args)
+
+    assert ensure_calls == [repo_dir]
+    assert template_calls == [(source_dir, repo_dir)]
+    output = capsys.readouterr().out
+    assert "Auto-initializing with `git init` by default" in output
+    assert "`--init-git`" in output
+    assert "`--no-init-git`" in output
+
+
 def test_exec_parser_supports_package_pin_and_git_flags() -> None:
     parser = cli._build_parser()
     args = parser.parse_args(

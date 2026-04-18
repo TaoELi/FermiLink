@@ -23,19 +23,11 @@ def _ensure_exec_repo_ready(repo_dir: Path, args: argparse.Namespace) -> None:
             raise cli.PackageError(
                 "Current directory is not a git repository. Run `git init` or use --init-git."
             )
-        initialize = bool(args.init_git)
-        if not initialize:
-            if not cli.sys.stdin.isatty():
-                raise cli.PackageError(
-                    "Current directory is not a git repository. Re-run with --init-git."
-                )
-            answer = input(
-                "Current directory is not a git repo. Run `git init` now? [y/N]: "
-            )
-            initialize = answer.strip().lower() in {"y", "yes"}
-        if not initialize:
-            raise cli.PackageError(
-                "Aborted: git repository required for fermilink exec/chat."
+        if not bool(args.init_git):
+            print(
+                "Current directory is not a git repository. Auto-initializing with "
+                "`git init` by default (equivalent to `--init-git`); use "
+                "`--no-init-git` to disable."
             )
         runner_app._ensure_git_repo(repo_dir)
 

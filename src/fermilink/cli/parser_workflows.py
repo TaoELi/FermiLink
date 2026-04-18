@@ -156,12 +156,15 @@ def register_workflow_parsers(
     reproduce_parser.add_argument(
         "--init-git",
         action="store_true",
-        help="Auto-run git init when current directory is not a git repository.",
+        help=(
+            "Explicitly auto-run git init when current directory is not a git "
+            "repository (default behavior)."
+        ),
     )
     reproduce_parser.add_argument(
         "--no-init-git",
         action="store_true",
-        help="Fail instead of prompting/initializing when git repository is missing.",
+        help="Fail instead of auto-initializing when git repository is missing.",
     )
     reproduce_parser.set_defaults(func=cmd_reproduce)
 
@@ -292,11 +295,14 @@ def register_workflow_parsers(
     research_parser.add_argument(
         "--init-git",
         action="store_true",
-        help="Auto-run git init when current directory is not a git repository.",
+        help=(
+            "Explicitly auto-run git init when current directory is not a git "
+            "repository (default behavior)."
+        ),
     )
     research_parser.add_argument(
         "--no-init-git",
         action="store_true",
-        help="Fail instead of prompting/initializing when git repository is missing.",
+        help="Fail instead of auto-initializing when git repository is missing.",
     )
     research_parser.set_defaults(func=cmd_research)

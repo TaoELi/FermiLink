@@ -80,7 +80,7 @@ Useful flags:
 - ``--package <id>``: pin a package id (skip routing).
 - ``--sandbox <mode>``: apply a per-run sandbox override.
 - ``--hpc-profile <json>``: append workflow-style HPC constraints to the prompt.
-- ``--init-git``: initialize a git repo non-interactively if missing.
+- ``--init-git``: explicit form of the default auto-init behavior when a git repo is missing.
 - ``--no-init-git``: fail if a git repo is missing.
 
 
@@ -135,7 +135,7 @@ Useful flags:
 
 - ``--package <id>``: pin a package for the whole session.
 - ``--sandbox <mode>``: enforce sandbox mode for this session.
-- ``--init-git`` / ``--no-init-git``: same behavior as ``exec``.
+- ``--no-init-git``: fail if a git repo is missing. By default, ``chat`` auto-initializes one when needed.
 
 .. note:: 
 

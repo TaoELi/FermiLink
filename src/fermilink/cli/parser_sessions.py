@@ -69,12 +69,15 @@ def register_exec_loop_parsers(
     exec_parser.add_argument(
         "--init-git",
         action="store_true",
-        help="Auto-run git init when current directory is not a git repository.",
+        help=(
+            "Explicitly auto-run git init when current directory is not a git "
+            "repository (default behavior)."
+        ),
     )
     exec_parser.add_argument(
         "--no-init-git",
         action="store_true",
-        help="Fail instead of prompting/initializing when git repository is missing.",
+        help="Fail instead of auto-initializing when git repository is missing.",
     )
     exec_parser.set_defaults(func=cmd_exec)
 
@@ -153,12 +156,15 @@ def register_exec_loop_parsers(
     loop_parser.add_argument(
         "--init-git",
         action="store_true",
-        help="Auto-run git init when current directory is not a git repository.",
+        help=(
+            "Explicitly auto-run git init when current directory is not a git "
+            "repository (default behavior)."
+        ),
     )
     loop_parser.add_argument(
         "--no-init-git",
         action="store_true",
-        help="Fail instead of prompting/initializing when git repository is missing.",
+        help="Fail instead of auto-initializing when git repository is missing.",
     )
     loop_parser.set_defaults(func=cmd_loop)
 
@@ -205,11 +211,14 @@ def register_chat_parser(
     chat_parser.add_argument(
         "--init-git",
         action="store_true",
-        help="Auto-run git init when current directory is not a git repository.",
+        help=(
+            "Explicitly auto-run git init when current directory is not a git "
+            "repository (default behavior)."
+        ),
     )
     chat_parser.add_argument(
         "--no-init-git",
         action="store_true",
-        help="Fail instead of prompting/initializing when git repository is missing.",
+        help="Fail instead of auto-initializing when git repository is missing.",
     )
     chat_parser.set_defaults(func=cmd_chat)
