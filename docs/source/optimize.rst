@@ -1,13 +1,5 @@
-:orphan:
-
-Optimize Mode (Preview)
-========================
-
-.. note::
-
-   Optimize mode is under active development and is not yet publicly listed
-   in the documentation navigation.  This page is available only via its
-   direct URL.
+Code Optimization
+==================
 
 ``fermilink optimize`` is a benchmark-gated scientific code optimization
 system.  It iteratively proposes source-level changes to a target scientific

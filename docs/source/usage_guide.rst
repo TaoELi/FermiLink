@@ -1,37 +1,17 @@
+:orphan:
+
 Usage Guide
 ===========
 
-The **command line tools** are the most powerful and flexible way to use FermiLink. They provide direct access to all features and support multiple modes: one-shot execution, interactive chat, autonomous loops, and full research or reproduction workflows.
+This page has been reorganized. Please use the sidebar navigation or start
+from the :doc:`overview` page.
 
-.. toctree::
-   :maxdepth: 1
-
-   Command Line Tools <usage>
-   Web UI <usage_web_ui>
-   Chat Apps <usage_chatting_apps>
-   Built-In Scientific Package Management <scientific_packages>
-   Configure Your Package <usage_configure_your_package>
-   Reusable Research Pipelines and Memory <usage_advanced_configuration>
-
-For a list of the supported built-in scientific packages, check
-
-.. toctree::
-   :maxdepth: 1
-
-   List of Built-in Scientific Packages <built_in_scientific_packages>
-
-
-General usage tips
-~~~~~~~~~~~~~~~~~~~~~~~
-
-- :doc:`usage_web_ui`: If you want a more user-friendly interface for quick experiments or demos in research or teaching. 
-
-- :doc:`usage_chatting_apps`: If you want a remote control of your laptop, workstation, or HPC from your phone and schedule computing tasks before sleeping or travel.
-
-- :doc:`built_in_scientific_packages`: If you want to know more about the built-in scientific packages supported by FermiLink. 
-
-- :doc:`usage_configure_your_package`: If you want to use your own local custom package for FermiLink.
-
-- :doc:`usage_advanced_configuration`: If you want to add research data, pipelines in papers, or group secrets to your local FermiLink workspace.
+- :doc:`usage` -- CLI command reference
+- :doc:`usage_web_ui` -- Web UI guide
+- :doc:`usage_chatting_apps` -- Telegram bot guide
+- :doc:`scientific_packages` -- Package management
+- :doc:`usage_configure_your_package` -- Building your own package
+- :doc:`usage_advanced_configuration` -- Research pipelines and memory
+- :doc:`built_in_scientific_packages` -- Full package list
 
 

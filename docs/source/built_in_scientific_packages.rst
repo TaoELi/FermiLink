@@ -3,8 +3,8 @@
 Built-in Supported Scientific Packages
 ======================================
 
-- Last curated update: ``2026-03-14 17:20:27 EST``
-- Total built-in packages: ``167``
+- Last curated update: ``2026-03-16 05:02:16 EST``
+- Total built-in packages: ``168``
 
 .. list-table:: Built-in package catalog
    :header-rows: 1
@@ -169,6 +169,9 @@ Built-in Supported Scientific Packages
    * - ``geant4``
      - Geant4 Particle-Matter Simulation Toolkit
      - `skilled-scipkg/geant4 <https://github.com/skilled-scipkg/geant4>`_
+   * - ``geosx``
+     - GEOSX Subsurface Multiphysics Framework
+     - `skilled-scipkg/GEOSX <https://github.com/skilled-scipkg/GEOSX>`_
    * - ``gprmax``
      - gprMax Ground Penetrating Radar Simulator
      - `skilled-scipkg/gprMax <https://github.com/skilled-scipkg/gprMax>`_

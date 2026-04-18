@@ -24,7 +24,7 @@ so you can focus on the science, not the infrastructure.
 
 ### 🔬 Autonomous Scientific Simulations *(stable)*
 
-Describe a **simulation goal** in plain language. **FermiLink** picks the right packages, generates input files, submits jobs, monitors progress, and analyze the data, even across multi-day HPC campaigns with hundreds of tasks.
+Describe a **simulation goal** in plain language. **FermiLink** picks the right packages, generates input files, submits jobs, monitors progress, and analyzes the data, even across multi-day HPC campaigns with hundreds of tasks.
 
 ```bash
 fermilink loop goal.md          # long-running simulations on workstations or HPC

@@ -6,25 +6,29 @@ FermiLink
    :align: center
    :scale: 18
 
-**FermiLink** is a unified AI agent framework for autonomous scientific computing on laptops, workstations, HPC clusters, and mobile phones.
-It supports a set of powerful **command line tools** for autonomous computation at different scales: from quick one-off runs (``fermilink exec``),
-to iterative jobs that wait on long local or HPC SLURM processes (``fermilink loop``), to full research-paper-scale workflows (``fermilink reproduce/research``).
+**FermiLink** lets you describe a scientific computing goal in a simple
+markdown file and then handles everything else -- writing scripts, choosing
+the right tools, submitting jobs, monitoring progress, and iterating until
+the goal is met. It works the same way on your laptop, your lab's
+workstation, or an HPC cluster.
 
 .. figure:: _static/img/major_modes_workflow.svg
    :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
    :align: center
    :width: 95%
 
-It ships with the built-in support of many popular scientific packages (``fermilink install``), and users can easily compile their local scientific packages, research pipelines described in 
-papers, or group-owned secrets to the knowledge database of **FermiLink** locally (``fermilink compile/recompile``) for efficient agent-operated scientific simulations.
+It ships with 150+ built-in scientific package knowledge bases
+(``fermilink install``), and you can compile your own local packages, paper
+pipelines, or group-specific tools into the knowledge base
+(``fermilink compile``).
 
 .. figure:: _static/img/package_management_workflow.svg
    :alt: FermiLink package management workflow.
    :align: center
    :width: 95%
 
-Apart from the command line tools, it includes a **web UI** for a ChatGPT-style chat interface, and a **Telegram bot** for remote control from your phone.
-Users can run autonomous scientific computing at any time, from any place.
+Apart from the command line, it includes a **web UI** for a ChatGPT-style
+interface and a **Telegram bot** for remote control from your phone.
 
 .. figure:: _static/img/web_ui_telegram.png
    :alt: FermiLink web UI and Telegram bot.
@@ -34,29 +38,45 @@ Users can run autonomous scientific computing at any time, from any place.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Get Started
+   :caption: 🚀 Get Started
 
-   introduction
+   quickstart
    installation
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Practical Tutorial on machines
-
    tutorial_laptop
    tutorial_hpc
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Usage Guide
-
-   Usage Guide <usage_guide>
+   choosing_agent
 
 .. toctree::
    :maxdepth: 1
-   :caption: Advanced Topics
+   :caption: 📖 Core Concepts
 
-   Advanced Configuration <configuration>
+   How FermiLink Works <introduction>
+   writing_goal_md
+   Code Optimization <optimize>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: 📋 Guides
+
+   CLI Commands <usage>
+   Web UI <usage_web_ui>
+   Telegram Bot <usage_chatting_apps>
+   Package Management <scientific_packages>
+   Building Your Own Package <usage_configure_your_package>
+   Research Pipelines & Memory <usage_advanced_configuration>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: 🔧 Reference
+
+   Configuration <configuration>
    architecture
-   contributing
    API Reference <api/modules>
+   Built-in Packages <built_in_scientific_packages>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: 🤝 Community
+
+   contributing
+   citation
