@@ -116,5 +116,10 @@ def cmd_agent(args: argparse.Namespace) -> int:
             )
         ),
     ]
+    if desired_provider is not None and updated.sandbox_policy == "enforce":
+        lines.append(
+            "Trusted local repo? Run "
+            f"`fermilink agent {updated.provider} --bypass-sandbox`."
+        )
     cli._emit_output(args, payload, lines)
     return 0

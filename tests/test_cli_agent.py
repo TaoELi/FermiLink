@@ -58,6 +58,21 @@ def test_agent_accepts_deepseek_provider(monkeypatch, tmp_path: Path, capsys) ->
     assert payload["provider"] == "deepseek"
 
 
+def test_agent_prints_bypass_hint_when_setting_provider(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    home = tmp_path / "fermilink-home"
+    monkeypatch.setenv("FERMILINK_HOME", str(home))
+
+    assert cli.main(["agent", "claude"]) == 0
+    out = capsys.readouterr().out
+    assert "Provider set to claude." in out
+    assert (
+        "Trusted local repo? Run `fermilink agent claude --bypass-sandbox`."
+        in out
+    )
+
+
 def test_agent_enables_sandbox_without_changing_mode(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
