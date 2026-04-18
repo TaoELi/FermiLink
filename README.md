@@ -1,147 +1,216 @@
 <p align="center">
-  <img src="src/fermilink/public/fermilink_logo.png" alt="FermiLink logo" width="300">
+  <img src="src/fermilink/public/fermilink_logo.png" alt="FermiLink logo" width="200"/>
 </p>
 
 <p align="center">
-  <a href="https://taoeli.github.io/FermiLink/"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs badge"></a>
-    <a href="https://pypi.org/project/fermilink/"><img src="https://img.shields.io/pypi/v/fermilink.svg?label=pypi&logo=pypi" alt="PyPI version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License: AGPLv3"></a>
-  <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python versions">
+  <a href="https://fermilink.org"><img src="https://img.shields.io/badge/docs-project-blue.svg" alt="Docs"></a>
+  <a href="https://pypi.org/project/fermilink/"><img src="https://img.shields.io/pypi/v/fermilink.svg?label=pypi&logo=pypi" alt="PyPI"></a>
+  <a href="https://github.com/TaoELi/FermiLink/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen.svg" alt="Python">
   <a href="https://arxiv.org/abs/2604.03460"><img src="https://img.shields.io/badge/arXiv-2604.03460-b31b1b.svg" alt="arXiv:2604.03460"></a>
 </p>
 
-# FermiLink: Unified Agent Framework for Multidomain Autonomous Scientific Simulations
-
-[**FermiLink**](https://taoeli.github.io/FermiLink/) is a unified agent framework for multidomain autonomous scientific simulations. It runs on personal laptops, **high-performance computing (HPC) clusters**, or even your cellphone. You can interact with it through **command-line tools**, a **web UI** with a ChatGPT-like chat interface, or a **Telegram bot** for remote computing when you travel or sleep.
-
-
-With [an official package channel](https://github.com/orgs/skilled-scipkg/repositories), **FermiLink** ships with built-in support for more than 150 scientific packages. You can also use its command-line tools to build a local knowledge base from any local scientific package or simulation pipeline.
-
-Once you describe a goal, **FermiLink** takes care of the simulations on both workstations and **HPC clusters**. It is designed to sustain long-running multi-task computational jobs for days or weeks without human intervention.
-
-
-## Quick Start
-Install the **FermiLink** package with pip:
-
-```bash
-pip install fermilink
-```
-
-To use any **FermiLink** feature, open a clean directory,
-
-```bash
-mkdir myproject
-cd myproject
-fermilink init
-```
-
-Then open **any local agent** (OpenAI Codex, Claude Code, Gemini CLI, their desktop apps, or VS Code extension, etc) within this directory and ask how to use:
-- **exec/chat/loop/research/reproduce** command line tools 
-- **Web UI** 
-- **Telegram remote control**
-- or a general question regarding how to setup or run simulations with **FermiLink**
-
-
-You can also simply type in:
-```bash
-fermilink
-```
-for a step-by-step guide regarding how to setup the environment of **FermiLink**.
-
-## Usage
-
-
-### FermiLink as a package knowledge base provider
-
-If you simply want to use **FermiLink** for easily accessing 150+ package knowledge bases and then use your **own custom agent** for running simulations:
-
-<details>
-
-```bash
-# 1. Install the scientific package knowledge base
-fermilink install meep
-# 2. Enter a working directory
-cd myproject/
-# 3. Create a local environment with package knowledge bases
-fermilink init meep
-# 3. Open any local agent for simulations with this package knowledge base
-codex/claude/gemini/deepseek
-```
-</details>
-
-### FermiLink as a simulation workflow provider
-
-If you want to use the existing **workflows in  FermiLink** for doing simulations:
-
-<details>
-
-```bash
-# 1. Install at least one scientific package knowledge base
-fermilink install meep
-
-# 2. set up the agent provider
-fermilink agent codex/claude/gemini
-
-# 3. (Optional) initialize default HPC profile at ~/.fermilink/HPC_PROFILE.json
-fermilink hpc
-
-# 4. Use command-line tool to do autonomous scientific research
-fermilink exec/loop/reproduce/research goal.md
-```
-
-</details>
-
-### FermiLink as a Web UI provider 
-
-For teaching and demonstration purposes, run the following command to [get a ChatGPT-like interface](https://fermilink.org/usage_web_ui.html):
-
-<details>
-
-```bash
-# start the web UI
-fermilink start
-# end the web UI
-fermilink stop
-# restart the web UI
-fermilink restart
-```
-
-</details>
-
-### FermiLink as a cellphone controller of HPC
-
-For [remotely controlling the HPC and running simulations](https://fermilink.org/usage_chatting_apps.html):
-
-<details>
-
-```bash
-# Start the gateway for supporting Chatbots via Telegram
-export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
-export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
-fermilink gateway
-```
+<h3 align="center">Write a <code>goal.md</code>. Let AI handle the rest.</h3>
 
 <p align="center">
-  <img src="docs/source/_static/img/fermilink_hpc_bot.jpeg" alt="FermiLink Telegram Bot" width="300">
+<b> FermiLink </b> reads a simple markdown file describing your scientific computing goal,<br>
+then autonomously runs and iterates on your laptop or HPC clusters, <br>
+so you can focus on the science, not the infrastructure.
 </p>
-</details>
+
+---
+
+## What Can FermiLink Do?
+
+### 🔬 Autonomous Scientific Simulations *(stable)*
+
+Describe a **simulation goal** in plain language. **FermiLink** picks the right packages, generates input files, submits jobs, monitors progress, and analyze the data, even across multi-day HPC campaigns with hundreds of tasks.
+
+```bash
+fermilink loop goal.md          # long-running simulations on workstations or HPC
+fermilink research goal.md      # full research-paper-scale, multi-task campaigns
+```
+
+### ⚡ Autonomous Code Optimization *(beta)*
+
+Apply **FermiLink** to your existing scientific code with a **performance goal**. It iteratively modifies hot paths and runs deterministic benchmarks. 
+
+At the end of the day, it provides optimized scientific code with  improved speed while preserving computational accuracy.
+
+```bash
+fermilink optimize goal.md      # iterative code with correctness guarantees
+```
+
+**Both features share the same interface: a single `goal.md` file.**
+
+---
+
+## How it works?
+
+**Step 1.** You write a `goal.md`, a plain markdown file:
+
+```markdown
+# Goal: Photonic crystal band structure
+
+Simulate the band structure of a 2D triangular lattice of dielectric
+rods (r=0.2a, ε=12) in air using MEEP/MPB.
+
+## What to compute
+- TM and TE band diagrams along Γ->M->K->Γ
+- Extract the band gap ratio (Δω/ω_mid) for the first gap
+
+## Success criteria
+- At least 8 bands converged with resolution ≥ 32
+- Band gap ratio within 5% of published values
+- Save final band diagram as `bands.png`
+```
+
+**Step 2.** Run one command:
+
+```bash
+fermilink loop goal.md
+```
+
+**Step 3.** **FermiLink** takes over. You come back to a finished `bands.png` and a summary report.
+
+---
+
+## Quickstart (5 minutes)
+
+```bash
+# 1. Install
+pip install fermilink
+
+# 2. Set up an AI agent (pick one)
+fermilink agent codex        # or: claude, gemini
+
+# 3. Install a scientific package knowledge base
+fermilink install meep       # 150+ packages available
+
+# 4. (Optional) Configure the default SLURM HPC profile
+fermilink hpc
+
+# 5. Write your goal.md (see example above), then run
+fermilink loop goal.md
+```
+
+That's it, you are all set!
+
+> **First time?** Just run `fermilink` with no arguments. Then, an interactive setup wizard will walk you through everything.
+
+---
+
+## How It Works
+
+FermiLink separates **what you want** (your `goal.md`) from **how to do it** (package knowledge + agent reasoning):
+
+```
+┌─────────────┐      ┌──────────────────┐      ┌──────────────────┐
+│   goal.md   │ ───▸ │   AI Agent       │ ───▸ │   Simulation /   │
+│  (your      │      │  (Claude, Codex, │      │   Optimization   │
+│   intent)   │      │   Gemini)        │      │   Engine         │
+└─────────────┘      └──────────────────┘      └──────────────────┘
+                            │                          │
+                     reads from                  runs on
+                            ▼                          ▼
+                   ┌──────────────────┐      ┌──────────────────┐
+                   │  Package         │      │  Your laptop,    │
+                   │  Knowledge Base  │      │  workstation,    │
+                   │  (150+ packages) │      │  or HPC cluster  │
+                   └──────────────────┘      └──────────────────┘
+```
+
+The agent doesn't just generate scripts. Instead, it sustains **multi-task, multi-day** computational campaigns without human intervention.
+
+---
+
+## Workflows at Every Scale
+
+**FermiLink** supports the following six major commands for various simulation workflows:
+
+| Command | Best for | Duration | Recommended Environment |
+|---|---|---|---|
+| `exec` | Quick one-off simulations | Minutes | Laptop / workstation |
+| `chat` | Interactive conversation with agents | Hours | Laptop / workstation |
+| `loop` | Iterative jobs with PID/SLURM monitoring | Hours -> days | Workstation / HPC |
+| `reproduce` | Multi-task, paper-scale reproducation of papers | Days -> weeks | HPC clusters |
+| `research` | Multi-task, paper-scale research | Days -> weeks | HPC clusters |
+| `optimize` | Code performance tuning *(beta)* | Hours | Any |
+
+---
+
+## Three Ways to Interact
+
+**FermiLink** isn't just a CLI tool. Pick the interface that fits you:
+
+- **Command line** — `fermilink exec/loop/reproduce/research/optimize goal.md` for headless, scriptable autonomy
+- **Web UI** — `fermilink start` launches a ChatGPT-style browser interface for interactive sessions
+- **Telegram bot** — `fermilink gateway` connects to Telegram so you can run and monitor HPC jobs from your phone
+
+---
+
+## 150+ Built-in Scientific Packages
+
+FermiLink ships with knowledge bases for packages spanning multiple scientific domains. Install any of them with a single command:
+
+```bash
+fermilink install <package>       # e.g., meep, lammps, pyscf, openfoam
+fermilink list                    # see all installed packages
+```
+
+Don't see your package? Compile your own local knowledge base:
+
+```bash
+fermilink compile /path/to/your/code
+```
+
+Browse the [full package list →](https://fermilink.org/built_in_scientific_packages.html)
+
+---
+
+## Build Your Own Package Knowledge Base
+
+If you have a research pipeline described in a paper or group-specific workflow, you can turn them into a **FermiLink**-compatible knowledge base:
+
+```bash
+# Compile a local code into a knowledge base
+fermilink compile /path/to/my-simulation-code
+
+# Recompile after updating your code
+fermilink recompile my-simulation-code
+```
+
+This means **FermiLink** can autonomously operate *any* scientific code, not just the 150+ that ship built-in.
+
+---
 
 ## Documentation
 
-Visit the [documentation](https://taoeli.github.io/FermiLink/) for installation details and usage guide. 
+| Resource | Link |
+|---|---|
+| Full documentation | [fermilink.org](https://fermilink.org) |
+| Installation guide | [fermilink.org/installation](https://fermilink.org/installation.html) |
+| Laptop tutorial | [fermilink.org/tutorial_laptop](https://fermilink.org/tutorial_laptop.html) |
+| HPC tutorial | [fermilink.org/tutorial_hpc](https://fermilink.org/tutorial_hpc.html) |
+| Architecture | [fermilink.org/architecture](https://fermilink.org/architecture.html) |
+| API reference | [fermilink.org/api](https://fermilink.org/api/modules.html) |
 
-In brief, the key design principle of **FermiLink** is the separation of package knowledge bases from simulation workflows, so that simulation workflows in **FermiLink**, from figure-level simulations to full-paper-level research on high-performance computing clusters, operate uniformly among supported packages via a four-layer progressive disclosure mechanism.
-![FermiLink design](docs/source/_static/img/package_management_workflow.svg)
-
-To accommodate simulations at different scopes, as demonstrated below, **FermiLink** delivers with three major computational workflows. 
-![FermiLink major workflows](docs/source/_static/img/major_modes_workflow.svg)
-- **exec** mode: Designed for short-duration simulations.
-- **loop** mode: Connects iterative agent reasoning with simulation monitoring for PID and HPC SLURM jobs, thus providing robust support for long-duration simulations on both workstations and HPC clusters. 
-- **research**/**reproduce** mode: Intended for multi-task simulations at the scope of a full research paper. 
-
+---
 
 ## Citation
 
-If you find **FermiLink** helpful for your research, please cite the following reference:
+If FermiLink is useful in your research, please cite:
 
-- Gang Meng†, Andres Felipe Bocanegra Vargas†, Xinwei Ji†, Federico Garcia-Gaitan, Felipe Reyes-Osorio, Jalil Varela-Manjarres, Yafei Ren, Mohammadhasan Dinpajooh, Branislav K. Nikolić, Tao E. Li. *FermiLink: A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. [**arXiv:2604.03460** (2026)](https://arxiv.org/abs/2604.03460).
+> - Gang Meng†, Andres Felipe Bocanegra Vargas†, Xinwei Ji†, Federico Garcia-Gaitan, Felipe Reyes-Osorio, Jalil Varela-Manjarres, Yafei Ren, Mohammadhasan Dinpajooh, Branislav K. Nikolić, Tao E. Li. *FermiLink: A Unified Agent Framework for Multidomain Autonomous Scientific Simulations*. [**arXiv:2604.03460** (2026)](https://arxiv.org/abs/2604.03460).
+
+---
+
+## Contributing
+
+We welcome contributions, from bug reports to new package knowledge bases. See [CONTRIBUTING →](https://fermilink.org/contributing.html)
+
+---
+
+## License
+
+[AGPL-3.0](LICENSE)
