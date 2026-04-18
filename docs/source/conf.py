@@ -96,7 +96,7 @@ html_theme_options = {
     "sidebar_hide_name": False,
     "top_of_page_button": "edit",
     "navigation_with_keys": False,
-    "light_logo": "img/mark.svg",
+    "light_logo": "img/mark-light.svg",
     "dark_logo": "img/mark.svg",
     "light_css_variables": {
         "color-brand-primary": "#1264a3",

@@ -19,6 +19,15 @@
   --mxl-gradient-text: linear-gradient(90deg, #ffffff 0%, #cfefff 40%, #9ee1ff 100%);
   --mxl-landing-bg: linear-gradient(180deg, #eef4fb 0%, #f6f9ff 48%, #ffffff 100%);
   --mxl-landing-fade: #f6f9ff;
+  /* Documentation code-block palette (light defaults) */
+  --mxl-code-surface: #f7f9fc;
+  --mxl-code-border: rgba(18, 65, 125, 0.14);
+  --mxl-code-header-bg: linear-gradient(180deg, #eef3fa 0%, #e5ecf5 100%);
+  --mxl-code-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 18px 32px -28px rgba(13, 42, 78, 0.35);
+  --mxl-inline-code-bg: rgba(18, 100, 163, 0.08);
+  --mxl-inline-code-border: rgba(18, 100, 163, 0.18);
+  --mxl-inline-code-color: #0d3b7a;
 }
 
 body {
@@ -38,6 +47,14 @@ body[data-theme="auto"][data-default-mode="light"] {
   --mxl-section-bg: rgba(18, 100, 163, 0.06);
   --mxl-landing-bg: linear-gradient(180deg, #eef4fb 0%, #f6f9ff 48%, #ffffff 100%);
   --mxl-landing-fade: #f6f9ff;
+  --mxl-code-surface: #f7f9fc;
+  --mxl-code-border: rgba(18, 65, 125, 0.14);
+  --mxl-code-header-bg: linear-gradient(180deg, #eef3fa 0%, #e5ecf5 100%);
+  --mxl-code-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 18px 32px -28px rgba(13, 42, 78, 0.35);
+  --mxl-inline-code-bg: rgba(18, 100, 163, 0.08);
+  --mxl-inline-code-border: rgba(18, 100, 163, 0.18);
+  --mxl-inline-code-color: #0d3b7a;
 }
 
 body[data-theme="dark"],
@@ -53,6 +70,14 @@ body[data-theme="auto"][data-default-mode="dark"] {
   --mxl-section-bg: rgba(102, 199, 255, 0.08);
   --mxl-landing-bg: linear-gradient(180deg, #071224 0%, #0c1d33 55%, #0f223b 100%);
   --mxl-landing-fade: #0c1d33;
+  --mxl-code-surface: #0f1a2e;
+  --mxl-code-border: rgba(132, 198, 255, 0.14);
+  --mxl-code-header-bg: linear-gradient(180deg, #152540 0%, #0f1a2e 100%);
+  --mxl-code-shadow: 0 1px 0 rgba(132, 198, 255, 0.05) inset,
+    0 18px 32px -24px rgba(0, 0, 0, 0.65);
+  --mxl-inline-code-bg: rgba(102, 199, 255, 0.12);
+  --mxl-inline-code-border: rgba(102, 199, 255, 0.22);
+  --mxl-inline-code-color: #d6ecff;
 }
 
 /* --- Landing page chrome (index only) --- */
@@ -1180,28 +1205,46 @@ body.mxl-landing .mxl-loop-card > * {
 .content h2,
 .content h3 {
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.018em;
 }
 
 .content h1 {
-  font-size: clamp(1.6rem, 1.1rem + 1.6vw, 2.0rem);
+  font-size: clamp(1.45rem, 1.05rem + 1.05vw, 1.75rem);
+  line-height: 1.18;
+  padding-bottom: 0.55rem;
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--mxl-card-border);
+  color: var(--color-foreground-primary);
 }
 
 .content h2 {
-  font-size: clamp(1.2rem, 1rem + 1.1vw, 1.6rem);
+  font-size: clamp(1.1rem, 0.95rem + 0.7vw, 1.35rem);
+  line-height: 1.22;
+  margin-top: 2.6rem;
+  margin-bottom: 0.9rem;
 }
 
 .content h3 {
-  font-size: clamp(0.9rem, 0.95rem + 0.8vw, 1.3rem);
+  font-size: clamp(0.98rem, 0.9rem + 0.45vw, 1.12rem);
+  line-height: 1.3;
+  margin-top: 1.9rem;
+  margin-bottom: 0.65rem;
+  letter-spacing: -0.008em;
 }
 
 .content h4 {
-  font-size: clamp(0.75rem, 0.9rem + 0.4vw, 1.0rem);
+  font-size: clamp(0.9rem, 0.88rem + 0.18vw, 1.0rem);
   font-weight: 600;
+  margin-top: 1.4rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.005em;
+  text-transform: none;
 }
 
 .content p {
-  font-size: 1.02rem;
+  font-size: 0.97rem;
+  line-height: 1.7;
   color: var(--mxl-text-muted);
 }
 
@@ -1223,22 +1266,85 @@ body.mxl-landing .mxl-loop-card > * {
   letter-spacing: 0.01em;
 }
 
-.content .highlight,
-.content pre {
-  border-radius: 18px;
-  background: var(--mxl-surface);
-  border: 1px solid var(--mxl-card-border);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), var(--mxl-shadow-card);
+.content .highlight {
+  position: relative;
+  border-radius: 14px;
+  background: var(--mxl-code-surface);
+  border: 1px solid var(--mxl-code-border);
+  box-shadow: var(--mxl-code-shadow);
   font-family: var(--mxl-code-font);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  margin: 1.35rem 0;
+  overflow: hidden;
+}
+
+.content .highlight pre {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 1.05rem 1.15rem !important;
+  margin: 0 !important;
+  line-height: 1.62;
+  font-size: inherit;
+  font-family: var(--mxl-code-font);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--mxl-border-rgb), 0.3) transparent;
+}
+
+.content .highlight pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.content .highlight pre::-webkit-scrollbar-thumb {
+  background: rgba(var(--mxl-border-rgb), 0.3);
+  border-radius: 999px;
+}
+
+.content .highlight pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* When code block is directly rendered as <pre> (rare, e.g. doctest)  */
+.content > pre,
+.content > div > pre:not(.highlight pre) {
+  border-radius: 14px;
+  background: var(--mxl-code-surface);
+  border: 1px solid var(--mxl-code-border);
+  box-shadow: var(--mxl-code-shadow);
+  font-family: var(--mxl-code-font);
+  font-size: 0.9rem;
+  padding: 1.05rem 1.15rem;
+  line-height: 1.62;
+}
+
+/* Copy-to-clipboard button (only when sphinx-copybutton is enabled) */
+.content .highlight button.copybtn {
+  top: 6px !important;
+  right: 8px !important;
+  z-index: 3;
+  background: rgba(var(--mxl-border-rgb), 0.06);
+  border: 1px solid var(--mxl-code-border);
+  border-radius: 8px;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.content .highlight:hover button.copybtn,
+.content .highlight button.copybtn:focus-visible {
+  opacity: 1;
 }
 
 .content code.literal {
   font-family: var(--mxl-code-font);
-  padding: 0.15rem 0.35rem;
-  border-radius: 8px;
-  background: var(--mxl-surface-subtle);
-  border: 1px solid rgba(var(--mxl-border-rgb), 0.1);
+  padding: 0.1rem 0.38rem;
+  border-radius: 6px;
+  background: var(--mxl-inline-code-bg);
+  border: 1px solid var(--mxl-inline-code-border);
+  color: var(--mxl-inline-code-color);
+  font-size: 0.88em;
+  font-weight: 500;
 }
 
 body.mxl-landing .mxl-command {
@@ -1955,5 +2061,397 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   .mxl-landing-foot__inner {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* =====================================================================
+   Documentation page polish (applies to non-landing pages only)
+   ===================================================================== */
+
+/* Give the content column a more editorial rhythm */
+body:not(.mxl-landing) .content {
+  font-family: var(--mxl-body-font);
+}
+
+body:not(.mxl-landing) article {
+  max-width: 780px;
+}
+
+body:not(.mxl-landing) .content p,
+body:not(.mxl-landing) .content li {
+  line-height: 1.7;
+}
+
+body:not(.mxl-landing) .content li {
+  color: var(--mxl-text-muted);
+  font-size: 0.97rem;
+  margin: 0.2rem 0;
+}
+
+body:not(.mxl-landing) .content a:not(.headerlink) {
+  color: var(--color-brand-content);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(var(--mxl-border-rgb), 0.28);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+body:not(.mxl-landing) .content a:not(.headerlink):hover {
+  color: var(--color-brand-primary);
+  border-bottom-color: var(--color-brand-primary);
+}
+
+body[data-theme="dark"]:not(.mxl-landing) .content a:not(.headerlink),
+body[data-theme="auto"][data-default-mode="dark"]:not(.mxl-landing) .content a:not(.headerlink) {
+  border-bottom-color: rgba(132, 198, 255, 0.3);
+}
+
+/* Headerlink (pilcrow) — subtler */
+.content .headerlink {
+  opacity: 0;
+  margin-left: 0.35rem;
+  color: var(--color-brand-primary);
+  font-weight: 400;
+  transition: opacity 0.15s ease;
+}
+
+.content h1:hover .headerlink,
+.content h2:hover .headerlink,
+.content h3:hover .headerlink,
+.content h4:hover .headerlink,
+.content h5:hover .headerlink,
+.content h6:hover .headerlink {
+  opacity: 0.8;
+}
+
+/* Sidebar brand — frame the logo for more presence in both themes */
+.sidebar-brand {
+  padding: 1.1rem 1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.sidebar-brand:hover {
+  text-decoration: none;
+}
+
+.sidebar-logo-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 10px;
+  border-radius: 16px;
+  background: linear-gradient(145deg,
+    rgba(18, 100, 163, 0.06),
+    rgba(18, 100, 163, 0.02));
+  border: 1px solid rgba(18, 100, 163, 0.14);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 8px 18px -14px rgba(13, 42, 78, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sidebar-brand:hover .sidebar-logo-container {
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 10px 22px -14px rgba(13, 42, 78, 0.55);
+}
+
+body[data-theme="dark"] .sidebar-logo-container,
+body[data-theme="auto"][data-default-mode="dark"] .sidebar-logo-container {
+  background: linear-gradient(145deg,
+    rgba(102, 199, 255, 0.08),
+    rgba(102, 199, 255, 0.02));
+  border-color: rgba(132, 198, 255, 0.18);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 10px 22px -16px rgba(0, 0, 0, 0.65);
+}
+
+.sidebar-brand img.sidebar-logo {
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sidebar-brand-text {
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  font-size: 0.98rem !important;
+  text-transform: none;
+  color: var(--color-foreground-primary);
+}
+
+/* Sidebar navigation — refined spacing and current-item treatment */
+.sidebar-tree {
+  padding-top: 0.3rem;
+}
+
+.sidebar-tree .caption,
+.sidebar-tree p.caption {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-foreground-secondary);
+  opacity: 0.85;
+  margin-top: 1.2rem;
+  margin-bottom: 0.3rem;
+  padding: 0 1rem;
+}
+
+.sidebar-tree .reference {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  padding: 0.32rem 0.7rem;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-tree .reference:hover {
+  background: rgba(var(--mxl-border-rgb), 0.08);
+}
+
+.sidebar-tree .current > .reference,
+.sidebar-tree .current-page > .reference {
+  background: rgba(18, 100, 163, 0.12);
+  color: var(--color-brand-primary);
+  font-weight: 600;
+}
+
+body[data-theme="dark"] .sidebar-tree .current > .reference,
+body[data-theme="dark"] .sidebar-tree .current-page > .reference,
+body[data-theme="auto"][data-default-mode="dark"] .sidebar-tree .current > .reference,
+body[data-theme="auto"][data-default-mode="dark"] .sidebar-tree .current-page > .reference {
+  background: rgba(102, 199, 255, 0.14);
+  color: var(--color-brand-primary);
+}
+
+/* Right-side TOC — refined list */
+.toc-drawer .toc-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-foreground-secondary);
+  opacity: 0.85;
+}
+
+.toc-tree a.reference {
+  font-size: 0.86rem;
+  line-height: 1.5;
+  padding: 0.22rem 0.5rem;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+  color: var(--color-foreground-secondary);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.toc-tree a.reference:hover {
+  color: var(--color-brand-primary);
+  background: rgba(var(--mxl-border-rgb), 0.05);
+}
+
+.toc-tree .scroll-current > a.reference {
+  color: var(--color-brand-primary);
+  font-weight: 600;
+  border-left-color: var(--color-brand-primary);
+  background: rgba(18, 100, 163, 0.06);
+}
+
+/* Refined admonitions */
+.content .admonition,
+.content .note,
+.content .tip,
+.content .warning,
+.content .important,
+.content .caution,
+.content .seealso {
+  border-radius: 12px;
+  border: 1px solid var(--mxl-card-border);
+  border-left: 4px solid var(--color-brand-primary);
+  background: var(--mxl-surface);
+  box-shadow: 0 4px 14px -10px rgba(13, 42, 78, 0.22);
+  padding: 0.8rem 1.1rem;
+  margin: 1.2rem 0;
+  font-size: 0.94rem;
+}
+
+.content .admonition .admonition-title,
+.content .admonition > p.admonition-title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-brand-primary);
+  margin: 0 0 0.45rem 0;
+  background: transparent;
+  padding: 0 0 0 1.6rem;
+  line-height: 1.4;
+  min-height: 1.1rem;
+}
+
+/* Position Furo's masked SVG icon to the left of the title text
+   rather than stacked above it. */
+.content .admonition .admonition-title::before,
+.content .admonition > p.admonition-title::before {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  transform: translateY(-50%);
+  background-color: var(--color-brand-primary);
+}
+
+/* No title-bar background — keep the card look consistent */
+.content .admonition .admonition-title::after,
+.content .admonition > p.admonition-title::after {
+  display: none;
+}
+
+.content .admonition p,
+.content .admonition li {
+  font-size: 0.94rem;
+  color: var(--color-foreground-primary);
+}
+
+.content .warning,
+.content .caution {
+  border-left-color: #d97706;
+}
+
+.content .warning .admonition-title,
+.content .caution .admonition-title {
+  color: #b45309;
+}
+
+.content .warning .admonition-title::before,
+.content .caution .admonition-title::before {
+  background-color: #b45309;
+}
+
+body[data-theme="dark"] .content .warning .admonition-title,
+body[data-theme="dark"] .content .caution .admonition-title {
+  color: #fbbf24;
+}
+
+body[data-theme="dark"] .content .warning .admonition-title::before,
+body[data-theme="dark"] .content .caution .admonition-title::before {
+  background-color: #fbbf24;
+}
+
+body[data-theme="dark"] .content .warning,
+body[data-theme="dark"] .content .caution {
+  border-left-color: #f59e0b;
+}
+
+/* Refined tables */
+body:not(.mxl-landing) .content table.docutils {
+  border-radius: 12px;
+  font-size: 0.92rem;
+  box-shadow: 0 4px 18px -14px rgba(13, 42, 78, 0.3);
+}
+
+body:not(.mxl-landing) .content table.docutils thead {
+  background: rgba(18, 100, 163, 0.08);
+}
+
+body:not(.mxl-landing) .content table.docutils thead th {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-foreground-primary);
+  border-bottom: 1px solid var(--mxl-card-border);
+  padding: 0.7rem 1rem;
+}
+
+body:not(.mxl-landing) .content table.docutils tbody tr:nth-child(even) {
+  background: rgba(var(--mxl-border-rgb), 0.03);
+}
+
+body:not(.mxl-landing) .content table.docutils tbody tr:hover {
+  background: rgba(var(--mxl-border-rgb), 0.06);
+}
+
+body:not(.mxl-landing) .content table.docutils tbody td {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--mxl-card-border);
+}
+
+/* Prev/next navigation at the bottom of each doc page */
+.related-pages {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--mxl-card-border);
+  display: flex;
+  gap: 1rem;
+}
+
+.related-pages a {
+  flex: 1;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid var(--mxl-card-border);
+  background: var(--mxl-surface);
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.related-pages a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--mxl-border-rgb), 0.28);
+  box-shadow: 0 8px 22px -14px rgba(13, 42, 78, 0.3);
+}
+
+.related-pages .page-info .title {
+  font-weight: 600;
+  color: var(--color-foreground-primary);
+}
+
+.related-pages .context {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground-secondary);
+  opacity: 0.8;
+}
+
+/* Normalize heading rhythm after common first elements */
+body:not(.mxl-landing) .content > section > p:first-of-type,
+body:not(.mxl-landing) .content > p:first-of-type {
+  font-size: 1.02rem;
+  color: var(--color-foreground-primary);
+}
+
+/* Figure captions */
+.content figure figcaption,
+.content .figure .caption {
+  font-size: 0.85rem;
+  color: var(--color-foreground-secondary);
+  font-style: italic;
+  margin-top: 0.5rem;
+}
+
+/* Keep the author-defined override block tidy on small screens */
+@media (max-width: 768px) {
+  body:not(.mxl-landing) article {
+    max-width: 100%;
+  }
+
+  .content .highlight pre {
+    padding: 0.95rem 0.95rem !important;
+  }
+
+  .related-pages {
+    flex-direction: column;
   }
 }

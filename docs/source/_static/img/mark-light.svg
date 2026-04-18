@@ -1,0 +1,32 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  role="img"
+  aria-label="FermiLink mark"
+>
+  <defs>
+    <linearGradient id="fl-stroke" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0d3b7a" />
+      <stop offset="55%" stop-color="#1264a3" />
+      <stop offset="100%" stop-color="#2186d6" />
+    </linearGradient>
+    <radialGradient id="fl-dot" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#1a7cd1" />
+      <stop offset="100%" stop-color="#0d3b7a" />
+    </radialGradient>
+  </defs>
+  <g
+    fill="none"
+    stroke="url(#fl-stroke)"
+    stroke-width="1.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <ellipse cx="12" cy="12" rx="9" ry="4.2" />
+    <ellipse cx="12" cy="12" rx="9" ry="4.2" transform="rotate(60 12 12)" />
+    <ellipse cx="12" cy="12" rx="9" ry="4.2" transform="rotate(120 12 12)" />
+  </g>
+  <circle cx="10" cy="12" r="0.95" fill="url(#fl-dot)" />
+  <circle cx="12" cy="12" r="0.95" fill="url(#fl-dot)" />
+  <circle cx="14" cy="12" r="0.95" fill="url(#fl-dot)" />
+</svg>
