@@ -10,7 +10,7 @@ Produces:
         img/metric_vs_iter.{png,svg}
         img/improvement_cumulative.{png,svg}
         iterations/iter_XXXX_accepted.rst
-        contract/{benchmark.yaml, benchmark_runner.py, goal_inputs.json, ...}
+        contract/{benchmark.yaml, benchmark_runner.py, goal.md, goal_inputs.json, ...}
         data/{results.tsv, summary.json}
 """
 
@@ -74,9 +74,16 @@ def copy_contract(optimize_dir: Path, out_dir: Path) -> list[str]:
     copied: list[str] = []
     autogen = optimize_dir / "autogen"
     if autogen.exists():
-        for name in ("benchmark.yaml", "benchmark_runner.py", "goal_inputs.json",
-                     "goal_analysis.json", "goal_mode.json", "run_optimize.sh",
-                     "setup_env.sh"):
+        for name in (
+            "benchmark.yaml",
+            "benchmark_runner.py",
+            "goal.md",
+            "goal_inputs.json",
+            "goal_analysis.json",
+            "goal_mode.json",
+            "run_optimize.sh",
+            "setup_env.sh",
+        ):
             src = autogen / name
             if src.exists():
                 shutil.copy2(src, dst / name)
@@ -399,7 +406,7 @@ def build(
     if not rows:
         raise SystemExit(f"no parseable rows in {results_tsv}")
     dir_final = direction or plot_optimize.infer_direction(rows)
-    label = metric_label or rows[0].metric_name or "primary metric"
+    label = metric_label or plot_optimize.humanize_metric_label(rows[0].metric_name if rows else "")
     final_title = title or f"Optimization Report — {optimize_dir.parent.name}"
 
     (out_dir / "img").mkdir()
