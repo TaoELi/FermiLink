@@ -1,4 +1,4 @@
-FermiLink
+**FermiLink**
 ======================================
 
 .. image:: _static/img/icon.png

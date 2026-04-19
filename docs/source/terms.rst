@@ -1,18 +1,18 @@
 :orphan:
 
-FermiLink Terms of Use
-======================
+**FermiLink** Terms of Use
+==========================
 
 **Effective Date:** February 10, 2026
 
-These Terms of Use ("Terms") govern your access to and use of the FermiLink web service, including the chat interface, backend execution service, and related software ("Service").
+These Terms of Use ("Terms") govern your access to and use of the **FermiLink** web service, including the chat interface, backend execution service, and related software ("Service").
 
 By creating an account, accessing, or using the Service, you agree to these Terms. If you do not agree, do not use the Service.
 
 1. The Service
 --------------
 
-FermiLink is an AI-assisted scientific simulation service. It can:
+**FermiLink** is an AI-assisted scientific simulation service. It can:
 
 - accept your prompts and files through a web interface;
 - route requests to a scientific package based on keyword matching and model-based checks;
@@ -122,4 +122,4 @@ These Terms are governed by applicable law in the operator's jurisdiction, excep
 15. Contact
 -----------
 
-For questions about these Terms, contact the FermiLink service operator.
+For questions about these Terms, contact the **FermiLink** service operator.

@@ -9,7 +9,7 @@ changes that improve measured performance.
 Two entry points are provided:
 
 - **Goal mode** -- describe your optimization intent in a short structured
-  markdown file and let FermiLink auto-generate benchmarks.
+  markdown file and let **FermiLink** auto-generate benchmarks.
 - **Expert mode** -- supply a hand-crafted benchmark YAML contract and runner
   script for full control.
 
@@ -21,7 +21,7 @@ Goal mode
 
 Goal mode is the recommended starting point.  You write a ``goal.md`` file
 (~30 lines) instead of a full benchmark YAML contract (~1000 lines), and
-FermiLink analyses the target source code to generate everything else.
+**FermiLink** analyses the target source code to generate everything else.
 
 .. code-block:: bash
 
@@ -77,7 +77,7 @@ improve the quality of the generated benchmark.
 Goal mode pipeline
 ~~~~~~~~~~~~~~~~~~
 
-When a goal file is submitted, FermiLink runs a two-phase pipeline:
+When a goal file is submitted, **FermiLink** runs a two-phase pipeline:
 
 1. **Source analysis** -- an agent reads the target source code and produces a
    structured JSON analysis of the package, its hot paths, and correctness
@@ -109,7 +109,7 @@ The benchmark YAML contract defines:
 - Optional train/test split via ``split.train_case_ids`` to prevent
   overfitting.
 
-FermiLink ships reference benchmark templates for Python, C++, and Fortran
+**FermiLink** ships reference benchmark templates for Python, C++, and Fortran
 packages under ``scripts/``.
 
 

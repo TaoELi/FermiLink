@@ -1,7 +1,7 @@
 Architecture
 ============
 
-This page gives a high-level overview of how FermiLink is organized.
+This page gives a high-level overview of how **FermiLink** is organized.
 
 Repository layout
 -----------------

@@ -1,14 +1,14 @@
 ``compile``: Configure Your Package
 ===================================
 
-Apart from using the built-in curated scientific packages, you can also configure your own local package for FermiLink. This is particularly useful when you have custom or closed-source code that you want to integrate with FermiLink in your local machines.
+Apart from using the built-in curated scientific packages, you can also configure your own local package for **FermiLink**. This is particularly useful when you have custom or closed-source code that you want to integrate with **FermiLink** in your local machines.
 
 Quick ``compile`` flow
 -----------------------
 
-``fermilink compile`` provides a quick way to onboard your local package into FermiLink. 
+``fermilink compile`` provides a quick way to onboard your local package into **FermiLink**. 
 
-It generates the necessary **Agent Skills** for your package and installs it into the **local** scientific package storage. This allows you to use your package in FermiLink agent runs just like the built-in packages.
+It generates the necessary **Agent Skills** for your package and installs it into the **local** scientific package storage. This allows you to use your package in **FermiLink** agent runs just like the built-in packages.
 
 
 .. code-block:: bash
@@ -28,7 +28,7 @@ Useful compile flags:
 - ``--core-skill-count``: number of topic skills to enrich with high-signal playbooks (default 6).
 - ``--docs-only`` for docs-first generation when source trees are unavailable.
 - ``--strict-compile-validation`` to fail when validation findings exist.
-- ``--install-off`` to refresh ``skills/`` in the local path only, which is useful for iterative skill development without installing the package to local FermiLink storage.
+- ``--install-off`` to refresh ``skills/`` in the local path only, which is useful for iterative skill development without installing the package to local **FermiLink** storage.
 - ``--keep-compile-artifacts`` to keep temporary ``sci-skills-generator/`` folder after compile.
 
 

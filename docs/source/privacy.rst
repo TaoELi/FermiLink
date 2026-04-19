@@ -1,11 +1,11 @@
 :orphan:
 
-FermiLink Privacy Policy
-========================
+**FermiLink** Privacy Policy
+============================
 
 **Effective Date:** February 10, 2026
 
-This Privacy Policy explains how the FermiLink web service ("FermiLink," "we," "our," or "us") collects, uses, stores, and discloses information when you use the service.
+This Privacy Policy explains how the **FermiLink** web service ("**FermiLink**," "we," "our," or "us") collects, uses, stores, and discloses information when you use the service.
 
 By using the service, you acknowledge this Privacy Policy.
 
@@ -34,7 +34,7 @@ When account login/signup is enabled, we may collect:
 2.2 Chat and Request Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When you interact with FermiLink, we process and may store:
+When you interact with **FermiLink**, we process and may store:
 
 - your prompts and chat messages;
 - assistant responses;
@@ -43,7 +43,7 @@ When you interact with FermiLink, we process and may store:
 2.3 Workspace and Artifact Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For each session, FermiLink may create workspace data (for example under ``workspaces/<session_id>/``) including:
+For each session, **FermiLink** may create workspace data (for example under ``workspaces/<session_id>/``) including:
 
 - generated code/scripts/configuration files;
 - logs and command outputs;
@@ -76,7 +76,7 @@ We use collected information to:
 4. Automated Routing and Processing
 -----------------------------------
 
-FermiLink may automatically analyze prompt text to choose a scientific package (for example, keyword routing and model-based second checks). This is automated processing used to improve response relevance.
+**FermiLink** may automatically analyze prompt text to choose a scientific package (for example, keyword routing and model-based second checks). This is automated processing used to improve response relevance.
 
 5. Sharing and Disclosure
 -------------------------
@@ -124,7 +124,7 @@ For requests, contact the service operator. We may need to verify your identity 
 10. Children's Privacy
 ----------------------
 
-FermiLink is not intended for children under 13 (or the minimum age required in your jurisdiction), and we do not knowingly provide accounts to such users.
+**FermiLink** is not intended for children under 13 (or the minimum age required in your jurisdiction), and we do not knowingly provide accounts to such users.
 
 11. Changes to This Policy
 --------------------------
@@ -134,4 +134,4 @@ We may update this Privacy Policy from time to time. The Effective Date above in
 12. Contact
 -----------
 
-For privacy questions or requests, contact the FermiLink service operator.
+For privacy questions or requests, contact the **FermiLink** service operator.

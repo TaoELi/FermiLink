@@ -25,7 +25,7 @@ After source-code changes
    # or point to a local development copy
    fermilink recompile <package_id> <path/to/source> --core-skill-count 6
 
-When a source path is given, FermiLink recompiles from that path and then
+When a source path is given, **FermiLink** recompiles from that path and then
 installs the result into local storage, so you can iterate on a development
 copy before publishing.
 
@@ -72,7 +72,7 @@ so that **all** future sessions benefit.
    fermilink recompile <package_id> --memory ./projects \
      --memory-scope package-specific
 
-When a directory is given, FermiLink recursively finds all ``memory.md`` files
+When a directory is given, **FermiLink** recursively finds all ``memory.md`` files
 and extracts ``### Suggested skills updates`` entries that match the package.
 
 ``--memory-scope`` controls which suggestions are applied:

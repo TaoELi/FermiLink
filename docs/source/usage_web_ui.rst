@@ -3,7 +3,7 @@ Web UI
 
 Use the web interface for ChatGPT-style interaction in your local environment. 
 
-The Web UI is built with `Chainlit <https://chainlit.io/>`_ and provides a user-friendly interface for chatting with your installed FermiLink packages.
+The Web UI is built with `Chainlit <https://chainlit.io/>`_ and provides a user-friendly interface for chatting with your installed **FermiLink** packages.
 
 
 Fast path (recommended)
@@ -29,7 +29,7 @@ Then your browser will automatically open the following webpage:
 
    /package list
 
-to check the locally installed packages for FermiLink. If you see installed packages in the list, you are ready to chat. If you did not install any packages yet, install one with:
+to check the locally installed packages for **FermiLink**. If you see installed packages in the list, you are ready to chat. If you did not install any packages yet, install one with:
 
 .. code-block:: bash
 
@@ -126,7 +126,7 @@ Troubleshooting (common first-run issues)
 Package selection inside the UI
 -------------------------------
 
-FermiLink routes each message to an installed package (keyword router + optional
+**FermiLink** routes each message to an installed package (keyword router + optional
 second-guess preflight). You can also pin a package for the current chat.
 
 Use ``/package help`` in the UI for the built-in command list. The most common

@@ -334,7 +334,7 @@ The above SLURM script starts a gateway for LAMMPS-related jobs with a specific 
 Where your data lives
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, FermiLink stores runtime data under ``$FERMILINK_HOME``:
+By default, **FermiLink** stores runtime data under ``$FERMILINK_HOME``:
 
 - ``scientific_packages/``: installed package knowledge bases
 - ``runtime/logs/``: service and gateway logs

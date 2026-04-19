@@ -20,7 +20,7 @@ For detailed guidance on choosing the right provider for your needs, see :doc:`c
 Prerequisites
 ~~~~~~~~~~~~~~~~
 
-FermiLink assumes a standard local developer environment:
+**FermiLink** assumes a standard local developer environment:
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
@@ -59,8 +59,8 @@ Example login commands:
    # Gemini
    gemini
 
-Install FermiLink
-~~~~~~~~~~~~~~~~~~
+Install **FermiLink**
+~~~~~~~~~~~~~~~~~~~~~
 
 You can install **FermiLink** with pip:
 

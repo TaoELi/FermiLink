@@ -126,7 +126,7 @@ Practical starting pattern:
 Advanced: An Army of **FermiLink** Bots
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can simutaneous control many **FermiLink** bots by running multiple ``fermilink gateway`` processes with different Telegram bot tokens and HPC profiles. This allows you to have an army of FermiLink agents working on different tasks at the same time, all controlled remotely from your phone.
+You can simutaneous control many **FermiLink** bots by running multiple ``fermilink gateway`` processes with different Telegram bot tokens and HPC profiles. This allows you to have an army of **FermiLink** agents working on different tasks at the same time, all controlled remotely from your phone.
 
 For example, you can submit the following long-run bash job to your HPC:
 

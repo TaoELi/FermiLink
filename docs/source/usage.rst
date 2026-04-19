@@ -289,7 +289,7 @@ This creates ``~/.fermilink/HPC_PROFILE.json`` (or
 Runtime behavior for ``exec/loop/research/reproduce``:
 
 - If ``--hpc-profile <json>`` is provided, that explicit file is used.
-- Otherwise, FermiLink checks the default home profile
+- Otherwise, **FermiLink** checks the default home profile
   ``HPC_PROFILE.json`` and uses it when valid.
 - If neither profile is available, **FermiLink** runs locally using PID-based
   waits/iteration behavior.

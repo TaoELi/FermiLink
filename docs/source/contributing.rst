@@ -1,7 +1,7 @@
 Contributing
 ============
 
-Follow these guidelines when contributing to FermiLink.
+Follow these guidelines when contributing to **FermiLink**.
 
 Development setup
 -----------------
@@ -37,5 +37,4 @@ Before opening a pull request, run the quality checks and unit tests:
    make pretty
    # unit tests need to be passed
    pytest -q
-
 

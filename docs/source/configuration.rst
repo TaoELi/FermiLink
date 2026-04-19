@@ -2,12 +2,12 @@ Advanced Configuration
 ======================
 
 This page summarizes the most important settings for local and shared
-FermiLink deployments.
+**FermiLink** deployments.
 
 Agent runtime policy
 --------------------
 
-FermiLink resolves provider and sandbox behavior in this order:
+**FermiLink** resolves provider and sandbox behavior in this order:
 
 1. Environment overrides:
    ``FERMILINK_AGENT_PROVIDER``,
@@ -118,7 +118,7 @@ Gateway controls
 Core runtime paths (when not overridden)
 ----------------------------------------
 
-By default, FermiLink stores runtime data under:
+By default, **FermiLink** stores runtime data under:
 
 - ``~/.fermilink/scientific_packages``
 - ``~/.fermilink/workspaces``

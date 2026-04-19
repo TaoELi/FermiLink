@@ -1,7 +1,7 @@
 Citation
 ========
 
-If FermiLink is useful in your research, please cite:
+If **FermiLink** is useful in your research, please cite:
 
    Gang Meng, Andres Felipe Bocanegra Vargas, Xinwei Ji, Federico
    Garcia-Gaitan, Felipe Reyes-Osorio, Jalil Varela-Manjarres, Yafei Ren,

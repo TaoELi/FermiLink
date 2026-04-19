@@ -1,17 +1,17 @@
 ``install``: Built-In Scientific Package Management
 ====================================================
 
-One central idea of FermiLink is to provide the full source code tree for agent reasoning, instead of only providing API-level documentation. This allows agents to have more context and flexibility in using the scientific packages, which is crucial for complex scientific simulations.
+One central idea of **FermiLink** is to provide the full source code tree for agent reasoning, instead of only providing API-level documentation. This allows agents to have more context and flexibility in using the scientific packages, which is crucial for complex scientific simulations.
 
-However, because the source code trees of scientific packages can be very large, FermiLink builds an **Agent Skills** layer on top of the source code tree, which provides an entry point for agent reasoning. This design allows agents to efficiently locate and access the most relevant documentation, tutorials, and source code functions for reasoning. Common pitfalls for using the package are also highlighted in **Agent Skills**.
+However, because the source code trees of scientific packages can be very large, **FermiLink** builds an **Agent Skills** layer on top of the source code tree, which provides an entry point for agent reasoning. This design allows agents to efficiently locate and access the most relevant documentation, tutorials, and source code functions for reasoning. Common pitfalls for using the package are also highlighted in **Agent Skills**.
 
-FermiLink package management controls which scientific knowledge base is available
+**FermiLink** package management controls which scientific knowledge base is available
 at execution time and how that context is overlaid into workspaces.
 
 Built-in package catalog
 ------------------------
 
-FermiLink has a `built-in curated channel <https://github.com/orgs/skilled-scipkg/repositories>`_ (Github: ``skilled-scipkg``) containing more than 150 scientific packages across multiple domains. Each package in this channel has an associated knowledge base, including the full source code tree and the **Agent Skills** layer. This built-in channel allows users to quickly access a wide range of scientific packages.
+**FermiLink** has a `built-in curated channel <https://github.com/orgs/skilled-scipkg/repositories>`_ (Github: ``skilled-scipkg``) containing more than 150 scientific packages across multiple domains. Each package in this channel has an associated knowledge base, including the full source code tree and the **Agent Skills** layer. This built-in channel allows users to quickly access a wide range of scientific packages.
 
 For the live list of built-in curated packages (``package_id``, title, and repo),
 see :doc:`built_in_scientific_packages`.
@@ -92,7 +92,7 @@ workspace during ``exec``/``chat``/``loop`` runs.
 Where are the package files stored?
 -------------------------------------
 
-Once installed, these package data are stored within FermiLink under ``FERMILINK_SCIPKG_ROOT`` or ``~/.fermilink/scientific_packages/``:
+Once installed, these package data are stored within **FermiLink** under ``FERMILINK_SCIPKG_ROOT`` or ``~/.fermilink/scientific_packages/``:
 
 - ``packages/<package_id>/...`` installed package trees.
 - ``registry.json`` package metadata and active package.
