@@ -3,6 +3,7 @@
 Usage:
     python build_report.py <optimize-dir> --out <report-dir> [--title TITLE]
                            [--metric-label LABEL] [--direction lower|higher]
+                           [--git-push]
 
 Produces:
     <report-dir>/
@@ -10,7 +11,8 @@ Produces:
         img/metric_vs_iter.{png,svg}
         img/improvement_cumulative.{png,svg}
         iterations/iter_XXXX_accepted.rst
-        contract/{benchmark.yaml, benchmark_runner.py, goal_inputs.json, ...}
+        contract/{benchmark.yaml, benchmark_runner.py, goal.md, goal_inputs.json, ...}
+        inputs/all/...  # copied benchmark input files from .fermilink-optimize/inputs/all/
         data/{results.tsv, summary.json}
 """
 
@@ -18,16 +20,52 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shlex
 import shutil
+import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 ASSETS_DIR = Path(__file__).resolve().parent
 if str(ASSETS_DIR) not in sys.path:
     sys.path.insert(0, str(ASSETS_DIR))
 
 import plot_optimize  # noqa: E402
+
+_HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$")
+_GIT_PUSH_BRANCH_PREFIX = "fermilink-optimize"
+
+
+@dataclass
+class RerunGuide:
+    package_id: str
+    language: str
+    launcher: Optional[str]
+    clone_url: str
+    repo_url: str
+    default_branch: Optional[str]
+    branch_url: Optional[str]
+    has_goal: bool
+    has_benchmark: bool
+    has_runner: bool
+    has_goal_inputs: bool
+    build_commands: list[str]
+    benchmark_input_files: list[str]
+    train_benchmark_block: str
+    test_benchmark_block: str
+
+
+@dataclass
+class PublishedBranch:
+    branch: str
+    remote: str
+    remote_url: str
+    repo_url: Optional[str]
+    branch_url: Optional[str]
 
 
 def split_description(desc: str) -> tuple[str, str]:
@@ -54,7 +92,7 @@ def split_description(desc: str) -> tuple[str, str]:
 
 
 def rst_escape(text: str) -> str:
-    return (text or "").replace("|", "\\|")
+    return (text or "").replace("|", "\\|").replace("`", "\\`")
 
 
 def rst_title(text: str, char: str) -> str:
@@ -68,15 +106,32 @@ def copy_tree(src: Path, dst: Path) -> None:
         shutil.copytree(src, dst)
 
 
+def list_relative_files(root: Path) -> list[str]:
+    if not root.is_dir():
+        return []
+    return [
+        str(path.relative_to(root)).replace("\\", "/")
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    ]
+
+
 def copy_contract(optimize_dir: Path, out_dir: Path) -> list[str]:
     dst = out_dir / "contract"
     dst.mkdir(parents=True, exist_ok=True)
     copied: list[str] = []
     autogen = optimize_dir / "autogen"
     if autogen.exists():
-        for name in ("benchmark.yaml", "benchmark_runner.py", "goal_inputs.json",
-                     "goal_analysis.json", "goal_mode.json", "run_optimize.sh",
-                     "setup_env.sh"):
+        for name in (
+            "benchmark.yaml",
+            "benchmark_runner.py",
+            "goal.md",
+            "goal_inputs.json",
+            "goal_analysis.json",
+            "goal_mode.json",
+            "run_optimize.sh",
+            "setup_env.sh",
+        ):
             src = autogen / name
             if src.exists():
                 shutil.copy2(src, dst / name)
@@ -89,23 +144,30 @@ def copy_contract(optimize_dir: Path, out_dir: Path) -> list[str]:
     return copied
 
 
+def copy_benchmark_inputs(optimize_dir: Path, out_dir: Path) -> list[str]:
+    src_root = optimize_dir / "inputs" / "all"
+    input_files = list_relative_files(src_root)
+    if not input_files:
+        return []
+    dst_root = out_dir / "inputs" / "all"
+    copy_tree(src_root, dst_root)
+    return input_files
+
+
 def load_review_context(iter_dir: Path) -> dict:
-    p = iter_dir / "review_context.json"
-    if not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text())
-    except json.JSONDecodeError:
-        return {}
+    return load_json_file(iter_dir / "review_context.json")
 
 
 def load_controller_result(iter_dir: Path) -> dict:
-    p = iter_dir / "controller_result.json"
-    if not p.exists():
+    return load_json_file(iter_dir / "controller_result.json")
+
+
+def load_json_file(path: Path) -> dict:
+    if not path.exists():
         return {}
     try:
-        return json.loads(p.read_text())
-    except json.JSONDecodeError:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
         return {}
 
 
@@ -121,11 +183,547 @@ def read_text_safe(path: Path, limit: Optional[int] = None) -> str:
     return data
 
 
-def build_guardrails_table(review: dict, controller: dict) -> str:
+def extract_markdown_sections(text: str) -> dict[str, str]:
+    sections: dict[str, str] = {}
+    current_heading = ""
+    current_lines: list[str] = []
+    for line in text.splitlines():
+        match = _HEADING_RE.match(line)
+        if match:
+            if current_heading:
+                sections[current_heading] = "\n".join(current_lines).strip()
+            current_heading = match.group(2).strip().lower()
+            current_lines = []
+        else:
+            current_lines.append(line)
+    if current_heading:
+        sections[current_heading] = "\n".join(current_lines).strip()
+    return sections
+
+
+def goal_first_line(goal_text: str, heading: str) -> str:
+    body = extract_markdown_sections(goal_text).get(heading.lower(), "")
+    return body.splitlines()[0].strip() if body else ""
+
+
+def goal_code_blocks(goal_text: str, heading: str) -> list[str]:
+    body = extract_markdown_sections(goal_text).get(heading.lower(), "")
+    blocks: list[str] = []
+    current: list[str] | None = None
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            if current is None:
+                current = []
+            else:
+                blocks.append("\n".join(current).strip())
+                current = None
+            continue
+        if current is not None:
+            current.append(line)
+    return [block for block in blocks if block]
+
+
+def yaml_scalar(text: str, key: str) -> str:
+    pattern = re.compile(rf"^{re.escape(key)}:\s*(.+?)\s*$", re.MULTILINE)
+    match = pattern.search(text)
+    if not match:
+        return ""
+    value = match.group(1).split(" #", 1)[0].strip()
+    return value.strip("\"'")
+
+
+def normalize_language(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if not value:
+        return ""
+    if "python" in value or value == "py":
+        return "python"
+    if "fortran" in value or value in {"f90", "f77", "f95"}:
+        return "fortran"
+    if value in {"cpp", "c++", "cxx", "c"} or "c/c++" in value:
+        return "cpp"
+    return value
+
+
+def infer_language_from_goal_path(goal_path: str) -> str:
+    name = Path(goal_path or "").name.lower()
+    if name.startswith(("python-", "py-")):
+        return "python"
+    if name.startswith(("fortran-", "f90-", "f77-")):
+        return "fortran"
+    if name.startswith(("cpp-", "cxx-", "c-")):
+        return "cpp"
+    return ""
+
+
+def launcher_for_language(language: str) -> Optional[str]:
+    normalized = normalize_language(language)
+    if normalized == "python":
+        return "fermilink-optimize-python"
+    if normalized in {"cpp", "fortran"}:
+        return "fermilink-optimize-cpp"
+    return None
+
+
+def default_upstream_clone(package_id: str) -> str:
+    return f"git@github.com:skilled-scipkg/{package_id}.git"
+
+
+def default_upstream_repo_url(package_id: str) -> str:
+    return f"https://github.com/skilled-scipkg/{package_id}"
+
+
+def git_stdout(repo_root: Path, *args: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+    return result.stdout.strip()
+
+
+def detect_default_branch(repo_root: Path) -> Optional[str]:
+    ref = git_stdout(repo_root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    if ref.startswith("origin/"):
+        return ref.split("/", 1)[1]
+    if ref:
+        return ref
+    for candidate in ("main", "master", "develop"):
+        try:
+            subprocess.run(
+                ["git", "-C", str(repo_root), "show-ref", "--verify", "--quiet", f"refs/heads/{candidate}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return candidate
+        except (OSError, subprocess.CalledProcessError):
+            continue
+    return None
+
+
+def detect_current_branch(repo_root: Path) -> Optional[str]:
+    ref = git_stdout(repo_root, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if ref:
+        return ref
+    ref = git_stdout(repo_root, "branch", "--show-current")
+    return ref or None
+
+
+def detect_push_remote(repo_root: Path, branch: str) -> str:
+    remote = git_stdout(repo_root, "config", f"branch.{branch}.remote")
+    return remote or "origin"
+
+
+def github_repo_url_from_remote(remote_url: str) -> Optional[str]:
+    value = (remote_url or "").strip()
+    if not value:
+        return None
+
+    repo_path = ""
+    if value.startswith("git@github.com:"):
+        repo_path = value.split(":", 1)[1]
+    elif value.startswith("ssh://git@github.com/"):
+        repo_path = value.split("ssh://git@github.com/", 1)[1]
+    elif value.startswith("https://github.com/"):
+        repo_path = value.split("https://github.com/", 1)[1]
+    elif value.startswith("http://github.com/"):
+        repo_path = value.split("http://github.com/", 1)[1]
+    else:
+        return None
+
+    repo_path = repo_path.strip("/")
+    if repo_path.endswith(".git"):
+        repo_path = repo_path[:-4]
+    parts = repo_path.split("/")
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        return None
+    return f"https://github.com/{parts[0]}/{parts[1]}"
+
+
+def collect_published_branch(optimize_dir: Path) -> PublishedBranch:
+    repo_dir = optimize_dir.resolve().parent
+    repo_root_text = git_stdout(repo_dir, "rev-parse", "--show-toplevel")
+    if not repo_root_text:
+        raise SystemExit(f"--git-push requires {repo_dir} to be inside a git repository")
+    repo_root = Path(repo_root_text).resolve()
+
+    branch = detect_current_branch(repo_root)
+    if not branch:
+        raise SystemExit("--git-push requires a checked-out branch; detached HEAD is not supported")
+    if not branch.startswith(_GIT_PUSH_BRANCH_PREFIX):
+        raise SystemExit(
+            f"--git-push refused: checked-out branch '{branch}' does not start with "
+            f"'{_GIT_PUSH_BRANCH_PREFIX}'"
+        )
+
+    remote = detect_push_remote(repo_root, branch)
+    remote_url = git_stdout(repo_root, "remote", "get-url", remote)
+    if not remote_url:
+        raise SystemExit(
+            f"--git-push refused: remote '{remote}' is not configured for {repo_root}"
+        )
+    repo_url = github_repo_url_from_remote(remote_url)
+    branch_url = f"{repo_url}/tree/{quote(branch, safe='')}" if repo_url else None
+    return PublishedBranch(
+        branch=branch,
+        remote=remote,
+        remote_url=remote_url,
+        repo_url=repo_url,
+        branch_url=branch_url,
+    )
+
+
+def push_optimize_branch(optimize_dir: Path) -> PublishedBranch:
+    published_branch = collect_published_branch(optimize_dir)
+
+    try:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(optimize_dir.resolve().parent),
+                "push",
+                "--set-upstream",
+                published_branch.remote,
+                published_branch.branch,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        stderr = getattr(exc, "stderr", "") or getattr(exc, "stdout", "") or str(exc)
+        raise SystemExit(
+            f"git push failed for branch '{published_branch.branch}' to remote "
+            f"'{published_branch.remote}': {stderr.strip()}"
+        ) from exc
+    return published_branch
+
+
+def short_commit(commit: str) -> str:
+    value = (commit or "").strip()
+    return value[:12] if value else ""
+
+
+def commit_url(published_branch: Optional[PublishedBranch], commit: str) -> Optional[str]:
+    if not published_branch or not published_branch.repo_url:
+        return None
+    value = (commit or "").strip()
+    if not value:
+        return None
+    return f"{published_branch.repo_url}/commit/{quote(value, safe='')}"
+
+
+def link_label(prefix: str, suffix: str) -> str:
+    value = re.sub(r"[^a-z0-9_-]+", "-", suffix.lower()).strip("-")
+    value = value or "item"
+    return f"{prefix}-{value}"
+
+
+def format_commit_reference(
+    commit: str,
+    published_branch: Optional[PublishedBranch],
+    link_refs: dict[str, str],
+    *,
+    label_prefix: str,
+    literal_when_unlinked: bool = False,
+) -> str:
+    display = short_commit(commit)
+    if not display:
+        return ""
+    url = commit_url(published_branch, commit)
+    if not url:
+        return f"``{display}``" if literal_when_unlinked else display
+    label = link_label(label_prefix, commit)
+    link_refs[label] = url
+    return f"`{display} <{label}_>`_"
+
+
+def append_link_targets(lines: list[str], link_refs: dict[str, str]) -> None:
+    if not link_refs:
+        return
+    lines.append("")
+    for label, url in link_refs.items():
+        lines.append(f".. _{label}: {url}")
+
+
+def parse_benchmark_case_blocks(benchmark_text: str) -> list[tuple[str, str]]:
+    lines = benchmark_text.splitlines()
+    in_cases = False
+    current_id = ""
+    current_lines: list[str] = []
+    parsed: list[tuple[str, str]] = []
+
+    for line in lines:
+        if not in_cases:
+            if line.startswith("cases:"):
+                in_cases = True
+            continue
+        if line and not line.startswith(" "):
+            break
+        if line.startswith("  - id: "):
+            if current_id and current_lines:
+                parsed.append((current_id, "\n".join(current_lines)))
+            current_id = line.split(":", 1)[1].strip().strip("\"'")
+            current_lines = [line]
+            continue
+        if current_lines:
+            current_lines.append(line)
+
+    if current_id and current_lines:
+        parsed.append((current_id, "\n".join(current_lines)))
+    return parsed
+
+
+def benchmark_block_for_prefix(benchmark_text: str, prefix: str) -> str:
+    snippets = [
+        block for case_id, block in parse_benchmark_case_blocks(benchmark_text)
+        if case_id.startswith(prefix)
+    ]
+    if not snippets:
+        return ""
+    return "cases:\n" + "\n".join(snippets)
+
+
+def collect_rerun_guide(
+    optimize_dir: Path,
+    *,
+    benchmark_input_files: Optional[list[str]] = None,
+) -> RerunGuide:
+    autogen = optimize_dir / "autogen"
+    goal_mode = load_json_file(autogen / "goal_mode.json")
+    goal_text = read_text_safe(autogen / "goal.md")
+    benchmark_text = read_text_safe(autogen / "benchmark.yaml")
+
+    package_id = (
+        str(goal_mode.get("package_id") or "").strip()
+        or goal_first_line(goal_text, "Package")
+        or yaml_scalar(benchmark_text, "package_id")
+        or optimize_dir.parent.name
+    )
+    language = normalize_language(
+        str(goal_mode.get("language") or "").strip()
+        or goal_first_line(goal_text, "Language")
+        or infer_language_from_goal_path(str(goal_mode.get("goal_path") or ""))
+    )
+    launcher = launcher_for_language(language)
+    repo_url = default_upstream_repo_url(package_id)
+    default_branch = detect_default_branch(optimize_dir.parent)
+    branch_url = f"{repo_url}/tree/{quote(default_branch, safe='')}" if default_branch else None
+    build_commands = goal_code_blocks(goal_text, "Build")
+    train_benchmark_block = benchmark_block_for_prefix(benchmark_text, "train-")
+    test_benchmark_block = benchmark_block_for_prefix(benchmark_text, "test-")
+    return RerunGuide(
+        package_id=package_id,
+        language=language,
+        launcher=launcher,
+        clone_url=default_upstream_clone(package_id),
+        repo_url=repo_url,
+        default_branch=default_branch,
+        branch_url=branch_url,
+        has_goal=(autogen / "goal.md").exists(),
+        has_benchmark=(autogen / "benchmark.yaml").exists(),
+        has_runner=(autogen / "benchmark_runner.py").exists(),
+        has_goal_inputs=(autogen / "goal_inputs.json").exists(),
+        build_commands=build_commands,
+        benchmark_input_files=list(benchmark_input_files or []),
+        train_benchmark_block=train_benchmark_block,
+        test_benchmark_block=test_benchmark_block,
+    )
+
+
+def build_rerun_section(guide: RerunGuide) -> list[str]:
+    if not guide.package_id:
+        return []
+
+    worktree_name = f"{guide.package_id}-<modified-feature>"
+    branch_name = f"fermilink-optimize/{worktree_name}"
+    base_ref = guide.default_branch or "<default-branch>"
+    launcher_name = guide.launcher or "<fermilink-optimize-python|fermilink-optimize-cpp>"
+
+    lines: list[str] = [rst_title("Rerun Guide", "-"), ""]
+    lines.append("Use the bundled contract files from this report to recreate the optimization against a fresh upstream checkout.")
+    lines.append("")
+    lines.append(f"- default upstream clone: ``{guide.clone_url}``")
+    if guide.branch_url and guide.default_branch:
+        lines.append(
+            f"- confirm the upstream default branch before creating the worktree: "
+            f"`{guide.default_branch} on GitHub <{guide.branch_url}>`_"
+        )
+    else:
+        lines.append(
+            f"- confirm the upstream default branch before creating the worktree: "
+            f"`upstream GitHub repo <{guide.repo_url}>`_"
+        )
+    if guide.launcher and guide.language:
+        lines.append(
+            f"- detected package language: ``{guide.language}``; use ``{guide.launcher}`` for goal-mode reruns"
+        )
+    else:
+        lines.append(
+            "- launcher selection: use ``fermilink-optimize-python`` for Python repos or "
+            "``fermilink-optimize-cpp`` for C/C++/Fortran repos"
+        )
+    lines.append(
+        "- ``contract/run_optimize.sh`` and ``contract/setup_env.sh`` record the original campaign, "
+        "but they can contain site-specific absolute paths"
+    )
+    if guide.has_goal_inputs:
+        lines.append(
+            "- if :download:`goal_inputs.json <contract/goal_inputs.json>` is present, restage the "
+            "listed auxiliary workload files before rerunning"
+        )
+    if guide.benchmark_input_files:
+        lines.append(
+            "- copied benchmark input files are bundled under ``inputs/all/`` and should be "
+            "restored into ``.fermilink-optimize/inputs/all/`` for deterministic reruns"
+        )
+    lines.append("")
+    lines.append(".. code-block:: bash")
+    lines.append("")
+    lines.append(f"   git clone {shlex.quote(guide.clone_url)}")
+    lines.append(f"   cd {guide.package_id}")
+    lines.append(f"   git worktree add -b {branch_name} ../{worktree_name} {base_ref}")
+    lines.append("")
+
+    if guide.has_goal:
+        lines.append("Path 1: rerun from the bundled :download:`goal.md <contract/goal.md>`.")
+        lines.append("")
+        lines.append("Run this from the cloned main repo so the launcher can create or reuse the sibling worktree:")
+        lines.append("")
+        lines.append(".. code-block:: bash")
+        lines.append("")
+        lines.append(f"   {launcher_name} \\")
+        lines.append("     --project-root \"$PWD\" \\")
+        lines.append("     --goal /path/to/report/contract/goal.md \\")
+        lines.append(f"     --branch {branch_name} \\")
+        lines.append("     --worktree-root .. \\")
+        lines.append(f"     --worktree-name {worktree_name}")
+        lines.append("")
+
+    if guide.has_benchmark and guide.has_runner:
+        lines.append(
+            "Path 2: rerun more deterministically from the copied "
+            ":download:`benchmark.yaml <contract/benchmark.yaml>` and "
+            ":download:`benchmark_runner.py <contract/benchmark_runner.py>`."
+        )
+        lines.append("")
+        lines.append("This avoids regenerating the benchmark contract from ``goal.md`` before the campaign starts:")
+        lines.append("")
+        lines.append(".. code-block:: bash")
+        lines.append("")
+        lines.append(f"   cd ../{worktree_name}")
+        if guide.benchmark_input_files:
+            lines.append("   mkdir -p .fermilink-optimize/autogen .fermilink-optimize/inputs/all")
+        else:
+            lines.append("   mkdir -p .fermilink-optimize/autogen")
+        lines.append("   cp /path/to/report/contract/benchmark.yaml .fermilink-optimize/autogen/benchmark.yaml")
+        lines.append("   cp /path/to/report/contract/benchmark_runner.py .fermilink-optimize/autogen/benchmark_runner.py")
+        if guide.benchmark_input_files:
+            lines.append("   cp -R /path/to/report/inputs/all/. .fermilink-optimize/inputs/all/")
+        lines.append("   printf '%s\\n' '.fermilink-optimize/' >> .git/info/exclude")
+        lines.append(f"   fermilink optimize {guide.package_id} \"$PWD\" \\")
+        lines.append("     --benchmark \"$PWD/.fermilink-optimize/autogen/benchmark.yaml\" \\")
+        lines.append("     --skills-source existing")
+        lines.append("")
+
+    if guide.build_commands:
+        lines.append(rst_title("Building environment", "~"))
+        lines.append("")
+        lines.append(
+            "These commands come from the copied ``## Build`` block in :download:`goal.md <contract/goal.md>` "
+            "and are rerun before benchmarks through the benchmark configuration."
+        )
+        lines.append("")
+        lines.append(
+            "Check that they work in your local environment before launching a long run. "
+            "If they do not, update the ``## Build`` section in ``goal.md`` or the corresponding "
+            "``runtime.pre_commands`` setting in :download:`benchmark.yaml <contract/benchmark.yaml>`."
+        )
+        lines.append("")
+        for block in guide.build_commands:
+            lines.append(".. code-block:: bash")
+            lines.append("")
+            for ln in block.splitlines():
+                lines.append(f"   {ln}")
+            lines.append("")
+
+    return lines
+
+
+def build_benchmarks_section(guide: RerunGuide) -> list[str]:
+    if not guide.train_benchmark_block and not guide.test_benchmark_block:
+        return []
+
+    lines: list[str] = [rst_title("Benchmark Examples", "-"), ""]
+    if guide.train_benchmark_block:
+        lines.append(
+            "Worker iterations run the ``train-*`` benchmark cases below while searching for candidate changes:"
+        )
+        lines.append("")
+        lines.append(".. code-block:: yaml")
+        lines.append("")
+        for ln in guide.train_benchmark_block.splitlines():
+            lines.append(f"   {ln}")
+        lines.append("")
+    if guide.test_benchmark_block:
+        lines.append(
+            "Controller reviews run the ``test-*`` benchmark cases below to validate accepted candidates:"
+        )
+        lines.append("")
+        lines.append(".. code-block:: yaml")
+        lines.append("")
+        for ln in guide.test_benchmark_block.splitlines():
+            lines.append(f"   {ln}")
+        lines.append("")
+    return lines
+
+
+def build_benchmark_inputs_section(benchmark_input_files: list[str]) -> list[str]:
+    if not benchmark_input_files:
+        return []
+
+    lines: list[str] = [rst_title("Input files for Benchmarks", "-"), ""]
+    lines.append(
+        "Copied auxiliary benchmark inputs from ``.fermilink-optimize/inputs/all/``:"
+    )
+    lines.append("")
+    for rel_path in benchmark_input_files:
+        lines.append(
+            f"- :download:`{rst_escape(rel_path)} <inputs/all/{rel_path}>`"
+        )
+    lines.append("")
+    return lines
+
+
+def visible_contract_files(contract_files: list[str]) -> list[str]:
+    visible = []
+    allowed = ("benchmark.yaml", "benchmark_runner.py", "goal.md")
+    for name in allowed:
+        if name in contract_files:
+            visible.append(name)
+    return visible
+
+
+def build_guardrails_table(
+    review: dict,
+    controller: dict,
+    *,
+    published_branch: Optional[PublishedBranch] = None,
+    link_refs: Optional[dict[str, str]] = None,
+    ref_prefix: str = "guardrails",
+) -> str:
     """Return an RST grid table summarizing guardrail fields."""
     if not review and not controller:
         return ""
 
+    refs = link_refs if link_refs is not None else {}
     rows: list[tuple[str, str]] = []
     decision = controller.get("decision") or ""
     if decision:
@@ -140,8 +738,20 @@ def build_guardrails_table(review: dict, controller: dict) -> str:
         (review.get("candidate_metrics") or {}).get("guardrail_errors") or []
     )
     rows.append(("guardrail errors", str(len(guardrail_errors))))
-    rows.append(("incumbent commit", str(review.get("incumbent_commit", ""))[:12]))
-    rows.append(("candidate commit", str(review.get("candidate_commit", ""))[:12]))
+    incumbent_commit = format_commit_reference(
+        str(review.get("incumbent_commit", "")),
+        published_branch,
+        refs,
+        label_prefix=f"{ref_prefix}-incumbent",
+    )
+    candidate_commit = format_commit_reference(
+        str(review.get("candidate_commit", "")),
+        published_branch,
+        refs,
+        label_prefix=f"{ref_prefix}-candidate",
+    )
+    rows.append(("incumbent commit", incumbent_commit))
+    rows.append(("candidate commit", candidate_commit))
     inc_metric = review.get("incumbent_primary_metric")
     cand_metric = review.get("candidate_primary_metric")
     base_metric = review.get("baseline_primary_metric")
@@ -177,6 +787,9 @@ def build_index(
     metric_label: str,
     accepted_pages: list[tuple[int, str]],
     contract_files: list[str],
+    benchmark_input_files: list[str],
+    rerun_guide: RerunGuide,
+    published_branch: Optional[PublishedBranch] = None,
 ) -> None:
     baseline = next((r for r in rows if r.status == "baseline"), None)
     accepted = [r for r in rows if r.status == "accepted"]
@@ -194,6 +807,7 @@ def build_index(
     else:
         pct = 0.0
 
+    link_refs: dict[str, str] = {}
     lines: list[str] = []
     lines.append(rst_title(title, "="))
     lines.append("")
@@ -202,12 +816,30 @@ def build_index(
     lines.append(rst_title("Summary", "-"))
     lines.append("")
     if baseline:
-        lines.append(f"- baseline (``{baseline.commit}``): ``{baseline.metric_value:.6g}``")
+        baseline_commit = format_commit_reference(
+            baseline.commit,
+            published_branch,
+            link_refs,
+            label_prefix="summary-baseline",
+            literal_when_unlinked=True,
+        )
+        lines.append(f"- baseline ({baseline_commit}): ``{baseline.metric_value:.6g}``")
     if best and best is not baseline:
-        lines.append(f"- best accepted (``{best.commit}``): ``{best.metric_value:.6g}`` ({pct:+.2f}% vs baseline)")
+        best_commit = format_commit_reference(
+            best.commit,
+            published_branch,
+            link_refs,
+            label_prefix="summary-best",
+            literal_when_unlinked=True,
+        )
+        lines.append(f"- best accepted ({best_commit}): ``{best.metric_value:.6g}`` ({pct:+.2f}% vs baseline)")
+    if published_branch and published_branch.branch_url:
+        lines.append(
+            f"- published GitHub branch: `{published_branch.branch} <{published_branch.branch_url}>`_"
+        )
     lines.append(f"- iterations: {total} total | {n_accepted} accepted | {n_rejected} rejected | {n_failure} correctness failure")
     lines.append("")
-    lines.append(rst_title("Trajectory", "-"))
+    lines.append(rst_title("Optimization Trajectory", "-"))
     lines.append("")
     lines.append(".. image:: img/metric_vs_iter.svg")
     lines.append("   :width: 100%")
@@ -226,10 +858,16 @@ def build_index(
         summary, _ = split_description(r.description)
         if len(summary) > 100:
             summary = summary[:97] + "…"
+        commit_ref = format_commit_reference(
+            r.commit,
+            published_branch,
+            link_refs,
+            label_prefix=f"iter-{r.iteration:04d}-table",
+        )
         table_rows.append(
             (
                 str(r.iteration),
-                r.commit,
+                commit_ref,
                 r.status,
                 f"{r.metric_value:.6g}",
                 rst_escape(summary),
@@ -256,20 +894,26 @@ def build_index(
             lines.append(f"   {rel}")
         lines.append("")
 
-    if contract_files:
-        lines.append(rst_title("Contract", "-"))
+    shown_contract_files = visible_contract_files(contract_files)
+    if shown_contract_files:
+        lines.append(rst_title("Benchmark Contracts", "-"))
         lines.append("")
         lines.append("Benchmark contract and runner used for this optimization:")
         lines.append("")
-        for name in contract_files:
+        for name in shown_contract_files:
             lines.append(f"- :download:`{name} <contract/{name}>`")
         lines.append("")
 
-    lines.append(rst_title("Data", "-"))
+    lines.extend(build_benchmark_inputs_section(benchmark_input_files))
+
+    lines.append(rst_title("Runtime Data", "-"))
     lines.append("")
     lines.append("- :download:`results.tsv <data/results.tsv>`")
     lines.append("- :download:`summary.json <data/summary.json>`")
     lines.append("")
+    lines.extend(build_rerun_section(rerun_guide))
+    lines.extend(build_benchmarks_section(rerun_guide))
+    append_link_targets(lines, link_refs)
 
     (out_dir / "index.rst").write_text("\n".join(lines))
 
@@ -278,6 +922,7 @@ def build_iter_page(
     out_dir: Path,
     row: plot_optimize.Row,
     iter_src: Path,
+    published_branch: Optional[PublishedBranch] = None,
 ) -> Optional[str]:
     if row.status != "accepted":
         return None
@@ -302,6 +947,22 @@ def build_iter_page(
 
     title = f"Iteration {row.iteration:04d} — {row.commit} (accepted)"
     lines: list[str] = [rst_title(title, "="), ""]
+    link_refs: dict[str, str] = {}
+
+    row_commit_url = commit_url(published_branch, row.commit)
+    if row_commit_url:
+        row_commit_ref = format_commit_reference(
+            row.commit,
+            published_branch,
+            link_refs,
+            label_prefix=f"iter-{row.iteration:04d}-page-head",
+        )
+        lines.append(f"GitHub commit: {row_commit_ref}")
+        if published_branch and published_branch.branch_url:
+            lines.append(
+                f"Published branch: `{published_branch.branch} <{published_branch.branch_url}>`_"
+            )
+        lines.append("")
 
     lines.append(rst_title("Change summary", "-"))
     lines.append("")
@@ -314,7 +975,13 @@ def build_iter_page(
         lines.append(rationale)
         lines.append("")
 
-    table = build_guardrails_table(review, controller)
+    table = build_guardrails_table(
+        review,
+        controller,
+        published_branch=published_branch,
+        link_refs=link_refs,
+        ref_prefix=f"iter-{row.iteration:04d}-guardrails",
+    )
     if table:
         lines.append(rst_title("Guardrails & metrics", "-"))
         lines.append("")
@@ -345,6 +1012,7 @@ def build_iter_page(
             lines.append(f"   ... ({len(shown) - cap} more lines; see download link above)")
         lines.append("")
 
+    append_link_targets(lines, link_refs)
     page_path.write_text("\n".join(lines))
     return f"iterations/{page_stem}"
 
@@ -384,6 +1052,7 @@ def build(
     title: Optional[str] = None,
     metric_label: Optional[str] = None,
     direction: Optional[str] = None,
+    published_branch: Optional[PublishedBranch] = None,
 ) -> Path:
     optimize_dir = optimize_dir.resolve()
     out_dir = out_dir.resolve()
@@ -399,7 +1068,7 @@ def build(
     if not rows:
         raise SystemExit(f"no parseable rows in {results_tsv}")
     dir_final = direction or plot_optimize.infer_direction(rows)
-    label = metric_label or rows[0].metric_name or "primary metric"
+    label = metric_label or plot_optimize.humanize_metric_label(rows[0].metric_name if rows else "")
     final_title = title or f"Optimization Report — {optimize_dir.parent.name}"
 
     (out_dir / "img").mkdir()
@@ -411,6 +1080,11 @@ def build(
     (out_dir / "data" / "summary.json").write_text(json.dumps(summary, indent=2))
 
     contract_files = copy_contract(optimize_dir, out_dir)
+    benchmark_input_files = copy_benchmark_inputs(optimize_dir, out_dir)
+    rerun_guide = collect_rerun_guide(
+        optimize_dir,
+        benchmark_input_files=benchmark_input_files,
+    )
 
     accepted_pages: list[tuple[int, str]] = []
     runs_dir = optimize_dir / "runs"
@@ -418,11 +1092,27 @@ def build(
         if r.status != "accepted":
             continue
         iter_src = runs_dir / f"iter_{r.iteration:04d}"
-        rel = build_iter_page(out_dir, r, iter_src)
+        rel = build_iter_page(
+            out_dir,
+            r,
+            iter_src,
+            published_branch=published_branch,
+        )
         if rel:
             accepted_pages.append((r.iteration, rel))
 
-    build_index(out_dir, final_title, rows, dir_final, label, accepted_pages, contract_files)
+    build_index(
+        out_dir,
+        final_title,
+        rows,
+        dir_final,
+        label,
+        accepted_pages,
+        contract_files,
+        benchmark_input_files,
+        rerun_guide,
+        published_branch,
+    )
     return out_dir
 
 
@@ -433,17 +1123,30 @@ def main() -> None:
     ap.add_argument("--title", default=None)
     ap.add_argument("--metric-label", default=None)
     ap.add_argument("--direction", choices=["lower", "higher"], default=None)
+    ap.add_argument(
+        "--git-push",
+        action="store_true",
+        help=(
+            "publish the checked-out repo branch with `git push --set-upstream` "
+            f"if the branch name starts with `{_GIT_PUSH_BRANCH_PREFIX}`; when the "
+            "remote is GitHub, generated report pages also link commit hashes there"
+        ),
+    )
     args = ap.parse_args()
 
     out = args.out or (args.optimize_dir.resolve().parent / "optimize-report")
+    published_branch = push_optimize_branch(args.optimize_dir) if args.git_push else None
     path = build(
         optimize_dir=args.optimize_dir,
         out_dir=out,
         title=args.title,
         metric_label=args.metric_label,
         direction=args.direction,
+        published_branch=published_branch,
     )
     print(f"wrote report bundle to {path}")
+    if published_branch:
+        print(f"pushed branch {published_branch.branch} to remote {published_branch.remote}")
 
 
 if __name__ == "__main__":
