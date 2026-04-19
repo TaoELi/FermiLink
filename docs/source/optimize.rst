@@ -27,19 +27,6 @@ FermiLink analyses the target source code to generate everything else.
 
    fermilink optimize goal.md
 
-Goal mode is auto-detected when the input markdown contains at least two of the
-following section headings:
-
-- ``# Optimization Goal``
-- ``## Package``
-- ``## Target``
-- ``## Editable Scope``
-- ``## Performance Metric``
-- ``## Correctness Constraints`` / ``## Correctness``
-- ``## Representative Workloads`` / ``## Workloads``
-
-You can also force goal mode with the ``--goal`` flag.
-
 
 Goal file structure
 ~~~~~~~~~~~~~~~~~~~

@@ -8,45 +8,14 @@ running, see the :doc:`quickstart`.
   hands-on walkthrough.
 - **HPC users:** see also the :doc:`tutorial_hpc` for SLURM-specific setup.
 
-Fast path 
-------------
+**FermiLink** is designed to run on a wide range of environments:
 
-.. code-block:: bash
+- **Command-line interface (CLI)**, see :doc:`usage`;
+- **Web UI** for interactive use on laptops and workstations, see :doc:`usage_web_ui`;
+- **Telegram bot** for remote control from your phone; see :doc:`usage_chatting_apps`.
 
-   # 1. Install FermiLink 
-   pip install fermilink
+For detailed guidance on choosing the right provider for your needs, see :doc:`choosing_agent`.
 
-   # 2. Start the guided beginner entrypoint
-   fermilink
-
-   # 3. Or, follow the manual setup path below:
-   # Install and authenticate one supported agent provider CLI (Codex/Claude/Gemini)
-   # For example, Codex option:
-   npm i -g @openai/codex   # Use ``brew install codex`` for Mac
-   codex login
-
-   # 4. Install at least one scientific package
-   fermilink install meep
-
-   # 5.1. Command line execution (most powerful)
-   fermilink exec/loop/research/reproduce "..."
-
-   # 5.2. Start the web UI for chatgpt-like experience (laptops and workstations)
-   fermilink start
-
-   # 5.3. Connect to Telegram chatbot (suitable for HPC with no sudo access)
-   export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
-   export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
-   fermilink gateway
-
-See also :doc:`usage`, :doc:`usage_web_ui`, and :doc:`usage_chatting_apps` for
-details on each interface, or :doc:`choosing_agent` for provider comparisons.
-
-
-Complete installation guide
------------------------------
-
-Below are **more detailed instructions for each step**, as well as some optional configurations for users with specific needs.
 
 Prerequisites
 ~~~~~~~~~~~~~~~~
@@ -69,7 +38,9 @@ Install provider CLI (Codex or Claude or Gemini)
 
    # Codex option
    npm i -g @openai/codex  # Use ``brew install codex`` for Mac
-   # install Claude / Gemini CLI from its official distribution
+
+
+Apart from OpenAI Codex, users can also install Claude or Gemini CLI from its official distribution.
 
 Provider authentication
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -91,7 +62,7 @@ Example login commands:
 Install FermiLink
 ~~~~~~~~~~~~~~~~~~
 
-You can install FermiLink with pip:
+You can install **FermiLink** with pip:
 
 .. code-block:: bash
 
@@ -102,12 +73,12 @@ You can install FermiLink with pip:
 Install your first scientific package knowledge base
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink routes each request to a scientific package knowledge base.
+**FermiLink** routes each request to a scientific package knowledge base.
 Install at least one package before your first run.
 
 .. code-block:: bash
 
-   # discover packages in the default curated channel (https://github.com/orgs/skilled-scipkg/repositories)
+   # discover availability in the default curated channel (https://github.com/orgs/skilled-scipkg/repositories)
    fermilink avail meep
 
    # install one or more packages
@@ -121,7 +92,7 @@ Install at least one package before your first run.
 with ``fermilink activate <package_id>``. 
 
 ``fermilink install`` downloads the package *knowledge base* (source code tree
-+ agent skills) -- it does **not** install the package for execution.
++ agent skills). It does **not** install the package for execution.
 It is recommended that users have the actual software already installed on
 their machines, but the agent can install packages on its own if needed.
 
@@ -150,11 +121,12 @@ require bypassing the sandbox. You can do this per-provider:
 
    When ``fermilink agent --bypass-sandbox`` is needed for maximal functionality, **NEVER run it as a root user.** 
 
+See :doc:`choosing_agent` for the latest support of agent providers.
 
 Developer mode
 -------------------
 
-Install from source if you want to modify FermiLink or contribute:
+Install from source if you want to modify **FermiLink** or contribute:
 
 .. code-block:: bash
 

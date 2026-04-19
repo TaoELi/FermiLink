@@ -1,17 +1,16 @@
 Choosing an AI Agent
 ====================
 
-FermiLink delegates reasoning to an external AI agent provider. You pick
-a provider once with ``fermilink agent <provider>``, and FermiLink handles
-all the integration details -- workspace aliases, environment variables,
-streaming, and command translation.
+**FermiLink** delegates reasoning to an external AI agent provider. The global 
+setting of the default agent for **FermiLink** is done with
+``fermilink agent <provider>``.
 
 Supported providers
 -------------------
 
 .. list-table::
    :header-rows: 1
-   :widths: 18 20 20 42
+   :widths: 15 20 35 30
 
    * - Provider
      - CLI tool
@@ -20,19 +19,19 @@ Supported providers
    * - **Codex**
      - ``codex``
      - ``npm i -g @openai/codex`` or ``brew install codex``
-     - OpenAI's coding agent. Uses direct TTY mode for interactive sessions.
+     - OpenAI's coding agent. 
    * - **Claude**
      - ``claude``
      - See `Claude CLI docs <https://docs.anthropic.com/en/docs/claude-code>`_
-     - Anthropic's Claude. Pipe-backed streaming.
+     - Anthropic's Claude Code. 
    * - **Gemini**
      - ``gemini``
      - See `Gemini CLI docs <https://github.com/google-gemini/gemini-cli>`_
-     - Google's Gemini. Pipe-backed streaming.
+     - Google's Gemini CLI. 
    * - **DeepSeek**
      - ``deepseek``
      - See `DeepSeek docs <https://www.deepseek.com/>`_
-     - DeepSeek models. Pipe-backed streaming.
+     - DeepSeek CLI. 
 
 
 Setting up your agent
@@ -56,40 +55,43 @@ Setting up your agent
 How to choose
 -------------
 
-All providers work with all FermiLink workflows. The best choice depends on
+All providers work with all **FermiLink** workflows. The best choice depends on
 your priorities:
 
-**If you want the broadest compatibility:** Codex is the most tested provider
-and uses direct TTY mode, which gives the richest interactive experience.
-
-**If you prefer Anthropic models:** Claude integrates well and supports
-advanced reasoning. It uses pipe-backed streaming rather than direct TTY.
+**If you want the broadest compatibility:** Codex and Claude are the most tested providers, which give the richest interactive experience.
 
 **If you use Google Cloud:** Gemini is a natural fit if you're already in the
 Google ecosystem.
 
-**For the optimize workflow:** Any provider works, but you can also set a
-different provider for just the worker turns using
-``--worker-provider`` / ``--worker-model``:
+
+.. note::
+
+   We are actively adding support for more providers. If you have a preferred agent provider that you want to see integrated, please let us know in the `GitHub discussions <https://github.com/TaoELi/FermiLink/issues>`_.
+
+
+Advanced configuration
+--------------------------
+
+By default, agents run in a sandbox that restricts file-system and network
+access. Some scientific simulations (e.g., MPI jobs, access to external data)
+require bypassing the sandbox. You can do this per-provider:
 
 .. code-block:: bash
 
-   # Use Claude for controller, Codex for worker
-   fermilink optimize goal.md --worker-provider codex
+   # show current policy
+   fermilink agent --json
 
-Runtime policy
---------------
+   # enforce sandbox mode (default), codex provider
+   fermilink agent codex --sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-You can override the default provider, model, sandbox, and reasoning behavior
-at runtime:
+   # bypass sandbox (which might be needed for local MPI jobs)
+   fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort xhigh
 
-.. code-block:: bash
+   # bypass sandbox for claude
+   fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
 
-   # Override model
-   FERMILINK_AGENT_MODEL=o3 fermilink loop goal.md
+.. warning::
 
-   # Override sandbox policy
-   FERMILINK_AGENT_SANDBOX_POLICY=relaxed fermilink exec "..."
+   When ``fermilink agent --bypass-sandbox`` is needed for maximal functionality, **NEVER run it as a root user.** 
 
-See :doc:`configuration` for the full list of runtime policy environment
-variables.
+By default, **FermiLink** normalizes the reasoning effort setting for agents to the ``codex`` provider's reasoning effort levels (``low``, ``medium``, ``high``, ``xhigh``). 

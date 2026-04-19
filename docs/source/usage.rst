@@ -1,11 +1,11 @@
 Command Line Tools
 ==================
 
-The most powerful way to use FermiLink is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. 
+The most powerful way to use **FermiLink** is through the **command line interface (CLI)**, which provides direct access to all features and is the primary interface for advanced users. 
 Below is a comprehensive reference for using the CLI effectively.
 
 Beginner entrypoint
--------------------
+---------------------
 
 In an interactive terminal, running ``fermilink`` with **no subcommand**
 launches a deterministic onboarding assistant. 
@@ -16,30 +16,23 @@ launches a deterministic onboarding assistant.
    :align: center
    :width: 95%
 
-As shown above, the assistant provides a structured status summary and menu to guide users through setup, package installation, web UI startup, Telegram gateway setup, or a guided simulation launch. 
+As shown above, the assistant provides a structured status summary and menu to guide users through setup and running simulations.
 
 It also checks for provider CLI authentication, installed scientific packages, and an optional default HPC profile.
 
 
-Below are the detailed instructions for the three major workflows of FermiLink: ``exec`` for single runs, ``loop`` for iterative runs involving long SLURM or PID jobs, and ``research/reproduce`` for full research-paper-level calculations.
+Quick Start
+-------------------
 
-.. figure:: _static/img/major_modes_workflow.svg
-   :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
-   :align: center
-   :width: 95%
-
-Workspace bootstrap: ``init`` / ``clean``
------------------------------------------
-
-Use ``fermilink init`` to bootstrap a local workspace with FermiLink knowledge base:
+If you are not sure how to use **FermiLink** for your specific needs, simply ask a coding agent:
 
 .. code-block:: bash
 
+   cp myproject/
    fermilink init
+   codex
 
-Then you can talk with any AI agent installed in your machine (OpenAI Codex,
-Claude Code, Gemini CLI, their desktop apps, or VS Code extensions, etc) to
-learn how to run FermiLink as a Pro.
+Then ask your coding agent what you want to do. ``fermilink init`` will provide all context of **FermiLink** for agent reasoning.
 
 After learning the ropes, you can use ``fermilink clean`` to reset the
 workspace to a clean state and start fresh.
@@ -49,11 +42,22 @@ workspace to a clean state and start fresh.
    fermilink clean
 
 
+Simulation workflows
+-------------------------
+
+Below are the detailed instructions for the three major workflows of **FermiLink**: ``exec`` for single runs, ``loop`` for iterative runs involving long SLURM or PID jobs, and ``research/reproduce`` for full research-paper-level calculations.
+
+.. figure:: _static/img/major_modes_workflow.svg
+   :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
+   :align: center
+   :width: 95%
+
+
 ``exec``: One-shot execution in the current repo
----------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``exec`` when you want one prompt & one run followed by package routing in
-your current working directory. This is the most direct way to use FermiLink and is well suited for tasks that complete within about 30 minutes.
+your current working directory. This is the most direct way to use **FermiLink** and is well suited for tasks that complete within about 30 minutes.
 
 .. code-block:: bash
 
@@ -61,9 +65,6 @@ your current working directory. This is the most direct way to use FermiLink and
 
    # provide prompt from a file
    fermilink exec goal.md
-
-   # run with an HPC profile appended to the prompt context
-   fermilink exec goal.md --hpc-profile hpc_profile.json
 
 What ``exec`` does:
 
@@ -79,43 +80,11 @@ Useful flags:
 
 - ``--package <id>``: pin a package id (skip routing).
 - ``--sandbox <mode>``: apply a per-run sandbox override.
-- ``--hpc-profile <json>``: append workflow-style HPC constraints to the prompt.
-- ``--init-git``: explicit form of the default auto-init behavior when a git repo is missing.
-- ``--no-init-git``: fail if a git repo is missing.
+- ``--hpc-profile <json>``: append HPC constraints to the prompt, which overrides ``fermilink hpc`` settings.
 
-
-HPC default settings
-~~~~~~~~~~~~~~~~~~~~~~
-
-Use ``fermilink hpc`` once to initialize the default home profile:
-
-.. code-block:: bash
-
-   fermilink hpc
-
-This creates ``~/.fermilink/HPC_PROFILE.json`` (or
-``$FERMILINK_HOME/HPC_PROFILE.json`` when ``FERMILINK_HOME`` is set).
-
-Runtime behavior for ``exec/loop/research/reproduce``:
-
-- If ``--hpc-profile <json>`` is provided, that explicit file is used.
-- Otherwise, FermiLink checks the default home profile
-  ``HPC_PROFILE.json`` and uses it when valid.
-- If neither profile is available, FermiLink runs locally using PID-based
-  waits/iteration behavior.
-
-A sample HPC profile (``HPC_PROFILE.json``) looks like this:
-
-.. code-block:: json
-
-   {
-      "slurm_default_partition": "shared",
-      "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --time=24:00:00",
-      "slurm_resource_policy": "Use serial/single-node defaults unless the method explicitly requires MPI or multi-node scaling"
-   }
 
 ``chat``:  Interactive terminal chat
---------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``chat`` for multi-turn conversation in the terminal. It works like the web UI but runs entirely in the terminal, with live provider output visible at each turn.
 
@@ -135,14 +104,13 @@ Useful flags:
 
 - ``--package <id>``: pin a package for the whole session.
 - ``--sandbox <mode>``: enforce sandbox mode for this session.
-- ``--no-init-git``: fail if a git repo is missing. By default, ``chat`` auto-initializes one when needed.
 
 .. note:: 
 
    The chat mode does not support ``--hpc-profile`` flag, so it will run all tasks locally if the user does not specify HPC requirements. For HPC runs, it is recommended to use the ``exec`` or ``loop`` modes with the appropriate HPC profile.
 
 ``loop``: Autonomous iterative loop
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``loop`` for iterative autonomous work with persistent memory and job-aware
 waiting.
@@ -171,7 +139,7 @@ Loop behavior:
   (``git add -A`` + conditional commit).
 
 ``reproduce``: Reproduce workflows
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``reproduce`` to orchestrate planner/auditor + multi-task loop runs + summary/auditor for
 publication-scale reproduction requests.
@@ -199,16 +167,16 @@ Notes:
   short-term memory section while preserving long-term memory content.
 - Each ``reproduce`` task run records the nested ``loop`` completion checkpoint
   outcome in its task log using the same best-effort repository commit helper as
-  other FermiLink modes.
+  other **FermiLink** modes.
 - When the ``reproduce`` command finishes, it also attempts a best-effort
   completion checkpoint commit in the repository.
 - The workflow generates orchestration scripts (for example ``00_run_all.sh``)
   under the run directory to support reruns and staged execution.
-- Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
+- Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile that overrides the default settings in ``~/.fermilink/HPC_PROFILE.json``.
 
 .. note:: 
    
-   Because FermiLink supports a unified memory model across workflows, users can start with
+   Because **FermiLink** supports a unified memory model across workflows, users can start with
 
    .. code-block:: bash
       
@@ -226,7 +194,7 @@ Notes:
 
 
 ``research``: Research workflows
----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``research`` when starting from an idea prompt instead of an existing paper.
 
@@ -253,16 +221,16 @@ Notes:
   entry (except ``--report-only``) and preserves long-term memory.
 - Each ``research`` task run records the nested ``loop`` completion checkpoint
   outcome in its task log using the same best-effort repository commit helper as
-  other FermiLink modes.
+  other **FermiLink** modes.
 - When the ``research`` command finishes, it also attempts a best-effort
   completion checkpoint commit in the repository.
 - ``--report-only`` skips planning/task execution and runs only report
   finalization from the saved run context.
-- Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile.
+- Use ``--hpc-profile <json>`` to enforce an HPC SLURM target profile that overrides the default settings in ``~/.fermilink/HPC_PROFILE.json``.
 
 .. note:: 
    
-   Because FermiLink supports a unified memory model across workflows, users can start with
+   Because **FermiLink** supports a unified memory model across workflows, users can start with
 
    .. code-block:: bash
       
@@ -280,7 +248,7 @@ Notes:
 
 
 Global agent runtime policy
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``fermilink agent`` to set global runtime defaults used by
 ``exec/chat/loop/research/reproduce`` and the web runner path.
@@ -304,6 +272,37 @@ Use ``fermilink agent`` to set global runtime defaults used by
    fermilink agent --clear-model
    fermilink agent --clear-reasoning-effort
 
+See also :doc:`choosing_agent` for provider selection and configuration details.
+
+HPC default settings
+~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``fermilink hpc`` once to initialize the default home profile:
+
+.. code-block:: bash
+
+   fermilink hpc
+
+This creates ``~/.fermilink/HPC_PROFILE.json`` (or
+``$FERMILINK_HOME/HPC_PROFILE.json`` when ``FERMILINK_HOME`` is set).
+
+Runtime behavior for ``exec/loop/research/reproduce``:
+
+- If ``--hpc-profile <json>`` is provided, that explicit file is used.
+- Otherwise, FermiLink checks the default home profile
+  ``HPC_PROFILE.json`` and uses it when valid.
+- If neither profile is available, **FermiLink** runs locally using PID-based
+  waits/iteration behavior.
+
+A sample HPC profile (``HPC_PROFILE.json``) looks like this:
+
+.. code-block:: json
+
+   {
+      "slurm_default_partition": "shared",
+      "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1 --cpus-per-task=1 --time=24:00:00",
+      "slurm_resource_policy": "Use serial/single-node defaults unless the method explicitly requires MPI or multi-node scaling"
+   }
 
 See also
 --------

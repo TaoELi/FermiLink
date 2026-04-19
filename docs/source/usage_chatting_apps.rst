@@ -1,7 +1,7 @@
 Chat Apps
 =========
 
-FermiLink supports remote control via chat apps through the **Telegram gateway**.
+**FermiLink** supports remote control via chat apps through the **Telegram gateway**.
 This gives you an "agent in your pocket" workflow: you chat on your phone, but
 the actual computation happens on the machine running ``fermilink gateway``
 (your laptop/workstation/HPC).
@@ -59,7 +59,9 @@ You can also set the above variables in your shell profile (e.g., ``~/.bashrc``)
 HPC default settings
 ~~~~~~~~~~~~~~~~~~~~~~
 
-If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. Otherwise, it will run all tasks locally using PID controls for waiting and iteration (if the user does not require to run SLURM jobs).
+- If ``--hpc-profile hpc_profile.json`` is provided for ``fermilink gateway``, the gateway will use the specified HPC profile to submit and monitor SLURM jobs. 
+- Otherwise, it will try to read the default HPC profile in ``~/.fermilink/HPC_PROFILE.json`` (using ``fermilink hpc``) and use it if available. 
+- If neither profile is available, it will run all tasks locally using PID controls for waiting and iteration (if the user does not require to run SLURM jobs).
 
 A sample HPC profile (``hpc_profile.json``) looks like this:
 
@@ -74,7 +76,7 @@ A sample HPC profile (``hpc_profile.json``) looks like this:
 Chat in Telegram for simulations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- Finally, open Telegram on your phone, chat with your new FermiLink bot, and run:
+- Finally, open Telegram on your phone, chat with your new **FermiLink** bot, and run:
 
 .. code-block:: text
 
@@ -121,10 +123,10 @@ Practical starting pattern:
 3. Use ``research`` / ``reproduce`` when you want a workflow
    that produces a final report artifact at a research paper scale, which is great if you need to sleep or travel while the agent is working.
 
-Advanced: An Army of FermiLink Bots
+Advanced: An Army of **FermiLink** Bots
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can simutaneous control many FermiLink bots by running multiple ``fermilink gateway`` processes with different Telegram bot tokens and HPC profiles. This allows you to have an army of FermiLink agents working on different tasks at the same time, all controlled remotely from your phone.
+You can simutaneous control many **FermiLink** bots by running multiple ``fermilink gateway`` processes with different Telegram bot tokens and HPC profiles. This allows you to have an army of FermiLink agents working on different tasks at the same time, all controlled remotely from your phone.
 
 For example, you can submit the following long-run bash job to your HPC:
 

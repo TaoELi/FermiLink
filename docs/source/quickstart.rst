@@ -1,16 +1,15 @@
 Quickstart
 ==========
 
-Get FermiLink running in 5 minutes. By the end of this page you will have
-installed FermiLink, configured an AI agent, and launched your first
-autonomous simulation.
+Get **FermiLink** running in 5 minutes. By the end of this page you will have launched your first
+autonomous simulation with **FermiLink**.
 
 .. note::
 
    Prefer a guided walkthrough? Just run ``fermilink`` with no arguments
-   after installing -- an interactive setup wizard walks you through everything.
+   after installing. An interactive setup wizard walks you through everything.
 
-1. Install FermiLink
+1. Install **FermiLink**
 --------------------
 
 .. code-block:: bash
@@ -22,7 +21,7 @@ Requirements: Python >= 3.11, ``git`` on PATH.
 2. Set up an AI agent
 ---------------------
 
-FermiLink needs an AI agent provider to do the reasoning. Pick one and
+**FermiLink** needs an AI agent provider to do the reasoning. Pick one and
 authenticate:
 
 .. code-block:: bash
@@ -34,10 +33,10 @@ authenticate:
 
 See :doc:`choosing_agent` for a comparison of providers.
 
-3. Install a scientific package (optional)
-------------------------------------------
+3. Install a scientific package knowledge base
+----------------------------------------------------
 
-FermiLink ships with 150+ built-in scientific package knowledge bases.
+**FermiLink** ships with 150+ built-in scientific package knowledge bases.
 Install one relevant to your work:
 
 .. code-block:: bash
@@ -47,14 +46,13 @@ Install one relevant to your work:
    fermilink install pyscf          # quantum chemistry
    fermilink install openfoam       # CFD
 
-Browse the `full package list <built_in_scientific_packages.html>`_ or
-skip this step -- FermiLink can also work without a pre-installed package.
+Browse the `full package list <built_in_scientific_packages.html>`_ for all available package knowledge bases.
 
 4. Write your goal.md
 ---------------------
 
 Create a file called ``goal.md`` in your working directory. This is
-FermiLink's primary interface -- a plain markdown file describing what
+**FermiLink**'s primary interface -- a plain markdown file describing what
 you want to compute:
 
 .. code-block:: markdown
@@ -73,7 +71,7 @@ you want to compute:
    - Band gap ratio within 5% of published values
    - Save final band diagram as `bands.png`
 
-The ``goal.md`` tells FermiLink *what* you want. FermiLink figures out *how*.
+The ``goal.md`` tells **FermiLink** *what* you want. **FermiLink** figures out *how*.
 
 For detailed guidance on writing effective goals, see :doc:`writing_goal_md`.
 
@@ -85,14 +83,14 @@ For detailed guidance on writing effective goals, see :doc:`writing_goal_md`.
 
    fermilink loop goal.md
 
-FermiLink takes over: it reads your goal, picks the right tools, generates
+**FermiLink** then reads your goal, picks the right tools, generates
 input files, runs simulations, checks results, and iterates until the goal
-is met. You come back to finished results and a summary report.
+is met.
 
 Choosing the right command
 --------------------------
 
-FermiLink offers several commands depending on your workflow:
+**FermiLink** offers several commands depending on your workflow:
 
 .. list-table::
    :header-rows: 1
@@ -126,6 +124,17 @@ FermiLink offers several commands depending on your workflow:
      - Code performance tuning *(beta)*
      - Hours
      - Any
+
+If you are not sure how to use **FermiLink** for your specific needs, simply ask a coding agent:
+
+.. code-block:: bash
+
+   cp myproject/
+   fermilink init
+   codex
+
+Then ask your coding agent what you want to do. `fermilink init` will provide 
+all context of **FermiLink** for agent reasoning.
 
 Next steps
 ----------

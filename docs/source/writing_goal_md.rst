@@ -1,10 +1,9 @@
 Writing a ``goal.md``
 =====================
 
-The ``goal.md`` file is FermiLink's primary user interface. It is a plain
-markdown file that tells the AI agent *what* you want to accomplish. FermiLink
-reads it and figures out how to get there -- picking the right tools,
-generating scripts, submitting jobs, and iterating until the goal is met.
+The ``goal.md`` file is **FermiLink**'s primary user interface. It is a plain
+markdown file that tells the AI agent *what* you want to accomplish. **FermiLink**
+reads it and figures out how to get there.
 
 This page explains how to write effective ``goal.md`` files for both
 **simulations** and **code optimization**.
@@ -13,19 +12,19 @@ This page explains how to write effective ``goal.md`` files for both
 Goal files for simulations
 --------------------------
 
-When you run ``fermilink loop goal.md`` or ``fermilink exec goal.md``, the
+When you run ``fermilink loop goal.md`` or ``fermilink research goal.md``, the
 agent reads your goal and autonomously plans and executes the simulation.
-Simulation goals are free-form markdown -- there is no rigid schema. The
-agent interprets your intent from the structure and content.
+
+Simulation goals are free-form markdown. The agent interprets your intent from the structure and content.
 
 Recommended structure
 ~~~~~~~~~~~~~~~~~~~~~
 
 A good simulation goal answers three questions:
 
-1. **What to compute** -- the physical system, method, and observables.
-2. **How to judge success** -- convergence criteria, accuracy targets, expected outputs.
-3. **What to produce** -- output files, plots, summary data.
+1. **What to compute**: the physical system to simulate and the package to use (if you know).
+2. **How to judge success**: convergence criteria or accuracy targets.
+3. **What to produce**: output figures or a LaTeX summary report.
 
 .. code-block:: markdown
 
@@ -41,20 +40,22 @@ A good simulation goal answers three questions:
    ## Success criteria
    - At least 8 bands converged with resolution >= 32
    - Band gap ratio within 5% of published values
+
+   ## Deliverables
    - Save final band diagram as `bands.png`
 
 How the agent uses each part:
 
 - **Title** (``# Goal: ...``): gives the agent a concise summary of the task.
-  The agent uses this to select the right scientific package if one is not
-  already activated.
 - **Description paragraph**: provides physical context. Be specific about the
-  system geometry, method, and parameters.
+  simulation system and parameters.
 - **What to compute**: the agent translates these into concrete simulation steps
   and output extraction commands.
 - **Success criteria**: the agent checks these after each iteration and decides
   whether to continue or report completion.
+- **Deliverables**: the agent knows what files to produce and verify at the end.
 
+You can of course write ``goal.md`` in your own style. The agent is quite flexible. 
 
 More simulation examples
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -82,6 +83,8 @@ More simulation examples
    ## Success criteria
    - All forces below 0.01 eV/Ang
    - Total energy converged to 1e-6 Ry between last two ionic steps
+
+   ## Deliverables
    - Save relaxed structure as `si100_relaxed.xyz`
 
 
@@ -103,6 +106,8 @@ More simulation examples
    ## Success criteria
    - Viscosity within 20% of experimental value (~0.89 mPa*s)
    - Autocorrelation function decays to near zero
+
+   ## Deliverables
    - Save viscosity vs correlation time plot as `viscosity.png`
 
 
@@ -128,62 +133,31 @@ or pseudopotential, say so. The agent respects explicit constraints.
 Goal files for code optimization
 --------------------------------
 
-When you run ``fermilink optimize goal.md``, FermiLink enters a different
+When you run ``fermilink optimize goal.md``, **FermiLink** enters a different
 mode: it iteratively modifies source code to improve performance while
-preserving correctness. Optimization goals use a structured format with
-specific section headings.
+preserving correctness. 
 
-Required sections
-~~~~~~~~~~~~~~~~~
+Different from regular free-style simulation goals, optimization goals use a **structured format** with
+fixed section headings. This is because optimizing code is a more delicate task that requires precise requirements to prevent the agent from breaking the science. 
 
-Optimization goals are auto-detected when the markdown contains at least two
-of these section headings:
+Ask **FermiLink** to write an optimization goal
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- ``# Optimization Goal``
-- ``## Package``
-- ``## Target``
-- ``## Editable Scope``
-- ``## Performance Metric``
-- ``## Correctness Constraints`` / ``## Correctness``
-- ``## Representative Workloads`` / ``## Workloads``
+For users new to optimization, feel free to use the skills available in **FermiLink** to write a well-structured optimization goal. Just run:
 
-Only ``## Package`` and ``## Target`` are strictly required. All other sections
-improve the quality of the auto-generated benchmark.
+.. code-block:: bash
 
-Section-by-section guide
-~~~~~~~~~~~~~~~~~~~~~~~~~
+   mkdir myproject
+   cd myproject/
+   fermilink init
+   # start a coding agent
+   codex
 
-.. list-table::
-   :header-rows: 1
-   :widths: 22 78
+Then ask the agent:
 
-   * - Section
-     - What to write
-   * - ``# Optimization Goal``
-     - Title line. Optional but recommended.
-   * - ``## Package``
-     - The scientific package identifier (e.g., ``pyscf``, ``lammps``).
-   * - ``## Language``
-     - ``python``, ``c``, ``cpp``, or ``fortran``. Helps the analysis agent.
-   * - ``## Target``
-     - Plain-language description of what to optimize and where the hot paths are.
-       Be specific about files and functions.
-   * - ``## Editable Scope``
-     - List of files/directories the agent is allowed to modify. Glob patterns
-       like ``pyscf/scf/**`` are supported.
-   * - ``## Performance Metric``
-     - What to minimize or maximize (e.g., "wall-clock time for ``mf.kernel()``").
-   * - ``## Correctness Constraints``
-     - Numerical tolerances and behavioral invariants that must hold. These
-       are the guardrails that prevent the optimizer from breaking the science.
-   * - ``## Representative Workloads``
-     - Train and test cases with specific parameters. Use ``train-`` and
-       ``test-`` prefixes. The optimizer only sees train cases; test cases are
-       used for final validation.
-   * - ``## Build``
-     - Shell commands to rebuild the package after source changes.
-   * - ``## Notes``
-     - Hints for the benchmark generator (determinism, thread pinning, etc.).
+.. code-block:: text
+
+   I want to optimize the performance of <routine> in <pkg-id> at <location>. Use optimize-goal-authoring skill to write a well-structured optimization goal in markdown format.
 
 
 Optimization goal example
@@ -241,20 +215,55 @@ Here is a complete optimization goal for PySCF's DIIS SCF solver:
    Keep benchmark behavior deterministic with pinned thread counts.
 
 
+Required sections
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Section
+     - What to write
+   * - ``# Optimization Goal``
+     - Title line. Optional but recommended.
+   * - ``## Package``
+     - The scientific package identifier (e.g., ``pyscf``, ``lammps``).
+   * - ``## Language``
+     - ``python``, ``c``, ``cpp``, or ``fortran``. Helps the analysis agent.
+   * - ``## Target``
+     - Plain-language description of what to optimize and where the hot paths are.
+       Be specific about files and functions.
+   * - ``## Editable Scope``
+     - List of files/directories the agent is allowed to modify. Glob patterns
+       like ``pyscf/scf/**`` are supported.
+   * - ``## Performance Metric``
+     - What to minimize or maximize (e.g., "wall-clock time for ``mf.kernel()``").
+   * - ``## Correctness Constraints``
+     - Numerical tolerances and behavioral invariants that must hold. These
+       are the guardrails that prevent the optimizer from breaking the science.
+   * - ``## Representative Workloads``
+     - Train and test cases with specific parameters. Use ``train-`` and
+       ``test-`` prefixes. The optimizer only sees train cases; test cases are
+       used for final validation.
+   * - ``## Build``
+     - Shell commands to rebuild the package after source changes. **Ensure the commands can be run properly in your machine.**
+   * - ``## Notes``
+     - Hints for the benchmark generator (determinism, thread pinning, etc.).
+
+
 How the optimization pipeline uses your goal
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When you submit an optimization goal, FermiLink runs a two-phase pipeline:
+When you submit an optimization goal, **FermiLink** runs a two-phase pipeline:
 
-1. **Source analysis** -- an agent reads the target source code and produces a
-   structured analysis of the package, its hot paths, and correctness boundaries.
+1. **Source analysis**: an agent reads the target source code and produces a
+   structured analysis of the package and its hot paths.
 
-2. **Benchmark generation** -- a second agent writes a benchmark YAML contract
+2. **Benchmark generation**: a second agent writes a deterministic benchmark YAML contract
    and runner script, informed by your workloads and correctness constraints.
    These are placed in ``.fermilink-optimize/autogen/``.
 
-The generated benchmark then drives the optimization loop: baseline measurement,
-candidate proposals, benchmarking, correctness validation, accept/reject.
+The generated deterministic benchmark then is used in the optimization loop.
 
 The ``## Representative Workloads`` section is particularly important. Use
 ``train-`` prefixed cases for the workloads the optimizer sees during iteration,
@@ -264,24 +273,20 @@ or parameters, so improvements generalize.
 
 
 Common mistakes
----------------
+~~~~~~~~~~~~~~~~~~~
 
 **Vague goals.** "Make my code faster" gives the agent nothing to work with.
-Specify which functions, what metric, and what constraints.
+Specify which functions to optimize and what metric to improve under which constraints.
 
-**Missing success criteria (simulations).** Without quantitative criteria, the
-agent cannot judge when to stop iterating. It may run indefinitely or stop
-too early.
-
-**Overly tight tolerances (optimization).** Setting energy tolerance to
+**Overly tight tolerances.** Setting energy tolerance to
 ``1e-15`` will cause every candidate to be rejected. Use physically meaningful
 tolerances (e.g., ``5e-8 Hartree`` for SCF energies).
 
-**Train/test overlap (optimization).** If your test workloads use the same
+**Train/test overlap.** If your test workloads use the same
 molecules as training, the optimizer may overfit to those specific systems.
-Use different molecules in the same size regime.
+Use different molecules in the same size regime if you want more generalized code.
 
-**No build instructions (optimization).** If the package needs compilation
+**No build instructions .** If the package needs compilation
 after source changes, omit the ``## Build`` section and the optimizer
 cannot test its modifications. Always include build commands for compiled
 packages.

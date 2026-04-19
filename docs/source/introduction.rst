@@ -1,22 +1,21 @@
-How FermiLink Works
-===================
+How **FermiLink** Works
+=========================
 
-You write a ``goal.md`` -- a plain markdown file describing what you want to
-compute. FermiLink reads it, selects the right scientific tools, generates
-input files, submits jobs, monitors progress, checks results, and iterates
-until the goal is met. The same workflow runs on your laptop, your lab's
-workstation, or an HPC cluster.
+**FermiLink** is designed to be agnostic to AI agent providers, scientific packages, and your computing environments.
 
-This page explains the key ideas behind FermiLink. If you just want to start
-using it, see the :doc:`quickstart`.
+- You choose your favorite agent provider (e.g., OpenAI Codex, Anthropic Claude, Google Gemini) and **FermiLink** will rely on it for reasoning and decision-making.
+- The built-in 150+ scientific package knowledge bases provide the agent source-grounded rich context for reasoning. You can also create custom knowledge bases by yourselves using ``fermilink compile``.
+- **FermiLink** focuses on providing a set of advanced workflows (``exec``, ``loop``, ``research``, ``reproduce`` for simulations and ``optimize`` for code optimization) specifically designed for scientific computing.
+- **FermiLink** works on your laptop, workstation, HPC cluster, or even your phone via Telegram. 
 
+So we can focus on the science.
 
-The goal.md interface
----------------------
+The ``goal.md`` interface
+----------------------------
 
-Every FermiLink session starts with a goal -- either typed at the command line
+For users, all we need to do is to provide a goal, either typed at the command line
 or written in a ``goal.md`` file. The goal describes *what* to compute, not
-*how*. FermiLink figures out the how:
+*how*. **FermiLink** figures out the how:
 
 .. code-block:: bash
 
@@ -30,23 +29,21 @@ For longer or multi-step work, writing a ``goal.md`` file is recommended.
 See :doc:`writing_goal_md` for the full format guide.
 
 
-Three autonomous workflows
----------------------------
+Three autonomous simulation workflows
+------------------------------------------
 
 .. figure:: _static/img/major_modes_workflow.svg
    :alt: Three major FermiLink workflows: exec for single runs, loop for iterative runs involving long SLURM or PID jobs, and research/reproduce for full research-paper-level calculations.
    :align: center
    :width: 95%
 
-FermiLink provides three workflows matched to different task scales:
+**FermiLink** provides three workflows for autonomous scientific simulations:
 
 - **exec** -- one prompt, one agent run. Best for quick tasks that finish in
   under 30 minutes (e.g., plotting data, short calculations).
 
-- **loop** -- autonomous iteration with persistent memory, local PID polling,
-  and SLURM job monitoring. Best for tasks that run for hours or days, where
-  the agent needs to wait for jobs, check outputs, and iterate
-  (e.g., convergence studies, multi-step simulations).
+- **loop** -- autonomous iteration with persistent memory, local PID or SLURM job monitoring. 
+  Best for tasks that run for hours or days with iterative job submissions.
 
 - **research / reproduce** -- planner + auditor + task-loop orchestration for
   publication-scale campaigns with multiple interdependent tasks
@@ -67,25 +64,22 @@ Scientific package knowledge bases
    :align: center
    :width: 95%
 
-FermiLink ships with 150+ built-in scientific package knowledge bases spanning
+**FermiLink** ships with 150+ built-in scientific package knowledge bases spanning
 computational chemistry, materials science, photonics, fluid dynamics, and
 more. Each knowledge base includes:
 
 - The full source-code tree of the package
-- **Agent Skills** -- curated entry-level tutorials, file maps, and usage
-  patterns that help the AI agent efficiently navigate the package
+- **Agent Skills** -- curated entry-level tutorials and informative file maps that help the AI agent efficiently navigate the package
 
-When you install a package (``fermilink install meep``), FermiLink makes this
-knowledge available to the agent during all sessions. The agent uses it to
-write correct input files, choose appropriate methods, and avoid common
-pitfalls.
+When you install a package (``fermilink install meep``), **FermiLink** makes this
+knowledge available to the agent during all sessions. 
 
 You can also create knowledge bases for your own code:
 
 .. code-block:: bash
 
    fermilink compile /path/to/my-code          # create from source
-   fermilink recompile my-code                  # update after changes
+   fermilink recompile my-code                 # update after changes
 
 See :doc:`scientific_packages` for the full package management guide.
 
@@ -93,7 +87,7 @@ See :doc:`scientific_packages` for the full package management guide.
 Three ways to interact
 ----------------------
 
-FermiLink is not just a CLI tool. Pick the interface that fits your workflow:
+**FermiLink** is not just a CLI tool. Pick the interface that fits your workflow:
 
 - **Command line** -- ``fermilink exec/loop/research goal.md`` for headless,
   scriptable autonomy. The most powerful interface.
@@ -108,14 +102,23 @@ See :doc:`usage_web_ui` and :doc:`usage_chatting_apps` for setup guides.
 Unified memory
 --------------
 
-FermiLink maintains a ``projects/memory.md`` file in each workspace that
-persists across iterations and sessions. The memory includes:
+**FermiLink** maintains a ``projects/memory.md`` file in each workspace that
+persists across iterations and sessions. The memory includes both
 
-- **Short-term state** -- current plan, progress log, active file map
-- **Long-term knowledge** -- simulation history, key results, known pitfalls
+- **Short-term state** 
+- **Long-term knowledge** 
 
-This memory allows the agent to resume work after interruptions, learn from
-failed attempts, and build on prior results within the same project.
+This memory allows the agent to resume work after interruptions as well as learn from its past successes and failures.
+
+
+Beyond simulations: autonomous code optimization
+--------------------------------------------------
+
+Once simulations are taken over by **FermiLink**, the next bottleneck is often code performance. 
+
+The latest version of **FermiLink** also supports autonomous code optimization, where it can identify performance bottlenecks and optimize them iteratively using deterministic benchmarks.
+
+See :doc:`optimize` for the full guide on autonomous code optimization with **FermiLink**.
 
 
 What's next

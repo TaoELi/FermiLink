@@ -62,6 +62,8 @@ rods (r=0.2a, ε=12) in air using MEEP/MPB.
 ## Success criteria
 - At least 8 bands converged with resolution ≥ 32
 - Band gap ratio within 5% of published values
+
+## Deliverables
 - Save final band diagram as `bands.png`
 ```
 

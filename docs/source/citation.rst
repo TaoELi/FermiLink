@@ -24,6 +24,6 @@ BibTeX
                 and Varela-Manjarres, Jalil and Ren, Yafei
                 and Dinpajooh, Mohammadhasan and Nikoli{\'c}, Branislav K.
                 and Li, Tao E.},
-     journal = {arXiv preprint arXiv:2604.03460},
+     journal = {arXiv:2604.03460},
      year    = {2026}
    }

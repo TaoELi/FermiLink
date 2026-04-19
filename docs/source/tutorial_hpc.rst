@@ -1,9 +1,11 @@
 HPC Tutorial
 ===============
 
-This tutorial shows how to run FermiLink smoothly on a typical SLURM-based HPC
+This tutorial shows how to run **FermiLink** autonomous simulations smoothly on a typical SLURM-based HPC
 cluster without sudo access. It is **self-contained**, so you can
 follow it end-to-end without reading other pages.
+
+For using **FermiLink** optimization features, see :doc:`optimize` for a separate optimization tutorial.
 
 Prerequisites
 ~~~~~~~~~~~~~~~~
@@ -24,7 +26,7 @@ You need the following available on the cluster (all can be user-local):
 Step 1. Choose working and runtime locations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink stores packages knowledge bases and runtim data under ``$FERMILINK_HOME``
+**FermiLink** stores packages knowledge bases and runtim data under ``$FERMILINK_HOME``
 (default ``~/.fermilink``). On HPC, it is often better to use a scratch or
 project filesystem to avoid home-quota issues.
 
@@ -41,7 +43,7 @@ The most significant storage is for workspaces, which might generate large runti
 Step 2. Install agent provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently support OpenAI Codex, Claude and Gemini.
+**FermiLink** currently supports OpenAI Codex, Claude and Gemini.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -55,7 +57,7 @@ Install and authenticate the provider you want to use:
    # Gemini login
    gemini
 
-Step 3. Install FermiLink
+Step 3. Install **FermiLink**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
@@ -65,7 +67,7 @@ Step 3. Install FermiLink
 Step 4. Install at least one scientific package knowledge base
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink routes each run to an installed package knowledge base. Install at
+**FermiLink** routes each run to an installed package knowledge base. Install at
 least one package knowledge base before you run anything:
 
 .. code-block:: bash
@@ -95,7 +97,7 @@ least one package knowledge base before you run anything:
 Step 5. Set agent runtime policy (sandbox)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, FermiLink runs in a restricted sandbox. For HPC runs, you might want to relax the sandbox for better performanc. You can set this with:
+By default, **FermiLink** runs in a restricted sandbox. For HPC runs, you might want to relax the sandbox for better performanc. You can set this with:
 
 .. code-block:: bash
 
@@ -113,11 +115,26 @@ By default, FermiLink runs in a restricted sandbox. For HPC runs, you might want
    If you bypass the sandbox, **never** run as root. Use a dedicated non-root
    account and keep regular backups of your data.
 
-Step 6. Create an ``hpc_profile.json``
+Step 6. Create a default HPC profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The HPC profile tells FermiLink how to request SLURM resources and what
-resource policy to follow. Start with this minimal template and keep the file in your home directory:
+To avoid having to specify HPC settings in every prompt, create an HPC profile for your cluster. This is a JSON file that tells **FermiLink** how to request SLURM resources and what resource policy to follow.
+
+The simplest way to do it is to run:
+
+.. code-block:: bash
+   fermilink hpc
+
+The following output will be printed,
+
+.. code-block:: text
+
+   [fermilink-hpc] Created default HPC profile at /Users/<usr>/.fermilink/HPC_PROFILE.json
+   [fermilink-hpc] You can adjust the profile as needed for your HPC environment.
+
+Then **FermiLink** autonomous simulation jobs will automatically use this profile for SLURM job submission.
+
+To accommodate your specific SLURM HPC setting, edit the generated JSON file at the printed location (default ``$FERMILINK_HOME/HPC_PROFILE.json``). The default content is:
 
 .. code-block:: json
 
@@ -127,11 +144,9 @@ resource policy to follow. Start with this minimal template and keep the file in
       "slurm_resource_policy": "Use serial/single-node defaults unless the method explicitly requires MPI or multi-node scaling"
    }
 
-You can also copy the sample at FermiLink repo ``scripts/hpc_profile_anvil.json`` and edit it
-for your site. Update the partition name and any defaults your cluster requires
-(e.g., account, QoS, time limits).
+Please feel free to adjust the values of each field (while keeping the same field names) to match your HPC setting and preferences. 
 
-It is safe to create this file in your home directory (``$HOME/hpc_profile.json``).
+For example, if you want to use a different default partition or request more resources for MPI jobs, you can modify the corresponding fields in this JSON file.
 
 
 Step 7. Hello world on HPC (``exec``)
@@ -145,15 +160,14 @@ Run a single prompt in a clean project directory.
    cd run_em_demo
 
    # one-shot execution with an HPC profile
-   fermilink exec "run a single two-level system coupled to a single-mode cavity" \
-     --hpc-profile "$HOME/hpc_profile.json"
+   fermilink exec "run a single two-level system coupled to a single-mode cavity"
 
 What ``exec`` does:
 
 - routes your prompt to the best installed package
 - overlays the package knowledge base into the current repo
 - initializes or updates ``projects/memory.md``
-- submits and monitors SLURM jobs when ``--hpc-profile`` is provided
+- accepts a ``--hpc-profile hpc_profile.json`` to override the default HPC profile specified in ``fermilink hpc`` (see above).
 
 If the directory is not already a git repository, ``exec`` now auto-initializes one by default.
 Use ``--no-init-git`` only if you want the command to fail instead.
@@ -173,7 +187,6 @@ completion and can run multiple iterations until the goal is reached.
 .. code-block:: bash
 
    fermilink loop goal.md \
-     --hpc-profile "$HOME/hpc_profile.json" \
      --max-iterations 10 \
      --max-wait-seconds 7200
 
@@ -187,17 +200,17 @@ the agent will immediately proceed to the next iteration.
 Step 9. Full workflows (``research`` and ``reproduce``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use these when you want a complete research-style workflow with planning,
-execution, and a final report. Note that these two modes are very expensive to run. **Always try 
+Use these when you want a complete research-style workflow with multi-task planning,
+execution of multiple ``loop`` jobs, and a final audit report. Note that these two modes are very expensive to run. **Always try 
 with ``exec`` or ``loop`` first** to debug your prompt and HPC settings before you run these full workflows.
 
 .. code-block:: bash
 
    # start from an idea
-   fermilink research idea.md --hpc-profile "$HOME/hpc_profile.json"
+   fermilink research idea.md
 
    # reproduce a paper
-   fermilink reproduce paper.tex --hpc-profile "$HOME/hpc_profile.json"
+   fermilink reproduce paper.tex
 
 Artifacts are written under:
 
@@ -208,10 +221,10 @@ Each workflow also writes helper scripts (for example ``00_run_all.sh``) inside
 the run directory for staged or re-run execution.
 
 
-Step 10. Submit FermiLink as a SLURM job
+Step 10. Submit **FermiLink** as a SLURM job
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If your site discourages long runs on login nodes, submit FermiLink itself as a
+If your site discourages long runs on login nodes, submit **FermiLink** itself as a
 batch job. Create ``fermilink_job.sh``:
 
 .. code-block:: bash
@@ -225,8 +238,8 @@ batch job. Create ``fermilink_job.sh``:
    #SBATCH --cpus-per-task=1
    #SBATCH --output=fermilink-%j.out
 
-   fermilink exec "run a single two-level system coupled to a single-mode cavity" \
-     --hpc-profile "$HOME/hpc_profile.json"
+   fermilink exec "run a single two-level system coupled to a single-mode cavity"
+
 
 Submit it with:
 
@@ -240,15 +253,12 @@ Adjust the ``#SBATCH`` lines to match your HPC setting.
 Step 11. Compile / recompile your own package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-At this stage, it is likely that you want to add your own package or pipeline to FermiLink.  
+At this stage, it is likely that you want to add your own package or pipeline to **FermiLink**.  
 
 - ``fermilink compile``: turn a local project into a package knowledge base;
 - ``fermilink recompile``: update it after you add more skills or files.
 
 See :doc:`usage_configure_your_package` and :doc:`usage_advanced_configuration` for details on how to compile/recompile your package and convert research pipelines or memory suggestions into package knowledge.
-
-Alternatively, you can also send an email to the FermiLink team (taoeli@udel.edu) with your open-source package or pipeline, and we can help compile it into 
-the `curated Github channel <https://github.com/orgs/skilled-scipkg/repositories>`_ for easy installation and use by the community.
 
 
 Step 12. Optional (but highly useful): Telegram remote control for HPC
@@ -268,11 +278,13 @@ After reading :doc:`usage_chatting_apps`, you can run the commands below at the 
    export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 
-   fermilink gateway --max-wait-seconds 6000 --max-iterations 10 \
-     --hpc-profile "$HOME/hpc_profile.json"
+   fermilink gateway --max-wait-seconds 6000 --max-iterations 10 
+
 
 Once the gateway is running, chat with your bot and use ``/list`` or ``/mode`` to
 start sending jobs. 
+
+The ``--max-wait-seconds`` and ``--max-iterations`` flags will be used in the ``loop`` mode, which controlls the parameters for the agent waiting for the SLURM job monitoring.
 
 Then, if everything works, you can submit the gateway itself as a long-running SLURM job (1 CPU) so it can accept commands whenever you need it.
 
@@ -290,8 +302,8 @@ Then, if everything works, you can submit the gateway itself as a long-running S
    export FERMILINK_GATEWAY_TELEGRAM_TOKEN="<token-from-@BotFather>"
    export FERMILINK_GATEWAY_TELEGRAM_ALLOW_FROM="<numeric-id-from-@get_telegram_id_smppcenter_bot>"
 
-   fermilink gateway --max-wait-seconds 6000 --max-iterations 10 \
-     --hpc-profile "$HOME/hpc_profile.json"
+   fermilink gateway --max-wait-seconds 6000 --max-iterations 10 
+
 
 Even better, if you want **multiple bots working for you simultaneously for different tasks**, you can create multiple gateway jobs with different bot tokens and user restrictions.
 
@@ -311,8 +323,7 @@ Even better, if you want **multiple bots working for you simultaneously for diff
    FERMILINK_WORKSPACES_ROOT=$SCRATCH/fermilink/workspaces_lammps \
    fermilink gateway --telegram-token "xxxx" \
       --session-store $FERMILINK_HOME/runtime/chat_sessions_lammps.json \
-      --max-iterations 30 --max-wait-seconds 36000 \
-      --hpc-profile $HOME/hpc_profile.json
+      --max-iterations 30 --max-wait-seconds 36000
 
 The above SLURM script starts a gateway for LAMMPS-related jobs with a specific Telegram bot token and workspace location (so different bots would not interfere with each other). You can create similar scripts for different packages or projects. 
 
@@ -344,44 +355,14 @@ Troubleshooting quick checks
 - **Permission or quota errors**: set ``FERMILINK_HOME`` to scratch or project
   storage.
 - **Simulation package missing**: install the solver package or load the
-  appropriate module; FermiLink only installs the knowledge base.
+  appropriate module; **FermiLink** only installs the knowledge base.
 
 
 
 Important tips for the prompts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A high-quality prompt is essential for good results. Here are some tips:
-
-- **Be specific about the system, method, goal, and plotting requirement**. For example, instead of
-  "simulate a cavity system", say "simulate a weakly excited two-level atom coupled to a
-  single-mode cavity and plot the population dynamics".
-
-- If you want to use a **specific package, mention this package in the prompt**.
-
-- If one task should use different HPC resources than the setting in ``$HOME/hpc_profile.json``, **specify the HPC constraints in the prompt**. For example, "simulate a large system with 4 nodes and 16 tasks per node using LAMMPS".
-
-- Prefer using **markdown file as the prompt input file**, which can provide better formatting and readability for complex prompts. For example, you can create a file named ``goal.md`` with the following content:
-
-.. code-block:: markdown
-
-   # Simulation Goal
-
-   Use the maxwelllink package to simulate a weakly excited two-level atom coupled to a classical single-mode cavity and plot the Rabi splitting spectrum using the photonic coordinate.
-
-   ## Deliverables
-
-   - Plot a single panel figure showing the population of the excited state as a function of time with publication quality.
-
-   ## HPC Constraints
-
-   Use 1 node with 1 task for this simulation.
-
-Then run:
-
-.. code-block:: bash
-
-    fermilink exec goal.md --hpc-profile "$HOME/hpc_profile.json"
+A high-quality prompt is essential for good results. Please read :doc:`writing_goal_md` for tips on how to write effective prompts and structure your ``goal.md`` for the best results.
 
 
 Further reading (optional)

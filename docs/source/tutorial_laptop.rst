@@ -1,11 +1,13 @@
 Laptop Tutorial
 ===============
 
-This tutorial shows how to run FermiLink locally on a laptop/workstation
+This tutorial shows how to run **FermiLink** locally on a laptop/workstation
 (macOS/Linux). It is designed to be **self-contained**, so you can follow it end-to-end without
 reading other pages.
 
-This tutorial assumes the default FermiLink runtime location is located at:
+For using **FermiLink** optimization features, see :doc:`optimize` for a separate optimization tutorial.
+
+This tutorial assumes the default **FermiLink** runtime location is located at:
 
 - ``~/.fermilink``
 
@@ -38,7 +40,7 @@ Use conda environment so your laptop test does not modify your system Python:
 Step 2. Install agent provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink currently supports **OpenAI Codex**, **Claude**, and **Gemini** as the agent providers.
+**FermiLink** currently supports **OpenAI Codex**, **Claude**, and **Gemini** as the agent providers.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -58,7 +60,7 @@ Install and authenticate the provider you want to use:
 
      brew install codex
 
-Step 3. Install FermiLink
+Step 3. Install **FermiLink**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Clone the repo and install the CLI into your active Python environment:
@@ -77,7 +79,7 @@ Quick check:
 Step 4. Install a scientific package knowledge base
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-FermiLink routes each user request to an installed scientific package knowledge base, so
+**FermiLink** routes each user request to an installed scientific package knowledge base, so
 **install at least one package knowledge base** before you run anything.
 
 This laptop tutorial uses ``qutip`` because it runs well locally and is a good
@@ -100,11 +102,13 @@ fit for small "hello world" quantum simulations:
    ``~/.fermilink/scientific_packages``. It does not necessarily install the
    underlying runtime library used for execution.
 
-Install in Python to **really install** the package:
+You can optionally install in Python to **really install** the package:
 
 .. code-block:: bash
 
    pip install qutip
+
+Of course, the agent can do this installation on its own, but it is recommended to have the software already installed for better performance and reliability.
 
 If you want to use a different scientific package, see the built-in catalog:
 :doc:`built_in_scientific_packages`.
@@ -113,7 +117,7 @@ If you want to use a different scientific package, see the built-in catalog:
 Step 5. Set agent runtime policy (sandbox)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, FermiLink runs in a restricted sandbox, but you can also relax the sandbox for more flexible agent execution. 
+By default, **FermiLink** runs in a restricted sandbox, but you can also relax the sandbox for more flexible agent execution (for example, when running local MPI jobs). 
 
 .. code-block:: bash
 
@@ -204,11 +208,12 @@ Then your browser will automatically open the following webpage:
 
 **Sign UP** with an account and then **Sign In**. You can then enjoy a ChatGPT-style interface with the same agent capabilities as the terminal, but with better interactivity and visualization support.
 
-Step 9. Longer local runs (optional)
+Step 9. Longer local runs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-On a laptop, you can still use longer-running modes (they run locally by
-default):
+Some scientific simulations take hours or days. For these longer runs, use the ``loop`` command to let the agent iterate until the goal is met.
+
+On a laptop, you can perform iterative runs with local PID monitoring.
 
 .. code-block:: bash
 
@@ -216,6 +221,9 @@ default):
    fermilink loop goal.md --max-iterations 5 --max-wait-seconds 3600
 
 The **goal.md** file can be replaced by a string prompt directly (just like the `exec` mode).
+
+See :doc:`writing_goal_md` regarding how to write effective ``goal.md`` files.
+
 
 .. note::
 
@@ -226,7 +234,7 @@ The **goal.md** file can be replaced by a string prompt directly (just like the 
 Where your data lives
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-By default, FermiLink stores runtime data under ``~/.fermilink``:
+By default, **FermiLink** stores runtime data under ``~/.fermilink``:
 
 - ``scientific_packages/``: installed package knowledge bases
 - ``workspaces/``: per-session workspaces (web UI, workflows, some CLI runs)
@@ -241,7 +249,7 @@ Troubleshooting quick checks
 - **No packages installed**: run ``fermilink install <package_id> --activate``,
   then verify with ``fermilink list``.
 - **Runtime package missing**: install the underlying package (for example
-  ``pip install qutip``); FermiLink only installs the knowledge base.
+  ``pip install qutip``); **FermiLink** only installs the knowledge base.
 
 
 Further reading (optional)
