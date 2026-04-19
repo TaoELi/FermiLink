@@ -26,7 +26,7 @@ Ask the user for (or infer from the current working directory):
    `<optimize-dir>/../optimize-report/`.
 3. Optional title, metric label, and direction (`lower` or `higher`). If
    omitted, direction is auto-detected from the baseline/accepted trajectory
-   and label is pulled from `primary_metric_name` in `results.tsv`.
+   and label is humanized from `primary_metric_name` in `results.tsv`.
 
 Do not silently invent a path. If the user has not named one, ask.
 
@@ -60,7 +60,7 @@ optimize-report/
   contract/
     benchmark.yaml               # copied from autogen/
     benchmark_runner.py          # copied from autogen/
-    goal.md                      # copied from autogen/ when present
+    goal.md                      # archived goal-mode source copied from autogen/
     goal_inputs.json             # if present
     ...                          # goal_analysis.json, goal_mode.json, run_optimize.sh, setup_env.sh
   data/
