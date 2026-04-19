@@ -50,7 +50,7 @@ run.
 
 ```
 optimize-report/
-  index.rst                      # title, summary, headline plots, full table, toctree
+  index.rst                      # title, summary, plots, accepted toctree, rerun appendix, benchmark inventory
   img/
     metric_vs_iter.{png,svg}     # all iterations, colored by status
     improvement_cumulative.{png,svg}  # running-incumbent staircase
@@ -60,6 +60,7 @@ optimize-report/
   contract/
     benchmark.yaml               # copied from autogen/
     benchmark_runner.py          # copied from autogen/
+    goal.md                      # copied from autogen/ when present
     goal_inputs.json             # if present
     ...                          # goal_analysis.json, goal_mode.json, run_optimize.sh, setup_env.sh
   data/
@@ -88,6 +89,20 @@ commits that actually shipped.
   the index will still render with only a baseline row.
 - The plotter auto-detects metric direction from the baseline→accepted trend,
   but the user can override with `--direction`.
+- The generated `index.rst` ends with a rerun appendix that points back to the
+  default upstream repo (`git@github.com:skilled-scipkg/<pkg-id>.git`),
+  links the upstream GitHub default branch when local git metadata can resolve
+  it, chooses the matching launcher (`fermilink-optimize-python` vs
+  `fermilink-optimize-cpp`) from the copied goal/contract metadata, and
+  includes a deterministic expert-mode rerun path based on copied
+  `benchmark.yaml` + `benchmark_runner.py`. When the copied `goal.md` contains
+  a `## Build` code block, the rerun appendix also shows that block under a
+  `Building environment` subsection and reminds users that these commands are
+  rerun before benchmarks via `runtime.pre_commands`.
+- The generated `index.rst` also ends with a top-level `Benchmarks` section
+  that copies the `train-*` and `test-*` case blocks from `benchmark.yaml`
+  into separate YAML code blocks, noting that train cases are used by workers
+  and test cases by the controller.
 - Commit hashes are truncated to 12 characters in all rendered output.
 - Diffs longer than 600 lines are truncated inline; the full file is still
   written to `iterations/_diffs/` and linked for download.

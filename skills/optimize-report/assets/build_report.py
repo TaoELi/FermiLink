@@ -18,16 +18,41 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shlex
 import shutil
+import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 ASSETS_DIR = Path(__file__).resolve().parent
 if str(ASSETS_DIR) not in sys.path:
     sys.path.insert(0, str(ASSETS_DIR))
 
 import plot_optimize  # noqa: E402
+
+_HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$")
+
+
+@dataclass
+class RerunGuide:
+    package_id: str
+    language: str
+    launcher: Optional[str]
+    clone_url: str
+    repo_url: str
+    default_branch: Optional[str]
+    branch_url: Optional[str]
+    has_goal: bool
+    has_benchmark: bool
+    has_runner: bool
+    has_goal_inputs: bool
+    build_commands: list[str]
+    train_benchmark_block: str
+    test_benchmark_block: str
 
 
 def split_description(desc: str) -> tuple[str, str]:
@@ -54,7 +79,7 @@ def split_description(desc: str) -> tuple[str, str]:
 
 
 def rst_escape(text: str) -> str:
-    return (text or "").replace("|", "\\|")
+    return (text or "").replace("|", "\\|").replace("`", "\\`")
 
 
 def rst_title(text: str, char: str) -> str:
@@ -74,7 +99,7 @@ def copy_contract(optimize_dir: Path, out_dir: Path) -> list[str]:
     copied: list[str] = []
     autogen = optimize_dir / "autogen"
     if autogen.exists():
-        for name in ("benchmark.yaml", "benchmark_runner.py", "goal_inputs.json",
+        for name in ("benchmark.yaml", "benchmark_runner.py", "goal.md", "goal_inputs.json",
                      "goal_analysis.json", "goal_mode.json", "run_optimize.sh",
                      "setup_env.sh"):
             src = autogen / name
@@ -90,22 +115,19 @@ def copy_contract(optimize_dir: Path, out_dir: Path) -> list[str]:
 
 
 def load_review_context(iter_dir: Path) -> dict:
-    p = iter_dir / "review_context.json"
-    if not p.exists():
-        return {}
-    try:
-        return json.loads(p.read_text())
-    except json.JSONDecodeError:
-        return {}
+    return load_json_file(iter_dir / "review_context.json")
 
 
 def load_controller_result(iter_dir: Path) -> dict:
-    p = iter_dir / "controller_result.json"
-    if not p.exists():
+    return load_json_file(iter_dir / "controller_result.json")
+
+
+def load_json_file(path: Path) -> dict:
+    if not path.exists():
         return {}
     try:
-        return json.loads(p.read_text())
-    except json.JSONDecodeError:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
         return {}
 
 
@@ -119,6 +141,347 @@ def read_text_safe(path: Path, limit: Optional[int] = None) -> str:
     if limit and len(data) > limit:
         return data[:limit] + f"\n... (truncated, full file {len(data)} bytes)"
     return data
+
+
+def extract_markdown_sections(text: str) -> dict[str, str]:
+    sections: dict[str, str] = {}
+    current_heading = ""
+    current_lines: list[str] = []
+    for line in text.splitlines():
+        match = _HEADING_RE.match(line)
+        if match:
+            if current_heading:
+                sections[current_heading] = "\n".join(current_lines).strip()
+            current_heading = match.group(2).strip().lower()
+            current_lines = []
+        else:
+            current_lines.append(line)
+    if current_heading:
+        sections[current_heading] = "\n".join(current_lines).strip()
+    return sections
+
+
+def goal_first_line(goal_text: str, heading: str) -> str:
+    body = extract_markdown_sections(goal_text).get(heading.lower(), "")
+    return body.splitlines()[0].strip() if body else ""
+
+
+def goal_code_blocks(goal_text: str, heading: str) -> list[str]:
+    body = extract_markdown_sections(goal_text).get(heading.lower(), "")
+    blocks: list[str] = []
+    current: list[str] | None = None
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            if current is None:
+                current = []
+            else:
+                blocks.append("\n".join(current).strip())
+                current = None
+            continue
+        if current is not None:
+            current.append(line)
+    return [block for block in blocks if block]
+
+
+def yaml_scalar(text: str, key: str) -> str:
+    pattern = re.compile(rf"^{re.escape(key)}:\s*(.+?)\s*$", re.MULTILINE)
+    match = pattern.search(text)
+    if not match:
+        return ""
+    value = match.group(1).split(" #", 1)[0].strip()
+    return value.strip("\"'")
+
+
+def normalize_language(raw: str) -> str:
+    value = (raw or "").strip().lower()
+    if not value:
+        return ""
+    if "python" in value or value == "py":
+        return "python"
+    if "fortran" in value or value in {"f90", "f77", "f95"}:
+        return "fortran"
+    if value in {"cpp", "c++", "cxx", "c"} or "c/c++" in value:
+        return "cpp"
+    return value
+
+
+def infer_language_from_goal_path(goal_path: str) -> str:
+    name = Path(goal_path or "").name.lower()
+    if name.startswith(("python-", "py-")):
+        return "python"
+    if name.startswith(("fortran-", "f90-", "f77-")):
+        return "fortran"
+    if name.startswith(("cpp-", "cxx-", "c-")):
+        return "cpp"
+    return ""
+
+
+def launcher_for_language(language: str) -> Optional[str]:
+    normalized = normalize_language(language)
+    if normalized == "python":
+        return "fermilink-optimize-python"
+    if normalized in {"cpp", "fortran"}:
+        return "fermilink-optimize-cpp"
+    return None
+
+
+def default_upstream_clone(package_id: str) -> str:
+    return f"git@github.com:skilled-scipkg/{package_id}.git"
+
+
+def default_upstream_repo_url(package_id: str) -> str:
+    return f"https://github.com/skilled-scipkg/{package_id}"
+
+
+def git_stdout(repo_root: Path, *args: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ""
+    return result.stdout.strip()
+
+
+def detect_default_branch(repo_root: Path) -> Optional[str]:
+    ref = git_stdout(repo_root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    if ref.startswith("origin/"):
+        return ref.split("/", 1)[1]
+    if ref:
+        return ref
+    for candidate in ("main", "master", "develop"):
+        try:
+            subprocess.run(
+                ["git", "-C", str(repo_root), "show-ref", "--verify", "--quiet", f"refs/heads/{candidate}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return candidate
+        except (OSError, subprocess.CalledProcessError):
+            continue
+    return None
+
+
+def parse_benchmark_case_blocks(benchmark_text: str) -> list[tuple[str, str]]:
+    lines = benchmark_text.splitlines()
+    in_cases = False
+    current_id = ""
+    current_lines: list[str] = []
+    parsed: list[tuple[str, str]] = []
+
+    for line in lines:
+        if not in_cases:
+            if line.startswith("cases:"):
+                in_cases = True
+            continue
+        if line and not line.startswith(" "):
+            break
+        if line.startswith("  - id: "):
+            if current_id and current_lines:
+                parsed.append((current_id, "\n".join(current_lines)))
+            current_id = line.split(":", 1)[1].strip().strip("\"'")
+            current_lines = [line]
+            continue
+        if current_lines:
+            current_lines.append(line)
+
+    if current_id and current_lines:
+        parsed.append((current_id, "\n".join(current_lines)))
+    return parsed
+
+
+def benchmark_block_for_prefix(benchmark_text: str, prefix: str) -> str:
+    snippets = [
+        block for case_id, block in parse_benchmark_case_blocks(benchmark_text)
+        if case_id.startswith(prefix)
+    ]
+    if not snippets:
+        return ""
+    return "cases:\n" + "\n".join(snippets)
+
+
+def collect_rerun_guide(optimize_dir: Path) -> RerunGuide:
+    autogen = optimize_dir / "autogen"
+    goal_mode = load_json_file(autogen / "goal_mode.json")
+    goal_text = read_text_safe(autogen / "goal.md")
+    benchmark_text = read_text_safe(autogen / "benchmark.yaml")
+
+    package_id = (
+        str(goal_mode.get("package_id") or "").strip()
+        or goal_first_line(goal_text, "Package")
+        or yaml_scalar(benchmark_text, "package_id")
+        or optimize_dir.parent.name
+    )
+    language = normalize_language(
+        str(goal_mode.get("language") or "").strip()
+        or goal_first_line(goal_text, "Language")
+        or infer_language_from_goal_path(str(goal_mode.get("goal_path") or ""))
+    )
+    launcher = launcher_for_language(language)
+    repo_url = default_upstream_repo_url(package_id)
+    default_branch = detect_default_branch(optimize_dir.parent)
+    branch_url = f"{repo_url}/tree/{quote(default_branch, safe='')}" if default_branch else None
+    build_commands = goal_code_blocks(goal_text, "Build")
+    train_benchmark_block = benchmark_block_for_prefix(benchmark_text, "train-")
+    test_benchmark_block = benchmark_block_for_prefix(benchmark_text, "test-")
+    return RerunGuide(
+        package_id=package_id,
+        language=language,
+        launcher=launcher,
+        clone_url=default_upstream_clone(package_id),
+        repo_url=repo_url,
+        default_branch=default_branch,
+        branch_url=branch_url,
+        has_goal=(autogen / "goal.md").exists(),
+        has_benchmark=(autogen / "benchmark.yaml").exists(),
+        has_runner=(autogen / "benchmark_runner.py").exists(),
+        has_goal_inputs=(autogen / "goal_inputs.json").exists(),
+        build_commands=build_commands,
+        train_benchmark_block=train_benchmark_block,
+        test_benchmark_block=test_benchmark_block,
+    )
+
+
+def build_rerun_section(guide: RerunGuide) -> list[str]:
+    if not guide.package_id:
+        return []
+
+    worktree_name = f"{guide.package_id}-<modified-feature>"
+    branch_name = f"fermilink-optimize/{worktree_name}"
+    base_ref = guide.default_branch or "<default-branch>"
+    launcher_name = guide.launcher or "<fermilink-optimize-python|fermilink-optimize-cpp>"
+
+    lines: list[str] = [rst_title("Rerun", "-"), ""]
+    lines.append("Use the bundled contract files from this report to recreate the optimization against a fresh upstream checkout.")
+    lines.append("")
+    lines.append(f"- default upstream clone: ``{guide.clone_url}``")
+    if guide.branch_url and guide.default_branch:
+        lines.append(
+            f"- confirm the upstream default branch before creating the worktree: "
+            f"`{guide.default_branch} on GitHub <{guide.branch_url}>`_"
+        )
+    else:
+        lines.append(
+            f"- confirm the upstream default branch before creating the worktree: "
+            f"`upstream GitHub repo <{guide.repo_url}>`_"
+        )
+    if guide.launcher and guide.language:
+        lines.append(
+            f"- detected package language: ``{guide.language}``; use ``{guide.launcher}`` for goal-mode reruns"
+        )
+    else:
+        lines.append(
+            "- launcher selection: use ``fermilink-optimize-python`` for Python repos or "
+            "``fermilink-optimize-cpp`` for C/C++/Fortran repos"
+        )
+    lines.append(
+        "- ``contract/run_optimize.sh`` and ``contract/setup_env.sh`` record the original campaign, "
+        "but they can contain site-specific absolute paths"
+    )
+    if guide.has_goal_inputs:
+        lines.append(
+            "- if :download:`goal_inputs.json <contract/goal_inputs.json>` is present, restage the "
+            "listed auxiliary workload files before rerunning"
+        )
+    lines.append("")
+    lines.append(".. code-block:: bash")
+    lines.append("")
+    lines.append(f"   git clone {shlex.quote(guide.clone_url)}")
+    lines.append(f"   cd {guide.package_id}")
+    lines.append(f"   git worktree add -b {branch_name} ../{worktree_name} {base_ref}")
+    lines.append("")
+
+    if guide.has_goal:
+        lines.append("Path 1: rerun from the bundled :download:`goal.md <contract/goal.md>`.")
+        lines.append("")
+        lines.append("Run this from the cloned main repo so the launcher can create or reuse the sibling worktree:")
+        lines.append("")
+        lines.append(".. code-block:: bash")
+        lines.append("")
+        lines.append(f"   {launcher_name} \\")
+        lines.append("     --project-root \"$PWD\" \\")
+        lines.append("     --goal /path/to/report/contract/goal.md \\")
+        lines.append(f"     --branch {branch_name} \\")
+        lines.append("     --worktree-root .. \\")
+        lines.append(f"     --worktree-name {worktree_name}")
+        lines.append("")
+
+    if guide.has_benchmark and guide.has_runner:
+        lines.append(
+            "Path 2: rerun more deterministically from the copied "
+            ":download:`benchmark.yaml <contract/benchmark.yaml>` and "
+            ":download:`benchmark_runner.py <contract/benchmark_runner.py>`."
+        )
+        lines.append("")
+        lines.append("This avoids regenerating the benchmark contract from ``goal.md`` before the campaign starts:")
+        lines.append("")
+        lines.append(".. code-block:: bash")
+        lines.append("")
+        lines.append(f"   cd ../{worktree_name}")
+        lines.append("   mkdir -p .fermilink-optimize/autogen")
+        lines.append("   cp /path/to/report/contract/benchmark.yaml .fermilink-optimize/autogen/benchmark.yaml")
+        lines.append("   cp /path/to/report/contract/benchmark_runner.py .fermilink-optimize/autogen/benchmark_runner.py")
+        lines.append("   printf '%s\\n' '.fermilink-optimize/' >> .git/info/exclude")
+        lines.append(f"   fermilink optimize {guide.package_id} \"$PWD\" \\")
+        lines.append("     --benchmark \"$PWD/.fermilink-optimize/autogen/benchmark.yaml\" \\")
+        lines.append("     --skills-source existing")
+        lines.append("")
+
+    if guide.build_commands:
+        lines.append(rst_title("Building environment", "~"))
+        lines.append("")
+        lines.append(
+            "These commands come from the copied ``## Build`` block in :download:`goal.md <contract/goal.md>` "
+            "and are rerun before benchmarks through the benchmark configuration."
+        )
+        lines.append("")
+        lines.append(
+            "Check that they work in your local environment before launching a long run. "
+            "If they do not, update the ``## Build`` section in ``goal.md`` or the corresponding "
+            "``runtime.pre_commands`` setting in :download:`benchmark.yaml <contract/benchmark.yaml>`."
+        )
+        lines.append("")
+        for block in guide.build_commands:
+            lines.append(".. code-block:: bash")
+            lines.append("")
+            for ln in block.splitlines():
+                lines.append(f"   {ln}")
+            lines.append("")
+
+    return lines
+
+
+def build_benchmarks_section(guide: RerunGuide) -> list[str]:
+    if not guide.train_benchmark_block and not guide.test_benchmark_block:
+        return []
+
+    lines: list[str] = [rst_title("Benchmarks", "-"), ""]
+    if guide.train_benchmark_block:
+        lines.append(
+            "Worker iterations run the ``train-*`` benchmark cases below while searching for candidate changes:"
+        )
+        lines.append("")
+        lines.append(".. code-block:: yaml")
+        lines.append("")
+        for ln in guide.train_benchmark_block.splitlines():
+            lines.append(f"   {ln}")
+        lines.append("")
+    if guide.test_benchmark_block:
+        lines.append(
+            "Controller reviews run the ``test-*`` benchmark cases below to validate accepted candidates:"
+        )
+        lines.append("")
+        lines.append(".. code-block:: yaml")
+        lines.append("")
+        for ln in guide.test_benchmark_block.splitlines():
+            lines.append(f"   {ln}")
+        lines.append("")
+    return lines
 
 
 def build_guardrails_table(review: dict, controller: dict) -> str:
@@ -177,6 +540,7 @@ def build_index(
     metric_label: str,
     accepted_pages: list[tuple[int, str]],
     contract_files: list[str],
+    rerun_guide: RerunGuide,
 ) -> None:
     baseline = next((r for r in rows if r.status == "baseline"), None)
     accepted = [r for r in rows if r.status == "accepted"]
@@ -270,6 +634,8 @@ def build_index(
     lines.append("- :download:`results.tsv <data/results.tsv>`")
     lines.append("- :download:`summary.json <data/summary.json>`")
     lines.append("")
+    lines.extend(build_rerun_section(rerun_guide))
+    lines.extend(build_benchmarks_section(rerun_guide))
 
     (out_dir / "index.rst").write_text("\n".join(lines))
 
@@ -411,6 +777,7 @@ def build(
     (out_dir / "data" / "summary.json").write_text(json.dumps(summary, indent=2))
 
     contract_files = copy_contract(optimize_dir, out_dir)
+    rerun_guide = collect_rerun_guide(optimize_dir)
 
     accepted_pages: list[tuple[int, str]] = []
     runs_dir = optimize_dir / "runs"
@@ -422,7 +789,16 @@ def build(
         if rel:
             accepted_pages.append((r.iteration, rel))
 
-    build_index(out_dir, final_title, rows, dir_final, label, accepted_pages, contract_files)
+    build_index(
+        out_dir,
+        final_title,
+        rows,
+        dir_final,
+        label,
+        accepted_pages,
+        contract_files,
+        rerun_guide,
+    )
     return out_dir
 
 
