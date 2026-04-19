@@ -1311,6 +1311,34 @@ def _split_train_case_ids(payload: dict[str, Any]) -> list[str]:
     return normalized
 
 
+def _infer_case_split_from_case_prefixes(payload: dict[str, Any]) -> None:
+    if payload.get(BENCHMARK_SPLIT_KEY) is not None:
+        return
+    cases = _benchmark_cases(payload)
+    if not cases:
+        return
+    train_case_ids: list[str] = []
+    test_case_ids: list[str] = []
+    seen_case_ids: set[str] = set()
+    for case in cases:
+        case_id = _benchmark_case_id(case)
+        if not case_id or case_id in seen_case_ids:
+            return
+        seen_case_ids.add(case_id)
+        if case_id.startswith("train-"):
+            train_case_ids.append(case_id)
+            continue
+        if case_id.startswith("test-"):
+            test_case_ids.append(case_id)
+            continue
+        return
+    if not train_case_ids or not test_case_ids:
+        return
+    payload[BENCHMARK_SPLIT_KEY] = {
+        BENCHMARK_SPLIT_TRAIN_CASE_IDS_KEY: train_case_ids,
+    }
+
+
 def _validate_case_split(payload: dict[str, Any]) -> None:
     cli = _cli()
     split = payload.get(BENCHMARK_SPLIT_KEY)
@@ -1512,6 +1540,7 @@ def _load_benchmark(path: Path) -> dict[str, Any]:
     primary_metric = str(objective.get("primary_metric") or "").strip()
     if not primary_metric:
         raise cli.PackageError("Benchmark objective.primary_metric is required.")
+    _infer_case_split_from_case_prefixes(payload)
     _validate_correctness_schema(payload)
     _validate_case_split(payload)
     if mode == "submit_poll":

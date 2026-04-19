@@ -693,6 +693,39 @@ def test_load_benchmark_split_requires_controller_test_cases(tmp_path: Path) -> 
         optimize_controller._load_benchmark(benchmark_path)
 
 
+def test_load_benchmark_infers_split_from_train_test_case_prefixes(
+    tmp_path: Path,
+) -> None:
+    benchmark_path = tmp_path / "benchmark.yaml"
+    benchmark_path.write_text(
+        (
+            "schema_version: 1\n"
+            "benchmark_id: split-mock\n"
+            "repo:\n"
+            "  editable_paths:\n"
+            "    - src/**\n"
+            "controller:\n"
+            "  objective:\n"
+            "    primary_metric: weighted_median_wall_seconds\n"
+            "runtime:\n"
+            "  mode: direct\n"
+            "  command:\n"
+            "    - python\n"
+            "    - -c\n"
+            "    - print('ok')\n"
+            "cases:\n"
+            "  - id: train-a\n"
+            "  - id: train-b\n"
+            "  - id: test-a\n"
+        ),
+        encoding="utf-8",
+    )
+
+    payload = optimize_controller._load_benchmark(benchmark_path)
+
+    assert payload.get("split") == {"train_case_ids": ["train-a", "train-b"]}
+
+
 def test_load_benchmark_rejects_invalid_runtime_pre_commands(tmp_path: Path) -> None:
     benchmark_path = tmp_path / "benchmark.yaml"
     benchmark_path.write_text(

@@ -317,6 +317,9 @@ class TestPromptConstruction:
             "Do not infer input roots from fixed benchmark-path parent depth." in prompt
         )
         assert "hard-coded `..` parent-depth assumptions" in prompt
+        assert "preserve" in prompt and "`cases[*].id`" in prompt
+        assert "do not emit a" in prompt and "manual `split` block" in prompt
+        assert "FermiLink infers `split.train_case_ids`" in prompt
         assert "`goal_context`" in prompt
         assert "`target`" in prompt
         assert "`initial_hypothesis`" in prompt
