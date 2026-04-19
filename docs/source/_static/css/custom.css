@@ -1892,6 +1892,111 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   color: var(--mxl-simple-muted);
 }
 
+/* ── Capability + demo pair rows ── */
+.mxl-pair {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
+  gap: clamp(1.4rem, 3.2vw, 2.4rem);
+  align-items: stretch;
+  margin-top: clamp(2.6rem, 6vw, 4.4rem);
+}
+
+/* Zig-zag: row 2 swaps visual order while keeping card first in DOM. */
+.mxl-pair--reverse > .mxl-pair__card { order: 2; }
+.mxl-pair--reverse > .mxl-pair__demo { order: 1; }
+
+.mxl-pair__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(140, 208, 255, 0.14);
+  border-radius: 18px;
+  padding: clamp(1.8rem, 3.2vw, 2.4rem);
+  gap: 0.85rem;
+  background: rgba(8, 16, 30, 0.85);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+/* The h3 link is the card's primary anchor; its ::before extends the click
+   target to fill the entire card so the whole card stays clickable. */
+.mxl-pair__card-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mxl-pair__card-link::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+/* Inline links inside the caption sit above the overlay so they remain
+   independently clickable (e.g., the quickstart-guide link). */
+.mxl-pair__card-caption a {
+  position: relative;
+  z-index: 2;
+}
+
+/* Snippet + caption form a "footer" group anchored to the bottom of a
+   stretched card; description floats at the top with leftover height between. */
+.mxl-pair__card-cmd {
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+
+.mxl-pair__card-caption {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--mxl-simple-muted);
+  opacity: 0.85;
+}
+
+.mxl-pair__card-caption code {
+  background: rgba(106, 214, 255, 0.12);
+  border: 1px solid rgba(106, 214, 255, 0.18);
+  border-radius: 5px;
+  padding: 0.05em 0.32em;
+  color: var(--mxl-simple-accent);
+  font-family: var(--mxl-code-font);
+  font-size: 0.92em;
+}
+
+.mxl-pair__card:hover {
+  background: rgba(14, 28, 48, 0.92);
+  border-color: rgba(106, 214, 255, 0.28);
+}
+
+.mxl-pair__demo {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mxl-pair__demo .po-cartoon {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .mxl-pair {
+    grid-template-columns: 1fr;
+    gap: 1.4rem;
+  }
+  /* On a single-column stack, always show card → cartoon regardless of row. */
+  .mxl-pair--reverse > .mxl-pair__card,
+  .mxl-pair--reverse > .mxl-pair__demo {
+    order: 0;
+  }
+}
+
 /* ── How it works ── */
 .mxl-how-section {
   width: 100%;
@@ -2454,4 +2559,333 @@ body:not(.mxl-landing) .content > p:first-of-type {
   .related-pages {
     flex-direction: column;
   }
+}
+
+/* ==========================================================================
+   Animated optimize cartoon (mirrored from project-optimization hero).
+   Placed on the landing page between the two capability cards and the
+   "Get running in 3 steps" quickstart. Variables reference the shared
+   --mxl-simple-* tokens already defined for the landing shell.
+   ========================================================================== */
+
+.po-cartoon {
+  width: min(680px, 100%);
+  margin: clamp(1rem, 3vw, 2rem) auto 0;
+  padding: 0 clamp(1.2rem, 4vw, 3.6rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.po-term {
+  width: 100%;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(10, 18, 32, 0.92) 0%, rgba(8, 14, 26, 0.92) 100%);
+  border: 1px solid rgba(140, 208, 255, 0.14);
+  box-shadow:
+    0 22px 50px -28px rgba(0, 0, 0, 0.75),
+    0 1px 0 rgba(140, 208, 255, 0.06) inset;
+  overflow: hidden;
+  font-family: var(--mxl-code-font);
+}
+
+.po-term-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.85rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(140, 208, 255, 0.08);
+}
+
+.po-term-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.po-term-dot--r { background: #ff5f57; }
+.po-term-dot--y { background: #febc2e; }
+.po-term-dot--g { background: #28c840; }
+
+.po-term-title {
+  margin-left: 0.6rem;
+  font-family: var(--mxl-body-font);
+  font-size: 0.78rem;
+  color: rgba(189, 212, 234, 0.5);
+  letter-spacing: 0.01em;
+}
+
+.po-term-body {
+  padding: 1.05rem 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  color: var(--mxl-simple-text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  min-height: 15rem;
+}
+
+.po-term-line {
+  display: flex;
+  align-items: baseline;
+  white-space: pre;
+}
+
+.po-term-prompt {
+  color: var(--mxl-simple-accent);
+  font-weight: 700;
+  margin-right: 0.55rem;
+  user-select: none;
+}
+
+.po-term-cmd {
+  color: #f4fbff;
+  white-space: pre;
+}
+
+.po-term-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.05em;
+  background: var(--mxl-simple-accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  transform: translateY(2px);
+  animation: po-term-blink 0.8s steps(2, start) infinite;
+}
+
+@keyframes po-term-blink {
+  to { opacity: 0; }
+}
+
+.po-term-dots {
+  color: rgba(189, 212, 234, 0.7);
+  letter-spacing: 0.1em;
+  min-height: 1.2em;
+}
+
+.po-term-chart {
+  margin-top: 0.1rem;
+  padding: 0.55rem 0.4rem 0.15rem;
+  border-radius: 10px;
+  background: rgba(106, 214, 255, 0.04);
+  border: 1px solid rgba(106, 214, 255, 0.10);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  min-height: 9.5rem;
+}
+
+.po-term-chart--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.po-chart-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0 0.55rem 0.25rem;
+  font-family: var(--mxl-body-font);
+  font-size: 0.78rem;
+  color: var(--mxl-simple-muted);
+  letter-spacing: 0.02em;
+}
+
+.po-chart-caption-label {
+  font-weight: 700;
+  color: var(--mxl-simple-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+}
+
+.po-chart-caption-arrow {
+  color: #ff8b8b;
+  font-weight: 700;
+}
+
+.po-chart-caption-sub {
+  color: rgba(189, 212, 234, 0.6);
+  font-size: 0.72rem;
+  margin-left: auto;
+}
+
+.po-trend {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.po-trend-grid line {
+  stroke: rgba(140, 208, 255, 0.10);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.po-trend-axis {
+  stroke: rgba(140, 208, 255, 0.28);
+  stroke-width: 1;
+}
+
+.po-trend-tick {
+  font-family: var(--mxl-code-font);
+  font-size: 8px;
+  fill: rgba(189, 212, 234, 0.55);
+}
+
+.po-trend-axis-label {
+  font-family: var(--mxl-body-font);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--mxl-simple-accent);
+}
+
+.po-trend-area {
+  fill: url(#po-trend-area-grad);
+  fill: rgba(106, 214, 255, 0.12);
+  opacity: 0;
+  transition: opacity 0.9s ease 1.4s;
+}
+
+.po-trend-line {
+  fill: none;
+  stroke: var(--mxl-simple-accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 6px rgba(106, 214, 255, 0.35));
+  stroke-dasharray: 560;
+  stroke-dashoffset: 560;
+}
+
+.po-term-chart--visible .po-trend-line {
+  animation: po-trend-draw 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes po-trend-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.po-term-chart--visible .po-trend-area {
+  opacity: 1;
+}
+
+.po-trend-points circle {
+  fill: #06101e;
+  stroke: var(--mxl-simple-accent);
+  stroke-width: 1.6;
+  opacity: 0;
+  transform-origin: center;
+  transform: scale(0.2);
+}
+
+.po-term-chart--visible .po-trend-points circle {
+  animation: po-point-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: calc(0.25s + var(--i, 0) * 0.18s);
+}
+
+@keyframes po-point-pop {
+  to { opacity: 1; transform: scale(1); }
+}
+
+.po-cartoon-caption {
+  margin: 1.2rem auto 0;
+  max-width: 54ch;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--mxl-simple-muted);
+  text-align: center;
+}
+
+.po-cartoon-caption code {
+  background: rgba(106, 214, 255, 0.12);
+  border: 1px solid rgba(106, 214, 255, 0.18);
+  border-radius: 5px;
+  padding: 0.05em 0.32em;
+  color: var(--mxl-simple-accent);
+  font-family: var(--mxl-code-font);
+  font-size: 0.92em;
+}
+
+/* Quickstart cartoon (three commands) */
+.po-term-body--quickstart {
+  gap: 0.85rem;
+  min-height: 15rem;
+  justify-content: center;
+}
+
+.po-qs-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.po-qs-step--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.po-qs-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 999px;
+  background: rgba(106, 214, 255, 0.14);
+  color: var(--mxl-simple-accent);
+  font-family: var(--mxl-body-font);
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-right: 0.6rem;
+  user-select: none;
+  align-self: center;
+}
+
+.po-qs-cmd {
+  color: #f4fbff;
+  white-space: pre;
+}
+
+.po-qs-cursor {
+  display: none;
+}
+
+.po-qs-step--typing .po-qs-cursor {
+  display: inline-block;
+}
+
+.po-qs-out {
+  padding-left: 2rem;
+  color: rgba(189, 212, 234, 0.7);
+  font-size: 0.88rem;
+  min-height: 1.2em;
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .po-term-cursor { animation: none; opacity: 0.55; }
+  .po-trend-line { stroke-dashoffset: 0; animation: none; }
+  .po-trend-area { opacity: 1; transition: none; }
+  .po-trend-points circle { opacity: 1; transform: scale(1); animation: none; }
+  .po-term-chart { opacity: 1; transform: none; transition: none; }
+  .po-qs-step { opacity: 1; transform: none; transition: none; }
+}
+
+@media (max-width: 540px) {
+  .po-cartoon { padding-left: 1rem; padding-right: 1rem; }
+  .po-term-body { font-size: 0.82rem; padding: 0.85rem 0.8rem 1rem; }
+  .po-term-body--quickstart { min-height: 13rem; }
+  .po-term-chart { padding: 0.4rem 0.25rem 0.1rem; min-height: 8rem; }
+  .po-qs-out { padding-left: 1.7rem; font-size: 0.8rem; }
 }

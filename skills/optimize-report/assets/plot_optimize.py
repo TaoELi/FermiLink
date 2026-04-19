@@ -38,6 +38,91 @@ class Row:
     description: str
 
 
+PREFIX_LABELS = {
+    "weighted_median": "Weighted median",
+    "geomean": "Geometric mean",
+    "median": "Median",
+    "mean": "Mean",
+    "peak": "Peak",
+    "total": "Total",
+    "max": "Max",
+    "min": "Min",
+}
+
+TOKEN_LABELS = {
+    "cpu": "CPU",
+    "gpu": "GPU",
+    "rss": "RSS",
+    "scf": "SCF",
+}
+
+STEM_LABELS = {
+    "wall": "wall time",
+    "wall_ratio": "wall-time ratio",
+    "cpu": "CPU time",
+}
+
+
+def _extract_metric_prefix(metric_name: str) -> tuple[str, str]:
+    for prefix, label in sorted(PREFIX_LABELS.items(), key=lambda item: len(item[0]), reverse=True):
+        token = prefix + "_"
+        if metric_name.startswith(token):
+            return label, metric_name[len(token) :]
+        if metric_name == prefix:
+            return label, ""
+    return "", metric_name
+
+
+def _humanize_tokens(text: str, *, capitalize: bool) -> str:
+    parts = [TOKEN_LABELS.get(token, token) for token in text.split("_") if token]
+    if not parts:
+        return ""
+    phrase = " ".join(parts)
+    if capitalize and phrase and not phrase[0].isupper():
+        phrase = phrase[0].upper() + phrase[1:]
+    return phrase
+
+
+def humanize_metric_label(metric_name: str) -> str:
+    metric_name = (metric_name or "").strip()
+    if not metric_name:
+        return "Primary metric"
+
+    prefix, stem = _extract_metric_prefix(metric_name)
+    working = stem or metric_name
+
+    per_phrase = ""
+    if "_per_" in working:
+        working, per_suffix = working.split("_per_", 1)
+        per_phrase = f" per {_humanize_tokens(per_suffix, capitalize=False)}"
+
+    comparison_phrase = ""
+    if "_vs_" in working:
+        working, comparison_suffix = working.split("_vs_", 1)
+        comparison_phrase = f" vs {_humanize_tokens(comparison_suffix, capitalize=False)}"
+
+    unit = ""
+    is_seconds_metric = False
+    if working.endswith("_seconds"):
+        working = working[: -len("_seconds")]
+        is_seconds_metric = True
+        unit = " (s)"
+    elif working.endswith("_mb"):
+        working = working[: -len("_mb")]
+        unit = " (MB)"
+
+    phrase = STEM_LABELS.get(working)
+    if phrase is None:
+        phrase = _humanize_tokens(working, capitalize=not bool(prefix))
+    if not phrase:
+        phrase = "primary metric"
+    if is_seconds_metric and "time" not in phrase.lower():
+        phrase = f"{phrase} time"
+
+    label = f"{prefix} {phrase}".strip()
+    return f"{label}{per_phrase}{comparison_phrase}{unit}"
+
+
 def load_results(path: Path) -> list[Row]:
     rows: list[Row] = []
     with path.open(newline="") as fh:
@@ -205,7 +290,7 @@ def render(
         raise SystemExit(f"no rows parsed from {results_tsv}")
     out_dir.mkdir(parents=True, exist_ok=True)
     dir_final = direction or infer_direction(rows)
-    label = metric_label or (rows[0].metric_name if rows else "primary metric")
+    label = metric_label or humanize_metric_label(rows[0].metric_name if rows else "")
     plot_metric_vs_iter(rows, out_dir, label, dir_final)
     plot_running_best(rows, out_dir, label, dir_final)
     return {
