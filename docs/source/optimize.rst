@@ -6,34 +6,118 @@ system.  It iteratively proposes source-level changes to a target scientific
 package, benchmarks each candidate, validates correctness, and accepts only
 changes that improve measured performance.
 
-Two entry points are provided:
-
-- **Goal mode** -- describe your optimization intent in a short structured
-  markdown file and let **FermiLink** auto-generate benchmarks.
-- **Expert mode** -- supply a hand-crafted benchmark YAML contract and runner
-  script for full control.
-
-A third subcommand, ``fermilink optimize status``, reports campaign progress.
-
-
-Goal mode
----------
-
-Goal mode is the recommended starting point.  You write a ``goal.md`` file
-(~30 lines) instead of a full benchmark YAML contract (~1000 lines), and
-**FermiLink** analyses the target source code to generate everything else.
+You describe your optimization intent in a short structured markdown file
+(``goal.md``), and **FermiLink** analyses the target source code to
+auto-generate benchmarks and drive the campaign:
 
 .. code-block:: bash
 
    fermilink optimize goal.md
 
 
-Goal file structure
-~~~~~~~~~~~~~~~~~~~
+Recommended launchers (``bin/``)
+--------------------------------
 
-A goal file is structured markdown with the following sections.  Only
-``## Package`` and ``## Target`` are strictly required; all other sections
-improve the quality of the generated benchmark.
+For most repositories, the shipped launcher scripts under ``bin/`` are the
+easiest way to start a campaign.  They are opinionated wrappers around
+``fermilink optimize <goal.md>`` that:
+
+- create (or reuse) a sibling **git worktree** next to the source repo so the
+  original checkout stays untouched;
+- default the worktree branch to ``fermilink-optimize/<repo>-<task>`` derived
+  from the goal file name;
+- excludes ``.fermilink-optimize/`` and ``.fermilink-home/`` from git via
+  ``.git/info/exclude``;
+- forward ``--hpc-profile``, ``--worker-provider``, ``--worker-model`` to the
+  underlying ``fermilink optimize`` invocation.
+
+Two launchers are provided, one per ecosystem:
+
+- ``bin/fermilink-optimize-python`` -- for Python packages.  Additionally
+  creates a per-branch venv under ``<repo-parent>/venvs/`` and ``pip install
+  fermilink`` into it before launching.
+- ``bin/fermilink-optimize-cpp`` -- for C / C++ / Fortran packages.  No venv
+  is created; use your repo's existing build toolchain.
+
+Run with ``--help`` for the full option list.  Anything after ``--`` is
+forwarded verbatim to ``fermilink optimize``.
+
+
+Example: Python (PySCF)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   ./bin/fermilink-optimize-python \
+     --project-root /data/pyscf \
+     --goal /path/to/python-pyscf-diis-scf-goal.md \
+     --branch fermilink-optimize/pyscf-diis \
+     -- --max-iterations 40 --worker-max-iterations 8 --resume
+
+
+Example: C++ (LAMMPS)
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   ./bin/fermilink-optimize-cpp \
+     --project-root /data/lammps \
+     --goal /path/to/cpp-lammps-tip4p-water-nve-comm-goal.md \
+     --branch fermilink-optimize/lammps-tip4p-comm \
+     -- --resume --timeout-seconds 6000
+
+
+Common launcher options
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Flag
+     - Description
+   * - ``--goal PATH``
+     - Goal markdown file (required).
+   * - ``--project-root PATH``
+     - Clean git repo to optimize.  Defaults to the current working repo.
+   * - ``--branch NAME``
+     - Worktree branch name.  Default ``fermilink-optimize/<repo>-<task>``.
+   * - ``--base-ref REF``
+     - Base ref used when creating a new branch.  Default ``origin/HEAD``.
+   * - ``--worktree-root PATH`` / ``--worktree-name NAME``
+     - Override where the sibling worktree is created.
+   * - ``--hpc-profile PATH``
+     - HPC profile forwarded to ``fermilink optimize``.
+   * - ``--worker-provider NAME`` / ``--worker-model MODEL``
+     - Override the worker-agent provider or model.
+   * - ``--isolate-fermilink-home`` / ``--fermilink-home PATH``
+     - Run with a campaign-local ``FERMILINK_HOME`` so settings do not bleed
+       between campaigns.
+   * - ``--allow-dirty-base``
+     - Allow uncommitted changes in ``--project-root``.
+   * - ``--dry-run``
+     - Print the resolved ``fermilink optimize`` command and exit.
+
+Python-launcher-only options:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Flag
+     - Description
+   * - ``--python-bin BIN``
+     - Python executable used to create the venv (default ``python3``).
+   * - ``--venv-root PATH`` / ``--venv-name NAME`` / ``--venv-path PATH``
+     - Override where the per-branch venv is created.
+
+
+Goal file structure
+-------------------
+
+A goal file is structured markdown.  Only ``## Package`` and ``## Target`` are
+strictly required; the remaining sections improve the quality of the generated
+benchmark.  See :doc:`writing_goal_md` for the full authoring guide.
 
 .. code-block:: markdown
 
@@ -74,49 +158,27 @@ improve the quality of the generated benchmark.
    Keep benchmark behavior deterministic across repeated runs.
 
 
-Goal mode pipeline
-~~~~~~~~~~~~~~~~~~
+Goal-mode pipeline
+------------------
 
-When a goal file is submitted, **FermiLink** runs a two-phase pipeline:
+When a goal file is submitted, **FermiLink** runs a two-phase generation
+pipeline before starting the optimization loop:
 
 1. **Source analysis** -- an agent reads the target source code and produces a
    structured JSON analysis of the package, its hot paths, and correctness
    boundaries.
 2. **Benchmark generation** -- a second agent writes a ``benchmark.yaml``
-   contract and ``benchmark_runner.py`` script, which are validated and placed
-   in ``.fermilink-optimize/autogen/``.
+   contract and ``benchmark_runner.py`` script, which are validated and
+   placed in ``.fermilink-optimize/autogen/``.
 
-After generation the campaign continues as an expert-mode campaign using the
-auto-generated benchmark artifacts.
-
-
-Expert mode
------------
-
-Expert mode gives full control over the benchmark contract.  You supply a
-package identifier, the project source path, and a ``--benchmark`` YAML file.
-
-.. code-block:: bash
-
-   fermilink optimize <package_id> <project_path> --benchmark benchmark.yaml
-
-The benchmark YAML contract defines:
-
-- Benchmark cases (workloads), each with commands, expected outputs, and
-  tolerances.
-- Correctness validation mode (runner exit-status or field-level tolerances).
-- Runtime mode (synchronous or submit-poll for SLURM/PID-based execution).
-- Optional train/test split via ``split.train_case_ids`` to prevent
-  overfitting.
-
-**FermiLink** ships reference benchmark templates for Python, C++, and Fortran
-packages under ``scripts/``.
+After generation the campaign proceeds against the auto-generated benchmark
+artifacts.
 
 
 Campaign lifecycle
 ------------------
 
-Both modes share the same worker-controller optimization loop:
+Once benchmarks are ready, the worker--controller loop runs:
 
 1. **Baseline** -- the benchmark suite runs on the unmodified source to
    establish incumbent performance.
@@ -126,32 +188,26 @@ Both modes share the same worker-controller optimization loop:
    via SLURM).
 4. **Controller turn** -- a separate agent evaluates correctness and
    performance, then accepts or rejects the candidate.
-5. **Iterate** -- repeat from step 2 until the iteration cap, consecutive
+5. **Iterate** -- repeat from step 2 until the iteration cap, the consecutive
    rejection limit, or ``--forever`` mode termination.
 
-State is persisted in ``.fermilink-optimize/`` (campaign state, results TSV,
-controller and worker memory files) so campaigns can be resumed with
+State is persisted under ``.fermilink-optimize/`` (campaign state, results
+TSV, controller and worker memory files) so campaigns can be resumed with
 ``--resume``.
 
 
-Common CLI options
-------------------
+``fermilink optimize`` options
+------------------------------
+
+Options commonly passed after ``--`` when using the launchers, or directly to
+``fermilink optimize goal.md``:
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 70
+   :widths: 35 65
 
    * - Flag
      - Description
-   * - ``--goal``
-     - Force goal-mode detection for the input markdown.
-   * - ``--benchmark <path>``
-     - Benchmark YAML contract path (expert mode).
-   * - ``--program <path>``
-     - Custom optimize-program markdown path.
-   * - ``--skills-source <mode>``
-     - How to prepare skills: ``auto``, ``existing``, ``channel``, or
-       ``compile``.
    * - ``--baseline-only``
      - Run only the baseline benchmark and exit.
    * - ``--plan-only``
@@ -160,8 +216,10 @@ Common CLI options
      - Resume an existing campaign from local state.
    * - ``--max-iterations <n>``
      - Override the campaign iteration cap.
+   * - ``--worker-max-iterations <n>``
+     - Override the per-turn worker iteration cap.
    * - ``--stop-on-consecutive-rejections <n>``
-     - Override the rejection-based early stop threshold.
+     - Override the rejection-based early-stop threshold.
    * - ``--timeout-seconds <n>``
      - Override the per-run benchmark timeout.
    * - ``--hpc-profile <json>``

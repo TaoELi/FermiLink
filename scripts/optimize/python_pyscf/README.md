@@ -58,7 +58,7 @@ python -m pip install -e /path/to/fermilink
 
 Replace `/path/to/fermilink` with the actual path to your FermiLink checkout.
 
-## Goal Mode (Simple)
+## Goal Mode
 
 Use the bundled goal file and let FermiLink generate the benchmark contract and
 runner under `.fermilink-optimize/autogen/`.
@@ -66,7 +66,7 @@ runner under `.fermilink-optimize/autogen/`.
 Set the sample goal path:
 
 ```bash
-export GOAL=/path/to/fermilink/scripts/optimize/python_pyscf_davidson/python-pyscf-tddft-davidson-goal.md
+export GOAL=/path/to/fermilink/scripts/optimize/python_pyscf/python-pyscf-tddft-davidson-goal.md
 test -f "$GOAL"
 ```
 
@@ -95,44 +95,4 @@ Monitor progress at any time with:
 fermilink optimize status
 ```
 
-## Expert Mode
 
-Use the bundled expert benchmark contract directly. This keeps the Davidson
-benchmark fixed and skips benchmark autogeneration.
-
-Set the benchmark path:
-
-```bash
-export BENCHMARK=/path/to/fermilink/scripts/optimize/python_pyscf_davidson/python-pyscf-tddft-davidson-benchmark.yaml
-test -f "$BENCHMARK"
-```
-
-The sample benchmark resolves its sibling runner file
-`python-pyscf-tddft-davidson-bench.py` at runtime. If you copy the benchmark to
-another location, copy the runner alongside it.
-
-Run baseline only first:
-
-```bash
-fermilink optimize pyscf . \
-  --benchmark "$BENCHMARK" \
-  --baseline-only \
-  --timeout-seconds 3600
-```
-
-Then launch the full expert-mode campaign:
-
-```bash
-fermilink optimize pyscf . \
-  --benchmark "$BENCHMARK" \
-  --max-iterations 18 \
-  --stop-on-consecutive-rejections 8 \
-  --timeout-seconds 3600 \
-  --resume
-```
-
-Progress reporting is the same:
-
-```bash
-fermilink optimize status
-```
