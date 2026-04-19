@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fermilink"
-version = "0.2.8"
-description = "A unified agent framework for multidomain autonomous scientific simulations"
+version = "0.3.0"
+description = "Write a goal.md, FermiLink takes care of autonomous scientific simulations and optimization at both laptops and HPCs"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "FermiLink"}]
@@ -23,6 +23,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Physics",
   "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Simulations",
 ]
 keywords = [
   "ai-agent",
