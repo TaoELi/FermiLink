@@ -124,6 +124,14 @@ commits that actually shipped.
   that copies the `train-*` and `test-*` case blocks from `benchmark.yaml`
   into separate YAML code blocks, noting that train cases are used by workers
   and test cases by the controller.
+- When accepted iterations exist, the generated `index.rst` renders an
+  `Accepted Commits` table instead of a plain list: the left column links to
+  each accepted-commit detail page, and the right `Human verification` column
+  defaults to `not verified` so researchers can later replace entries with
+  values such as `verified by FirstName LastName <email>`.
+- The generated `Rerun Guide` section starts with the default line
+  `Agent provider ``codex``; model ``gpt-5.4-xhigh```, which readers can edit
+  later if a rerun should document a different provider/model combination.
 - Other reader-facing section titles in the generated index are also slightly
   expanded for clarity: `Optimization Trajectory`, `Runtime Data`, and
   `Rerun Guide`.
@@ -138,7 +146,11 @@ commits that actually shipped.
   exist. The safety gate only allows this for branches whose names start with
   `fermilink-optimize`. If the push remote resolves to `github.com`, the
   generated `index.rst` and `iterations/iter_XXXX_accepted.rst` pages also add
-  clickable commit-hash links back to the published GitHub branch history.
+  clickable commit-hash links back to the published GitHub branch history. For
+  GitHub HTTPS remotes, the script first uses any existing non-interactive Git
+  credential setup on the machine, and if that fails it retries once with the
+  default `gh` CLI login when available, so users are not prompted for a
+  username/password pair during report generation.
 
 ## Scope boundaries
 

@@ -210,6 +210,10 @@ def test_build_report_copies_benchmark_inputs_and_indexes_them(tmp_path: Path) -
     index_text = (out_dir / "index.rst").read_text(encoding="utf-8")
     assert "Optimization Trajectory" in index_text
     assert "Rerun Guide" in index_text
+    rerun_section = index_text.split("Rerun Guide\n-----------\n", 1)[1]
+    assert rerun_section.startswith(
+        f"\n\n{build_report._DEFAULT_RERUN_AGENT_LINE}\n\n"
+    )
     assert "Benchmark Examples" in index_text
     assert "Input files for Benchmarks" in index_text
     assert index_text.index("Benchmark Contracts") < index_text.index("Input files for Benchmarks")
@@ -293,6 +297,58 @@ def test_build_report_adds_github_commit_links_when_branch_is_published(tmp_path
     assert "https://github.com/skilled-scipkg/mockpkg/commit/222222222222" in iter_text
 
 
+def test_build_report_renders_accepted_commit_table_with_human_verification_column(
+    tmp_path: Path,
+) -> None:
+    build_report = _load_build_report_module()
+
+    optimize_dir = tmp_path / ".fermilink-optimize"
+    (optimize_dir / "runs" / "iter_0001").mkdir(parents=True, exist_ok=True)
+    (optimize_dir / "runs" / "iter_0002").mkdir(parents=True, exist_ok=True)
+
+    (optimize_dir / "results.tsv").write_text(
+        (
+            "iteration\tcommit\tstatus\tprimary_metric_name\tprimary_metric_value\tdescription\n"
+            "0\t111111111111aaaa\tbaseline\twall_seconds\t10.0\tbaseline\n"
+            "1\t222222222222bbbb\taccepted\twall_seconds\t8.0\tvectorized inner loop [accepted]\n"
+            "2\t333333333333cccc\taccepted\twall_seconds\t7.5\tfused force kernels [accepted]\n"
+        ),
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "optimize-report"
+    build_report.build(
+        optimize_dir=optimize_dir,
+        out_dir=out_dir,
+        title="Optimization Report Test",
+        metric_label="Wall time",
+        direction="lower",
+    )
+
+    index_text = (out_dir / "index.rst").read_text(encoding="utf-8")
+    assert "Accepted Commits" in index_text
+    assert "Accepted candidate detail pages and current manual-review status:" in index_text
+    assert (
+        f":doc:`{build_report.short_commit('222222222222bbbb')} <iterations/iter_0001_accepted>`"
+        in index_text
+    )
+    assert (
+        f":doc:`{build_report.short_commit('333333333333cccc')} <iterations/iter_0002_accepted>`"
+        in index_text
+    )
+    assert index_text.count("not verified") == 2
+    assert ".. toctree::" in index_text
+    assert "   :hidden:" in index_text
+
+    header_line = next(
+        line for line in index_text.splitlines() if "Human verification" in line
+    )
+    human_verification_cell = header_line.split("|")[2]
+    assert len(human_verification_cell) - 2 >= len(
+        build_report._HUMAN_VERIFICATION_WIDTH_HINT
+    )
+
+
 def test_push_optimize_branch_creates_remote_branch_with_set_upstream(tmp_path: Path) -> None:
     build_report = _load_build_report_module()
 
@@ -324,6 +380,61 @@ def test_push_optimize_branch_creates_remote_branch_with_set_upstream(tmp_path: 
         check=False,
     )
     assert pushed_ref.returncode == 0
+
+
+def test_push_optimize_branch_retries_with_default_github_cli_login_for_https_remote(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    build_report = _load_build_report_module()
+
+    repo_dir = tmp_path / "mockpkg"
+    _init_git_repo_with_remote(
+        repo_dir,
+        branch="fermilink-optimize/mockpkg-feature",
+    )
+    _git(repo_dir, "remote", "set-url", "origin", "https://github.com/example/mockpkg.git")
+    optimize_dir = repo_dir / ".fermilink-optimize"
+    optimize_dir.mkdir(parents=True, exist_ok=True)
+
+    real_run = subprocess.run
+    gh_path = "/usr/local/bin/gh"
+    push_calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd == [gh_path, "auth", "token", "--hostname", "github.com"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="token\n", stderr="")
+        if isinstance(cmd, list) and cmd[:3] == ["git", "-C", str(repo_dir)] and "push" in cmd:
+            push_calls.append((cmd, kwargs))
+            helper_arg = next(
+                (part for part in cmd if isinstance(part, str) and part.startswith("credential.helper=!")),
+                None,
+            )
+            if helper_arg:
+                return subprocess.CompletedProcess(cmd, 0, stdout="ok\n", stderr="")
+            raise subprocess.CalledProcessError(
+                128,
+                cmd,
+                stderr="fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+            )
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(build_report.shutil, "which", lambda name: gh_path if name == "gh" else None)
+    monkeypatch.setattr(build_report.subprocess, "run", fake_run)
+
+    published_branch = build_report.push_optimize_branch(optimize_dir)
+
+    assert published_branch.remote_url == "https://github.com/example/mockpkg.git"
+    assert len(push_calls) == 2
+    first_cmd, first_kwargs = push_calls[0]
+    second_cmd, second_kwargs = push_calls[1]
+    assert "credential.helper=" not in first_cmd
+    assert "credential.helper=" in second_cmd
+    assert (
+        f"credential.helper=!{gh_path} auth git-credential" in second_cmd
+    )
+    assert first_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert second_kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
 
 
 def test_push_optimize_branch_rejects_non_optimize_branch(tmp_path: Path) -> None:

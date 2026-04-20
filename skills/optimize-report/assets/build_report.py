@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
 import shutil
@@ -38,6 +39,9 @@ import plot_optimize  # noqa: E402
 
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$")
 _GIT_PUSH_BRANCH_PREFIX = "fermilink-optimize"
+_DEFAULT_HUMAN_VERIFICATION = "not verified"
+_HUMAN_VERIFICATION_WIDTH_HINT = "verified by FirstName LastName <email>"
+_DEFAULT_RERUN_AGENT_LINE = "Agent provider ``codex``; model ``gpt-5.4-xhigh``"
 
 
 @dataclass
@@ -320,6 +324,11 @@ def detect_push_remote(repo_root: Path, branch: str) -> str:
     return remote or "origin"
 
 
+def is_github_https_remote(remote_url: str) -> bool:
+    value = (remote_url or "").strip().lower()
+    return value.startswith("https://github.com/") or value.startswith("http://github.com/")
+
+
 def github_repo_url_from_remote(remote_url: str) -> Optional[str]:
     value = (remote_url or "").strip()
     if not value:
@@ -379,29 +388,107 @@ def collect_published_branch(optimize_dir: Path) -> PublishedBranch:
     )
 
 
-def push_optimize_branch(optimize_dir: Path) -> PublishedBranch:
-    published_branch = collect_published_branch(optimize_dir)
-
+def github_cli_credential_helper() -> Optional[str]:
+    gh_path = shutil.which("gh")
+    if not gh_path:
+        return None
     try:
         subprocess.run(
-            [
-                "git",
-                "-C",
-                str(optimize_dir.resolve().parent),
-                "push",
-                "--set-upstream",
-                published_branch.remote,
-                published_branch.branch,
-            ],
+            [gh_path, "auth", "token", "--hostname", "github.com"],
             check=True,
             capture_output=True,
             text=True,
         )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return f"!{shlex.quote(gh_path)} auth git-credential"
+
+
+def git_push_command(
+    repo_root: Path,
+    published_branch: PublishedBranch,
+    credential_helper: Optional[str] = None,
+) -> list[str]:
+    cmd = ["git", "-C", str(repo_root)]
+    if credential_helper:
+        cmd.extend(
+            [
+                "-c",
+                "credential.helper=",
+                "-c",
+                f"credential.helper={credential_helper}",
+            ]
+        )
+    cmd.extend(
+        [
+            "push",
+            "--set-upstream",
+            published_branch.remote,
+            published_branch.branch,
+        ]
+    )
+    return cmd
+
+
+def run_git_push(
+    repo_root: Path,
+    published_branch: PublishedBranch,
+    credential_helper: Optional[str] = None,
+) -> None:
+    env = os.environ.copy()
+    env.setdefault("GIT_TERMINAL_PROMPT", "0")
+    subprocess.run(
+        git_push_command(
+            repo_root,
+            published_branch,
+            credential_helper=credential_helper,
+        ),
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def push_optimize_branch(optimize_dir: Path) -> PublishedBranch:
+    published_branch = collect_published_branch(optimize_dir)
+    repo_root = optimize_dir.resolve().parent
+    github_https_remote = is_github_https_remote(published_branch.remote_url)
+    gh_helper = github_cli_credential_helper() if github_https_remote else None
+
+    try:
+        run_git_push(repo_root, published_branch)
     except (OSError, subprocess.CalledProcessError) as exc:
+        if gh_helper:
+            try:
+                run_git_push(
+                    repo_root,
+                    published_branch,
+                    credential_helper=gh_helper,
+                )
+                return published_branch
+            except (OSError, subprocess.CalledProcessError) as retry_exc:
+                stderr = (
+                    getattr(retry_exc, "stderr", "")
+                    or getattr(retry_exc, "stdout", "")
+                    or str(retry_exc)
+                )
+                raise SystemExit(
+                    f"git push failed for branch '{published_branch.branch}' to remote "
+                    f"'{published_branch.remote}' even after retrying with the default "
+                    f"GitHub CLI login: {stderr.strip()}"
+                ) from retry_exc
         stderr = getattr(exc, "stderr", "") or getattr(exc, "stdout", "") or str(exc)
+        if github_https_remote:
+            stderr = (
+                f"{stderr.strip()} "
+                "Configure a non-interactive GitHub credential source for this machine "
+                "(for example a Git credential helper, or `gh auth login` followed by "
+                "`gh auth setup-git`) and retry."
+            ).strip()
         raise SystemExit(
             f"git push failed for branch '{published_branch.branch}' to remote "
-            f"'{published_branch.remote}': {stderr.strip()}"
+            f"'{published_branch.remote}': {stderr}"
         ) from exc
     return published_branch
 
@@ -548,6 +635,8 @@ def build_rerun_section(guide: RerunGuide) -> list[str]:
     launcher_name = guide.launcher or "<fermilink-optimize-python|fermilink-optimize-cpp>"
 
     lines: list[str] = [rst_title("Rerun Guide", "-"), ""]
+    lines.append(_DEFAULT_RERUN_AGENT_LINE)
+    lines.append("")
     lines.append("Use the bundled contract files from this report to recreate the optimization against a fresh upstream checkout.")
     lines.append("")
     lines.append(f"- default upstream clone: ``{guide.clone_url}``")
@@ -779,6 +868,29 @@ def build_guardrails_table(
     return "\n".join(out) + "\n"
 
 
+def build_grid_table(
+    rows: list[tuple[str, ...]],
+    *,
+    min_widths: Optional[list[int]] = None,
+) -> list[str]:
+    if not rows:
+        return []
+    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
+    if min_widths:
+        widths = [max(widths[i], min_widths[i]) for i in range(len(widths))]
+    border = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+    sep = "+" + "+".join("=" * (w + 2) for w in widths) + "+"
+    lines = [border]
+    lines.append(
+        "| " + " | ".join(rows[0][i].ljust(widths[i]) for i in range(len(rows[0]))) + " |"
+    )
+    lines.append(sep)
+    for row in rows[1:]:
+        lines.append("| " + " | ".join(row[i].ljust(widths[i]) for i in range(len(row))) + " |")
+        lines.append(border)
+    return lines
+
+
 def build_index(
     out_dir: Path,
     title: str,
@@ -873,22 +985,43 @@ def build_index(
                 rst_escape(summary),
             )
         )
-    widths = [max(len(row[i]) for row in table_rows) for i in range(len(header))]
-    border = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
-    sep = "+" + "+".join("=" * (w + 2) for w in widths) + "+"
-    lines.append(border)
-    lines.append("| " + " | ".join(table_rows[0][i].ljust(widths[i]) for i in range(len(header))) + " |")
-    lines.append(sep)
-    for row in table_rows[1:]:
-        lines.append("| " + " | ".join(row[i].ljust(widths[i]) for i in range(len(header))) + " |")
-        lines.append(border)
+    lines.extend(build_grid_table(table_rows))
     lines.append("")
 
     if accepted_pages:
-        lines.append(rst_title("Accepted commits — detailed", "-"))
+        lines.append(rst_title("Accepted Commits", "-"))
+        lines.append("")
+        lines.append("Accepted candidate detail pages and current manual-review status:")
+        lines.append("")
+        accepted_map = {iteration: rel for iteration, rel in accepted_pages}
+        accepted_rows: list[tuple[str, str]] = [("accepted commit", "Human verification")]
+        for r in accepted:
+            rel = accepted_map.get(r.iteration)
+            if not rel:
+                continue
+            accepted_rows.append(
+                (
+                    f":doc:`{rst_escape(r.commit)} <{rel}>`",
+                    _DEFAULT_HUMAN_VERIFICATION,
+                )
+            )
+        lines.extend(
+            build_grid_table(
+                accepted_rows,
+                min_widths=[
+                    len("accepted commit"),
+                    max(
+                        len("Human verification"),
+                        len(_DEFAULT_HUMAN_VERIFICATION),
+                        len(_HUMAN_VERIFICATION_WIDTH_HINT),
+                    ),
+                ],
+            )
+        )
         lines.append("")
         lines.append(".. toctree::")
         lines.append("   :maxdepth: 1")
+        lines.append("   :hidden:")
         lines.append("")
         for _, rel in accepted_pages:
             lines.append(f"   {rel}")
