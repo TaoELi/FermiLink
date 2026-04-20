@@ -56,7 +56,7 @@ run.
 
 ```
 optimize-report/
-  index.rst                      # title, summary, plots, accepted toctree, rerun appendix, benchmark inventory
+  index.rst                      # title, goal.md preview, summary, plots, accepted toctree, rerun appendix, benchmark inventory
   img/
     metric_vs_iter.{png,svg}     # all iterations, colored by status
     improvement_cumulative.{png,svg}  # running-incumbent staircase
@@ -114,6 +114,10 @@ commits that actually shipped.
 - The generated `index.rst` inserts an `Input files for Benchmarks` section
   immediately below `Benchmark Contracts`, with download links for the copied
   `inputs/all/**` files.
+- The generated `index.rst` starts with a top-level `Goal` section when
+  `contract/goal.md` is present, showing the copied `goal.md` contents as a
+  standalone Markdown code block before the summary so readers can see the
+  original optimization request without leaving the page.
 - The `Benchmark Contracts` section itself only shows the three rerun-critical
   downloads:
   `benchmark.yaml`, `benchmark_runner.py`, and `goal.md`, even when the bundle

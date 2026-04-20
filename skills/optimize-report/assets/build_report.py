@@ -791,6 +791,21 @@ def build_benchmark_inputs_section(benchmark_input_files: list[str]) -> list[str
     return lines
 
 
+def build_goal_section(goal_text: str) -> list[str]:
+    if not goal_text.strip():
+        return []
+
+    lines: list[str] = [rst_title("Goal", "-"), ""]
+    lines.append("Copied source goal for this optimization: :download:`goal.md <contract/goal.md>`")
+    lines.append("")
+    lines.append(".. code-block:: markdown")
+    lines.append("")
+    for ln in goal_text.rstrip("\n").splitlines():
+        lines.append(f"   {ln}")
+    lines.append("")
+    return lines
+
+
 def visible_contract_files(contract_files: list[str]) -> list[str]:
     visible = []
     allowed = ("benchmark.yaml", "benchmark_runner.py", "goal.md")
@@ -925,6 +940,7 @@ def build_index(
     lines.append("")
     lines.append(f"Primary metric: ``{metric_label}`` ({'lower is better' if direction == 'lower' else 'higher is better'}).")
     lines.append("")
+    lines.extend(build_goal_section(read_text_safe(out_dir / "contract" / "goal.md")))
     lines.append(rst_title("Summary", "-"))
     lines.append("")
     if baseline:

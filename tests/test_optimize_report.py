@@ -129,6 +129,13 @@ def test_build_report_archives_goal_markdown_from_autogen(tmp_path: Path) -> Non
 
     index_text = (out_dir / "index.rst").read_text(encoding="utf-8")
     assert ":download:`goal.md <contract/goal.md>`" in index_text
+    assert index_text.index("Goal\n----\n") < index_text.index("Summary\n-------\n")
+
+    goal_section = index_text.split("Goal\n----\n", 1)[1].split("Summary\n-------\n", 1)[0]
+    assert ".. code-block:: markdown" in goal_section
+    assert "Copied source goal for this optimization" in goal_section
+    assert "   # Goal" in goal_section
+    assert "   Archive this file in the generated report bundle." in goal_section
 
 
 def test_build_report_humanizes_default_metric_label(tmp_path: Path) -> None:
