@@ -972,7 +972,7 @@ def build_index(
             summary = summary[:97] + "…"
         commit_ref = format_commit_reference(
             r.commit,
-            published_branch,
+            published_branch if r.status in {"baseline", "accepted"} else None,
             link_refs,
             label_prefix=f"iter-{r.iteration:04d}-table",
         )
