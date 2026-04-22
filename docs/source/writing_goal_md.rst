@@ -130,12 +130,14 @@ ESPRESSO" helps the agent pick the right package and avoid guessing.
 or pseudopotential, say so. The agent respects explicit constraints.
 
 
+.. _goal-files-for-code-optimization:
+
 Goal files for code optimization
 --------------------------------
 
 When you run ``fermilink optimize goal.md``, **FermiLink** enters a different
 mode: it iteratively modifies source code to improve performance while
-preserving correctness. 
+preserving correctness.
 
 Different from regular free-style simulation goals, optimization goals use a **structured format** with
 fixed section headings. This is because optimizing code is a more delicate task that requires precise requirements to prevent the agent from breaking the science. 
