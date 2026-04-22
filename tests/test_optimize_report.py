@@ -216,6 +216,11 @@ def test_build_report_copies_benchmark_inputs_and_indexes_them(tmp_path: Path) -
             "module load mockpkg\n"
             "python -m pip install -e .\n"
             "```\n"
+            "\n"
+            "## Representative Workloads\n"
+            "\n"
+            "- train-a uses `shared.dat` and a missing `not-copied.dat` file.\n"
+            "- train-b uses `sub/case.in` from a nested input path.\n"
         ),
         encoding="utf-8",
     )
@@ -252,6 +257,14 @@ def test_build_report_copies_benchmark_inputs_and_indexes_them(tmp_path: Path) -
     assert "Tune the copied ``## Build`` section" in rerun_section
     assert "      module load mockpkg" in rerun_section
     assert "      python -m pip install -e ." in rerun_section
+    assert (
+        "The copied ``## Representative Workloads`` section references input files"
+        in rerun_section
+    )
+    assert "same directory as the ``goal.md`` file used for this rerun" in rerun_section
+    assert ":download:`shared.dat <inputs/all/shared.dat>`" in rerun_section
+    assert ":download:`sub/case.in <inputs/all/sub/case.in>`" in rerun_section
+    assert "not-copied.dat" not in rerun_section
     assert "Update ``runtime.pre_commands`` for machine-specific build/setup steps" in rerun_section
     assert "``runtime.command`` paths" in rerun_section
     assert "Benchmark Examples" in index_text

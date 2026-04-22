@@ -106,7 +106,12 @@ commits that actually shipped.
   `benchmark.yaml` + `benchmark_runner.py`. When the copied `goal.md` contains
   a `## Build` code block, the `Path 1: Rerun from goal.md` subsection shows
   that block inside a note and reminds users to tune machine-specific build
-  setup before rerunning. The deterministic `Path 2` subsection also reminds
+  setup before rerunning. When the copied `goal.md` `## Representative
+  Workloads` section references files that are also present in the report's
+  `Input files for Benchmarks` section, `Path 1` adds a note telling users to
+  copy those files next to the `goal.md` used for the rerun so FermiLink can
+  capture and stage them in goal mode. The deterministic `Path 2` subsection
+  also reminds
   users that copied `benchmark.yaml` and `benchmark_runner.py` were generated
   from `goal.md` as the deterministic optimization contract, and to tune
   `benchmark.yaml` values such as `runtime.pre_commands` and `runtime.command`

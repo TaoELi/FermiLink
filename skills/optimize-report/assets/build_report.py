@@ -65,6 +65,7 @@ class RerunGuide:
     has_goal_inputs: bool
     build_commands: list[str]
     benchmark_input_files: list[str]
+    goal_workload_input_files: list[str]
     train_benchmark_block: str
     test_benchmark_block: str
 
@@ -232,6 +233,31 @@ def goal_code_blocks(goal_text: str, heading: str) -> list[str]:
         if current is not None:
             current.append(line)
     return [block for block in blocks if block]
+
+
+def text_references_filename(text: str, filename: str) -> bool:
+    if not text or not filename:
+        return False
+    pattern = re.compile(
+        rf"(?<![A-Za-z0-9_./-]){re.escape(filename)}(?![A-Za-z0-9_./-])"
+    )
+    return pattern.search(text) is not None
+
+
+def goal_workload_input_files(goal_text: str, benchmark_input_files: list[str]) -> list[str]:
+    body = extract_markdown_sections(goal_text).get("representative workloads", "")
+    if not body or not benchmark_input_files:
+        return []
+
+    referenced: list[str] = []
+    for rel_path in benchmark_input_files:
+        basename = Path(rel_path).name
+        candidates = [rel_path]
+        if basename != rel_path:
+            candidates.append(basename)
+        if any(text_references_filename(body, candidate) for candidate in candidates):
+            referenced.append(rel_path)
+    return referenced
 
 
 def yaml_scalar(text: str, key: str) -> str:
@@ -610,6 +636,10 @@ def collect_rerun_guide(
     default_branch = detect_default_branch(optimize_dir.parent)
     branch_url = f"{repo_url}/tree/{quote(default_branch, safe='')}" if default_branch else None
     build_commands = goal_code_blocks(goal_text, "Build")
+    workload_input_files = goal_workload_input_files(
+        goal_text,
+        list(benchmark_input_files or []),
+    )
     train_benchmark_block = benchmark_block_for_prefix(benchmark_text, "train-")
     test_benchmark_block = benchmark_block_for_prefix(benchmark_text, "test-")
     return RerunGuide(
@@ -626,6 +656,7 @@ def collect_rerun_guide(
         has_goal_inputs=(autogen / "goal_inputs.json").exists(),
         build_commands=build_commands,
         benchmark_input_files=list(benchmark_input_files or []),
+        goal_workload_input_files=workload_input_files,
         train_benchmark_block=train_benchmark_block,
         test_benchmark_block=test_benchmark_block,
     )
@@ -704,6 +735,21 @@ def build_rerun_section(guide: RerunGuide) -> list[str]:
                 for ln in block.splitlines():
                     lines.append(f"      {ln}")
                 lines.append("")
+        if guide.goal_workload_input_files:
+            lines.append(".. note::")
+            lines.append("")
+            lines.append(
+                "   The copied ``## Representative Workloads`` section references input files "
+                "that are also bundled under ``Input files for Benchmarks``. Copy these files "
+                "into the same directory as the ``goal.md`` file used for this rerun before "
+                "launching FermiLink, so goal mode can capture and stage them:"
+            )
+            lines.append("")
+            for rel_path in guide.goal_workload_input_files:
+                lines.append(
+                    f"   - :download:`{rst_escape(rel_path)} <inputs/all/{rel_path}>`"
+                )
+            lines.append("")
         lines.append("")
         lines.append("Run this from the cloned main repo so the launcher can create or reuse the sibling worktree:")
         lines.append("")
