@@ -1,5 +1,5 @@
-Laptop Tutorial
-===============
+Tutorial: Laptop Simulations
+===============================
 
 This tutorial shows how to run **FermiLink** locally on a laptop/workstation
 (macOS/Linux). It is designed to be **self-contained**, so you can follow it end-to-end without

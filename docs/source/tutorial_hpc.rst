@@ -1,5 +1,5 @@
-HPC Tutorial
-===============
+Tutorial: HPC Simulations
+===============================
 
 This tutorial shows how to run **FermiLink** autonomous simulations smoothly on a typical SLURM-based HPC
 cluster without sudo access. It is **self-contained**, so you can

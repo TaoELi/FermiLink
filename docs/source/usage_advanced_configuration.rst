@@ -1,4 +1,4 @@
-Updating Package Skills (``recompile``)
+``recompile``: Updating Package Skills
 ========================================
 
 ``fermilink recompile`` refreshes the skills and knowledge of an already-installed

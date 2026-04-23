@@ -46,6 +46,7 @@ where it can identify performance bottlenecks and optimize them iteratively usin
    installation
    tutorial_laptop
    tutorial_hpc
+   optimize
    choosing_agent
 
 .. toctree::
@@ -57,29 +58,9 @@ where it can identify performance bottlenecks and optimize them iteratively usin
 
 .. toctree::
    :maxdepth: 1
-   :caption: 📋 Simulation Guides
+   :caption: 📋 Advanced Topics
 
-   CLI Commands <usage>
-   Web UI <usage_web_ui>
-   Telegram Bot <usage_chatting_apps>
-   Package Management <scientific_packages>
-   Building Your Own Package <usage_configure_your_package>
-   Research Pipelines & Memory <usage_advanced_configuration>
-
-.. toctree::
-   :maxdepth: 1
-   :caption: 📈 Code Optimization
-
-   Code Optimization <optimize>
-
-.. toctree::
-   :maxdepth: 1
-   :caption: 🔧 Reference
-
-   Configuration <configuration>
-   architecture
-   API Reference <api/modules>
-   Built-in Packages <built_in_scientific_packages>
+   Additional Features <advanced_topics>
 
 .. toctree::
    :maxdepth: 1

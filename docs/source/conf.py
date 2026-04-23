@@ -20,6 +20,7 @@ EST_TZ = timezone(timedelta(hours=-5), name="EST")
 # --- Project info ---
 project = "FermiLink"
 author = "Tao E. Li"
+copyright = "TEL Research Group 2026"
 try:
     release = pkg_version("fermilink")
     version = ".".join(release.split(".")[:2])

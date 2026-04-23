@@ -1,5 +1,5 @@
-Code Optimization Tutorial
-===========================
+Tutorial: Code Optimization 
+==============================
 
 This tutorial walks a beginner end-to-end through running
 **FermiLink**'s benchmark-gated code optimizer on a scientific package

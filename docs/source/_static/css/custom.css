@@ -1221,7 +1221,7 @@ body.mxl-landing .mxl-loop-card > * {
 .content h2 {
   font-size: clamp(1.1rem, 0.95rem + 0.7vw, 1.35rem);
   line-height: 1.22;
-  margin-top: 2.6rem;
+  margin-top: 1.6rem;
   margin-bottom: 0.9rem;
 }
 
@@ -1244,7 +1244,7 @@ body.mxl-landing .mxl-loop-card > * {
 
 .content p {
   font-size: 0.97rem;
-  line-height: 1.7;
+  line-height: 1.55;
   color: var(--mxl-text-muted);
 }
 
@@ -2115,6 +2115,11 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.mxl-landing-foot__copyright {
+  font-size: 0.82rem;
+  color: rgba(189, 212, 234, 0.5);
+}
+
 /* ── Responsive ── */
 @media (max-width: 820px) {
   .mxl-simple-topbar {
@@ -2178,18 +2183,43 @@ body:not(.mxl-landing) .content {
   font-family: var(--mxl-body-font);
 }
 
-body:not(.mxl-landing) article {
-  max-width: 780px;
+body:not(.mxl-landing) .content h1 {
+  font-size: 1.75rem;
 }
 
-body:not(.mxl-landing) .content p,
-body:not(.mxl-landing) .content li {
-  line-height: 1.7;
+body:not(.mxl-landing) .content h2 {
+  font-size: 1.35rem;
+}
+
+body:not(.mxl-landing) .content h3 {
+  font-size: 1.12rem;
+}
+
+body:not(.mxl-landing) .content h4 {
+  font-size: 1rem;
+}
+
+body:not(.mxl-landing) article {
+  max-width: none;
+  width: 100%;
+}
+
+body:not(.mxl-landing) .content p {
+  line-height: 1.6;
+}
+
+body:not(.mxl-landing) .content ul,
+body:not(.mxl-landing) .content ol,
+body:not(.mxl-landing) .content dl:not(.field-list),
+body:not(.mxl-landing) .content blockquote,
+body:not(.mxl-landing) .content .admonition {
+  max-width: 76ch;
 }
 
 body:not(.mxl-landing) .content li {
   color: var(--mxl-text-muted);
   font-size: 0.97rem;
+  line-height: 1.5;
   margin: 0.2rem 0;
 }
 
@@ -2888,4 +2918,182 @@ body:not(.mxl-landing) .content > p:first-of-type {
   .po-term-body--quickstart { min-height: 13rem; }
   .po-term-chart { padding: 0.4rem 0.25rem 0.1rem; min-height: 8rem; }
   .po-qs-out { padding-left: 1.7rem; font-size: 0.8rem; }
+}
+
+/* --- Docs responsive layout refinements (non-landing pages) ---
+   Furo hardcodes the content, sidebar, and TOC widths. Keep the landing page
+   untouched, but make the documentation shell adapt across laptop, tablet,
+   and wide desktop viewports. */
+body:not(.mxl-landing) {
+  --sidebar-item-spacing-vertical: 0.3rem;
+  --mxl-doc-sidebar-width: 14em;
+  --mxl-doc-toc-width: 12.5em;
+  --mxl-doc-content-max: 56em;
+  --mxl-doc-gutter: 1.5em;
+}
+
+body:not(.mxl-landing) .content {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-left: clamp(1.25rem, 2.4vw, 3rem);
+  padding-right: clamp(1.25rem, 2.4vw, 3rem);
+  width: min(
+    var(--mxl-doc-content-max),
+    calc(100vw - var(--mxl-doc-sidebar-width) - var(--mxl-doc-gutter))
+  );
+}
+
+body:not(.mxl-landing) .sidebar-container {
+  width: var(--mxl-doc-sidebar-width);
+}
+
+body:not(.mxl-landing) .toc-drawer {
+  width: var(--mxl-doc-toc-width);
+}
+
+body:not(.mxl-landing) .main {
+  justify-content: center;
+}
+
+body:not(.mxl-landing) .content li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+body:not(.mxl-landing) .content .highlight,
+body:not(.mxl-landing) .content .table-wrapper {
+  max-width: 100%;
+}
+
+body:not(.mxl-landing) .content .table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body:not(.mxl-landing) .content .table-wrapper table.docutils {
+  min-width: 100%;
+}
+
+/* Keep the left drawer from stretching to the viewport edge on desktop. */
+@media (min-width: 63.01em) {
+  body:not(.mxl-landing) .sidebar-drawer {
+    width: var(--mxl-doc-sidebar-width);
+    min-width: var(--mxl-doc-sidebar-width);
+  }
+}
+
+/* Treat the right TOC as an off-canvas drawer until there is real room for
+   all three columns. This keeps 13-inch laptops focused on nav + content. */
+@media (min-width: 82.01em) and (max-width: 87.99em) {
+  body:not(.mxl-landing) .toc-content-icon {
+    display: flex;
+  }
+
+  body:not(.mxl-landing) .toc-drawer {
+    border-left: 1px solid var(--color-background-border);
+    height: 100vh;
+    position: fixed;
+    right: calc(0px - var(--mxl-doc-toc-width));
+    top: 0;
+  }
+
+  body:not(.mxl-landing) .toc-tree {
+    border-left: none;
+    font-size: var(--toc-font-size--mobile);
+  }
+}
+
+@media (min-width: 88em) {
+  body:not(.mxl-landing) .content {
+    width: min(
+      var(--mxl-doc-content-max),
+      calc(
+        100vw - var(--mxl-doc-sidebar-width) - var(--mxl-doc-toc-width) -
+        var(--mxl-doc-gutter)
+      )
+    );
+  }
+}
+
+@media (min-width: 104em) {
+  body:not(.mxl-landing) {
+    --mxl-doc-sidebar-width: 15em;
+    --mxl-doc-toc-width: 13.5em;
+    --mxl-doc-content-max: 58em;
+    --mxl-doc-gutter: 2em;
+  }
+}
+
+/* Ultra-wide monitors leave a very large right-side content area after the
+   fixed left sidebar. Bias the content+TOC group slightly left so the main
+   reading column remains the visual anchor on 32-inch-class screens. */
+@media (min-width: 120em) {
+  body:not(.mxl-landing) .main {
+    box-sizing: border-box;
+    padding-right: clamp(0rem, calc(30vw - 35rem), 10rem);
+  }
+}
+
+@media (max-width: 67em) {
+  body:not(.mxl-landing) .content {
+    padding-left: 1.2rem;
+    padding-right: 1.2rem;
+    width: min(
+      100%,
+      calc(100vw - var(--mxl-doc-sidebar-width) - 1rem)
+    );
+  }
+}
+
+@media (max-width: 63em) {
+  body:not(.mxl-landing) .content {
+    padding-left: clamp(0.95rem, 4vw, 1.2rem);
+    padding-right: clamp(0.95rem, 4vw, 1.2rem);
+    width: 100%;
+  }
+
+  body:not(.mxl-landing) .sidebar-container,
+  body:not(.mxl-landing) .sidebar-drawer {
+    min-width: 15em;
+    width: 15em;
+  }
+}
+
+@media (max-width: 768px) {
+  body:not(.mxl-landing) .content h1 {
+    font-size: 1.55rem;
+  }
+
+  body:not(.mxl-landing) .content h2 {
+    font-size: 1.22rem;
+  }
+
+  body:not(.mxl-landing) .content h3 {
+    font-size: 1.05rem;
+  }
+
+  body:not(.mxl-landing) .content .table-wrapper table.docutils {
+    max-width: none;
+    min-width: 34rem;
+  }
+}
+
+@media (min-width: 63.01em) and (max-height: 720px) {
+  body:not(.mxl-landing) .sidebar-brand {
+    gap: 0.35rem;
+    padding-bottom: 0.55rem;
+    padding-top: 0.75rem;
+  }
+
+  body:not(.mxl-landing) .sidebar-logo-container {
+    border-radius: 14px;
+    height: 52px;
+    padding: 8px;
+    width: 52px;
+  }
+
+  body:not(.mxl-landing) .sidebar-tree .caption,
+  body:not(.mxl-landing) .sidebar-tree p.caption {
+    margin-top: 0.85rem;
+  }
 }
