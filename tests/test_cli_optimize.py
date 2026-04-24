@@ -1153,6 +1153,57 @@ def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None
     assert "force_norm abs_delta exceeds threshold" in "; ".join(failing["errors"])
 
 
+def test_compare_correctness_field_tolerances_skips_optional_without_baseline_numbers() -> None:
+    benchmark_payload = {
+        "correctness": {
+            "mode": "field_tolerances",
+            "field_tolerances": [
+                {
+                    "field": "oscillator_strengths",
+                    "label": "oscillator strengths",
+                    "optional": True,
+                    "abs_delta": 1.0e-4,
+                },
+                {
+                    "field": "transition_dipole_norms",
+                    "label": "transition dipole norms",
+                    "optional": True,
+                    "abs_delta": 1.0e-4,
+                },
+            ],
+        }
+    }
+    incumbent_metrics = {
+        "cases": [
+            {
+                "id": "uks-allyl",
+                "converged": True,
+                "oscillator_strengths": [],
+                "transition_dipole_norms": [],
+            }
+        ]
+    }
+    candidate_metrics = {
+        "cases": [
+            {
+                "id": "uks-allyl",
+                "converged": True,
+                "oscillator_strengths": [],
+                "transition_dipole_norms": [0.12],
+            }
+        ]
+    }
+
+    comparison = optimize_controller._compare_correctness(
+        benchmark_payload,
+        incumbent_metrics=incumbent_metrics,
+        candidate_metrics=candidate_metrics,
+    )
+
+    assert comparison["ok"] is True
+    assert comparison["errors"] == []
+
+
 def test_compare_correctness_field_tolerances_supports_flat_dotted_case_keys() -> None:
     benchmark_payload = {
         "correctness": {

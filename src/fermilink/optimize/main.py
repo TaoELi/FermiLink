@@ -2225,6 +2225,16 @@ def _field_tolerance_threshold(spec: dict[str, Any], metric_name: str) -> float 
     return None
 
 
+def _field_value_has_numeric_content(value: object) -> bool:
+    if value is FIELD_PATH_MISSING or value is None:
+        return False
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    return bool(_flatten_numbers(value))
+
+
 def _field_tolerance_case_errors(
     *,
     case_id: str,
@@ -2239,6 +2249,10 @@ def _field_tolerance_case_errors(
             continue
         label = str(spec.get("label") or "").strip() or field_path
         incumbent_value = _value_at_field_path(incumbent_case, field_path)
+        if bool(spec.get("optional")) and not _field_value_has_numeric_content(
+            incumbent_value
+        ):
+            continue
         candidate_value = _value_at_field_path(candidate_case, field_path)
         if (
             incumbent_value is FIELD_PATH_MISSING
