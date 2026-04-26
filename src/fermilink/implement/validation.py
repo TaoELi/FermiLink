@@ -444,12 +444,69 @@ def final_integrity_ok(result: dict[str, Any] | None) -> bool:
     )
 
 
+_CONTROLLER_REVIEW_PASS_VERDICTS = {
+    "pass",
+    "passed",
+    "ok",
+    "satisfied",
+    "complete",
+    "completed",
+}
+
+
+def _controller_review_decision(review: dict[str, Any] | None) -> str | None:
+    if not isinstance(review, dict):
+        return None
+    decision = str(review.get("decision") or "").strip().upper()
+    return decision if decision in {"ACCEPTED", "REJECTED"} else None
+
+
+def _controller_review_requirement_evidence(requirement: dict[str, Any]) -> list[str]:
+    evidence = requirement.get("evidence")
+    if isinstance(evidence, str):
+        evidence_text = evidence.strip()
+        return [evidence_text] if evidence_text else []
+    if not isinstance(evidence, list):
+        return []
+    return [str(item).strip() for item in evidence if str(item).strip()]
+
+
+def controller_review_final_ok(review: dict[str, Any] | None) -> bool:
+    """Return True when the controller independently proves final satisfaction."""
+
+    if not isinstance(review, dict):
+        return False
+    if _controller_review_decision(review) != "ACCEPTED":
+        return False
+    if not _validation_flag_true(review, "final_complete"):
+        return False
+    requirements = review.get("requirements")
+    if not isinstance(requirements, list) or not requirements:
+        return False
+    checked_required = False
+    for raw_requirement in requirements:
+        if not isinstance(raw_requirement, dict):
+            continue
+        if not bool(raw_requirement.get("required", True)):
+            continue
+        checked_required = True
+        verdict = str(
+            raw_requirement.get("verdict") or raw_requirement.get("status") or ""
+        ).strip().lower()
+        if verdict not in _CONTROLLER_REVIEW_PASS_VERDICTS:
+            return False
+        if not _controller_review_requirement_evidence(raw_requirement):
+            return False
+    return checked_required
+
+
 def acceptance_decision(
     *,
     contract_payload: dict[str, Any],
     incumbent_validation: dict[str, Any],
     candidate_validation: dict[str, Any],
     controller_decision: str | None,
+    controller_review: dict[str, Any] | None = None,
     hard_reject: bool,
     hard_reason: str,
 ) -> dict[str, Any]:
@@ -460,7 +517,10 @@ def acceptance_decision(
             "status": "rejected",
             "reason": hard_reason or "hard guard rejection",
         }
-    if controller_decision != "ACCEPTED":
+    effective_controller_decision = (
+        _controller_review_decision(controller_review) or controller_decision
+    )
+    if effective_controller_decision != "ACCEPTED":
         return {
             "accepted": False,
             "final_complete": False,
@@ -483,8 +543,8 @@ def acceptance_decision(
         min_delta = 0.0
     old_score = validation_score(incumbent_validation)
     new_score = validation_score(candidate_validation)
-    complete = validation_complete(candidate_validation)
-    if complete and not final_integrity_ok(candidate_validation):
+    validation_reports_complete = validation_complete(candidate_validation)
+    if validation_reports_complete and not final_integrity_ok(candidate_validation):
         return {
             "accepted": False,
             "final_complete": False,
@@ -494,16 +554,36 @@ def acceptance_decision(
                 "scientific_checks_ok all passing"
             ),
         }
+    semantic_final_ok = controller_review_final_ok(controller_review)
+    complete = validation_reports_complete and semantic_final_ok
     improved = new_score > old_score + min_delta
     if complete or improved:
+        if validation_reports_complete and not semantic_final_ok and improved:
+            reason = (
+                "validation reported complete, but controller review did not "
+                "provide structured final target-satisfaction evidence; "
+                f"accepting partial progress ({old_score:.6g} -> {new_score:.6g})"
+            )
+        else:
+            reason = (
+                "candidate satisfies final done criteria and controller review"
+                if complete
+                else f"score improved from {old_score:.6g} to {new_score:.6g}"
+            )
         return {
             "accepted": True,
             "final_complete": complete,
             "status": "complete" if complete else "accepted_partial",
+            "reason": reason,
+        }
+    if validation_reports_complete and not semantic_final_ok:
+        return {
+            "accepted": False,
+            "final_complete": False,
+            "status": "rejected",
             "reason": (
-                "candidate satisfies final done criteria"
-                if complete
-                else f"score improved from {old_score:.6g} to {new_score:.6g}"
+                "validation reported complete, but controller review did not "
+                "provide structured final target-satisfaction evidence"
             ),
         }
     return {

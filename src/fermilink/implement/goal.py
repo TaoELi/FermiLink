@@ -101,6 +101,80 @@ def _code_blocks(sections: dict[str, str], *keys: str) -> list[str]:
     return [block for block in blocks if block]
 
 
+def _replace_or_append_section(
+    text: str,
+    *,
+    headings: set[str],
+    replacement_heading: str,
+    replacement_body: str,
+) -> str:
+    lines = str(text or "").splitlines()
+    output: list[str] = []
+    index = 0
+    replaced = False
+    while index < len(lines):
+        line = lines[index]
+        match = _HEADING_RE.match(line)
+        if not match or match.group(2).strip().lower() not in headings:
+            output.append(line)
+            index += 1
+            continue
+        replaced = True
+        level = len(match.group(1))
+        output.append(f"{'#' * level} {replacement_heading}")
+        if replacement_body.strip():
+            output.append(replacement_body.strip())
+        index += 1
+        while index < len(lines):
+            next_match = _HEADING_RE.match(lines[index])
+            if next_match and len(next_match.group(1)) <= level:
+                break
+            index += 1
+    if not replaced:
+        if output and output[-1].strip():
+            output.append("")
+        output.append(f"## {replacement_heading}")
+        if replacement_body.strip():
+            output.append(replacement_body.strip())
+    return "\n".join(output).rstrip() + "\n"
+
+
+def render_worker_visible_goal(
+    text: str,
+    *,
+    worker_workloads: list[str],
+    split_enabled: bool,
+) -> str:
+    """Render a worker copy of goal.md with controller-only details redacted."""
+
+    workload_body = "\n".join(
+        f"- {item}" for item in worker_workloads if str(item).strip()
+    )
+    if not workload_body:
+        workload_body = (
+            "- No worker-visible representative workloads are specified. "
+            "Controller-only holdouts are hidden."
+        )
+    rendered = _replace_or_append_section(
+        text,
+        headings={"representative workloads", "workloads", "cases", "test cases"},
+        replacement_heading="Representative Workloads",
+        replacement_body=workload_body,
+    )
+    if split_enabled:
+        rendered = _replace_or_append_section(
+            rendered,
+            headings={"validation", "checks"},
+            replacement_heading="Validation",
+            replacement_body=(
+                "Implementation-mode validation is generated in the YAML "
+                "contract. Controller-only validation commands and held-out "
+                "workloads may be hidden from the worker."
+            ),
+        )
+    return rendered
+
+
 def parse_goal(text: str) -> dict[str, Any]:
     """Parse a goal.md file for implementation mode.
 

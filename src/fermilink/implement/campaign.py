@@ -377,6 +377,51 @@ def _sync_worker_outputs(
             pass
 
 
+def _write_worker_visible_artifacts(
+    *,
+    worker_root: Path,
+    goal_rel: str,
+    goal_text: str,
+    contract_rel: str,
+    contract_payload: dict[str, Any],
+    run_dir: Path,
+) -> None:
+    split = implement_contract.workload_split(contract_payload)
+    worker_contract_payload = implement_contract.worker_visible_contract(
+        contract_payload
+    )
+    contract_target = worker_root / _normalize_rel_path(contract_rel)
+    implement_contract.write_contract(contract_target, worker_contract_payload)
+    worker_goal = implement_goal.render_worker_visible_goal(
+        goal_text,
+        worker_workloads=[
+            str(item)
+            for item in split.get("worker_workloads", [])
+            if str(item).strip()
+        ],
+        split_enabled=bool(split.get("enabled")),
+    )
+    goal_target = worker_root / _normalize_rel_path(goal_rel)
+    goal_target.parent.mkdir(parents=True, exist_ok=True)
+    goal_target.write_text(worker_goal, encoding="utf-8")
+    _write_run_json(
+        run_dir,
+        "worker_artifact_visibility.json",
+        {
+            "workload_split": split,
+            "worker_contract_path": _normalize_rel_path(contract_rel),
+            "worker_goal_path": _normalize_rel_path(goal_rel),
+            "worker_validation_commands_hidden": bool(
+                worker_contract_payload.get("validation", {}).get(
+                    "commands_hidden_from_worker"
+                )
+                if isinstance(worker_contract_payload.get("validation"), dict)
+                else False
+            ),
+        },
+    )
+
+
 def _effective_immutable_paths(
     contract_payload: dict[str, Any],
     *,
@@ -1178,7 +1223,22 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             worker_root=worker_root,
             rel_paths=sync_paths,
         )
+        _write_worker_visible_artifacts(
+            worker_root=worker_root,
+            goal_rel=goal_rel,
+            goal_text=goal_text,
+            contract_rel=contract_rel,
+            contract_payload=contract_payload,
+            run_dir=run_dir,
+        )
         implement_git.cleanup_paths(worker_root, sorted(hidden_worker_paths))
+        worker_turn_baseline = _changed_signatures(worker_root)
+        worker_protected_before = _snapshot_files(
+            [
+                worker_root / _normalize_rel_path(goal_rel),
+                worker_root / _normalize_rel_path(contract_rel),
+            ]
+        )
 
         def run_worker_turn(
             loop_iteration: int,
@@ -1237,7 +1297,22 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 run_turn=run_worker_turn,
                 log_tag="implement",
             )
-        worker_changed_entries = implement_git.list_changed_paths(worker_root)
+        worker_changed_entries = [
+            entry
+            for entry in implement_git.list_changed_paths(worker_root)
+            if (
+                str(entry.get("status") or "").strip(),
+                _normalize_rel_path(str(entry.get("path") or "")),
+            )
+            not in worker_turn_baseline
+        ]
+        worker_protected_changed = _changed_file_snapshots(
+            worker_protected_before,
+            [
+                worker_root / _normalize_rel_path(goal_rel),
+                worker_root / _normalize_rel_path(contract_rel),
+            ],
+        )
         worker_forbidden_changed = [
             entry["path"]
             for entry in worker_changed_entries
@@ -1248,6 +1323,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 immutable_paths=immutable_paths,
             )
         ]
+        worker_forbidden_changed.extend(worker_protected_changed)
         _sync_worker_outputs(
             project_root=project_root,
             worker_root=worker_root,
@@ -1307,6 +1383,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
         hard_reason = ""
         controller_decision: str | None = None
         controller_summary: str | None = None
+        controller_review: dict[str, Any] | None = None
         controller_result: dict[str, object] = {}
         validation_ran = False
         if str(worker_loop_result.get("status") or "") != "done":
@@ -1435,9 +1512,17 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                     reasoning_effort=reasoning_effort,
                 )
             controller_text = str(controller_result.get("assistant_text") or "")
-            controller_decision = implement_prompts.extract_decision(controller_text)
+            controller_review = implement_prompts.extract_controller_review(
+                controller_text
+            )
+            controller_decision = (
+                implement_prompts.controller_review_decision(controller_review)
+                or implement_prompts.extract_decision(controller_text)
+            )
             controller_summary = implement_prompts.extract_controller_summary(
                 controller_text
+            ) or implement_prompts.controller_review_summary(
+                controller_review
             )
             _write_run_json(
                 run_dir,
@@ -1446,6 +1531,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                     "assistant_text": controller_text,
                     "decision": controller_decision,
                     "controller_summary": controller_summary,
+                    "controller_review": controller_review or {},
                     "return_code": int(controller_result.get("return_code") or 0),
                     "stderr": str(controller_result.get("stderr") or ""),
                 },
@@ -1485,6 +1571,12 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 validation_context["protected_file_changes"] = protected_changes
                 _write_run_json(run_dir, "review_context.json", validation_context)
+            if controller_review:
+                validation_context["controller_review"] = controller_review
+                validation_context[
+                    "controller_review_final_ok"
+                ] = implement_validation.controller_review_final_ok(controller_review)
+                _write_run_json(run_dir, "review_context.json", validation_context)
         if validation_ran and int(controller_result.get("return_code") or 0) != 0:
             controller_decision = "REJECTED"
             controller_summary = controller_summary or "controller agent exited non-zero"
@@ -1499,6 +1591,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             incumbent_validation=incumbent_validation,
             candidate_validation=candidate_validation,
             controller_decision=controller_decision,
+            controller_review=controller_review,
             hard_reject=hard_reject,
             hard_reason=hard_reason,
         )

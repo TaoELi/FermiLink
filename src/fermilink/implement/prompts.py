@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Any
 
 from fermilink.cli.workflow_prompts import LOOP_DONE_TOKEN
 
@@ -9,6 +10,7 @@ from fermilink.cli.workflow_prompts import LOOP_DONE_TOKEN
 IMPLEMENTATION_DESCRIPTION_TAG = "implementation_description"
 DECISION_TAG = "decision"
 CONTROLLER_SUMMARY_TAG = "controller_summary"
+CONTROLLER_REVIEW_TAG = "controller_review"
 
 IMPLEMENTATION_DESCRIPTION_RE = re.compile(
     rf"<{IMPLEMENTATION_DESCRIPTION_TAG}>\s*(.*?)\s*</{IMPLEMENTATION_DESCRIPTION_TAG}>",
@@ -22,6 +24,66 @@ CONTROLLER_SUMMARY_RE = re.compile(
     rf"<{CONTROLLER_SUMMARY_TAG}>\s*(.*?)\s*</{CONTROLLER_SUMMARY_TAG}>",
     re.IGNORECASE | re.DOTALL,
 )
+CONTROLLER_REVIEW_RE = re.compile(
+    rf"<{CONTROLLER_REVIEW_TAG}>\s*(.*?)\s*</{CONTROLLER_REVIEW_TAG}>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _normalize_review_decision(value: object) -> str:
+    decision = str(value or "").strip().upper()
+    return decision if decision in {"ACCEPTED", "REJECTED"} else ""
+
+
+def _normalize_controller_review(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(payload)
+    decision = _normalize_review_decision(
+        payload.get("decision") or payload.get("verdict")
+    )
+    if decision:
+        normalized["decision"] = decision
+    summary = str(
+        payload.get("summary")
+        or payload.get("controller_summary")
+        or payload.get("reason")
+        or ""
+    ).strip()
+    if summary:
+        normalized["summary"] = summary
+    requirements: list[dict[str, Any]] = []
+    raw_requirements = payload.get("requirements")
+    if isinstance(raw_requirements, list):
+        for index, raw_item in enumerate(raw_requirements, start=1):
+            if not isinstance(raw_item, dict):
+                continue
+            requirement_id = str(
+                raw_item.get("id") or raw_item.get("name") or f"requirement_{index}"
+            ).strip()
+            verdict = str(raw_item.get("verdict") or raw_item.get("status") or "").strip()
+            requirements.append(
+                {
+                    **raw_item,
+                    "id": requirement_id or f"requirement_{index}",
+                    "verdict": verdict.lower(),
+                    "evidence": _string_list(raw_item.get("evidence")),
+                    "required": bool(raw_item.get("required", True)),
+                }
+            )
+    if requirements:
+        normalized["requirements"] = requirements
+    risks = _string_list(payload.get("risks"))
+    if risks:
+        normalized["risks"] = risks
+    return normalized
 
 
 def default_program_markdown(*, package_id: str, goal_rel: str, contract_rel: str) -> str:
@@ -90,6 +152,7 @@ def build_worker_agents_md(
         "- Update worker memory with the plan and factual progress.\n"
         "- Do not weaken tests or validation artifacts.\n"
         "- Do not hard-code answers for representative workloads.\n"
+        "- Treat worker-visible workloads as training/public examples; the controller may hold out private workloads and validation commands.\n"
         "- Long jobs may be launched and monitored with loop wait tags.\n"
         "\n"
         "When the candidate is ready for controller validation, reply with:\n"
@@ -136,7 +199,9 @@ def build_worker_prompt(
         "\n"
         "Prepare exactly one implementation step. The controller can accept partial "
         "progress if validation score improves, but final completion requires the "
-        "done criteria in the contract.\n"
+        "done criteria in the contract. Some controller-only workloads or "
+        "validation commands may be deliberately hidden from this worker copy; "
+        "implement the general target, not the visible examples only.\n"
         "\n"
         "Editable path globs:\n"
         f"{json.dumps(editable_paths, indent=2)}\n"
@@ -181,10 +246,22 @@ def build_controller_agents_md(
         "\n"
         "Rules:\n"
         "- Reject cheating, hard-coded answers, validation weakening, and unrelated scope changes.\n"
-        "- Accept only implementations that genuinely advance the goal contract.\n"
+        "- Treat validation results as reference evidence, not as proof by themselves.\n"
+        "- Accept only implementations that genuinely advance the goal contract after independent code review.\n"
         "- Partial progress may be accepted if validation score improves and the implementation is honest.\n"
+        "- Final completion requires explicit evidence that the implementation satisfies the goal and YAML target.\n"
         "\n"
-        "When finished, reply with exactly:\n"
+        "When finished, reply with exactly one structured review plus legacy summary tags:\n"
+        f"<{CONTROLLER_REVIEW_TAG}>{{\n"
+        '  "decision": "ACCEPTED or REJECTED",\n'
+        '  "final_complete": false,\n'
+        '  "summary": "one-line reason",\n'
+        '  "requirements": [\n'
+        '    {"id": "api", "verdict": "pass|partial|fail|not_checked", "required": true, "evidence": ["specific file/diff/test evidence"]}\n'
+        "  ],\n"
+        '  "validation_interpretation": "how validation supports or fails to support the verdict",\n'
+        '  "risks": []\n'
+        f"}}</{CONTROLLER_REVIEW_TAG}>\n"
         f"<{DECISION_TAG}>ACCEPTED or REJECTED</{DECISION_TAG}>\n"
         f"<{CONTROLLER_SUMMARY_TAG}>one-line reason</{CONTROLLER_SUMMARY_TAG}>\n"
     )
@@ -234,10 +311,14 @@ def build_controller_prompt(
         "\n"
         "Your tasks:\n"
         "1. Update memory.md with a concise postmortem.\n"
-        "2. Decide whether the candidate is honest and goal-aligned.\n"
-        "3. If validation_context.hard_reject is true, output REJECTED.\n"
+        "2. Read the full controller goal, YAML target, candidate diff, changed files, validation logs, and run artifacts.\n"
+        "3. Independently decide whether the code honestly satisfies the target implementation request.\n"
+        "4. Treat validation as useful evidence only; do not accept final completion solely because tests passed.\n"
+        "5. Check API fit, algorithm/implementation approach, controller-only holdout workloads, non-goals, backward compatibility, validation weakening, hardcoding, and bypassed code paths.\n"
+        "6. If validation_context.hard_reject is true, output REJECTED.\n"
         "\n"
         "When done, reply with exactly:\n"
+        f"<{CONTROLLER_REVIEW_TAG}>JSON review object</{CONTROLLER_REVIEW_TAG}>\n"
         f"<{DECISION_TAG}>ACCEPTED or REJECTED</{DECISION_TAG}>\n"
         f"<{CONTROLLER_SUMMARY_TAG}>one-line reason</{CONTROLLER_SUMMARY_TAG}>\n"
     )
@@ -265,3 +346,30 @@ def extract_controller_summary(text: str) -> str | None:
         return None
     value = " ".join(match.group(1).split()).strip()
     return value or None
+
+
+def extract_controller_review(text: str) -> dict[str, Any] | None:
+    match = CONTROLLER_REVIEW_RE.search(str(text or ""))
+    if not match:
+        return None
+    try:
+        payload = json.loads(match.group(1).strip())
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return _normalize_controller_review(payload)
+
+
+def controller_review_decision(review: dict[str, Any] | None) -> str | None:
+    if not isinstance(review, dict):
+        return None
+    decision = _normalize_review_decision(review.get("decision"))
+    return decision or None
+
+
+def controller_review_summary(review: dict[str, Any] | None) -> str | None:
+    if not isinstance(review, dict):
+        return None
+    summary = str(review.get("summary") or "").strip()
+    return summary or None

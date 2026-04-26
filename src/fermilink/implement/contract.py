@@ -19,6 +19,10 @@ DEFAULT_WORKER_MAX_WAIT_SECONDS = 6000.0
 DEFAULT_TIMEOUT_SECONDS = 1800
 DEFAULT_MIN_SCORE_IMPROVEMENT = 1.0e-6
 
+WORKLOAD_SPLIT_KEY = "workload_split"
+WORKLOAD_SPLIT_TRAIN_PREFIXES = ("train-", "worker-", "public-")
+WORKLOAD_SPLIT_TEST_PREFIXES = ("test-", "holdout-", "controller-", "private-")
+
 
 def _cli():
     from fermilink import cli
@@ -34,6 +38,60 @@ def _str_list(payload: object) -> list[str]:
         for item in payload
         if isinstance(item, str) and str(item).strip()
     ]
+
+
+def _workload_id(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.split(":", 1)[0].strip()
+
+
+def _has_prefixed_workload_split(workloads: list[str]) -> bool:
+    has_worker = False
+    has_controller = False
+    for workload in workloads:
+        workload_id = _workload_id(workload).lower()
+        if workload_id.startswith(WORKLOAD_SPLIT_TRAIN_PREFIXES):
+            has_worker = True
+        if workload_id.startswith(WORKLOAD_SPLIT_TEST_PREFIXES):
+            has_controller = True
+    return has_worker and has_controller
+
+
+def infer_workload_split(workloads: list[str]) -> dict[str, Any]:
+    normalized = [str(item).strip() for item in workloads if str(item).strip()]
+    if len(normalized) < 2:
+        return {
+            "enabled": False,
+            "source": "insufficient_workloads",
+            "worker_workloads": normalized,
+            "controller_workloads": [],
+            "worker_workload_ids": [_workload_id(item) for item in normalized],
+            "controller_workload_ids": [],
+        }
+    worker_workloads: list[str] = []
+    controller_workloads: list[str] = []
+    if _has_prefixed_workload_split(normalized):
+        for workload in normalized:
+            workload_id = _workload_id(workload).lower()
+            if workload_id.startswith(WORKLOAD_SPLIT_TEST_PREFIXES):
+                controller_workloads.append(workload)
+            else:
+                worker_workloads.append(workload)
+        source = "prefix"
+    else:
+        worker_workloads = normalized[:-1]
+        controller_workloads = normalized[-1:]
+        source = "deterministic_holdout"
+    return {
+        "enabled": bool(worker_workloads and controller_workloads),
+        "source": source,
+        "worker_workloads": worker_workloads,
+        "controller_workloads": controller_workloads,
+        "worker_workload_ids": [_workload_id(item) for item in worker_workloads],
+        "controller_workload_ids": [_workload_id(item) for item in controller_workloads],
+    }
 
 
 def _command_list_from_text(text: str) -> list[str]:
@@ -88,22 +146,6 @@ def _default_validation_commands(
     explicit = normalize_command_list(goal_spec.get("validation_commands"))
     if explicit:
         return explicit
-    validation_text = str(goal_spec.get("validation") or "").strip()
-    if validation_text:
-        commands: list[list[str]] = []
-        for raw_line in validation_text.splitlines():
-            stripped = raw_line.strip()
-            if stripped.startswith(("- ", "* ", "+ ")):
-                stripped = stripped[2:].strip()
-            if stripped.startswith("$"):
-                stripped = stripped[1:].strip()
-            if stripped.startswith("`") and stripped.endswith("`"):
-                stripped = stripped[1:-1].strip()
-            command = _command_list_from_text(stripped)
-            if command:
-                commands.append(command)
-        if commands:
-            return commands
     if (project_root / "tests").is_dir():
         return [[sys.executable, "-m", "pytest", "-q"]]
     return []
@@ -134,6 +176,7 @@ def build_default_contract(
     done_criteria = _str_list(goal_spec.get("done_criteria"))
     desired_outputs = _str_list(goal_spec.get("desired_outputs"))
     workloads = _str_list(goal_spec.get("workloads"))
+    workload_split = infer_workload_split(workloads)
     input_api = str(goal_spec.get("input_api") or "").strip()
     if not input_api and isinstance(analysis, dict):
         api_candidates = analysis.get("proposed_api") or analysis.get("api")
@@ -161,6 +204,7 @@ def build_default_contract(
             "flexible": not bool(desired_outputs),
         },
         "workloads": workloads,
+        WORKLOAD_SPLIT_KEY: workload_split,
         "repo": {
             "editable_paths": _default_editable_scope(project_root, goal_spec),
             "immutable_paths": [
@@ -176,6 +220,10 @@ def build_default_contract(
         "validation": {
             "mode": "progressive",
             "commands": validation_commands,
+            "source": (
+                "goal_code_blocks" if normalize_command_list(goal_spec.get("validation_commands"))
+                else "agent_or_default"
+            ),
             "allow_partial_improvements": True,
             "requires_complete_for_final": True,
         },
@@ -230,6 +278,9 @@ def validate_contract(payload: dict[str, Any]) -> None:
     commands = validation.get("commands")
     if commands is not None and not isinstance(commands, list):
         raise cli.PackageError("Implementation contract validation.commands must be a list.")
+    split = payload.get(WORKLOAD_SPLIT_KEY)
+    if split is not None and not isinstance(split, dict):
+        raise cli.PackageError("Implementation contract workload_split must be an object.")
     pre_commands = payload.get("pre_commands")
     if pre_commands is not None:
         if not isinstance(pre_commands, dict):
@@ -302,6 +353,47 @@ def validation_commands(payload: dict[str, Any]) -> list[list[str]]:
     if not isinstance(validation, dict):
         return []
     return normalize_command_list(validation.get("commands"))
+
+
+def workload_split(payload: dict[str, Any]) -> dict[str, Any]:
+    split = payload.get(WORKLOAD_SPLIT_KEY)
+    if isinstance(split, dict):
+        return copy.deepcopy(split)
+    return infer_workload_split(_str_list(payload.get("workloads")))
+
+
+def worker_visible_contract(payload: dict[str, Any]) -> dict[str, Any]:
+    worker_payload = copy.deepcopy(payload)
+    split = workload_split(worker_payload)
+    enabled = bool(split.get("enabled"))
+    if enabled:
+        worker_payload["workloads"] = _str_list(split.get("worker_workloads"))
+    worker_payload[WORKLOAD_SPLIT_KEY] = {
+        "enabled": enabled,
+        "role": "worker",
+        "source": str(split.get("source") or ""),
+        "worker_workload_ids": _str_list(split.get("worker_workload_ids")),
+        "controller_workload_count": len(_str_list(split.get("controller_workloads"))),
+        "controller_workloads_redacted": enabled,
+    }
+    validation = worker_payload.get("validation")
+    if isinstance(validation, dict):
+        worker_commands = (
+            validation.get("worker_commands")
+            if validation.get("worker_commands") is not None
+            else validation.get("public_commands")
+        )
+        if worker_commands is not None:
+            validation["commands"] = normalize_command_list(worker_commands)
+            validation["commands_source"] = "worker_visible"
+        elif enabled:
+            validation.pop("commands", None)
+            validation["commands_hidden_from_worker"] = True
+            validation["note"] = (
+                "Authoritative controller validation commands are hidden from "
+                "the worker when controller-only workloads are present."
+            )
+    return worker_payload
 
 
 def campaign_config(payload: dict[str, Any]) -> dict[str, Any]:

@@ -95,24 +95,6 @@ Acceptable API refinements:
 - test-rks-ethylene-b3lyp-631g: RKS ethylene / 6-31G / `xc="b3lyp"` / held-out
   molecule for TDDFT spectrum and no-hardcoding checks
 
-## Validation
-```bash
-bash -lc 'set -euo pipefail
-python scripts/implement/python_pyscf/benchmark_lanczos_tddft.py --benchmark scripts/implement/python_pyscf/python-pyscf-lanczos-tddft-benchmark.yaml
-python -m pytest -q pyscf/tdscf/test/test_lanczos_tddft.py'
-```
-
-The worker should create `pyscf/tdscf/test/test_lanczos_tddft.py` if it does not
-exist. The test file should include deterministic tests for:
-- public API import/constructor behavior
-- RHF water spectrum generation on a small frequency grid
-- RKS water or formaldehyde spectrum generation on a small frequency grid
-- comparison of the lowest few spectral peak positions against existing PySCF
-  TDDFT/TDHF roots within a practical finite-grid tolerance
-- repeated-run determinism with fixed inputs
-- guardrails that the implementation does not materialize the full TDDFT matrix
-  for normal operation
-
 ## Build
 ```bash
 cd pyscf/lib
