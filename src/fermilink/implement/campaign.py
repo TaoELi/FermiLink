@@ -1223,20 +1223,20 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             )
             return result
 
-        with implement_git.with_worker_git_disabled(worker_root):
-            with implement_git.temporary_implement_agents(
-                worker_root,
-                provider=worker_provider,
-                content=agents_md,
-            ):
-                worker_loop_result = _run_optimize_worker_loop(
-                    prompt=prompt,
-                    max_iterations=int(worker_loop_config["max_iterations"]),
-                    wait_seconds=float(worker_loop_config["wait_seconds"]),
-                    max_wait_seconds=float(worker_loop_config["max_wait_seconds"]),
-                    pid_stall_seconds=float(worker_loop_config["pid_stall_seconds"]),
-                    run_turn=run_worker_turn,
-                )
+        with implement_git.temporary_implement_agents(
+            worker_root,
+            provider=worker_provider,
+            content=agents_md,
+        ):
+            worker_loop_result = _run_optimize_worker_loop(
+                prompt=prompt,
+                max_iterations=int(worker_loop_config["max_iterations"]),
+                wait_seconds=float(worker_loop_config["wait_seconds"]),
+                max_wait_seconds=float(worker_loop_config["max_wait_seconds"]),
+                pid_stall_seconds=float(worker_loop_config["pid_stall_seconds"]),
+                run_turn=run_worker_turn,
+                log_tag="implement",
+            )
         worker_changed_entries = implement_git.list_changed_paths(worker_root)
         worker_forbidden_changed = [
             entry["path"]

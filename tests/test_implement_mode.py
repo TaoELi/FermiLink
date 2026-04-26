@@ -335,8 +335,10 @@ def test_implement_campaign_accepts_partial_progress_from_worker(
     implement_contract.write_contract(implement_state.contract_path(repo), contract_payload)
 
     calls: list[str] = []
+    worker_git_was_visible = False
 
     def fake_run_exec_chat_turn(**kwargs):
+        nonlocal worker_git_was_visible
         prompt = str(kwargs.get("prompt") or "")
         repo_dir = Path(str(kwargs.get("repo_dir") or ""))
         if "Validation context:" in prompt:
@@ -350,6 +352,8 @@ def test_implement_campaign_accepts_partial_progress_from_worker(
                 "stderr": "",
             }
         calls.append("worker")
+        worker_git_was_visible = (repo_dir / ".git").exists()
+        _git(repo_dir, "status", "--porcelain")
         (repo_dir / "feature.py").write_text("VALUE = 'PARTIAL'\n", encoding="utf-8")
         return {
             "assistant_text": (
@@ -361,6 +365,14 @@ def test_implement_campaign_accepts_partial_progress_from_worker(
         }
 
     monkeypatch.setattr(cli, "_run_exec_chat_turn", fake_run_exec_chat_turn)
+    tagged_messages: list[tuple[str, str]] = []
+    original_print_tagged = cli._print_tagged
+
+    def fake_print_tagged(tag, message, *args, **kwargs):
+        tagged_messages.append((str(tag), str(message)))
+        return original_print_tagged(tag, message, *args, **kwargs)
+
+    monkeypatch.setattr(cli, "_print_tagged", fake_print_tagged)
 
     result = run_goal_campaign(
         argparse.Namespace(
@@ -386,6 +398,12 @@ def test_implement_campaign_accepts_partial_progress_from_worker(
     )
 
     assert calls == ["worker", "controller"]
+    assert worker_git_was_visible is True
+    assert ("implement", "iteration 1/1") in tagged_messages
+    assert not any(
+        tag == "optimize" and message == "iteration 1/1"
+        for tag, message in tagged_messages
+    )
     assert result["accepted_count"] == 1
     assert result["complete"] is False
     assert "PARTIAL" in (repo / "feature.py").read_text(encoding="utf-8")

@@ -1712,16 +1712,18 @@ def _run_optimize_worker_loop(
     max_wait_seconds: float,
     pid_stall_seconds: float,
     run_turn: Callable[[int, int, str], dict[str, object]],
+    log_tag: str = "optimize",
 ) -> dict[str, object]:
     cli = _cli()
     from fermilink.cli.commands import sessions as session_commands
 
+    tag = str(log_tag or "").strip() or "optimize"
     last_run_result: dict[str, object] = {}
     last_assistant_text = ""
     last_provider_return_code = 0
 
     for iteration in range(1, max_iterations + 1):
-        cli._print_tagged("optimize", f"iteration {iteration}/{max_iterations}")
+        cli._print_tagged(tag, f"iteration {iteration}/{max_iterations}")
         run_result = run_turn(iteration, max_iterations, prompt)
         last_run_result = run_result
 
@@ -1775,7 +1777,7 @@ def _run_optimize_worker_loop(
             ):
                 slurm_text = ", ".join(pending_slurm_jobs)
                 cli._print_tagged(
-                    "optimize",
+                    tag,
                     (
                         "cannot poll slurm job(s) without `sacct` or `squeue`; "
                         f"continuing without slurm wait (jobs: {slurm_text})"
@@ -1786,7 +1788,7 @@ def _run_optimize_worker_loop(
             if initially_dead_pids:
                 dead_text = ", ".join(str(pid) for pid in initially_dead_pids)
                 cli._print_tagged(
-                    "optimize",
+                    tag,
                     (
                         "detected non-running pid(s) before wait; "
                         "continuing next iteration for debug/resubmit "
@@ -1812,7 +1814,7 @@ def _run_optimize_worker_loop(
                         f"{job_id}:{state}" for job_id, state in failed_slurm_jobs
                     )
                     cli._print_tagged(
-                        "optimize",
+                        tag,
                         (
                             "slurm job(s) reached non-success terminal state; "
                             f"continuing (jobs: {failed_text})"
@@ -1822,7 +1824,7 @@ def _run_optimize_worker_loop(
                 if slurm_issues:
                     issue_text = session_commands._format_slurm_issues(slurm_issues)
                     cli._print_tagged(
-                        "optimize",
+                        tag,
                         (
                             "detected slurm polling issue; "
                             "continuing next iteration for debug/resubmit "
@@ -1840,7 +1842,7 @@ def _run_optimize_worker_loop(
                     f"{pid_stall_seconds:.1f}s" if pid_stall_seconds > 0 else "disabled"
                 )
                 cli._print_tagged(
-                    "optimize",
+                    tag,
                     (
                         "polling jobs until completion "
                         f"({wait_targets}, poll: {poll_interval:.1f}s, "
@@ -1860,7 +1862,7 @@ def _run_optimize_worker_loop(
                     if now_monotonic >= next_status_log:
                         remaining_text = max(0.0, remaining)
                         cli._print_tagged(
-                            "optimize",
+                            tag,
                             (
                                 "polling status @ "
                                 f"{session_commands._utc_now_timestamp()} "
@@ -1879,7 +1881,7 @@ def _run_optimize_worker_loop(
                         )
                     if remaining <= 0:
                         cli._print_tagged(
-                            "optimize",
+                            tag,
                             (
                                 "job polling reached max wait "
                                 f"({max_wait_seconds:.1f}s); continuing "
@@ -1922,7 +1924,7 @@ def _run_optimize_worker_loop(
                             else ""
                         )
                         cli._print_tagged(
-                            "optimize",
+                            tag,
                             (
                                 "detected pid issue during polling; "
                                 "continuing next iteration for debug/resubmit "
@@ -1950,7 +1952,7 @@ def _run_optimize_worker_loop(
                                 for job_id, state in failed_slurm_jobs
                             )
                             cli._print_tagged(
-                                "optimize",
+                                tag,
                                 (
                                     "slurm job(s) reached non-success terminal state; "
                                     f"continuing (jobs: {failed_text})"
@@ -1969,7 +1971,7 @@ def _run_optimize_worker_loop(
                                 )
                             suffix = f"; {'; '.join(waiting_on)}" if waiting_on else ""
                             cli._print_tagged(
-                                "optimize",
+                                tag,
                                 (
                                     "detected slurm polling issue; "
                                     "continuing next iteration for debug/resubmit "
@@ -1984,7 +1986,7 @@ def _run_optimize_worker_loop(
                 if not alive and not pending_slurm_jobs:
                     waited = session_commands.time.monotonic() - started
                     cli._print_tagged(
-                        "optimize",
+                        tag,
                         f"job polling complete after {waited:.1f}s.",
                     )
             continue
@@ -1996,7 +1998,7 @@ def _run_optimize_worker_loop(
         if effective_wait > 0:
             if requested_wait > max_wait_seconds:
                 cli._print_tagged(
-                    "optimize",
+                    tag,
                     (
                         "sleeping "
                         f"{effective_wait:.1f}s before next iteration "
@@ -2005,7 +2007,7 @@ def _run_optimize_worker_loop(
                 )
             else:
                 cli._print_tagged(
-                    "optimize",
+                    tag,
                     (
                         "sleeping "
                         f"{effective_wait:.1f}s before next iteration "
@@ -2015,7 +2017,7 @@ def _run_optimize_worker_loop(
             session_commands.time.sleep(effective_wait)
 
     cli._print_tagged(
-        "optimize",
+        tag,
         f"max iterations reached ({max_iterations}) without {cli.LOOP_DONE_TOKEN}.",
         stderr=True,
     )
