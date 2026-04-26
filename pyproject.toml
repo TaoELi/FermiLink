@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fermilink"
-version = "0.3.1"
+version = "0.3.2"
 description = "Write a goal.md, FermiLink takes care of autonomous scientific simulations and optimization at both laptops and HPCs"
 readme = "README.md"
 requires-python = ">=3.11"
