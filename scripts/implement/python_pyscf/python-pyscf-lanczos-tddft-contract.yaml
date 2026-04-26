@@ -1,0 +1,86 @@
+schema_version: 1
+implementation_id: implement-pyscf-lanczos-tddft
+package_id: pyscf
+target: >
+  Implement a PySCF Lanczos-chain TDDFT response algorithm for closed-shell
+  RHF/RKS molecular calculations, using TD response matrix-vector products and
+  a non-Hermitian Lanczos projection of the Liouvillian resolvent.
+baseline:
+  mode: exploratory
+  reference: arXiv:0801.1393 describes the Liouvillian resolvent and non-symmetric Lanczos approach; PySCF's existing TDHF/TDDFT roots provide finite-basis comparison points.
+  optional: true
+api:
+  input: >
+    Expose tdscf.LanczosTDDFT(mf) or tdscf.lanczos.LanczosTDDFT(mf), with
+    kernel(freq=..., polarizations="xyz") returning frequency, polarizability,
+    strength, and diagnostic metadata.
+  lock_after_first_passing_validation: true
+outputs:
+  desired:
+    - frequency grid in Hartree
+    - complex polarizability response
+    - nonnegative scalar absorption or strength spectrum
+    - optional peak positions and oscillator strengths
+    - Lanczos diagnostic metadata
+  flexible: false
+workloads:
+  - train-rhf-water-sto3g
+  - train-rks-water-b3lyp-sto3g
+  - train-rks-formaldehyde-pbe-sto3g
+  - test-rhf-ammonia-sto3g
+  - test-rks-ethylene-b3lyp-sto3g
+repo:
+  editable_paths:
+    - pyscf/tdscf/lanczos.py
+    - pyscf/tdscf/__init__.py
+    - pyscf/tdscf/rhf.py
+    - pyscf/tdscf/rks.py
+    - pyscf/tdscf/_lr_eig.py
+    - pyscf/tdscf/test/test_lanczos_tddft.py
+    - examples/tddft/*lanczos*
+  immutable_paths:
+    - .fermilink-implement/**
+    - .fermilink-optimize/**
+    - scripts/implement/python_pyscf/python-pyscf-lanczos-tddft-benchmark.yaml
+    - scripts/implement/python_pyscf/benchmark_lanczos_tddft.py
+pre_commands:
+  worker:
+    - ["bash", "-lc", "set -euo pipefail\npython -m pip install -e ."]
+  controller:
+    - ["bash", "-lc", "set -euo pipefail\npython -m pip install -e ."]
+validation:
+  mode: progressive
+  commands:
+    - ["python", "scripts/implement/python_pyscf/benchmark_lanczos_tddft.py", "--benchmark", "scripts/implement/python_pyscf/python-pyscf-lanczos-tddft-benchmark.yaml"]
+  allow_partial_improvements: true
+  requires_complete_for_final: true
+scoring:
+  max_score: 100.0
+  min_score_improvement: 1.0e-6
+  complete_score: 100.0
+campaign:
+  max_iterations: 80
+  stop_on_consecutive_rejections: 20
+worker:
+  max_iterations: 8
+  wait_seconds: 1.0
+  max_wait_seconds: 6000.0
+  pid_stall_seconds: 900.0
+controller:
+  timeout_seconds: 1800
+guardrails:
+  reject_out_of_scope_edits: true
+  reject_validation_weakening: true
+  reject_hardcoded_workload_answers: true
+  reject_unrelated_algorithm_changes: true
+done_criteria:
+  - tdscf.LanczosTDDFT(mf) or tdscf.lanczos.LanczosTDDFT(mf) is importable.
+  - RHF and RKS benchmark cases produce finite deterministic spectra.
+  - Low-energy spectral peaks align with existing PySCF TDHF/TDDFT roots within benchmark tolerance.
+  - Normal operation applies response matrix-vector products rather than materializing the full TDDFT matrix.
+non_goals:
+  - Do not change existing TDDFT/TDA default behavior.
+  - Do not hard-code benchmark molecule spectra or workload identifiers.
+  - Do not require periodic systems, plane waves, or an unoccupied-orbital-free formulation in the first finite-basis PySCF implementation.
+autogen:
+  source: scripts/implement/python_pyscf/python-pyscf-lanczos-tddft-goal.md

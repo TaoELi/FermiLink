@@ -441,7 +441,7 @@ def build_benchmark_generation_prompt(
         "- `benchmark_id`: unique identifier\n"
         f"- `package_id`: `{package}`\n"
         "- `goal_context`: guidance metadata for optimizer intent with:\n"
-        "  - `target`: concise restatement of the user's `## Target`\n"
+        "  - `target`: restatement of the user's `## Target`\n"
         "  - `initial_hypothesis`: suggested first optimization direction based on the goal\n"
         "  - `intent_level`: set to `guidance`\n"
         "- `repo.editable_paths`: glob list from the source analysis\n"
