@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-03-16T10:02:16.911141Z",
+  "updated_at": "2026-04-28T02:32:09.415718Z",
   "families": {
     "maxwelllink": {
       "description": "Use this family for intents about coupled electromagnetic and molecular simulation workflows, including MaxwellLink input setup, socket-linked drivers, and local or HPC job execution.",
@@ -6499,6 +6499,43 @@
         "biopython",
         "brian2",
         "cp2k"
+      ]
+    },
+    "dftb": {
+      "description": "Routes intents about semi-empirical tight-binding quantum chemistry, fast atomistic electronic-structure calculations, and DFTB-parameterized simulations for molecules and solids.",
+      "strong_keywords": [
+        "dftb",
+        "dftbplus",
+        "density functional tight binding",
+        "semi-empirical electronic structure",
+        "atomistic quantum simulation",
+        "slater-koster files",
+        "scc-dftb",
+        "tight-binding quantum mechanics"
+      ],
+      "keywords": [
+        "third-order dftb",
+        "electronic transport",
+        "molecular dynamics",
+        "geometry optimization",
+        "band structure",
+        "materials simulation",
+        "parameterization sets",
+        "fortran quantum chemistry",
+        "periodic boundary conditions",
+        "noncovalent interactions"
+      ],
+      "negative_keywords": [
+        "cp2k",
+        "abinit",
+        "aiida-core",
+        "astropy",
+        "cantera",
+        "brian2",
+        "anndata",
+        "cirq",
+        "acts",
+        "alamode"
       ]
     }
   }
