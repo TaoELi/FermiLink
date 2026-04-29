@@ -276,7 +276,7 @@
   <!-- EXEC column nodes -->
   <rect x="115" y="160" width="310" height="72" class="node"/>
   <use href="#icon-user" x="132" y="175" width="42" height="42"/>
-  <text x="282" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+  <text x="282" y="204" text-anchor="middle" class="nodeTxt">goal.md</text>
 
   <rect x="115" y="272" width="310" height="72" class="node"/>
   <use href="#icon-package" x="132" y="287" width="42" height="42"/>
@@ -297,7 +297,7 @@
   <!-- LOOP column nodes -->
   <rect x="625" y="160" width="310" height="72" class="node"/>
   <use href="#icon-user" x="642" y="175" width="42" height="42"/>
-  <text x="792" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+  <text x="792" y="204" text-anchor="middle" class="nodeTxt">goal.md</text>
 
   <rect x="625" y="272" width="310" height="72" class="node"/>
   <use href="#icon-package" x="642" y="287" width="42" height="42"/>
@@ -335,7 +335,7 @@
   <!-- RESEARCH / REPRODUCE column nodes -->
   <rect x="1135" y="160" width="310" height="72" class="node nodePurple"/>
   <use href="#icon-user" x="1152" y="175" width="42" height="42"/>
-  <text x="1302" y="204" text-anchor="middle" class="nodeTxt">User Prompt</text>
+  <text x="1302" y="204" text-anchor="middle" class="nodeTxt">goal.md</text>
 
   <rect x="1135" y="272" width="310" height="72" class="node nodePurple"/>
   <use href="#icon-package" x="1152" y="287" width="42" height="42"/>

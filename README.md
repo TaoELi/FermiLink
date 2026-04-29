@@ -10,24 +10,23 @@
   <a href="https://arxiv.org/abs/2604.03460"><img src="https://img.shields.io/badge/arXiv-2604.03460-b31b1b.svg" alt="arXiv:2604.03460"></a>
 </p>
 
-<h3 align="center">Write a <code>goal.md</code>. Let AI handle the rest.</h3>
+<h3 align="center">Write a <code>goal.md</code> for scientific simulations!</h3>
 
 <p align="center">
 <b> FermiLink </b> reads a simple markdown file describing your scientific computing goal,<br>
-then autonomously runs and iterates on your laptop or HPC clusters, <br>
-so you can focus on the science, not the infrastructure.
-</p>
+then autonomously runs multi-job multi-day simulations on your laptop or HPC clusters.</p>
 
 ---
 
-## What Can FermiLink Do?
+## Key Features
 
 ### 🔬 Autonomous Scientific Simulations *(stable)*
 
-Describe a **simulation goal** in plain language. **FermiLink** picks the right packages, generates input files, submits jobs, monitors progress, and analyzes the data, even across multi-day HPC campaigns with hundreds of tasks.
+Describe a **simulation goal** in plain language. **FermiLink** loads the suitable package knowledge base, generates input files, submits jobs, monitors progress, analyzes the data, and generate a brief simulation report. It can sustain **multi-task multi-day HPC** runs.
 
 ```bash
 fermilink loop goal.md          # long-running simulations on workstations or HPC
+fermilink reproduce paper.tex   # reproduction of a full research paper
 fermilink research goal.md      # full research-paper-scale, multi-task campaigns
 ```
 
@@ -41,43 +40,9 @@ At the end of the day, it provides optimized scientific code with  improved spee
 fermilink optimize goal.md      # iterative code with correctness guarantees
 ```
 
-**Both features share the same interface: a single `goal.md` file.**
-
 ---
 
-## How it works?
-
-**Step 1.** You write a `goal.md`, a plain markdown file:
-
-```markdown
-# Goal: Photonic crystal band structure
-
-Simulate the band structure of a 2D triangular lattice of dielectric
-rods (r=0.2a, ε=12) in air using MEEP/MPB.
-
-## What to compute
-- TM and TE band diagrams along Γ->M->K->Γ
-- Extract the band gap ratio (Δω/ω_mid) for the first gap
-
-## Success criteria
-- At least 8 bands converged with resolution ≥ 32
-- Band gap ratio within 5% of published values
-
-## Deliverables
-- Save final band diagram as `bands.png`
-```
-
-**Step 2.** Run one command:
-
-```bash
-fermilink loop goal.md
-```
-
-**Step 3.** **FermiLink** takes over. You come back to a finished `bands.png` and a summary report.
-
----
-
-## Quickstart (5 minutes)
+## Quickstart
 
 ```bash
 # 1. Install
@@ -96,37 +61,19 @@ fermilink hpc
 fermilink loop goal.md
 ```
 
-That's it, you are all set!
-
 > **First time?** Just run `fermilink` with no arguments. Then, an interactive setup wizard will walk you through everything.
 
 ---
 
-## How It Works
+## Design principles
 
-FermiLink separates **what you want** (your `goal.md`) from **how to do it** (package knowledge + agent reasoning):
+The key design principle of **FermiLink** is the segregation of  package knowledge bases and simulation workflows. 
 
-```
-┌─────────────┐      ┌──────────────────┐      ┌──────────────────┐
-│   goal.md   │ ───▸ │   AI Agent       │ ───▸ │   Simulation /   │
-│  (your      │      │  (Claude, Codex, │      │   Optimization   │
-│   intent)   │      │   Gemini)        │      │   Engine         │
-└─────────────┘      └──────────────────┘      └──────────────────┘
-                            │                          │
-                     reads from                  runs on
-                            ▼                          ▼
-                   ┌──────────────────┐      ┌──────────────────┐
-                   │  Package         │      │  Your laptop,    │
-                   │  Knowledge Base  │      │  workstation,    │
-                   │  (150+ packages) │      │  or HPC cluster  │
-                   └──────────────────┘      └──────────────────┘
-```
-
-The agent doesn't just generate scripts. Instead, it sustains **multi-task, multi-day** computational campaigns without human intervention.
+![design](./docs/source/_static/img/package_management_workflow.svg)
 
 ---
 
-## Workflows at Every Scale
+## Supported Workflows
 
 **FermiLink** supports the following six major commands for various simulation workflows:
 
@@ -139,9 +86,17 @@ The agent doesn't just generate scripts. Instead, it sustains **multi-task, mult
 | `research` | Multi-task, paper-scale research | Days -> weeks | HPC clusters |
 | `optimize` | Code performance tuning *(beta)* | Hours | Any |
 
+![workflow](./docs/source/_static/img/major_modes_workflow.svg)
+
+Apart from the above simulation workflows, it also supports an ``optimize`` workflow for optimizing the performance of scientific packages.
+
+<p align="center">
+<img src="./docs/source/_static/img/optimize_mode_workflow.svg" alt="FermiLink optimize" width="200"/>
+</p>
+
 ---
 
-## Three Ways to Interact
+## Interaction surfaces
 
 **FermiLink** isn't just a CLI tool. Pick the interface that fits you:
 
@@ -151,9 +106,9 @@ The agent doesn't just generate scripts. Instead, it sustains **multi-task, mult
 
 ---
 
-## 150+ Built-in Scientific Packages
+## Built-in Scientific Packages
 
-FermiLink ships with knowledge bases for packages spanning multiple scientific domains. Install any of them with a single command:
+FermiLink ships with 150+ knowledge bases for packages spanning multiple scientific domains. Install any of them with a single command:
 
 ```bash
 fermilink install <package>       # e.g., meep, lammps, pyscf, openfoam
