@@ -169,6 +169,76 @@ def register_exec_loop_parsers(
     loop_parser.set_defaults(func=cmd_loop)
 
 
+def register_exploop_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
+    *,
+    cmd_exploop: CommandHandler,
+) -> None:
+    """
+    Register parser arguments for experimental measurement loop mode.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    cmd_exploop : CommandHandler
+        Command handler for `exploop` subcommands.
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
+    exploop_parser = subparsers.add_parser(
+        "exploop",
+        help=(
+            "Run a minimal experimental measurement loop using local skills, "
+            "projects/memory.md, and Windows-ready PID polling."
+        ),
+    )
+    exploop_parser.add_argument(
+        "prompt",
+        nargs="+",
+        help=(
+            "Either prompt text, or a path to a markdown/text file containing "
+            "the experimental measurement goal (e.g. goal.md)."
+        ),
+    )
+    exploop_parser.add_argument(
+        "--sandbox",
+        default=None,
+        help=(
+            "Override sandbox mode for this run. "
+            "When omitted, uses `fermilink agent` policy."
+        ),
+    )
+    exploop_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=30,
+        help="Maximum exploop iterations to run before stopping (default: 30).",
+    )
+    exploop_parser.add_argument(
+        "--wait-seconds",
+        type=float,
+        default=1.0,
+        help=(
+            "Polling interval seconds for <pid_number> waits; also used as "
+            "fallback sleep between iterations when no wait tags are returned "
+            "(default: 1)."
+        ),
+    )
+    exploop_parser.add_argument(
+        "--max-wait-seconds",
+        type=float,
+        default=86400.0,
+        help=(
+            "Hard cap on per-iteration waiting for PID polling and wait hints "
+            "(default: 86400, or one day)."
+        ),
+    )
+    exploop_parser.set_defaults(func=cmd_exploop)
+
+
 def register_chat_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
     *,

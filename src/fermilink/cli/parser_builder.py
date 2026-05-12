@@ -50,6 +50,10 @@ def _build_parser() -> argparse.ArgumentParser:
         cmd_exec=cli._cmd_exec,
         cmd_loop=cli._cmd_loop,
     )
+    cli.register_exploop_parser(
+        subparsers,
+        cmd_exploop=cli._cmd_exploop,
+    )
     cli.register_workspace_parsers(
         subparsers,
         cmd_init=cli._cmd_init,

@@ -93,6 +93,7 @@ include = ["fermilink*"]
 fermilink = [
   "public/*",
   "software/*",
+  "exploop/*",
   "data/**/*",
   "tools/**/*",
   "_workspace_payload/*",
