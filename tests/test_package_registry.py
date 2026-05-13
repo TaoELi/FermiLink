@@ -6,6 +6,7 @@ import pytest
 
 from fermilink.packages.package_registry import (
     PackageNotFoundError,
+    PACKAGE_WORKFLOW_TYPE_KEY,
     install_from_local_path,
     load_registry,
     normalize_package_id,
@@ -39,8 +40,26 @@ def test_install_local_and_activate(tmp_path: Path) -> None:
 
     registry = load_registry(scipkg_root)
     assert meta["id"] == "ase"
+    assert meta[PACKAGE_WORKFLOW_TYPE_KEY] == "simulation"
     assert registry["active_package"] == "ase"
     assert "ase" in registry["packages"]
+
+
+def test_install_local_records_experiment_workflow_type(tmp_path: Path) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    source = tmp_path / "exp-src"
+    _make_local_package(source)
+
+    meta = install_from_local_path(
+        scipkg_root,
+        "exp",
+        local_path=source,
+        workflow_type="experiment",
+    )
+
+    registry = load_registry(scipkg_root)
+    assert meta[PACKAGE_WORKFLOW_TYPE_KEY] == "experiment"
+    assert registry["packages"]["exp"][PACKAGE_WORKFLOW_TYPE_KEY] == "experiment"
 
 
 def test_dependencies_require_installed_packages(tmp_path: Path) -> None:

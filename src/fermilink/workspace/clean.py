@@ -10,6 +10,7 @@ from fermilink.workspace.common import (
     _cli,
     load_runner_scipkg_module,
     resolve_cli_path,
+    resolve_exploop_agents_source,
     resolve_software_agents_source,
 )
 from fermilink.workspace.init import PACKAGE_INIT_WORKSPACE_MODE
@@ -33,6 +34,9 @@ def _resolve_package_init_agents_source(manifest: dict[str, object]) -> Path:
             candidate = (Path.cwd() / candidate).resolve()
         if candidate.is_file():
             return candidate
+    workflow_type = str(manifest.get("package_workflow_type") or "").strip().lower()
+    if workflow_type == "experiment":
+        return resolve_exploop_agents_source()
     return resolve_software_agents_source()
 
 

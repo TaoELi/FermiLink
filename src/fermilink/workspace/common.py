@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from importlib import resources
 from pathlib import Path
 
 
@@ -35,3 +36,23 @@ def resolve_software_agents_source() -> Path:
             f"Missing software AGENTS.md template under source root {source_dir}"
         )
     return agents_source
+
+
+def resolve_exploop_agents_source() -> Path:
+    try:
+        candidate = resources.files("fermilink.exploop").joinpath("AGENTS.md")
+        agents_source = Path(str(candidate))
+    except Exception:
+        agents_source = None
+
+    if agents_source is not None and agents_source.is_file():
+        return agents_source
+
+    exploop_module = importlib.import_module("fermilink.exploop")
+    module_file = getattr(exploop_module, "__file__", None)
+    if isinstance(module_file, str) and module_file:
+        fallback = Path(module_file).resolve().parent / "AGENTS.md"
+        if fallback.is_file():
+            return fallback
+
+    raise FileNotFoundError("Missing exploop AGENTS.md template.")

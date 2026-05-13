@@ -8,6 +8,7 @@ import pytest
 
 from fermilink import cli
 from fermilink.cli.commands import workspace as workspace_commands
+from fermilink.exploop.prompts import load_exploop_guide
 from fermilink.packages.package_registry import install_from_local_path
 from fermilink.runner import app as runner_app
 from fermilink.runner import scientific_packages as runner_scipkg
@@ -113,6 +114,7 @@ def _install_package_fixture(
     tmp_path: Path,
     *,
     package_id: str,
+    workflow_type: str = "simulation",
 ) -> tuple[Path, Path]:
     scipkg_root = tmp_path / "scientific_packages"
     package_root = tmp_path / f"{package_id}-src"
@@ -138,6 +140,7 @@ def _install_package_fixture(
         package_id,
         local_path=package_root,
         activate=True,
+        workflow_type=workflow_type,
     )
     return scipkg_root, package_root
 
@@ -386,6 +389,37 @@ def test_cli_init_package_mode_creates_local_package_workspace(
     assert isinstance(manifest, dict)
     assert manifest["workspace_mode"] == "package_init"
     assert manifest["package_id"] == "solver"
+    assert manifest["package_workflow_type"] == "simulation"
+
+
+def test_cli_init_package_mode_uses_experiment_agents_for_experiment_package(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    scipkg_root, _package_root = _install_package_fixture(
+        tmp_path,
+        package_id="measurement",
+        workflow_type="experiment",
+    )
+    installed_root = scipkg_root / "packages" / "measurement"
+    _configure_software_template(monkeypatch, tmp_path)
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    workdir = tmp_path / "workspace"
+    workdir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(workdir)
+
+    assert cli.main(["init", "measurement"]) == 0
+    assert (workdir / "AGENTS.md").read_text(encoding="utf-8") == load_exploop_guide()
+    _assert_points_to(workdir / "CLAUDE.md", workdir / "AGENTS.md")
+    _assert_points_to(workdir / "GEMINI.md", workdir / "AGENTS.md")
+    _assert_points_to(workdir / "skills", installed_root / "skills")
+
+    manifest = runner_scipkg.load_workspace_manifest(workdir)
+    assert isinstance(manifest, dict)
+    assert manifest["workspace_mode"] == "package_init"
+    assert manifest["package_id"] == "measurement"
+    assert manifest["package_workflow_type"] == "experiment"
 
 
 def test_cli_clean_package_mode_removes_only_package_init_artifacts(

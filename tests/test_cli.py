@@ -9,7 +9,7 @@ from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
 from fermilink.cli import zero_arg
 from fermilink.packages.curated_channels import ChannelPackage, ChannelPackageVersion
-from fermilink.packages.package_registry import load_registry
+from fermilink.packages.package_registry import PACKAGE_WORKFLOW_TYPE_KEY, load_registry
 
 
 def _make_local_package(path: Path) -> None:
@@ -60,7 +60,33 @@ def test_cli_install_local_auto_sync(monkeypatch, tmp_path: Path) -> None:
 
     registry = load_registry(scipkg_root)
     assert registry["active_package"] == "ase"
+    assert registry["packages"]["ase"][PACKAGE_WORKFLOW_TYPE_KEY] == "simulation"
     assert (scipkg_root / "router_rules.json").exists()
+
+
+def test_cli_install_local_records_workflow_type(monkeypatch, tmp_path: Path) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    source = tmp_path / "experiment-src"
+    _make_local_package(source)
+
+    code = cli.main(
+        [
+            "install",
+            "experimentpkg",
+            "--local-path",
+            str(source),
+            "--workflow-type",
+            "experiment",
+        ]
+    )
+    assert code == 0
+
+    registry = load_registry(scipkg_root)
+    assert registry["packages"]["experimentpkg"][PACKAGE_WORKFLOW_TYPE_KEY] == (
+        "experiment"
+    )
 
 
 def test_cli_dependencies(monkeypatch, tmp_path: Path) -> None:
@@ -155,6 +181,7 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
         activate: bool,
         force: bool,
         max_zip_bytes: int,
+        workflow_type: str,
     ) -> dict[str, object]:
         install_calls.append(
             {
@@ -165,6 +192,7 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
                 "activate": activate,
                 "force": force,
                 "max_zip_bytes": max_zip_bytes,
+                "workflow_type": workflow_type,
             }
         )
         return {"id": package_id}
@@ -202,6 +230,7 @@ def test_cli_install_multiple_packages_installs_each_and_syncs_once(
 
     assert [call["package_id"] for call in install_calls] == ["ase", "meep"]
     assert all(call["activate"] is False for call in install_calls)
+    assert all(call["workflow_type"] == "simulation" for call in install_calls)
     assert len(sync_calls) == 1
 
     output = capsys.readouterr().out
@@ -225,6 +254,7 @@ def test_cli_install_uses_requested_curated_version(
         activate: bool,
         force: bool,
         max_zip_bytes: int,
+        workflow_type: str,
     ) -> dict[str, object]:
         install_calls.append(
             {
@@ -235,6 +265,7 @@ def test_cli_install_uses_requested_curated_version(
                 "activate": activate,
                 "force": force,
                 "max_zip_bytes": max_zip_bytes,
+                "workflow_type": workflow_type,
             }
         )
         return {"id": package_id}

@@ -38,6 +38,9 @@ from fermilink.packages import (
 
 REMOVED_INSTRUCTION_FILENAMES = {"agents.md", "claude.md", "gemini.md"}
 REMOVED_ROOT_DIRECTORIES = {"projects"}
+PACKAGE_WORKFLOW_TYPE_KEY = "workflow-type"
+DEFAULT_PACKAGE_WORKFLOW_TYPE = "simulation"
+SUPPORTED_PACKAGE_WORKFLOW_TYPES = {"simulation", "experiment"}
 PROGRESS_REFRESH_SECONDS = 0.1
 PROGRESS_BAR_WIDTH = 24
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
@@ -78,6 +81,31 @@ def normalize_package_id(value: str) -> str:
         return _normalize_package_id(value)
     except ValueError as exc:
         raise PackageValidationError(str(exc)) from exc
+
+
+def normalize_package_workflow_type(value: str | None) -> str:
+    """
+    Normalize and validate a package workflow type.
+
+    Parameters
+    ----------
+    value : str | None
+        Raw workflow type value. Empty values default to simulation.
+
+    Returns
+    -------
+    str
+        Normalized workflow type.
+    """
+    normalized = str(value or DEFAULT_PACKAGE_WORKFLOW_TYPE).strip().lower()
+    if not normalized:
+        normalized = DEFAULT_PACKAGE_WORKFLOW_TYPE
+    if normalized not in SUPPORTED_PACKAGE_WORKFLOW_TYPES:
+        supported = ", ".join(sorted(SUPPORTED_PACKAGE_WORKFLOW_TYPES))
+        raise PackageValidationError(
+            f"Unsupported package workflow type '{normalized}'. Supported values: {supported}"
+        )
+    return normalized
 
 
 def packages_root(scipkg_root: Path) -> Path:
@@ -825,6 +853,7 @@ def install_from_zip(
     activate: bool = False,
     force: bool = False,
     max_zip_bytes: int = 800 * 1024 * 1024,
+    workflow_type: str | None = DEFAULT_PACKAGE_WORKFLOW_TYPE,
 ) -> dict[str, Any]:
     """
     Install a package from a zip archive URL and register it.
@@ -845,6 +874,8 @@ def install_from_zip(
         Whether existing package ids may be overwritten.
     max_zip_bytes : int
         Maximum allowed zip size in bytes before aborting download/install.
+    workflow_type : str | None
+        Package workflow type (`simulation` or `experiment`) used by workspace init.
 
     Returns
     -------
@@ -852,6 +883,7 @@ def install_from_zip(
         Package metadata for the installed package.
     """
     normalized_id = normalize_package_id(package_id)
+    normalized_workflow_type = normalize_package_workflow_type(workflow_type)
     target_dir = packages_root(scipkg_root) / normalized_id
 
     if target_dir.exists():
@@ -889,6 +921,7 @@ def install_from_zip(
         extra={
             "removed_instruction_files": removed_instruction_files,
             "removed_root_directories": removed_root_directories,
+            PACKAGE_WORKFLOW_TYPE_KEY: normalized_workflow_type,
         },
     )
 
@@ -901,6 +934,7 @@ def install_from_local_path(
     title: str | None = None,
     activate: bool = False,
     force: bool = False,
+    workflow_type: str | None = DEFAULT_PACKAGE_WORKFLOW_TYPE,
 ) -> dict[str, Any]:
     """
     Install a package from a local path and register it.
@@ -919,6 +953,8 @@ def install_from_local_path(
         Whether to mark the package as active after operation completion.
     force : bool
         Whether existing package ids may be overwritten.
+    workflow_type : str | None
+        Package workflow type (`simulation` or `experiment`) used by workspace init.
 
     Returns
     -------
@@ -926,6 +962,7 @@ def install_from_local_path(
         Package metadata for the installed package.
     """
     normalized_id = normalize_package_id(package_id)
+    normalized_workflow_type = normalize_package_workflow_type(workflow_type)
     source = local_path.expanduser().resolve()
     if not source.exists() or not source.is_dir():
         raise PackageError(f"Local source path is invalid: {source}")
@@ -950,6 +987,7 @@ def install_from_local_path(
         source=f"local-path:{source}",
         title=title,
         activate=activate,
+        extra={PACKAGE_WORKFLOW_TYPE_KEY: normalized_workflow_type},
     )
 
 

@@ -2814,6 +2814,7 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     package_ids = [cli.normalize_package_id(item) for item in requested_ids]
     normalized_channel = cli.normalize_channel_id(args.channel)
+    workflow_type = str(getattr(args, "workflow_type", "simulation") or "simulation")
     if len(package_ids) > 1:
         if args.activate:
             raise cli.PackageError(
@@ -2861,6 +2862,7 @@ def cmd_install(args: argparse.Namespace) -> int:
                 activate=False,
                 force=args.force,
                 max_zip_bytes=args.max_zip_bytes,
+                workflow_type=workflow_type,
             )
             installed_id = str(meta.get("id") or package_id)
             _save_curated_install_metadata(
@@ -2928,6 +2930,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             title=title,
             activate=args.activate,
             force=args.force,
+            workflow_type=workflow_type,
         )
         source = f"local-path:{Path(args.local_path).expanduser().resolve()}"
     else:
@@ -2970,6 +2973,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             activate=args.activate,
             force=args.force,
             max_zip_bytes=args.max_zip_bytes,
+            workflow_type=workflow_type,
         )
         installed_id = str(meta.get("id") or package_id)
         if not args.zip_url:

@@ -80,6 +80,15 @@ def register_package_install_compile_parsers(
     )
     install_parser.add_argument("--title", help="Display title for package metadata.")
     install_parser.add_argument(
+        "--workflow-type",
+        choices=("simulation", "experiment"),
+        default="simulation",
+        help=(
+            "Workspace instruction template type used by `fermilink init <pkg-id>` "
+            "(default: simulation)."
+        ),
+    )
+    install_parser.add_argument(
         "--activate",
         "--active",
         action="store_true",

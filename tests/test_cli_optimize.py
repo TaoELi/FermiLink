@@ -3168,6 +3168,7 @@ def test_optimize_channel_bootstraps_skills(
         activate: bool,
         force: bool,
         max_zip_bytes: int,
+        workflow_type: str = "simulation",
     ) -> dict[str, object]:
         install_calls.append(zip_url)
         managed_root = root / "packages" / package_id / "skills"

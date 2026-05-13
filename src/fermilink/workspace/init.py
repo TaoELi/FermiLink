@@ -11,11 +11,16 @@ from fermilink.workspace.common import (
     _cli,
     load_runner_scipkg_module,
     resolve_cli_path,
+    resolve_exploop_agents_source,
     resolve_software_agents_source,
 )
 
 
 PACKAGE_INIT_WORKSPACE_MODE = "package_init"
+PACKAGE_WORKFLOW_TYPE_KEY = "workflow-type"
+PACKAGE_WORKFLOW_TYPE_COMPAT_KEY = "workflow_type"
+DEFAULT_PACKAGE_WORKFLOW_TYPE = "simulation"
+SUPPORTED_PACKAGE_WORKFLOW_TYPES = {"simulation", "experiment"}
 
 
 def _looks_like_path_spec(raw_value: str) -> bool:
@@ -90,6 +95,28 @@ def _resolve_package_root(
     return package_root
 
 
+def _resolve_package_workflow_type(package_meta: dict[str, Any]) -> str:
+    raw = package_meta.get(PACKAGE_WORKFLOW_TYPE_KEY)
+    if raw is None:
+        raw = package_meta.get(PACKAGE_WORKFLOW_TYPE_COMPAT_KEY)
+    value = str(raw or DEFAULT_PACKAGE_WORKFLOW_TYPE).strip().lower()
+    if not value:
+        value = DEFAULT_PACKAGE_WORKFLOW_TYPE
+    if value not in SUPPORTED_PACKAGE_WORKFLOW_TYPES:
+        supported = ", ".join(sorted(SUPPORTED_PACKAGE_WORKFLOW_TYPES))
+        raise ValueError(
+            f"Unsupported package workflow type '{value}'. Supported values: {supported}"
+        )
+    return value
+
+
+def _resolve_package_agents_source(package_meta: dict[str, Any]) -> Path:
+    workflow_type = _resolve_package_workflow_type(package_meta)
+    if workflow_type == "experiment":
+        return resolve_exploop_agents_source()
+    return resolve_software_agents_source()
+
+
 def _filter_package_init_meta(
     *,
     package_meta: dict[str, Any],
@@ -106,7 +133,9 @@ def _filter_package_init_meta(
         package_meta.get("overlay_entries")
     )
     if configured_entries is None:
-        selected_entries, _ = scipkg.iter_package_entries(package_root, include_names=None)
+        selected_entries, _ = scipkg.iter_package_entries(
+            package_root, include_names=None
+        )
         filtered_entries = [
             entry.name for entry in selected_entries if entry.name not in reserved_names
         ]
@@ -139,7 +168,9 @@ def _preflight_package_workspace_collision(
     configured_entries = scipkg._normalize_overlay_entries(
         package_meta.get("overlay_entries")
     )
-    entries, _ = scipkg.iter_package_entries(package_root, include_names=configured_entries)
+    entries, _ = scipkg.iter_package_entries(
+        package_root, include_names=configured_entries
+    )
     for source_path in entries:
         target_path = destination / source_path.name
         if target_path.is_symlink():
@@ -210,7 +241,6 @@ def initialize_package_workspace(
 ) -> dict[str, object]:
     scipkg = load_runner_scipkg_module()
     scipkg_root = scipkg.resolve_scipkg_root()
-    agents_source = resolve_software_agents_source()
 
     destination.mkdir(parents=True, exist_ok=True)
     resolved_id, package_meta = scipkg.resolve_session_package(
@@ -220,6 +250,8 @@ def initialize_package_workspace(
     )
     if not resolved_id or not isinstance(package_meta, dict):
         raise FileNotFoundError(f"Requested package not found: {package_id}")
+    agents_source = _resolve_package_agents_source(package_meta)
+    workflow_type = _resolve_package_workflow_type(package_meta)
 
     filtered_package_meta = _filter_package_init_meta(
         package_meta=package_meta,
@@ -266,6 +298,7 @@ def initialize_package_workspace(
         )
     manifest["workspace_mode"] = PACKAGE_INIT_WORKSPACE_MODE
     manifest["template_agents_source"] = str(agents_source.resolve())
+    manifest["package_workflow_type"] = workflow_type
     scipkg.save_workspace_manifest(destination, manifest)
     return overlay
 
