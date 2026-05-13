@@ -586,9 +586,7 @@ def _run_exec_chat_turn(
                         cmd,
                         cwd=str(repo_dir),
                         stdin=(
-                            cli.subprocess.PIPE
-                            if prompt_stdin is not None
-                            else None
+                            cli.subprocess.PIPE if prompt_stdin is not None else None
                         ),
                         stdout=cli.subprocess.PIPE,
                         stderr=cli.subprocess.PIPE,

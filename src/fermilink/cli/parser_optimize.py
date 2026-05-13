@@ -147,8 +147,7 @@ def register_optimize_parser(
         "--worker-model",
         default=None,
         help=(
-            "Override only the optimize worker model (for example "
-            "`gemini-2.5-pro`)."
+            "Override only the optimize worker model (for example " "`gemini-2.5-pro`)."
         ),
     )
     optimize_parser.add_argument(

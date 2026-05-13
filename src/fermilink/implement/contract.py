@@ -90,7 +90,9 @@ def infer_workload_split(workloads: list[str]) -> dict[str, Any]:
         "worker_workloads": worker_workloads,
         "controller_workloads": controller_workloads,
         "worker_workload_ids": [_workload_id(item) for item in worker_workloads],
-        "controller_workload_ids": [_workload_id(item) for item in controller_workloads],
+        "controller_workload_ids": [
+            _workload_id(item) for item in controller_workloads
+        ],
     }
 
 
@@ -221,7 +223,8 @@ def build_default_contract(
             "mode": "progressive",
             "commands": validation_commands,
             "source": (
-                "goal_code_blocks" if normalize_command_list(goal_spec.get("validation_commands"))
+                "goal_code_blocks"
+                if normalize_command_list(goal_spec.get("validation_commands"))
                 else "agent_or_default"
             ),
             "allow_partial_improvements": True,
@@ -271,20 +274,28 @@ def validate_contract(payload: dict[str, Any]) -> None:
         raise cli.PackageError("Implementation contract missing repo block.")
     editable_paths = repo.get("editable_paths")
     if not isinstance(editable_paths, list) or not _str_list(editable_paths):
-        raise cli.PackageError("Implementation contract repo.editable_paths is required.")
+        raise cli.PackageError(
+            "Implementation contract repo.editable_paths is required."
+        )
     validation = payload.get("validation")
     if not isinstance(validation, dict):
         raise cli.PackageError("Implementation contract missing validation block.")
     commands = validation.get("commands")
     if commands is not None and not isinstance(commands, list):
-        raise cli.PackageError("Implementation contract validation.commands must be a list.")
+        raise cli.PackageError(
+            "Implementation contract validation.commands must be a list."
+        )
     split = payload.get(WORKLOAD_SPLIT_KEY)
     if split is not None and not isinstance(split, dict):
-        raise cli.PackageError("Implementation contract workload_split must be an object.")
+        raise cli.PackageError(
+            "Implementation contract workload_split must be an object."
+        )
     pre_commands = payload.get("pre_commands")
     if pre_commands is not None:
         if not isinstance(pre_commands, dict):
-            raise cli.PackageError("Implementation contract pre_commands must be an object.")
+            raise cli.PackageError(
+                "Implementation contract pre_commands must be an object."
+            )
         for key in ("worker", "controller"):
             raw = pre_commands.get(key)
             if raw is None:
@@ -311,7 +322,9 @@ def load_contract(path: Path) -> dict[str, Any]:
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     except OSError as exc:
-        raise cli.PackageError(f"Failed to read implementation contract: {exc}") from exc
+        raise cli.PackageError(
+            f"Failed to read implementation contract: {exc}"
+        ) from exc
     except yaml.YAMLError as exc:
         raise cli.PackageError(
             f"Invalid YAML in implementation contract: {exc}"

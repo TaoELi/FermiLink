@@ -511,9 +511,7 @@ def ensure_worker_worktree(
         "broken_visible",
         "broken_hidden",
         "conflicting",
-    } or (
-        worker_status == "missing" and bool(worker_health.get("worker_root_exists"))
-    ):
+    } or (worker_status == "missing" and bool(worker_health.get("worker_root_exists"))):
         _remove_worker_root_path(repo_dir, worker_root=desired_worker_root)
 
     run_git(repo_dir, ["worktree", "prune"], check=False, capture_output=True)

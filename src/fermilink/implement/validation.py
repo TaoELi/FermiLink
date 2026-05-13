@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -12,7 +11,6 @@ from typing import Any
 from fermilink.optimize import git as optimize_git
 
 from . import contract as implement_contract
-from . import state as implement_state
 
 
 def _normalize_rel_path(value: str) -> str:
@@ -490,9 +488,11 @@ def controller_review_final_ok(review: dict[str, Any] | None) -> bool:
         if not bool(raw_requirement.get("required", True)):
             continue
         checked_required = True
-        verdict = str(
-            raw_requirement.get("verdict") or raw_requirement.get("status") or ""
-        ).strip().lower()
+        verdict = (
+            str(raw_requirement.get("verdict") or raw_requirement.get("status") or "")
+            .strip()
+            .lower()
+        )
         if verdict not in _CONTROLLER_REVIEW_PASS_VERDICTS:
             return False
         if not _controller_review_requirement_evidence(raw_requirement):
@@ -532,7 +532,9 @@ def acceptance_decision(
             "accepted": False,
             "final_complete": False,
             "status": "rejected",
-            "reason": str(candidate_validation.get("reason") or "validation hard reject"),
+            "reason": str(
+                candidate_validation.get("reason") or "validation hard reject"
+            ),
         }
 
     scoring = implement_contract.scoring_config(contract_payload)

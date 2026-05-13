@@ -184,7 +184,9 @@ def _tracked_file_summary(project_root: Path) -> tuple[list[str], str]:
 
 
 def _resolve_project_root(args: argparse.Namespace) -> Path:
-    raw = str(getattr(args, "project_root", None) or getattr(args, "project_path", None) or "").strip()
+    raw = str(
+        getattr(args, "project_root", None) or getattr(args, "project_path", None) or ""
+    ).strip()
     if not raw:
         raw = "."
     return Path(raw).expanduser().resolve()
@@ -236,35 +238,43 @@ def _worker_loop_config(
     worker = implement_contract.worker_config(contract_payload)
     return {
         "max_iterations": _positive_int(
-            getattr(args, "worker_max_iterations", None)
-            if getattr(args, "worker_max_iterations", None) is not None
-            else worker.get("max_iterations"),
+            (
+                getattr(args, "worker_max_iterations", None)
+                if getattr(args, "worker_max_iterations", None) is not None
+                else worker.get("max_iterations")
+            ),
             implement_contract.DEFAULT_WORKER_MAX_ITERATIONS,
         ),
         "wait_seconds": max(
             0.0,
             _safe_float(
-                getattr(args, "worker_wait_seconds", None)
-                if getattr(args, "worker_wait_seconds", None) is not None
-                else worker.get("wait_seconds"),
+                (
+                    getattr(args, "worker_wait_seconds", None)
+                    if getattr(args, "worker_wait_seconds", None) is not None
+                    else worker.get("wait_seconds")
+                ),
                 implement_contract.DEFAULT_WORKER_WAIT_SECONDS,
             ),
         ),
         "max_wait_seconds": max(
             0.0,
             _safe_float(
-                getattr(args, "worker_max_wait_seconds", None)
-                if getattr(args, "worker_max_wait_seconds", None) is not None
-                else worker.get("max_wait_seconds"),
+                (
+                    getattr(args, "worker_max_wait_seconds", None)
+                    if getattr(args, "worker_max_wait_seconds", None) is not None
+                    else worker.get("max_wait_seconds")
+                ),
                 implement_contract.DEFAULT_WORKER_MAX_WAIT_SECONDS,
             ),
         ),
         "pid_stall_seconds": max(
             0.0,
             _safe_float(
-                getattr(args, "worker_pid_stall_seconds", None)
-                if getattr(args, "worker_pid_stall_seconds", None) is not None
-                else worker.get("pid_stall_seconds"),
+                (
+                    getattr(args, "worker_pid_stall_seconds", None)
+                    if getattr(args, "worker_pid_stall_seconds", None) is not None
+                    else worker.get("pid_stall_seconds")
+                ),
                 900.0,
             ),
         ),
@@ -395,9 +405,7 @@ def _write_worker_visible_artifacts(
     worker_goal = implement_goal.render_worker_visible_goal(
         goal_text,
         worker_workloads=[
-            str(item)
-            for item in split.get("worker_workloads", [])
-            if str(item).strip()
+            str(item) for item in split.get("worker_workloads", []) if str(item).strip()
         ],
         split_enabled=bool(split.get("enabled")),
     )
@@ -662,9 +670,7 @@ def _scaffold_contract(
                 allowed_patterns=[f"{autogen_rel}/**"],
             )
             if unexpected_changes:
-                rendered = ", ".join(
-                    entry["path"] for entry in unexpected_changes[:6]
-                )
+                rendered = ", ".join(entry["path"] for entry in unexpected_changes[:6])
                 raise cli.PackageError(
                     "Implement source analysis left tracked changes outside "
                     f"`{autogen_rel}`: {rendered}"
@@ -746,9 +752,7 @@ def _scaffold_contract(
                 allowed_patterns=[f"{autogen_rel}/**"],
             )
             if unexpected_changes:
-                rendered = ", ".join(
-                    entry["path"] for entry in unexpected_changes[:6]
-                )
+                rendered = ", ".join(entry["path"] for entry in unexpected_changes[:6])
                 raise cli.PackageError(
                     "Implement contract generation left tracked changes outside "
                     f"`{autogen_rel}`: {rendered}"
@@ -853,10 +857,13 @@ def _write_run_lock(project_root: Path, *, package_id: str, goal_path: Path) -> 
 
 def read_campaign_status(args: argparse.Namespace) -> dict[str, Any]:
     project_root = _resolve_project_root(args)
-    state_payload = implement_state.load_state(implement_state.state_path(project_root)) or {}
-    lock_payload = implement_state.load_json_file(
-        implement_state.run_lock_path(project_root)
-    ) or {}
+    state_payload = (
+        implement_state.load_state(implement_state.state_path(project_root)) or {}
+    )
+    lock_payload = (
+        implement_state.load_json_file(implement_state.run_lock_path(project_root))
+        or {}
+    )
     try:
         lock_pid = int(lock_payload.get("pid") or 0)
     except (TypeError, ValueError):
@@ -1019,8 +1026,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
 
     controller = implement_contract.controller_config(contract_payload)
     timeout_seconds = _positive_int(
-        getattr(args, "timeout_seconds", None)
-        or controller.get("timeout_seconds"),
+        getattr(args, "timeout_seconds", None) or controller.get("timeout_seconds"),
         implement_contract.DEFAULT_TIMEOUT_SECONDS,
     )
     runtime_policy = cli.resolve_agent_runtime_policy()
@@ -1263,9 +1269,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             result = cli._run_exec_chat_turn(
                 repo_dir=worker_root,
                 prompt=prompt_text,
-                sandbox=(
-                    sandbox_mode if sandbox_policy == "enforce" else None
-                ),
+                sandbox=(sandbox_mode if sandbox_policy == "enforce" else None),
                 provider_bin_override=worker_provider_bin_override,
                 provider=worker_provider,
                 sandbox_policy=sandbox_policy,
@@ -1400,7 +1404,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             )
         elif forbidden_changed:
             hard_reject = True
-            hard_reason = f"modified forbidden paths: {', '.join(forbidden_changed[:4])}"
+            hard_reason = (
+                f"modified forbidden paths: {', '.join(forbidden_changed[:4])}"
+            )
         elif not editable_changed:
             hard_reject = True
             hard_reason = "worker loop finished without editable code changes"
@@ -1430,7 +1436,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             )
             if bool(candidate_validation.get("hard_reject")):
                 hard_reject = True
-                hard_reason = str(candidate_validation.get("reason") or "validation hard reject")
+                hard_reason = str(
+                    candidate_validation.get("reason") or "validation hard reject"
+                )
 
         incumbent_validation = (
             state_payload.get("incumbent_validation")
@@ -1515,15 +1523,12 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             controller_review = implement_prompts.extract_controller_review(
                 controller_text
             )
-            controller_decision = (
-                implement_prompts.controller_review_decision(controller_review)
-                or implement_prompts.extract_decision(controller_text)
-            )
+            controller_decision = implement_prompts.controller_review_decision(
+                controller_review
+            ) or implement_prompts.extract_decision(controller_text)
             controller_summary = implement_prompts.extract_controller_summary(
                 controller_text
-            ) or implement_prompts.controller_review_summary(
-                controller_review
-            )
+            ) or implement_prompts.controller_review_summary(controller_review)
             _write_run_json(
                 run_dir,
                 "controller_result.json",
@@ -1552,14 +1557,12 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                     reasons.append(
                         "tracked changes: "
                         + ", ".join(
-                            entry["path"]
-                            for entry in unexpected_controller_changes[:4]
+                            entry["path"] for entry in unexpected_controller_changes[:4]
                         )
                     )
                 if protected_changes:
                     reasons.append(
-                        "protected files changed: "
-                        + ", ".join(protected_changes[:4])
+                        "protected files changed: " + ", ".join(protected_changes[:4])
                     )
                 hard_reason = "controller review left repository changes"
                 if reasons:
@@ -1573,16 +1576,20 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 _write_run_json(run_dir, "review_context.json", validation_context)
             if controller_review:
                 validation_context["controller_review"] = controller_review
-                validation_context[
-                    "controller_review_final_ok"
-                ] = implement_validation.controller_review_final_ok(controller_review)
+                validation_context["controller_review_final_ok"] = (
+                    implement_validation.controller_review_final_ok(controller_review)
+                )
                 _write_run_json(run_dir, "review_context.json", validation_context)
         if validation_ran and int(controller_result.get("return_code") or 0) != 0:
             controller_decision = "REJECTED"
-            controller_summary = controller_summary or "controller agent exited non-zero"
+            controller_summary = (
+                controller_summary or "controller agent exited non-zero"
+            )
         if validation_ran and controller_decision not in {"ACCEPTED", "REJECTED"}:
             controller_decision = "REJECTED"
-            controller_summary = controller_summary or "controller did not emit a valid decision"
+            controller_summary = (
+                controller_summary or "controller did not emit a valid decision"
+            )
         if not validation_ran:
             controller_summary = hard_reason or "candidate was not validated"
 
@@ -1636,7 +1643,9 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             rejected_count += 1
             consecutive_rejections += 1
             status = str(decision.get("status") or "rejected")
-            recorded_commit = candidate_commit[:12] if candidate_commit else start_sha[:12]
+            recorded_commit = (
+                candidate_commit[:12] if candidate_commit else start_sha[:12]
+            )
             implement_state.append_result(
                 results_path,
                 iteration=iteration,

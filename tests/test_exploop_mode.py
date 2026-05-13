@@ -78,7 +78,9 @@ def test_exploop_memory_template_recommends_grouped_measurement_inventory(
 
     memory_text = memory.read_text(encoding="utf-8")
     assert "### Measurement data inventory" in memory_text
-    assert "combine them into one grouped entry by pattern/count/location" in memory_text
+    assert (
+        "combine them into one grouped entry by pattern/count/location" in memory_text
+    )
     assert "so this memory file stays compact" in memory_text
 
 

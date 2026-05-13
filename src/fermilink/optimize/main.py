@@ -6075,9 +6075,7 @@ def run_goal_campaign(args: argparse.Namespace) -> dict[str, Any]:
             autogen_benchmark_rel=autogen_benchmark_rel,
             autogen_runner_rel=autogen_runner_rel,
             autogen_rel=autogen_rel,
-            controller_timeout_seconds=(
-                controller_timeout_override or None
-            ),
+            controller_timeout_seconds=(controller_timeout_override or None),
             provider=provider,
             provider_bin_override=provider_bin_override,
             sandbox_mode=sandbox_mode,
@@ -6941,7 +6939,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
             "status": "baseline_only",
         }
 
-    def _ensure_worker_repo_ready(start_commit: str, *, sync_skills: bool = False) -> Path:
+    def _ensure_worker_repo_ready(
+        start_commit: str, *, sync_skills: bool = False
+    ) -> Path:
         worker_setup = optimize_git.ensure_worker_worktree(
             project_root,
             controller_branch=branch_name,
@@ -7113,9 +7113,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
                 repo_dir=worker_repo_dir,
                 prompt=prompt_text,
                 sandbox=(
-                    worker_sandbox_mode
-                    if worker_sandbox_policy == "enforce"
-                    else None
+                    worker_sandbox_mode if worker_sandbox_policy == "enforce" else None
                 ),
                 provider_bin_override=worker_provider_bin_override,
                 provider=worker_provider,

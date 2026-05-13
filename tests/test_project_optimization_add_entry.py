@@ -43,7 +43,9 @@ def test_add_entry_forwards_git_push_flag(monkeypatch, tmp_path: Path) -> None:
 
     calls: list[list[str]] = []
 
-    def fake_run(cmd: list[str], check: bool = False) -> subprocess.CompletedProcess[str]:
+    def fake_run(
+        cmd: list[str], check: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         calls.append(cmd)
         return subprocess.CompletedProcess(cmd, 0)
 

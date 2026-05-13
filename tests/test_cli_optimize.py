@@ -1153,7 +1153,9 @@ def test_compare_correctness_field_tolerances_works_for_generic_fields() -> None
     assert "force_norm abs_delta exceeds threshold" in "; ".join(failing["errors"])
 
 
-def test_compare_correctness_field_tolerances_skips_optional_without_baseline_numbers() -> None:
+def test_compare_correctness_field_tolerances_skips_optional_without_baseline_numbers() -> (
+    None
+):
     benchmark_payload = {
         "correctness": {
             "mode": "field_tolerances",
@@ -1958,7 +1960,9 @@ def test_optimize_worker_runtime_overrides_only_apply_to_worker_turns(
     assert code == 0
     assert [kind for kind, _ in exec_calls] == ["worker", "controller"]
     worker_call = next(kwargs for kind, kwargs in exec_calls if kind == "worker")
-    controller_call = next(kwargs for kind, kwargs in exec_calls if kind == "controller")
+    controller_call = next(
+        kwargs for kind, kwargs in exec_calls if kind == "controller"
+    )
 
     assert controller_call["provider"] == "codex"
     assert controller_call["provider_bin_override"] == "bin::codex"
@@ -2053,7 +2057,9 @@ def test_optimize_worker_model_falls_back_to_provider_default_when_provider_chan
 
     assert code == 0
     worker_call = next(kwargs for kind, kwargs in exec_calls if kind == "worker")
-    controller_call = next(kwargs for kind, kwargs in exec_calls if kind == "controller")
+    controller_call = next(
+        kwargs for kind, kwargs in exec_calls if kind == "controller"
+    )
     assert controller_call["provider"] == "codex"
     assert controller_call["model"] == "gpt-5.4-codex"
     assert worker_call["provider"] == "gemini"
@@ -3006,10 +3012,9 @@ def test_optimize_relocates_legacy_worker_worktree_to_sibling_storage_root(
     repo_dir, _ = _init_optimize_repo(tmp_path)
     controller_branch = "fermilink-optimize/mockpkg"
     worker_branch = optimize_git.worker_branch_name(controller_branch)
-    legacy_worker_root = (
-        optimize_git._legacy_worker_storage_root(repo_dir)
-        / optimize_git._worker_key(controller_branch)
-    )
+    legacy_worker_root = optimize_git._legacy_worker_storage_root(
+        repo_dir
+    ) / optimize_git._worker_key(controller_branch)
     _git(repo_dir, "branch", worker_branch, optimize_git.head_sha(repo_dir))
     _git(repo_dir, "worktree", "add", "--force", str(legacy_worker_root), worker_branch)
 
@@ -3097,7 +3102,9 @@ def test_optimize_restores_healthy_hidden_worker_metadata(tmp_path: Path) -> Non
     )
 
 
-def test_optimize_recovers_visible_worker_with_missing_admin_dir(tmp_path: Path) -> None:
+def test_optimize_recovers_visible_worker_with_missing_admin_dir(
+    tmp_path: Path,
+) -> None:
     repo_dir, _ = _init_optimize_repo(tmp_path)
     controller_branch = "fermilink-optimize/mockpkg"
 

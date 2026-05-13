@@ -376,7 +376,7 @@ class TestPromptConstruction:
             "## Build\n"
             "```bash\n"
             "export VENV=/shared/venvs/pyscf-diis\n"
-            "source \"$VENV/bin/activate\"\n"
+            'source "$VENV/bin/activate"\n'
             "python -m pip install -e .\n"
             "```\n"
         )
@@ -752,9 +752,10 @@ class TestGoalResume:
         assert payload["goal_mode"] is True
         assert payload["goal_resume"] is True
         assert payload["scaffold_benchmark_path"] == str(benchmark_path)
-        assert optimize_state.goal_copy_path(repo_root).read_text(
-            encoding="utf-8"
-        ) == MINIMAL_GOAL
+        assert (
+            optimize_state.goal_copy_path(repo_root).read_text(encoding="utf-8")
+            == MINIMAL_GOAL
+        )
 
     def test_goal_resume_falls_back_to_state_benchmark_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1268,10 +1269,9 @@ class TestGoalPreflight:
         assert payload["goal_mode"] is True
         assert preflight_capture["timeout_seconds"] == 7200
         assert preflight_capture["controller_timeout_seconds"] == 7200
-        assert (
-            "timeout_seconds: 7200"
-            in optimize_state.goal_benchmark_path(repo_root).read_text(encoding="utf-8")
-        )
+        assert "timeout_seconds: 7200" in optimize_state.goal_benchmark_path(
+            repo_root
+        ).read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

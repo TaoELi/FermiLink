@@ -68,7 +68,9 @@ def _normalize_controller_review(payload: dict[str, Any]) -> dict[str, Any]:
             requirement_id = str(
                 raw_item.get("id") or raw_item.get("name") or f"requirement_{index}"
             ).strip()
-            verdict = str(raw_item.get("verdict") or raw_item.get("status") or "").strip()
+            verdict = str(
+                raw_item.get("verdict") or raw_item.get("status") or ""
+            ).strip()
             requirements.append(
                 {
                     **raw_item,
@@ -86,7 +88,9 @@ def _normalize_controller_review(payload: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def default_program_markdown(*, package_id: str, goal_rel: str, contract_rel: str) -> str:
+def default_program_markdown(
+    *, package_id: str, goal_rel: str, contract_rel: str
+) -> str:
     return (
         "# FermiLink Implement Program\n"
         "\n"

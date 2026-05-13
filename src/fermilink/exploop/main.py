@@ -213,8 +213,7 @@ def _wait_for_pids(
         "exploop",
         "measurement running; polling PID(s) every "
         f"{max(poll_seconds, 0.1):.1f}s and showing status every "
-        f"{status_interval}: "
-        + ", ".join(str(pid) for pid in alive),
+        f"{status_interval}: " + ", ".join(str(pid) for pid in alive),
     )
 
     while alive:

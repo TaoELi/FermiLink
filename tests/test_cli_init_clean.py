@@ -152,9 +152,7 @@ def test_cli_init_and_clean_manage_workspace_links(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert cli.main(["init", str(workdir)]) == 0
     _assert_points_to(workdir / "README.md", payload_root / "README.md")
@@ -193,9 +191,7 @@ def test_cli_init_conflict_requires_force(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     (workdir / "README.md").write_text("local readme\n", encoding="utf-8")
 
@@ -214,9 +210,7 @@ def test_cli_init_agents_alias_conflict_requires_force(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     (workdir / "CLAUDE.md").write_text("local alias file\n", encoding="utf-8")
 
@@ -236,9 +230,7 @@ def test_cli_clean_conflict_requires_force(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert cli.main(["init", str(workdir)]) == 0
     (workdir / "README.md").unlink()
@@ -259,9 +251,7 @@ def test_cli_clean_agents_copy_conflict_requires_force(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert cli.main(["init", str(workdir)]) == 0
     (workdir / "AGENTS.md").write_text("edited\n", encoding="utf-8")
@@ -281,9 +271,7 @@ def test_cli_clean_skills_copy_conflict_requires_force(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert cli.main(["init", str(workdir)]) == 0
     (workdir / "skills" / "README.md").write_text("edited\n", encoding="utf-8")
@@ -302,9 +290,7 @@ def test_cli_clean_does_not_remove_hidden_local_paths(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert cli.main(["init", str(workdir)]) == 0
     (workdir / ".env").write_text("LOCAL=1\n", encoding="utf-8")
@@ -323,9 +309,7 @@ def test_standalone_init_clean_entrypoints(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert workspace_commands.fermilink_init_main([str(workdir)]) == 0
     _assert_points_to(workdir / "src", payload_root / "src")
@@ -348,9 +332,7 @@ def test_cli_init_replaces_managed_skills_symlink_with_copy(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     legacy_skills = workdir / "skills"
     legacy_skills.symlink_to(payload_root / "skills", target_is_directory=True)
@@ -478,9 +460,7 @@ def test_cli_clean_classic_mode_ignores_unmarked_package_manifest(
 ) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(
-        workspace_payload, "resolve_payload_root", lambda: payload_root
-    )
+    monkeypatch.setattr(workspace_payload, "resolve_payload_root", lambda: payload_root)
 
     assert cli.main(["init", str(workdir)]) == 0
     runner_scipkg.save_workspace_manifest(
@@ -488,7 +468,9 @@ def test_cli_clean_classic_mode_ignores_unmarked_package_manifest(
         {
             "version": 1,
             "package_id": "solver",
-            "linked_entries": [{"name": "src", "mode": "symlink", "source": "/tmp/src"}],
+            "linked_entries": [
+                {"name": "src", "mode": "symlink", "source": "/tmp/src"}
+            ],
         },
     )
 

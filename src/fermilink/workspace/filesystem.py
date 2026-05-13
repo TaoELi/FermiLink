@@ -96,7 +96,9 @@ def directories_match(path_a: Path, path_b: Path) -> bool:
     return True
 
 
-def ensure_copied_directory(source_path: Path, target_path: Path, *, force: bool) -> None:
+def ensure_copied_directory(
+    source_path: Path, target_path: Path, *, force: bool
+) -> None:
     if not source_path.is_dir():
         raise FileNotFoundError(
             f"Missing source directory for managed copy: {source_path}"

@@ -22,9 +22,7 @@ CONTRACT_FILENAME = "implementation_contract.yaml"
 VALIDATION_RUNNER_FILENAME = "validation_runner.py"
 PLAN_FILENAME = "implementation_plan.md"
 
-RESULTS_HEADER = (
-    "iteration\tcommit\tstatus\tscore\tcomplete\tdescription\n"
-)
+RESULTS_HEADER = "iteration\tcommit\tstatus\tscore\tcomplete\tdescription\n"
 
 
 def utc_now_z() -> str:

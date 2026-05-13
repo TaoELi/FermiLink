@@ -124,9 +124,7 @@ def test_implement_goal_keeps_pre_commands_as_legacy_alias(
     tmp_path: Path,
 ) -> None:
     goal_text = (
-        SAMPLE_GOAL
-        + "\n## Pre Commands\n"
-        + "```\npython legacy_setup.py\n```\n"
+        SAMPLE_GOAL + "\n## Pre Commands\n" + "```\npython legacy_setup.py\n```\n"
     )
     spec = implement_goal.parse_goal(goal_text)
 
@@ -234,7 +232,9 @@ def test_validation_accepts_structured_partial_score(tmp_path: Path) -> None:
         package_id="mockpkg",
         goal_spec=implement_goal.parse_goal(SAMPLE_GOAL),
     )
-    contract_path = tmp_path / ".fermilink-implement" / "autogen" / "implementation_contract.yaml"
+    contract_path = (
+        tmp_path / ".fermilink-implement" / "autogen" / "implementation_contract.yaml"
+    )
     implement_contract.write_contract(contract_path, contract_payload)
     (tmp_path / "validate_impl.py").write_text(
         (
@@ -314,7 +314,9 @@ def test_acceptance_rejects_incomplete_final_integrity() -> None:
     assert "complete=true" in decision["reason"]
 
 
-def test_acceptance_requires_structured_controller_review_for_final_completion() -> None:
+def test_acceptance_requires_structured_controller_review_for_final_completion() -> (
+    None
+):
     contract_payload = implement_contract.build_default_contract(
         Path("."),
         package_id="mockpkg",
@@ -446,8 +448,12 @@ def test_implement_plan_only_initializes_standalone_workspace(tmp_path: Path) ->
 
     assert result["status"] == "planned"
     assert (repo / ".fermilink-implement" / "autogen" / "goal.md").is_file()
-    assert (repo / ".fermilink-implement" / "autogen" / "implementation_contract.yaml").is_file()
-    assert (repo / ".fermilink-implement" / "autogen" / "implementation_plan.md").is_file()
+    assert (
+        repo / ".fermilink-implement" / "autogen" / "implementation_contract.yaml"
+    ).is_file()
+    assert (
+        repo / ".fermilink-implement" / "autogen" / "implementation_plan.md"
+    ).is_file()
     state_payload = json.loads(
         (repo / ".fermilink-implement" / "state.json").read_text(encoding="utf-8")
     )
@@ -495,7 +501,9 @@ def test_implement_campaign_accepts_partial_progress_from_worker(
     )
     contract_payload["validation"]["commands"] = [[sys.executable, "validate_impl.py"]]
     contract_payload["campaign"]["max_iterations"] = 1
-    implement_contract.write_contract(implement_state.contract_path(repo), contract_payload)
+    implement_contract.write_contract(
+        implement_state.contract_path(repo), contract_payload
+    )
 
     calls: list[str] = []
     worker_git_was_visible = False
@@ -616,7 +624,9 @@ def test_implement_campaign_completes_with_structured_controller_review(
     )
     contract_payload["validation"]["commands"] = [[sys.executable, "validate_impl.py"]]
     contract_payload["campaign"]["max_iterations"] = 1
-    implement_contract.write_contract(implement_state.contract_path(repo), contract_payload)
+    implement_contract.write_contract(
+        implement_state.contract_path(repo), contract_payload
+    )
 
     calls: list[str] = []
 
@@ -732,7 +742,9 @@ def test_implement_worker_receives_redacted_holdout_artifacts(
     )
     contract_payload["validation"]["commands"] = [[sys.executable, "validate_impl.py"]]
     contract_payload["campaign"]["max_iterations"] = 1
-    implement_contract.write_contract(implement_state.contract_path(repo), contract_payload)
+    implement_contract.write_contract(
+        implement_state.contract_path(repo), contract_payload
+    )
 
     worker_saw_redacted_artifacts = False
 
@@ -821,7 +833,9 @@ def test_source_analysis_rejects_tracked_source_side_effects(
 
     def fake_run_exec_chat_turn(**kwargs):
         repo_dir = Path(str(kwargs.get("repo_dir") or ""))
-        (repo_dir / "feature.py").write_text("VALUE = 'agent side effect'\n", encoding="utf-8")
+        (repo_dir / "feature.py").write_text(
+            "VALUE = 'agent side effect'\n", encoding="utf-8"
+        )
         return {
             "assistant_text": (
                 '<source_analysis>{"proposed_api": "run_new_scf(mol)"}</source_analysis>'
@@ -893,7 +907,9 @@ def test_worker_cannot_sync_immutable_artifacts_even_with_broad_scope(
     )
     contract_payload["validation"]["commands"] = [[sys.executable, "validate_impl.py"]]
     contract_payload["campaign"]["max_iterations"] = 1
-    implement_contract.write_contract(implement_state.contract_path(repo), contract_payload)
+    implement_contract.write_contract(
+        implement_state.contract_path(repo), contract_payload
+    )
     original_contract_text = implement_state.contract_path(repo).read_text(
         encoding="utf-8"
     )
@@ -911,7 +927,12 @@ def test_worker_cannot_sync_immutable_artifacts_even_with_broad_scope(
                 "stderr": "",
             }
         (repo_dir / "feature.py").write_text("VALUE = 'PARTIAL'\n", encoding="utf-8")
-        (repo_dir / ".fermilink-implement" / "autogen" / "implementation_contract.yaml").write_text(
+        (
+            repo_dir
+            / ".fermilink-implement"
+            / "autogen"
+            / "implementation_contract.yaml"
+        ).write_text(
             "schema_version: 999\n",
             encoding="utf-8",
         )
@@ -952,7 +973,10 @@ def test_worker_cannot_sync_immutable_artifacts_even_with_broad_scope(
     assert result["accepted_count"] == 0
     assert result["rejected_count"] == 1
     assert (repo / "feature.py").read_text(encoding="utf-8") == "VALUE = 'base'\n"
-    assert implement_state.contract_path(repo).read_text(encoding="utf-8") == original_contract_text
+    assert (
+        implement_state.contract_path(repo).read_text(encoding="utf-8")
+        == original_contract_text
+    )
 
 
 def test_controller_tracked_side_effect_rejects_candidate(
@@ -991,7 +1015,9 @@ def test_controller_tracked_side_effect_rejects_candidate(
     )
     contract_payload["validation"]["commands"] = [[sys.executable, "validate_impl.py"]]
     contract_payload["campaign"]["max_iterations"] = 1
-    implement_contract.write_contract(implement_state.contract_path(repo), contract_payload)
+    implement_contract.write_contract(
+        implement_state.contract_path(repo), contract_payload
+    )
 
     def fake_run_exec_chat_turn(**kwargs):
         prompt = str(kwargs.get("prompt") or "")
