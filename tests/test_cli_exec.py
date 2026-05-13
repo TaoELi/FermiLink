@@ -9,8 +9,22 @@ import pytest
 
 from fermilink import cli
 from fermilink.agent_runtime import AgentRuntimePolicy
+from fermilink.cli import exec_runtime
 from fermilink.cli.commands import workflows as workflow_commands
 from fermilink.runner import scientific_packages as scipkg
+
+
+class _RecordingStdin:
+    def __init__(self) -> None:
+        self.text = ""
+        self.closed = False
+
+    def write(self, value: str) -> int:
+        self.text += value
+        return len(value)
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_exec_runs_with_routing_overlay_and_codex(
@@ -603,6 +617,7 @@ def test_run_exec_provider_prompt_uses_runner_sanitized_env(
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+    monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
 
     def fake_popen(cmd, **kwargs):
         captured["cmd"] = cmd
@@ -648,6 +663,7 @@ def test_run_exec_provider_prompt_includes_model_override(
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+    monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
 
     def fake_popen(cmd, **kwargs):
         captured["cmd"] = cmd
@@ -680,6 +696,60 @@ def test_run_exec_provider_prompt_includes_model_override(
         "always",
         "hello",
     ]
+
+
+def test_run_exec_provider_prompt_windows_codex_pipes_prompt_through_stdin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+    monkeypatch.setattr(
+        exec_runtime,
+        "_should_pipe_prompt_via_stdin",
+        lambda provider: provider == "codex",
+    )
+    monkeypatch.setattr(cli, "_stream_exec_process_output", lambda _proc: 0)
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdin = _RecordingStdin()
+            self.stdout = io.StringIO("")
+            self.stderr = io.StringIO("")
+
+    def fake_popen(cmd, **kwargs):
+        process = FakeProcess()
+        captured["cmd"] = cmd
+        captured["stdin_arg"] = kwargs.get("stdin")
+        captured["process"] = process
+        return process
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    code = cli._run_exec_provider_prompt(
+        repo_dir=tmp_path,
+        prompt="hello from a long Windows prompt",
+        sandbox="workspace-write",
+        provider_bin_override="codex",
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+
+    assert code == 0
+    assert captured["stdin_arg"] is cli.subprocess.PIPE
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[-1] == "-"
+    assert "hello from a long Windows prompt" not in command
+    process = captured["process"]
+    assert isinstance(process, FakeProcess)
+    assert process.stdin.text == "hello from a long Windows prompt"
+    assert process.stdin.closed is True
 
 
 def test_stream_exec_process_output_with_capture_emits_and_captures(
@@ -1320,10 +1390,13 @@ def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_load_web_router_module", lambda: object())
+    monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
     monkeypatch.setattr(
         cli,
         "_collect_second_guess_assistant_text",
-        lambda raw_stream_text, *, web_app: f"assistant:{raw_stream_text.count('agent_message')}",
+        lambda raw_stream_text, *, web_app: (
+            f"assistant:{raw_stream_text.count('agent_message')}"
+        ),
     )
 
     class FakeProcess:
@@ -1385,6 +1458,112 @@ def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
     assert "warning-line" in streamed.err
 
 
+def test_run_exec_chat_turn_windows_codex_pipes_prompt_through_stdin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+    monkeypatch.setattr(
+        exec_runtime,
+        "_should_pipe_prompt_via_stdin",
+        lambda provider: provider == "codex",
+    )
+
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdin = _RecordingStdin()
+            self.stdout = io.StringIO("codex streaming line\n")
+            self.stderr = io.StringIO("")
+
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(cmd, **kwargs):
+        process = FakeProcess()
+        captured["cmd"] = cmd
+        captured["stdin_arg"] = kwargs.get("stdin")
+        captured["process"] = process
+        output_index = cmd.index("--output-last-message")
+        Path(cmd[output_index + 1]).write_text(
+            "assistant from Windows stdin run\n", encoding="utf-8"
+        )
+        return process
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    result = cli._run_exec_chat_turn(
+        repo_dir=tmp_path,
+        prompt="exploop prompt that should not be an argv",
+        sandbox="workspace-write",
+        provider_bin_override="codex",
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+
+    assert result["assistant_text"] == "assistant from Windows stdin run"
+    assert result["return_code"] == 0
+    assert captured["stdin_arg"] is cli.subprocess.PIPE
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[-1] == "-"
+    assert "exploop prompt that should not be an argv" not in command
+    process = captured["process"]
+    assert isinstance(process, FakeProcess)
+    assert process.stdin.text == "exploop prompt that should not be an argv"
+    assert process.stdin.closed is True
+
+
+def test_run_exec_chat_turn_windows_codex_direct_stream_uses_stdin_input(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+    monkeypatch.setattr(
+        exec_runtime,
+        "_should_pipe_prompt_via_stdin",
+        lambda provider: provider == "codex",
+    )
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["input"] = kwargs.get("input")
+        captured["text"] = kwargs.get("text")
+        output_index = cmd.index("--output-last-message")
+        Path(cmd[output_index + 1]).write_text(
+            "assistant from direct stdin\n", encoding="utf-8"
+        )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    result = cli._run_exec_chat_turn(
+        repo_dir=tmp_path,
+        prompt="direct terminal Windows prompt",
+        sandbox="read-only",
+        provider_bin_override="codex",
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+
+    assert result["assistant_text"] == "assistant from direct stdin"
+    assert result["return_code"] == 0
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[-1] == "-"
+    assert captured["input"] == "direct terminal Windows prompt"
+    assert captured["text"] is True
+
+
 def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1398,6 +1577,7 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
     monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+    monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
     monkeypatch.setattr(
         cli.subprocess,
         "Popen",

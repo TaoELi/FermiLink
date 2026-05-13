@@ -90,7 +90,7 @@ def _get_int_env(name: str, default: int, minimum: int | None = None) -> int:
     return value
 
 
-DEFAULT_PROVIDER_BINARY_OVERRIDE = os.getenv("FERMILINK_CODEX_BIN", "codex")
+DEFAULT_PROVIDER_BINARY_OVERRIDE = os.getenv("FERMILINK_CODEX_BIN")
 MAX_RUNTIME_SECONDS = int(os.getenv("FERMILINK_RUNNER_MAX_RUNTIME_SECONDS", "600"))
 MAX_PROMPT_CHARS = 10_000
 RUNNER_GLOBAL_CONCURRENT_RUNS = _get_int_env(

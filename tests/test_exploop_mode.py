@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import subprocess
 from pathlib import Path
@@ -343,6 +344,46 @@ def test_pid_polling_logs_start_and_minute_progress(monkeypatch, capsys) -> None
     )
     assert "still waiting for measurement PID(s) after 61.0s: 12345" in output
     assert "measurement PID polling complete after 61.5s" in output
+
+
+def test_pid_polling_sleep_wakes_for_minute_progress(monkeypatch) -> None:
+    pid_alive_results = [True, True, False]
+    monotonic_values = iter([0.0, 0.0, 60.0, 60.0, 120.0])
+    slept: list[float] = []
+
+    monkeypatch.setattr(
+        exploop_main,
+        "is_pid_alive",
+        lambda _pid: pid_alive_results.pop(0),
+    )
+    monkeypatch.setattr(exploop_main.time, "monotonic", lambda: next(monotonic_values))
+    monkeypatch.setattr(
+        exploop_main.time,
+        "sleep",
+        lambda seconds: slept.append(seconds),
+    )
+
+    still_alive = exploop_main._wait_for_pids(
+        [12345],
+        poll_seconds=120.0,
+        max_wait_seconds=600.0,
+    )
+
+    assert still_alive == []
+    assert slept[0] == 60.0
+
+
+def test_exploop_tagged_status_output_flushes(monkeypatch) -> None:
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def fake_print(*args, **kwargs) -> None:
+        calls.append((args, kwargs))
+
+    monkeypatch.setattr(builtins, "print", fake_print)
+
+    exploop_main._print_tagged("exploop", "status update")
+
+    assert calls == [(("[exploop] status update",), {"flush": True})]
 
 
 def test_debug_parser_does_not_support_skill_folder() -> None:

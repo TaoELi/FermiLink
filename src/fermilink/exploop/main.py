@@ -211,7 +211,8 @@ def _wait_for_pids(
     )
 
     while alive:
-        elapsed = time.monotonic() - started
+        now = time.monotonic()
+        elapsed = now - started
         remaining = max_wait_seconds - elapsed
         if remaining <= 0:
             _print_tagged(
@@ -220,7 +221,10 @@ def _wait_for_pids(
                 + ", ".join(str(pid) for pid in alive),
             )
             return alive
-        time.sleep(min(max(poll_seconds, 0.1), remaining))
+        sleep_seconds = min(max(poll_seconds, 0.1), remaining)
+        if log_interval > 0:
+            sleep_seconds = min(sleep_seconds, max(next_log_at - now, 0.1))
+        time.sleep(sleep_seconds)
         alive = [pid for pid in alive if is_pid_alive(pid)]
         if alive:
             now = time.monotonic()
@@ -309,7 +313,7 @@ def _nonnegative_float(value: float, name: str) -> float:
 
 
 def _print_tagged(tag: str, message: str) -> None:
-    print(f"[{tag}] {message}")
+    print(f"[{tag}] {message}", flush=True)
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

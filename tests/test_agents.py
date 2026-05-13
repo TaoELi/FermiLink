@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from fermilink.agents.base import ProviderAgent
 
 def test_agent_registry_exposes_provider_binary_maps() -> None:
     registry = get_default_agent_registry()
+    codex_default = "codex.cmd" if os.name == "nt" else "codex"
     assert registry.provider_bin_env_map() == {
         "codex": "FERMILINK_CODEX_BIN",
         "claude": "FERMILINK_CLAUDE_BIN",
@@ -24,11 +26,23 @@ def test_agent_registry_exposes_provider_binary_maps() -> None:
         "deepseek": "FERMILINK_DEEPSEEK_BIN",
     }
     assert registry.provider_bin_default_map() == {
-        "codex": "codex",
+        "codex": codex_default,
         "claude": "claude",
         "gemini": "gemini",
         "deepseek": "deepseek",
     }
+
+
+def test_codex_agent_default_binary_is_windows_specific(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import fermilink.agents.codex_agent as codex_agent
+
+    monkeypatch.setattr(codex_agent.os, "name", "nt")
+    assert CodexAgent().default_binary == "codex.cmd"
+
+    monkeypatch.setattr(codex_agent.os, "name", "posix")
+    assert CodexAgent().default_binary == "codex"
 
 
 def test_codex_agent_resolve_binary_honors_explicit_override(monkeypatch) -> None:

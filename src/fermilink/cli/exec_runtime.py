@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import json
+import os
 from pathlib import Path
 import threading
 import time
@@ -92,6 +93,36 @@ def _inject_exec_option_before_prompt(
         return command
     prompt_arg = command[-1]
     return [*command[:-1], *option_tokens, prompt_arg]
+
+
+def _should_pipe_prompt_via_stdin(provider: str) -> bool:
+    return os.name == "nt" and provider == "codex"
+
+
+def _prepare_prompt_transport(
+    command: list[str],
+    *,
+    provider: str,
+    prompt: str,
+) -> tuple[list[str], str | None]:
+    if not _should_pipe_prompt_via_stdin(provider):
+        return command, None
+    if not command:
+        return command, None
+    return [*command[:-1], "-"], prompt
+
+
+def _write_prompt_to_process_stdin(process: object, prompt_stdin: str | None) -> None:
+    if prompt_stdin is None:
+        return
+    stdin = getattr(process, "stdin", None)
+    if stdin is None:
+        return
+    try:
+        stdin.write(prompt_stdin)
+        stdin.close()
+    except (BrokenPipeError, OSError, ValueError):
+        return
 
 
 def _wait_process_with_optional_stop(
@@ -464,6 +495,11 @@ def _run_exec_chat_turn(
             cmd,
             last_message_path=last_message_path,
         )
+        cmd, prompt_stdin = _prepare_prompt_transport(
+            cmd,
+            provider=provider,
+            prompt=prompt,
+        )
 
         runner_app = cli._load_runner_app_module()
         env = cli.os.environ.copy()
@@ -486,7 +522,11 @@ def _run_exec_chat_turn(
                     process = cli.subprocess.Popen(
                         cmd,
                         cwd=str(repo_dir),
-                        stdin=cli.subprocess.DEVNULL,
+                        stdin=(
+                            cli.subprocess.PIPE
+                            if prompt_stdin is not None
+                            else cli.subprocess.DEVNULL
+                        ),
                         stdout=cli.subprocess.PIPE,
                         stderr=cli.subprocess.PIPE,
                         text=True,
@@ -499,6 +539,7 @@ def _run_exec_chat_turn(
                         f"{provider} CLI not found: {provider_bin}. "
                         f"Install the provider CLI or set {env_key}."
                     ) from exc
+                _write_prompt_to_process_stdin(process, prompt_stdin)
                 return_code, assistant_text, stderr_text = (
                     _stream_provider_exec_output_with_capture(
                         process,
@@ -522,12 +563,15 @@ def _run_exec_chat_turn(
                 and not stop_checker_active
             ):
                 try:
-                    completed = cli.subprocess.run(
-                        cmd,
-                        cwd=str(repo_dir),
-                        check=False,
-                        env=env,
-                    )
+                    run_kwargs = {
+                        "cwd": str(repo_dir),
+                        "check": False,
+                        "env": env,
+                    }
+                    if prompt_stdin is not None:
+                        run_kwargs["input"] = prompt_stdin
+                        run_kwargs["text"] = True
+                    completed = cli.subprocess.run(cmd, **run_kwargs)
                 except FileNotFoundError as exc:
                     env_key = cli.provider_bin_env_key(provider)
                     raise cli.PackageError(
@@ -541,6 +585,11 @@ def _run_exec_chat_turn(
                     process = cli.subprocess.Popen(
                         cmd,
                         cwd=str(repo_dir),
+                        stdin=(
+                            cli.subprocess.PIPE
+                            if prompt_stdin is not None
+                            else None
+                        ),
                         stdout=cli.subprocess.PIPE,
                         stderr=cli.subprocess.PIPE,
                         text=True,
@@ -553,6 +602,7 @@ def _run_exec_chat_turn(
                         f"{provider} CLI not found: {provider_bin}. "
                         f"Install the provider CLI or set {env_key}."
                     ) from exc
+                _write_prompt_to_process_stdin(process, prompt_stdin)
                 return_code, stdout_text, stderr_text = (
                     cli._stream_exec_process_output_with_capture(process)
                 )
@@ -616,6 +666,11 @@ def _run_exec_provider_prompt(
     except NotImplementedError as exc:
         raise cli.PackageError(str(exc)) from exc
     cmd = agent.prepare_one_shot_exec_command(cmd)
+    cmd, prompt_stdin = _prepare_prompt_transport(
+        cmd,
+        provider=provider,
+        prompt=prompt,
+    )
     runner_app = cli._load_runner_app_module()
     env = cli.os.environ.copy()
     env = runner_app._sanitize_env(env)
@@ -639,12 +694,15 @@ def _run_exec_provider_prompt(
             and not stop_checker_active
         ):
             try:
-                completed = cli.subprocess.run(
-                    cmd,
-                    cwd=str(repo_dir),
-                    check=False,
-                    env=env,
-                )
+                run_kwargs = {
+                    "cwd": str(repo_dir),
+                    "check": False,
+                    "env": env,
+                }
+                if prompt_stdin is not None:
+                    run_kwargs["input"] = prompt_stdin
+                    run_kwargs["text"] = True
+                completed = cli.subprocess.run(cmd, **run_kwargs)
             except FileNotFoundError as exc:
                 env_key = cli.provider_bin_env_key(provider)
                 raise cli.PackageError(
@@ -657,7 +715,11 @@ def _run_exec_provider_prompt(
             process = cli.subprocess.Popen(
                 cmd,
                 cwd=str(repo_dir),
-                stdin=cli.subprocess.DEVNULL,
+                stdin=(
+                    cli.subprocess.PIPE
+                    if prompt_stdin is not None
+                    else cli.subprocess.DEVNULL
+                ),
                 stdout=cli.subprocess.PIPE,
                 stderr=cli.subprocess.PIPE,
                 text=True,
@@ -670,6 +732,7 @@ def _run_exec_provider_prompt(
                 f"{provider} CLI not found: {provider_bin}. "
                 f"Install the provider CLI or set {env_key}."
             ) from exc
+        _write_prompt_to_process_stdin(process, prompt_stdin)
         if use_json_stream:
             return_code = _stream_provider_exec_output(process, provider=provider)
         else:

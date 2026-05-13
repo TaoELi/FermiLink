@@ -40,6 +40,8 @@ class CodexAgent(ProviderAgent):
 
     @property
     def default_binary(self) -> str:
+        if os.name == "nt":
+            return "codex.cmd"
         return "codex"
 
     def resolve_binary(self, *, provider_bin_override: str | None = None) -> str:
