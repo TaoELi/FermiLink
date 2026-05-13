@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 import time
 
 from fermilink.exploop.artifacts import record_artifact_changes
@@ -194,7 +195,14 @@ def _wait_for_pids(
     started = time.monotonic()
     alive = [pid for pid in pid_numbers if is_pid_alive(pid)]
     if not alive:
-        _print_tagged("exploop", "measurement PID(s) already finished")
+        pid_text = ", ".join(str(pid) for pid in pid_numbers)
+        _print_tagged(
+            "exploop",
+            "PID(s) were already finished or not found; check that the emitted "
+            "PID is the detached measurement process, not a wrapper. "
+            f"PID(s): {pid_text}",
+            stderr=True,
+        )
         return []
 
     log_interval = max(float(log_interval_seconds), 0.0)
@@ -208,6 +216,7 @@ def _wait_for_pids(
         f"{max(poll_seconds, 0.1):.1f}s and showing status every "
         f"{status_interval}: "
         + ", ".join(str(pid) for pid in alive),
+        stderr=True,
     )
 
     while alive:
@@ -219,6 +228,7 @@ def _wait_for_pids(
                 "exploop",
                 "PID polling reached max wait with still-running PID(s): "
                 + ", ".join(str(pid) for pid in alive),
+                stderr=True,
             )
             return alive
         sleep_seconds = min(max(poll_seconds, 0.1), remaining)
@@ -236,13 +246,18 @@ def _wait_for_pids(
                     f"still waiting for measurement PID(s) after {elapsed:.1f}s: "
                     + ", ".join(str(pid) for pid in alive)
                     + f" ({remaining:.1f}s until max wait)",
+                    stderr=True,
                 )
                 if log_interval > 0:
                     while next_log_at <= now:
                         next_log_at += log_interval
 
     waited = time.monotonic() - started
-    _print_tagged("exploop", f"measurement PID polling complete after {waited:.1f}s")
+    _print_tagged(
+        "exploop",
+        f"measurement PID polling complete after {waited:.1f}s",
+        stderr=True,
+    )
     return []
 
 
@@ -312,8 +327,11 @@ def _nonnegative_float(value: float, name: str) -> float:
     return parsed
 
 
-def _print_tagged(tag: str, message: str) -> None:
-    print(f"[{tag}] {message}", flush=True)
+def _print_tagged(tag: str, message: str, *, stderr: bool = False) -> None:
+    kwargs: dict[str, object] = {"flush": True}
+    if stderr:
+        kwargs["file"] = sys.stderr
+    print(f"[{tag}] {message}", **kwargs)
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

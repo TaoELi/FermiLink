@@ -57,6 +57,29 @@ def test_exploop_guide_pid_examples_emit_parseable_tags() -> None:
     assert 'print(f"<pid_number>{proc.pid}</pid_number>")' in guide
     assert "\n$p.Id\n" not in guide
     assert "print(proc.pid)" not in guide
+    assert "final detached measurement process" in guide
+    assert "RedirectStandardInput" in guide
+    assert "RedirectStandardOutput" in guide
+    assert "RedirectStandardError" in guide
+    assert "Do not call `Wait-Process`, `communicate()`" in guide
+
+
+def test_exploop_memory_template_recommends_grouped_measurement_inventory(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "workspace"
+    repo.mkdir()
+
+    memory = ensure_exploop_memory(
+        repo_dir=repo,
+        user_prompt="measure",
+        prompt_file=None,
+    )
+
+    memory_text = memory.read_text(encoding="utf-8")
+    assert "### Measurement data inventory" in memory_text
+    assert "combine them into one grouped entry by pattern/count/location" in memory_text
+    assert "so this memory file stays compact" in memory_text
 
 
 def test_exploop_runs_without_git_init_and_discovers_local_skills(
@@ -336,14 +359,33 @@ def test_pid_polling_logs_start_and_minute_progress(monkeypatch, capsys) -> None
         max_wait_seconds=6000,
     )
 
-    output = capsys.readouterr().out
+    captured = capsys.readouterr()
+    output = captured.err
     assert still_alive == []
+    assert captured.out == ""
     assert (
         "measurement running; polling PID(s) every 0.1s and showing status every 60s: 12345"
         in output
     )
     assert "still waiting for measurement PID(s) after 61.0s: 12345" in output
     assert "measurement PID polling complete after 61.5s" in output
+
+
+def test_pid_polling_warns_when_tagged_pids_are_not_alive(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(exploop_main, "is_pid_alive", lambda _pid: False)
+
+    still_alive = exploop_main._wait_for_pids(
+        [12345],
+        poll_seconds=0.1,
+        max_wait_seconds=6000,
+    )
+
+    captured = capsys.readouterr()
+    assert still_alive == []
+    assert captured.out == ""
+    assert "PID(s) were already finished or not found" in captured.err
+    assert "detached measurement process, not a wrapper" in captured.err
+    assert "PID(s): 12345" in captured.err
 
 
 def test_pid_polling_sleep_wakes_for_minute_progress(monkeypatch) -> None:

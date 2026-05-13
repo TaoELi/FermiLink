@@ -19,7 +19,7 @@ measurements.
 ## Windows measurement launch
 
 When starting a long-running measurement on native Windows, use a detached
-process pattern and emit the child PID on its own line:
+process pattern and emit the final measurement child PID on its own line:
 
 ```xml
 <pid_number>PID</pid_number>
@@ -29,10 +29,28 @@ Use one PID tag per process. Do not emit PID tags for finished processes.
 Emit the XML tag exactly; a raw numeric PID is not enough for FermiLink to
 poll the measurement.
 
+Before emitting a PID tag:
+
+- Ensure the PID belongs to the final detached measurement process, not a
+  transient PowerShell, `cmd.exe`, Python launcher, or other wrapper process.
+- Redirect stdin, stdout, and stderr so the measurement does not keep the
+  Codex/tool process attached to its console or pipes.
+- Do not call `Wait-Process`, `communicate()`, read child pipes, or otherwise
+  wait for the measurement before returning the PID tag.
+
 PowerShell pattern:
 
 ```powershell
-$p = Start-Process -FilePath python -ArgumentList @("script.py", "--mission", "Scan_TG") -WorkingDirectory $PWD -PassThru -RedirectStandardOutput "projects\run.out" -RedirectStandardError "projects\run.err"
+$stdin = "projects\run.stdin"
+if (-not (Test-Path $stdin)) { New-Item -ItemType File -Path $stdin -Force | Out-Null }
+$p = Start-Process `
+  -FilePath python `
+  -ArgumentList @("script.py", "--mission", "Scan_TG") `
+  -WorkingDirectory $PWD `
+  -PassThru `
+  -RedirectStandardInput $stdin `
+  -RedirectStandardOutput "projects\run.out" `
+  -RedirectStandardError "projects\run.err"
 Write-Output "<pid_number>$($p.Id)</pid_number>"
 ```
 
