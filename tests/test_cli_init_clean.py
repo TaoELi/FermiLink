@@ -347,7 +347,10 @@ def test_cli_init_package_mode_creates_local_package_workspace(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    scipkg_root, _package_root = _install_package_fixture(tmp_path, package_id="solver")
+    scipkg_root, _package_root = _install_package_fixture(
+        tmp_path,
+        package_id="solver",
+    )
     installed_root = scipkg_root / "packages" / "solver"
     _configure_software_template(monkeypatch, tmp_path)
     monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
@@ -364,7 +367,12 @@ def test_cli_init_package_mode_creates_local_package_workspace(
     _assert_points_to(workdir / "GEMINI.md", workdir / "AGENTS.md")
     _assert_points_to(workdir / "README.md", installed_root / "README.md")
     _assert_points_to(workdir / "src", installed_root / "src")
-    _assert_points_to(workdir / "skills", installed_root / "skills")
+    skills_path = workdir / "skills"
+    assert skills_path.is_dir()
+    assert not skills_path.is_symlink()
+    assert (skills_path / "README.md").read_text(encoding="utf-8") == (
+        "package skills\n"
+    )
     assert not (workdir / "public").exists()
 
     manifest = runner_scipkg.load_workspace_manifest(workdir)
@@ -372,6 +380,16 @@ def test_cli_init_package_mode_creates_local_package_workspace(
     assert manifest["workspace_mode"] == "package_init"
     assert manifest["package_id"] == "solver"
     assert manifest["package_workflow_type"] == "simulation"
+    linked_entries = {
+        item["name"]: item
+        for item in manifest["linked_entries"]
+        if isinstance(item, dict)
+    }
+    assert linked_entries["skills"]["mode"] == "copy"
+
+    assert cli.main(["init", "solver"]) == 0
+    assert skills_path.is_dir()
+    assert not skills_path.is_symlink()
 
 
 def test_cli_init_package_mode_uses_experiment_agents_for_experiment_package(
@@ -383,7 +401,6 @@ def test_cli_init_package_mode_uses_experiment_agents_for_experiment_package(
         package_id="measurement",
         workflow_type="experiment",
     )
-    installed_root = scipkg_root / "packages" / "measurement"
     _configure_software_template(monkeypatch, tmp_path)
     monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
@@ -395,13 +412,53 @@ def test_cli_init_package_mode_uses_experiment_agents_for_experiment_package(
     assert (workdir / "AGENTS.md").read_text(encoding="utf-8") == load_exploop_guide()
     _assert_points_to(workdir / "CLAUDE.md", workdir / "AGENTS.md")
     _assert_points_to(workdir / "GEMINI.md", workdir / "AGENTS.md")
-    _assert_points_to(workdir / "skills", installed_root / "skills")
+    skills_path = workdir / "skills"
+    assert skills_path.is_dir()
+    assert not skills_path.is_symlink()
+    assert (skills_path / "README.md").read_text(encoding="utf-8") == (
+        "package skills\n"
+    )
 
     manifest = runner_scipkg.load_workspace_manifest(workdir)
     assert isinstance(manifest, dict)
     assert manifest["workspace_mode"] == "package_init"
     assert manifest["package_id"] == "measurement"
     assert manifest["package_workflow_type"] == "experiment"
+    linked_entries = {
+        item["name"]: item
+        for item in manifest["linked_entries"]
+        if isinstance(item, dict)
+    }
+    assert linked_entries["skills"]["mode"] == "copy"
+
+
+def test_cli_init_package_mode_replaces_legacy_skills_symlink_with_copy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    scipkg_root, _package_root = _install_package_fixture(
+        tmp_path,
+        package_id="solver",
+    )
+    installed_root = scipkg_root / "packages" / "solver"
+    _configure_software_template(monkeypatch, tmp_path)
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    workdir = tmp_path / "workspace"
+    workdir.mkdir(parents=True, exist_ok=True)
+    (workdir / "skills").symlink_to(
+        installed_root / "skills",
+        target_is_directory=True,
+    )
+    monkeypatch.chdir(workdir)
+
+    assert cli.main(["init", "solver"]) == 0
+    skills_path = workdir / "skills"
+    assert skills_path.is_dir()
+    assert not skills_path.is_symlink()
+    assert (skills_path / "README.md").read_text(encoding="utf-8") == (
+        "package skills\n"
+    )
 
 
 def test_cli_clean_package_mode_removes_only_package_init_artifacts(

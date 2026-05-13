@@ -21,6 +21,7 @@ PACKAGE_WORKFLOW_TYPE_KEY = "workflow-type"
 PACKAGE_WORKFLOW_TYPE_COMPAT_KEY = "workflow_type"
 DEFAULT_PACKAGE_WORKFLOW_TYPE = "simulation"
 SUPPORTED_PACKAGE_WORKFLOW_TYPES = {"simulation", "experiment"}
+PACKAGE_INIT_COPIED_OVERLAY_DIRECTORIES = {"skills"}
 
 
 def _looks_like_path_spec(raw_value: str) -> bool:
@@ -117,16 +118,54 @@ def _resolve_package_agents_source(package_meta: dict[str, Any]) -> Path:
     return resolve_software_agents_source()
 
 
+def _package_init_reserved_entry_names() -> set[str]:
+    return {
+        workspace_payload.AGENTS_FILENAME,
+        *workspace_payload.AGENTS_ALIAS_FILENAMES,
+        "public",
+    }
+
+
+def _iter_package_init_entries(package_meta: dict[str, Any]) -> list[Path]:
+    scipkg = load_runner_scipkg_module()
+    package_root = _resolve_package_root(package_meta)
+    reserved_names = _package_init_reserved_entry_names()
+
+    configured_entries = scipkg._normalize_overlay_entries(
+        package_meta.get("overlay_entries")
+    )
+    selected_entries, _ = scipkg.iter_package_entries(
+        package_root,
+        include_names=configured_entries,
+    )
+    return [entry for entry in selected_entries if entry.name not in reserved_names]
+
+
+def _is_package_init_copied_overlay_entry(entry: Path) -> bool:
+    return entry.name in PACKAGE_INIT_COPIED_OVERLAY_DIRECTORIES and entry.is_dir()
+
+
+def _resolve_package_init_copied_overlay_sources(
+    package_meta: dict[str, Any],
+) -> list[Path]:
+    return [
+        entry
+        for entry in _iter_package_init_entries(package_meta)
+        if _is_package_init_copied_overlay_entry(entry)
+    ]
+
+
 def _filter_package_init_meta(
     *,
     package_meta: dict[str, Any],
 ) -> dict[str, Any]:
     scipkg = load_runner_scipkg_module()
     package_root = _resolve_package_root(package_meta)
-    reserved_names = {
-        workspace_payload.AGENTS_FILENAME,
-        *workspace_payload.AGENTS_ALIAS_FILENAMES,
-        "public",
+    reserved_names = _package_init_reserved_entry_names()
+    copied_entry_names = {
+        entry.name
+        for entry in _iter_package_init_entries(package_meta)
+        if _is_package_init_copied_overlay_entry(entry)
     }
 
     configured_entries = scipkg._normalize_overlay_entries(
@@ -137,19 +176,111 @@ def _filter_package_init_meta(
             package_root, include_names=None
         )
         filtered_entries = [
-            entry.name for entry in selected_entries if entry.name not in reserved_names
+            entry.name
+            for entry in selected_entries
+            if entry.name not in reserved_names
+            and entry.name not in copied_entry_names
         ]
     else:
         filtered_entries = [
             entry_name
             for entry_name in configured_entries
             if entry_name not in reserved_names
+            and entry_name not in copied_entry_names
         ]
 
     sanitized = dict(package_meta)
     sanitized["overlay_entries"] = filtered_entries
     sanitized.setdefault("installed_path", str(package_root))
     return sanitized
+
+
+def _preflight_package_init_copied_overlay_collisions(
+    *,
+    destination: Path,
+    copied_entry_sources: list[Path],
+    managed_entry_names: set[str],
+) -> None:
+    for source_path in copied_entry_sources:
+        target_path = destination / source_path.name
+        if not workspace_fs.path_exists(target_path):
+            continue
+        if target_path.is_symlink():
+            if workspace_fs.symlink_matches(target_path, source_path):
+                continue
+            if source_path.name in managed_entry_names:
+                continue
+            raise FileExistsError(
+                f"Conflict at {target_path}: already exists. Use --force to overwrite."
+            )
+        if target_path.is_dir():
+            if workspace_fs.directories_match(target_path, source_path):
+                continue
+            raise FileExistsError(
+                f"Conflict at {target_path}: local directory content differs "
+                "from managed copy. Use --force to overwrite."
+            )
+        raise FileExistsError(
+            f"Conflict at {target_path}: already exists. Use --force to overwrite."
+        )
+
+
+def _record_package_init_copied_overlay_entries(
+    manifest: dict[str, object],
+    copied_entry_sources: list[Path],
+) -> None:
+    if not copied_entry_sources:
+        return
+
+    copied_names = {source.name for source in copied_entry_sources}
+    existing_linked = manifest.get("linked_entries")
+    linked_entries: list[object] = []
+    if isinstance(existing_linked, list):
+        for item in existing_linked:
+            if isinstance(item, dict):
+                name = item.get("name")
+            else:
+                name = item
+            if name not in copied_names:
+                linked_entries.append(item)
+
+    for source_path in copied_entry_sources:
+        linked_entries.append(
+            {
+                "name": source_path.name,
+                "mode": "copy",
+                "source": str(source_path.resolve()),
+            }
+        )
+    manifest["linked_entries"] = linked_entries
+
+    requested_entries = manifest.get("requested_entries")
+    if isinstance(requested_entries, list):
+        for source_path in copied_entry_sources:
+            if source_path.name not in requested_entries:
+                requested_entries.append(source_path.name)
+
+
+def _materialize_package_init_copied_overlays(
+    *,
+    destination: Path,
+    copied_entry_sources: list[Path],
+    force: bool,
+    managed_entry_names: set[str],
+) -> None:
+    for source_path in copied_entry_sources:
+        target_path = destination / source_path.name
+        if (
+            target_path.is_symlink()
+            and source_path.name in managed_entry_names
+            and not workspace_fs.symlink_matches(target_path, source_path)
+        ):
+            workspace_fs.remove_path(target_path)
+        workspace_fs.ensure_copied_directory(
+            source_path,
+            target_path,
+            force=force,
+        )
 
 
 def _preflight_package_workspace_collision(
@@ -252,6 +383,9 @@ def initialize_package_workspace(
         raise FileNotFoundError(f"Requested package not found: {package_id}")
     agents_source = _resolve_package_agents_source(package_meta)
     workflow_type = _resolve_package_workflow_type(package_meta)
+    copied_entry_sources = _resolve_package_init_copied_overlay_sources(package_meta)
+    previous_manifest = scipkg.load_workspace_manifest(destination)
+    previous_entry_names = scipkg._manifest_entry_names(previous_manifest)
 
     filtered_package_meta = _filter_package_init_meta(
         package_meta=package_meta,
@@ -262,6 +396,11 @@ def initialize_package_workspace(
             package_id=resolved_id,
             package_meta=filtered_package_meta,
             scipkg_root=scipkg_root,
+        )
+        _preflight_package_init_copied_overlay_collisions(
+            destination=destination,
+            copied_entry_sources=copied_entry_sources,
+            managed_entry_names=previous_entry_names,
         )
 
     workspace_payload.ensure_agents_file(
@@ -280,6 +419,12 @@ def initialize_package_workspace(
         scipkg_root=scipkg_root,
         allow_replace_existing=force,
     )
+    _materialize_package_init_copied_overlays(
+        destination=destination,
+        copied_entry_sources=copied_entry_sources,
+        force=force,
+        managed_entry_names=previous_entry_names,
+    )
 
     # Re-assert local instruction files in case the overlaid package exports
     # reserved instruction filenames that were already present in the workspace.
@@ -296,10 +441,17 @@ def initialize_package_workspace(
         raise RuntimeError(
             f"Failed to persist package workspace manifest for {resolved_id}."
         )
+    _record_package_init_copied_overlay_entries(manifest, copied_entry_sources)
     manifest["workspace_mode"] = PACKAGE_INIT_WORKSPACE_MODE
     manifest["template_agents_source"] = str(agents_source.resolve())
     manifest["package_workflow_type"] = workflow_type
     scipkg.save_workspace_manifest(destination, manifest)
+    linked_entries = manifest.get("linked_entries")
+    if isinstance(linked_entries, list):
+        overlay["linked_count"] = len(linked_entries)
+    requested_entries = manifest.get("requested_entries")
+    if isinstance(requested_entries, list):
+        overlay["requested_entries"] = list(requested_entries)
     return overlay
 
 
