@@ -360,9 +360,9 @@ def test_pid_polling_logs_start_and_minute_progress(monkeypatch, capsys) -> None
     )
 
     captured = capsys.readouterr()
-    output = captured.err
+    output = captured.out
     assert still_alive == []
-    assert captured.out == ""
+    assert captured.err == ""
     assert (
         "measurement running; polling PID(s) every 0.1s and showing status every 60s: 12345"
         in output
@@ -382,10 +382,10 @@ def test_pid_polling_warns_when_tagged_pids_are_not_alive(monkeypatch, capsys) -
 
     captured = capsys.readouterr()
     assert still_alive == []
-    assert captured.out == ""
-    assert "PID(s) were already finished or not found" in captured.err
-    assert "detached measurement process, not a wrapper" in captured.err
-    assert "PID(s): 12345" in captured.err
+    assert captured.err == ""
+    assert "PID(s) were already finished or not found" in captured.out
+    assert "detached measurement process, not a wrapper" in captured.out
+    assert "PID(s): 12345" in captured.out
 
 
 def test_pid_polling_sleep_wakes_for_minute_progress(monkeypatch) -> None:

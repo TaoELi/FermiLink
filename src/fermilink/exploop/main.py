@@ -201,7 +201,6 @@ def _wait_for_pids(
             "PID(s) were already finished or not found; check that the emitted "
             "PID is the detached measurement process, not a wrapper. "
             f"PID(s): {pid_text}",
-            stderr=True,
         )
         return []
 
@@ -216,7 +215,6 @@ def _wait_for_pids(
         f"{max(poll_seconds, 0.1):.1f}s and showing status every "
         f"{status_interval}: "
         + ", ".join(str(pid) for pid in alive),
-        stderr=True,
     )
 
     while alive:
@@ -228,7 +226,6 @@ def _wait_for_pids(
                 "exploop",
                 "PID polling reached max wait with still-running PID(s): "
                 + ", ".join(str(pid) for pid in alive),
-                stderr=True,
             )
             return alive
         sleep_seconds = min(max(poll_seconds, 0.1), remaining)
@@ -246,7 +243,6 @@ def _wait_for_pids(
                     f"still waiting for measurement PID(s) after {elapsed:.1f}s: "
                     + ", ".join(str(pid) for pid in alive)
                     + f" ({remaining:.1f}s until max wait)",
-                    stderr=True,
                 )
                 if log_interval > 0:
                     while next_log_at <= now:
@@ -256,7 +252,6 @@ def _wait_for_pids(
     _print_tagged(
         "exploop",
         f"measurement PID polling complete after {waited:.1f}s",
-        stderr=True,
     )
     return []
 
