@@ -3,8 +3,8 @@
 Built-in Supported Scientific Packages
 ======================================
 
-- Last curated update: ``2026-03-16 05:02:16 EST``
-- Total built-in packages: ``168``
+- Last curated update: ``2026-04-27 21:32:09 EST``
+- Total built-in packages: ``169``
 
 .. list-table:: Built-in package catalog
    :header-rows: 1
@@ -127,6 +127,9 @@ Built-in Supported Scientific Packages
    * - ``devito``
      - Devito Stencil Compiler
      - `skilled-scipkg/devito <https://github.com/skilled-scipkg/devito>`_
+   * - ``dftb``
+     - DFTB+ Atomistic Simulator
+     - `skilled-scipkg/dftbplus <https://github.com/skilled-scipkg/dftbplus>`_
    * - ``dftd4``
      - DFT-D4 Dispersion Correction
      - `skilled-scipkg/dftd4 <https://github.com/skilled-scipkg/dftd4>`_

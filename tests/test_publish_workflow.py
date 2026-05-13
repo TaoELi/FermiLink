@@ -25,3 +25,4 @@ def test_publish_workflow_verifies_wheel_with_declared_dependencies() -> None:
     assert "--no-deps" not in body
     assert "python -m pip check" in body
     assert "fermilink --help" in body
+    assert "python -m fermilink --help" in body

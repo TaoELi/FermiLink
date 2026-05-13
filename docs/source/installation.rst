@@ -68,6 +68,23 @@ You can install **FermiLink** with pip:
 
    pip install fermilink
 
+Quick check:
+
+.. code-block:: bash
+
+   fermilink --help
+
+On Windows, ``pip`` installs the ``fermilink.exe`` launcher into the active
+Python environment's ``Scripts`` directory. If PowerShell or ``cmd.exe`` says
+``fermilink`` is not recognized, the install may still be valid but that
+``Scripts`` directory is not on ``PATH``. You can run the same CLI without
+changing ``PATH``. In an activated conda or virtual environment, use:
+
+.. code-block:: powershell
+
+   python -m fermilink --help
+   python -m fermilink install meep --activate
+
 
 
 Install your first scientific package knowledge base

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from fermilink import cli
@@ -18,6 +21,31 @@ def _make_local_package_with_entries(path: Path, entries: list[str]) -> None:
     for entry in entries:
         (path / entry).mkdir(parents=True, exist_ok=True)
         (path / entry / "README.md").write_text(entry, encoding="utf-8")
+
+
+def test_top_level_module_entrypoint_runs_cli_help() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    src_root = repo_root / "src"
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(src_root)
+        if not existing_pythonpath
+        else os.pathsep.join([str(src_root), existing_pythonpath])
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "fermilink", "--help"],
+        cwd=str(repo_root),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert "usage: fermilink" in completed.stdout
+    assert "Unified FermiLink CLI" in completed.stdout
 
 
 def test_cli_install_local_auto_sync(monkeypatch, tmp_path: Path) -> None:

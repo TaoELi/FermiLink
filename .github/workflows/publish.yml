@@ -94,6 +94,7 @@ jobs:
           python -m pip install --force-reinstall dist/*.whl
           python -m pip check
           fermilink --help
+          python -m fermilink --help
 
       - name: Publish to PyPI
         if: steps.version_check.outputs.publish == 'true'
