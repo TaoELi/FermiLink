@@ -15,6 +15,8 @@ measurements.
 - Save measurement outputs under `projects/YYYY-MM-DD-short-name/`.
 - Record commands, parameters, PIDs, output paths, and pending work in
   `projects/memory.md`.
+- Proceed each step sequentially, and do post-processing only after the corresponding
+  measurement is finished.
 
 ## Windows measurement launch
 
