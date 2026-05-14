@@ -34,3 +34,16 @@ def test_is_assistant_stream_event_ignores_non_assistant_types() -> None:
     assert chat_helpers._is_assistant_stream_event({"type": "user"}) is False
     assert chat_helpers._is_assistant_stream_event({"type": "result"}) is False
     assert chat_helpers._is_assistant_stream_event({"type": "stream_error"}) is False
+
+
+def test_format_muted_auxiliary_text_compacts_and_escapes() -> None:
+    long_text = "\n".join(
+        [*[f"line {index}" for index in range(4)], "<raw>", "line 5", "line 6"]
+    )
+    rendered = chat_helpers._format_muted_auxiliary_text(long_text)
+
+    assert 'color:#6b7280' in rendered
+    assert "line 0" in rendered
+    assert "line 5" not in rendered
+    assert "2 more lines" in rendered
+    assert "&lt;raw&gt;" in rendered

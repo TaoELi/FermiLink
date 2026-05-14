@@ -13,7 +13,8 @@ from fermilink.agent_runtime import DEFAULT_SANDBOX_POLICY
 # ANSI color palette for provider stream rendering.
 _ANSI = {
     "reset": "\033[0m",
-    "thinking": "\033[3;37m",
+    "agent_label": "\033[1;35m",
+    "thinking": "\033[1;35m",
     "tool_label": "\033[1;32m",
     "tool_cmd": "\033[36m",
     "tool_out": "\033[90m",
@@ -21,7 +22,7 @@ _ANSI = {
 }
 _ANSI_OFF = {key: "" for key in _ANSI}
 _SYSTEM_BLOCK_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
-_TOOL_OUTPUT_MAX_LINES = 10
+_TOOL_OUTPUT_MAX_LINES = 5
 
 
 def insert_option_before_prompt(command: list[str], *option_tokens: str) -> list[str]:
@@ -55,7 +56,22 @@ def _extract_text_like(value: object, *, strip: bool = True) -> str:
         return "".join(part for part in parts if part)
     if isinstance(value, dict):
         parts: list[str] = []
-        for key in ("text", "content", "message", "raw_content", "summary_text"):
+        for key in (
+            "text",
+            "content",
+            "message",
+            "raw_content",
+            "summary_text",
+            "summary",
+            "description",
+            "value",
+            "output",
+            "stdout",
+            "stderr",
+            "delta",
+            "patch",
+            "diff",
+        ):
             nested = _extract_text_like(value.get(key), strip=strip)
             if nested:
                 parts.append(nested)
@@ -64,10 +80,30 @@ def _extract_text_like(value: object, *, strip: bool = True) -> str:
     return ""
 
 
+def _event_item(event: dict) -> dict:
+    item = event.get("item")
+    return item if isinstance(item, dict) else {}
+
+
+def _event_item_type(event: dict) -> str:
+    item_type = _event_item(event).get("type")
+    if isinstance(item_type, str) and item_type.strip():
+        return item_type.strip()
+    event_type = event.get("type")
+    if isinstance(event_type, str) and event_type.strip():
+        return event_type.strip()
+    return ""
+
+
 def _format_tool_input_preview(payload: object) -> str:
     if isinstance(payload, dict):
         candidate = (
-            payload.get("command") or payload.get("file_path") or payload.get("path")
+            payload.get("command")
+            or payload.get("cmd")
+            or payload.get("parsed_cmd")
+            or payload.get("shell_command")
+            or payload.get("file_path")
+            or payload.get("path")
         )
         if isinstance(candidate, str) and candidate:
             return candidate
@@ -75,6 +111,75 @@ def _format_tool_input_preview(payload: object) -> str:
     if payload is None:
         return ""
     return str(payload)
+
+
+def _extract_command_preview(event: dict) -> str:
+    def from_mapping(mapping: dict) -> str:
+        for key in (
+            "command",
+            "cmd",
+            "parsed_cmd",
+            "shell_command",
+            "action",
+            "path",
+            "file_path",
+        ):
+            value = mapping.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for key in ("arguments", "parameters", "input"):
+            value = mapping.get(key)
+            if isinstance(value, dict):
+                preview = _format_tool_input_preview(value)
+                if preview:
+                    return preview
+            if isinstance(value, str) and value.strip():
+                try:
+                    parsed = json.loads(value)
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    return value.strip()
+                if isinstance(parsed, dict):
+                    preview = _format_tool_input_preview(parsed)
+                    if preview:
+                        return preview
+                return value.strip()
+        return ""
+
+    item = _event_item(event)
+    return from_mapping(item) or from_mapping(event)
+
+
+def _extract_output_preview(event: dict, item: dict | None = None) -> str:
+    output_keys = (
+        "output",
+        "stdout",
+        "stderr",
+        "aggregated_output",
+        "combined_output",
+        "formatted_output",
+        "result",
+        "content",
+        "message",
+        "text",
+        "delta",
+    )
+
+    def from_mapping(mapping: dict) -> str:
+        parts: list[str] = []
+        for key in output_keys:
+            if key not in mapping:
+                continue
+            text = _extract_text_like(mapping.get(key), strip=True)
+            if text:
+                parts.append(text)
+        return "\n".join(parts)
+
+    item_mapping = item if isinstance(item, dict) else _event_item(event)
+    output = from_mapping(event)
+    item_output = from_mapping(item_mapping)
+    if output and item_output and item_output not in output:
+        return f"{output}\n{item_output}"
+    return output or item_output
 
 
 class ProviderAgent(ABC):
@@ -270,6 +375,112 @@ class ProviderAgent(ABC):
         c = _ANSI if use_color else _ANSI_OFF
         reset = c["reset"]
         event_type = event.get("type", "")
+        item = _event_item(event)
+        item_type = _event_item_type(event)
+        normalized_item_type = item_type.lower()
+        normalized_event_type = str(event_type or "").strip().lower()
+
+        if normalized_item_type.startswith("agent_message"):
+            content = _extract_text_like(event.get("delta"), strip=False)
+            if not content:
+                content = _extract_text_like(item, strip=False)
+            if not content:
+                content = _extract_text_like(event, strip=False)
+            if content:
+                return f"{c['agent_label']}[agent]{reset} {c['text']}{content}{reset}"
+            return None
+
+        if normalized_item_type.startswith("user_message"):
+            content = _extract_text_like(event.get("delta"), strip=False)
+            if not content:
+                content = _extract_text_like(item, strip=False)
+            if not content:
+                content = _extract_text_like(event, strip=False)
+            if content:
+                return f"{c['text']}{content}{reset}"
+            return None
+
+        output_event_types = {
+            "exec_command_output_delta",
+            "exec_command_end",
+            "tool_result",
+            "command_output",
+            "file_change",
+            "file_diff",
+            "file_update",
+            "patch",
+            "diff",
+        }
+        if (
+            normalized_item_type in output_event_types
+            or normalized_event_type in output_event_types
+        ):
+            output = _extract_output_preview(event, item)
+            if not output and (
+                normalized_item_type == "tool_result"
+                or normalized_event_type == "tool_result"
+            ):
+                error_obj = event.get("error")
+                if isinstance(error_obj, dict):
+                    output = str(error_obj.get("message") or "").strip()
+                elif error_obj is not None:
+                    output = str(error_obj).strip()
+            if not output:
+                return None
+            return f"{c['tool_out']}{_truncate_tool_output(output)}{reset}"
+
+        if (
+            normalized_item_type == "command_execution"
+            and normalized_event_type.endswith(".completed")
+        ):
+            output = _extract_output_preview(event, item)
+            if output:
+                return f"{c['tool_out']}{_truncate_tool_output(output)}{reset}"
+            return None
+
+        if normalized_item_type in {
+            "reasoning",
+            "reasoning_delta",
+            "agent_reasoning",
+            "agent_reasoning_delta",
+            "thought",
+            "thinking",
+        }:
+            content = _extract_text_like(item, strip=True)
+            if not content:
+                content = _extract_text_like(event, strip=True)
+            cleaned = _strip_thinking_noise(content)
+            if cleaned:
+                return f"{c['thinking']}[reasoning] {cleaned}{reset}"
+            return None
+
+        if normalized_item_type in {
+            "command",
+            "command_execution",
+            "exec",
+            "exec_command_begin",
+            "tool_call",
+            "tool_use",
+            "function_call",
+        }:
+            name = str(
+                item.get("name")
+                or item.get("tool_name")
+                or event.get("name")
+                or event.get("tool_name")
+                or normalized_item_type
+            ).strip()
+            command_preview = _extract_command_preview(event)
+            if not name and not command_preview:
+                return None
+            if normalized_item_type == "command_execution" and str(
+                event_type
+            ).endswith(".completed"):
+                return None
+            return (
+                f"{c['tool_label']}[{name}]{reset} "
+                f"{c['tool_cmd']}{command_preview}{reset}"
+            ).strip()
 
         if event_type == "assistant":
             message = event.get("message")
@@ -392,6 +603,16 @@ class ProviderAgent(ABC):
 
         if not isinstance(event, dict):
             return "", False
+
+        item = _event_item(event)
+        item_type = _event_item_type(event).lower()
+        if item_type.startswith("agent_message"):
+            content = _extract_text_like(event.get("delta"), strip=False)
+            if not content:
+                content = _extract_text_like(item, strip=False)
+            if not content:
+                content = _extract_text_like(event, strip=False)
+            return content, "delta" in item_type or bool(event.get("delta"))
 
         event_type = event.get("type")
         if event_type == "assistant":

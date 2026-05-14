@@ -637,13 +637,12 @@ def test_run_exec_provider_prompt_uses_runner_sanitized_env(
     assert captured["cmd"] == [
         "codex",
         "exec",
+        "--json",
         "--cd",
         str(tmp_path),
         "--sandbox",
         "workspace-write",
         "--full-auto",
-        "--color",
-        "always",
         "hello",
     ]
     env = captured["env"]
@@ -684,6 +683,7 @@ def test_run_exec_provider_prompt_includes_model_override(
     assert captured["cmd"] == [
         "codex",
         "exec",
+        "--json",
         "--cd",
         str(tmp_path),
         "--sandbox",
@@ -692,10 +692,83 @@ def test_run_exec_provider_prompt_includes_model_override(
         "gpt-5.3-codex",
         "--config",
         'model_reasoning_effort="high"',
-        "--color",
-        "always",
         "hello",
     ]
+
+
+def test_run_exec_provider_prompt_codex_json_stream_even_when_tty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured: dict[str, object] = {}
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: True)
+    monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("run should not execute in Codex JSON stream mode")
+        ),
+    )
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["stdin"] = kwargs.get("stdin")
+        return SimpleNamespace(
+            stdout=io.StringIO(
+                json.dumps(
+                    {
+                        "item": {"type": "agent_message_delta"},
+                        "delta": "done",
+                    }
+                )
+                + "\n"
+            ),
+            stderr=io.StringIO("Reading additional input from stdin...\n"),
+            wait=lambda: 0,
+        )
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    code = cli._run_exec_provider_prompt(
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox="read-only",
+        provider_bin_override="codex",
+        provider="codex",
+    )
+
+    assert code == 0
+    command = captured["cmd"]
+    assert isinstance(command, list)
+    assert command[:5] == ["codex", "exec", "--json", "--cd", str(tmp_path)]
+    assert "--color" not in command
+    assert captured["stdin"] is None
+    captured_io = capsys.readouterr()
+    assert "done" in captured_io.out
+    assert "[fermilink] injected prompt:" in captured_io.out
+    assert "hello" in captured_io.out
+    assert "Reading additional input from stdin" not in captured_io.err
+    assert "stream jsonl: projects/agent_streams/" in captured_io.err
+    history_files = sorted((tmp_path / "projects" / "agent_streams").glob("*.jsonl"))
+    assert len(history_files) == 1
+    history_events = [
+        json.loads(line)
+        for line in history_files[0].read_text(encoding="utf-8").splitlines()
+    ]
+    assert any(event.get("delta") == "done" for event in history_events)
+    assert {
+        "type": "fermilink.injected_prompt",
+        "text": "hello",
+    } in history_events
+    assert {
+        "type": "stderr",
+        "text": "Reading additional input from stdin...",
+    } in history_events
 
 
 def test_run_exec_provider_prompt_windows_codex_pipes_prompt_through_stdin(
@@ -879,11 +952,11 @@ def test_render_claude_stream_event_tool_result_truncated() -> None:
     result = cli._render_claude_stream_event(event, use_color=False)
     assert result is not None
     lines = result.splitlines()
-    # First 10 content lines + 1 truncation notice
-    assert len(lines) == 11
-    assert "15 more lines" in lines[-1]
+    # First 5 content lines + 1 truncation notice
+    assert len(lines) == 6
+    assert "20 more lines" in lines[-1]
     assert "line 0" in lines[0]
-    assert "line 9" in lines[9]
+    assert "line 4" in lines[4]
 
 
 def test_render_claude_stream_event_gemini_message_delta() -> None:
@@ -954,6 +1027,7 @@ def test_render_claude_stream_event_applies_ansi_colors() -> None:
     assert result is not None
     # ANSI escape sequences must be present
     assert "\033[" in result
+    assert "\033[1;35m" in result
     # Content must still be present
     assert "considering" in result
     assert "Bash" in result
@@ -1389,19 +1463,19 @@ def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
         },
     )
     monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
-    monkeypatch.setattr(cli, "_load_web_router_module", lambda: object())
     monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
-    monkeypatch.setattr(
-        cli,
-        "_collect_second_guess_assistant_text",
-        lambda raw_stream_text, *, web_app: (
-            f"assistant:{raw_stream_text.count('agent_message')}"
-        ),
-    )
 
     class FakeProcess:
         def __init__(self) -> None:
-            self.stdout = io.StringIO("codex streaming line\n")
+            self.stdout = io.StringIO(
+                json.dumps(
+                    {
+                        "item": {"type": "agent_message_delta"},
+                        "delta": "assistant from stream",
+                    }
+                )
+                + "\n"
+            )
             self.stderr = io.StringIO("warning-line\n")
 
         def wait(self) -> int:
@@ -1411,10 +1485,6 @@ def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
         captured["cmd"] = cmd
         captured["cwd"] = kwargs.get("cwd")
         captured["env"] = kwargs.get("env")
-        output_index = cmd.index("--output-last-message")
-        Path(cmd[output_index + 1]).write_text(
-            "assistant from file\n", encoding="utf-8"
-        )
         return FakeProcess()
 
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
@@ -1429,24 +1499,23 @@ def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
         sandbox_policy="enforce",
     )
 
-    assert result["assistant_text"] == "assistant from file"
+    assert result["assistant_text"] == "assistant from stream"
     assert result["return_code"] == 0
     assert result["stderr"] == "warning-line"
     assert captured["cwd"] == str(tmp_path)
     command = captured["cmd"]
     assert isinstance(command, list)
-    assert command[:6] == [
+    assert command[:7] == [
         "codex",
         "exec",
+        "--json",
         "--cd",
         str(tmp_path),
         "--sandbox",
         "workspace-write",
     ]
-    assert "--color" in command
-    color_index = command.index("--color")
-    assert command[color_index + 1] == "always"
-    assert "--output-last-message" in command
+    assert "--color" not in command
+    assert "--output-last-message" not in command
     assert command[-1] == "hello"
     env = captured["env"]
     assert isinstance(env, dict)
@@ -1454,7 +1523,7 @@ def test_run_exec_provider_prompt_uses_direct_terminal_stream_when_tty(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
     streamed = capsys.readouterr()
-    assert "codex streaming line" in streamed.out
+    assert "assistant from stream" in streamed.out
     assert "warning-line" in streamed.err
 
 
@@ -1477,7 +1546,15 @@ def test_run_exec_chat_turn_windows_codex_pipes_prompt_through_stdin(
     class FakeProcess:
         def __init__(self) -> None:
             self.stdin = _RecordingStdin()
-            self.stdout = io.StringIO("codex streaming line\n")
+            self.stdout = io.StringIO(
+                json.dumps(
+                    {
+                        "item": {"type": "agent_message_delta"},
+                        "delta": "assistant from Windows stdin run",
+                    }
+                )
+                + "\n"
+            )
             self.stderr = io.StringIO("")
 
         def wait(self) -> int:
@@ -1488,10 +1565,6 @@ def test_run_exec_chat_turn_windows_codex_pipes_prompt_through_stdin(
         captured["cmd"] = cmd
         captured["stdin_arg"] = kwargs.get("stdin")
         captured["process"] = process
-        output_index = cmd.index("--output-last-message")
-        Path(cmd[output_index + 1]).write_text(
-            "assistant from Windows stdin run\n", encoding="utf-8"
-        )
         return process
 
     monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
@@ -1534,17 +1607,38 @@ def test_run_exec_chat_turn_windows_codex_direct_stream_uses_stdin_input(
         lambda provider: provider == "codex",
     )
 
-    def fake_run(cmd, **kwargs):
-        captured["cmd"] = cmd
-        captured["input"] = kwargs.get("input")
-        captured["text"] = kwargs.get("text")
-        output_index = cmd.index("--output-last-message")
-        Path(cmd[output_index + 1]).write_text(
-            "assistant from direct stdin\n", encoding="utf-8"
-        )
-        return SimpleNamespace(returncode=0)
+    class FakeProcess:
+        def __init__(self) -> None:
+            self.stdin = _RecordingStdin()
+            self.stdout = io.StringIO(
+                json.dumps(
+                    {
+                        "item": {"type": "agent_message_delta"},
+                        "delta": "assistant from direct stdin",
+                    }
+                )
+                + "\n"
+            )
+            self.stderr = io.StringIO("")
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+        def wait(self) -> int:
+            return 0
+
+    def fake_popen(cmd, **kwargs):
+        process = FakeProcess()
+        captured["cmd"] = cmd
+        captured["stdin_arg"] = kwargs.get("stdin")
+        captured["process"] = process
+        return process
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("run should not execute in Codex JSON stream mode")
+        ),
+    )
 
     result = cli._run_exec_chat_turn(
         repo_dir=tmp_path,
@@ -1560,8 +1654,11 @@ def test_run_exec_chat_turn_windows_codex_direct_stream_uses_stdin_input(
     command = captured["cmd"]
     assert isinstance(command, list)
     assert command[-1] == "-"
-    assert captured["input"] == "direct terminal Windows prompt"
-    assert captured["text"] is True
+    assert captured["stdin_arg"] is cli.subprocess.PIPE
+    process = captured["process"]
+    assert isinstance(process, FakeProcess)
+    assert process.stdin.text == "direct terminal Windows prompt"
+    assert process.stdin.closed is True
 
 
 def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
@@ -1580,21 +1677,31 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
     monkeypatch.setattr(
         cli.subprocess,
-        "Popen",
+        "run",
         lambda *_a, **_k: (_ for _ in ()).throw(
-            AssertionError("Popen should not run in tty mode")
+            AssertionError("run should not execute in Codex JSON stream mode")
         ),
     )
 
-    def fake_run(cmd, **kwargs):
+    def fake_popen(cmd, **kwargs):
         captured["cmd"] = cmd
         captured["cwd"] = kwargs.get("cwd")
         captured["env"] = kwargs.get("env")
-        output_index = cmd.index("--output-last-message")
-        Path(cmd[output_index + 1]).write_text("tty assistant\n", encoding="utf-8")
-        return SimpleNamespace(returncode=3)
+        return SimpleNamespace(
+            stdout=io.StringIO(
+                json.dumps(
+                    {
+                        "item": {"type": "agent_message_delta"},
+                        "delta": "tty assistant",
+                    }
+                )
+                + "\n"
+            ),
+            stderr=io.StringIO(""),
+            wait=lambda: 3,
+        )
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
 
     result = cli._run_exec_chat_turn(
         repo_dir=tmp_path,
@@ -1611,18 +1718,17 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
 
     command = captured["cmd"]
     assert isinstance(command, list)
-    assert command[:6] == [
+    assert command[:7] == [
         "codex",
         "exec",
+        "--json",
         "--cd",
         str(tmp_path),
         "--sandbox",
         "read-only",
     ]
-    assert "--color" in command
-    color_index = command.index("--color")
-    assert command[color_index + 1] == "always"
-    assert "--output-last-message" in command
+    assert "--color" not in command
+    assert "--output-last-message" not in command
     assert command[-1] == "hello tty"
     env = captured["env"]
     assert isinstance(env, dict)

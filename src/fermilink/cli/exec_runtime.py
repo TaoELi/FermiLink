@@ -17,6 +17,122 @@ def _cli():
 
 
 _STOP_REQUEST_CONTEXT = threading.local()
+_STREAM_HISTORY_LOCK = threading.Lock()
+_STREAM_HISTORY_ROOT = Path("projects") / "agent_streams"
+_CODEX_STDIN_NOTICE = "Reading additional input from stdin..."
+_PROMPT_PREVIEW_HEAD_LINES = 20
+_PROMPT_PREVIEW_TAIL_LINES = 10
+
+
+def _stream_history_path(repo_dir: Path, *, provider: str) -> Path | None:
+    root = repo_dir / _STREAM_HISTORY_ROOT
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    safe_provider = "".join(
+        char if char.isalnum() or char in {"-", "_"} else "-"
+        for char in str(provider or "provider").lower()
+    ).strip("-")
+    if not safe_provider:
+        safe_provider = "provider"
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    suffix = f"{time.time_ns() % 1_000_000:06d}"
+    return root / f"{stamp}-{safe_provider}-{suffix}.jsonl"
+
+
+def _display_path(path: Path, *, repo_dir: Path) -> str:
+    try:
+        return path.relative_to(repo_dir).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _announce_stream_history_path(path: Path | None, *, repo_dir: Path) -> None:
+    if path is None:
+        return
+    cli = _cli()
+    display = _display_path(path, repo_dir=repo_dir)
+    print(f"[fermilink] stream jsonl: {display}", file=cli.sys.stderr, flush=True)
+
+
+def _append_stream_history_raw(path: Path | None, raw_line: str) -> None:
+    if path is None:
+        return
+    text = raw_line.strip()
+    if not text:
+        return
+    try:
+        json.loads(text)
+        payload = text
+    except (json.JSONDecodeError, TypeError, ValueError):
+        payload = json.dumps(
+            {"type": "raw_stdout", "text": raw_line.rstrip("\n")},
+            ensure_ascii=False,
+        )
+    try:
+        with _STREAM_HISTORY_LOCK:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(payload + "\n")
+    except OSError:
+        return
+
+
+def _append_stream_history_event(path: Path | None, event: dict[str, object]) -> None:
+    if path is None:
+        return
+    try:
+        with _STREAM_HISTORY_LOCK:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except OSError:
+        return
+
+
+def _compact_prompt_preview(
+    prompt: str,
+    *,
+    head_lines: int = _PROMPT_PREVIEW_HEAD_LINES,
+    tail_lines: int = _PROMPT_PREVIEW_TAIL_LINES,
+) -> str:
+    lines = str(prompt or "").splitlines()
+    if not lines:
+        return ""
+    if len(lines) <= head_lines + tail_lines:
+        return "\n".join(lines)
+    omitted = len(lines) - head_lines - tail_lines
+    return "\n".join(
+        [
+            *lines[:head_lines],
+            f"... ({omitted} prompt lines omitted; full prompt saved in JSONL)",
+            *lines[-tail_lines:],
+        ]
+    )
+
+
+def _print_codex_prompt_preview(
+    prompt: str,
+    *,
+    stream_history_path: Path | None,
+) -> None:
+    _append_stream_history_event(
+        stream_history_path,
+        {"type": "fermilink.injected_prompt", "text": str(prompt or "")},
+    )
+    preview = _compact_prompt_preview(prompt)
+    if not preview:
+        return
+    cli = _cli()
+    try:
+        use_color = bool(cli.sys.stdout.isatty())
+    except Exception:
+        use_color = False
+    label = "[fermilink] injected prompt:"
+    if use_color:
+        label = f"\033[1;35m{label}\033[0m"
+        preview = f"\033[90m{preview}\033[0m"
+    print(label, file=cli.sys.stdout, flush=True)
+    print(preview, file=cli.sys.stdout, flush=True)
 
 
 def _prepare_provider_runtime_env(
@@ -249,7 +365,12 @@ def _render_claude_stream_event(event: dict, *, use_color: bool = True) -> str |
     return _render_provider_stream_event("claude", event, use_color=use_color)
 
 
-def _stream_provider_exec_output(process, *, provider: str) -> int:
+def _stream_provider_exec_output(
+    process,
+    *,
+    provider: str,
+    stream_history_path: Path | None = None,
+) -> int:
     """Stream provider stream-json output with human rendering."""
 
     cli = _cli()
@@ -265,6 +386,7 @@ def _stream_provider_exec_output(process, *, provider: str) -> int:
             stripped = line.strip()
             if not stripped:
                 continue
+            _append_stream_history_raw(stream_history_path, line)
             try:
                 event = json.loads(stripped)
             except (json.JSONDecodeError, ValueError):
@@ -284,7 +406,14 @@ def _stream_provider_exec_output(process, *, provider: str) -> int:
         if stream is None:
             return
         for line in iter(stream.readline, ""):
-            print(line.rstrip("\n"), file=cli.sys.stderr, flush=True)
+            text = line.rstrip("\n")
+            _append_stream_history_event(
+                stream_history_path,
+                {"type": "stderr", "text": text},
+            )
+            if provider == "codex" and text == _CODEX_STDIN_NOTICE:
+                continue
+            print(text, file=cli.sys.stderr, flush=True)
         stream.close()
 
     stdout_thread = cli.threading.Thread(
@@ -344,6 +473,7 @@ def _stream_provider_exec_output_with_capture(
     process,
     *,
     provider: str,
+    stream_history_path: Path | None = None,
 ) -> tuple[int, str, str]:
     """Stream provider stream-json output and capture assistant/stderr text."""
 
@@ -363,6 +493,7 @@ def _stream_provider_exec_output_with_capture(
             stripped = line.strip()
             if not stripped:
                 continue
+            _append_stream_history_raw(stream_history_path, line)
             try:
                 event = json.loads(stripped)
             except (json.JSONDecodeError, ValueError):
@@ -393,8 +524,15 @@ def _stream_provider_exec_output_with_capture(
         if stream is None:
             return
         for line in iter(stream.readline, ""):
+            text = line.rstrip("\n")
+            _append_stream_history_event(
+                stream_history_path,
+                {"type": "stderr", "text": text},
+            )
+            if provider == "codex" and text == _CODEX_STDIN_NOTICE:
+                continue
             stderr_lines.append(line)
-            print(line.rstrip("\n"), file=cli.sys.stderr, flush=True)
+            print(text, file=cli.sys.stderr, flush=True)
         stream.close()
 
     stdout_thread = cli.threading.Thread(
@@ -518,6 +656,17 @@ def _run_exec_chat_turn(
 
         try:
             if use_json_stream:
+                stream_history = (
+                    _stream_history_path(repo_dir, provider=provider)
+                    if provider == "codex"
+                    else None
+                )
+                _announce_stream_history_path(stream_history, repo_dir=repo_dir)
+                if provider == "codex":
+                    _print_codex_prompt_preview(
+                        prompt,
+                        stream_history_path=stream_history,
+                    )
                 try:
                     process = cli.subprocess.Popen(
                         cmd,
@@ -525,7 +674,11 @@ def _run_exec_chat_turn(
                         stdin=(
                             cli.subprocess.PIPE
                             if prompt_stdin is not None
-                            else cli.subprocess.DEVNULL
+                            else (
+                                None
+                                if provider == "codex"
+                                else cli.subprocess.DEVNULL
+                            )
                         ),
                         stdout=cli.subprocess.PIPE,
                         stderr=cli.subprocess.PIPE,
@@ -544,6 +697,7 @@ def _run_exec_chat_turn(
                     _stream_provider_exec_output_with_capture(
                         process,
                         provider=provider,
+                        stream_history_path=stream_history,
                     )
                 )
                 stop_requested = _consume_last_wait_stop_requested()
@@ -552,6 +706,9 @@ def _run_exec_chat_turn(
                     "return_code": int(return_code),
                     "stderr": stderr_text.strip(),
                     "stopped_by_user": bool(stop_requested),
+                    "stream_history_path": (
+                        str(stream_history) if stream_history is not None else ""
+                    ),
                 }
 
             stdout_text = ""
@@ -687,7 +844,8 @@ def _run_exec_provider_prompt(
 
     try:
         if (
-            agent.supports_direct_terminal_stream()
+            not use_json_stream
+            and agent.supports_direct_terminal_stream()
             and cli._should_use_direct_terminal_stream()
             and not stop_checker_active
         ):
@@ -710,13 +868,26 @@ def _run_exec_provider_prompt(
             return int(completed.returncode)
 
         try:
+            stream_history = (
+                _stream_history_path(repo_dir, provider=provider)
+                if use_json_stream and provider == "codex"
+                else None
+            )
+            _announce_stream_history_path(stream_history, repo_dir=repo_dir)
+            if use_json_stream and provider == "codex":
+                _print_codex_prompt_preview(
+                    prompt,
+                    stream_history_path=stream_history,
+                )
             process = cli.subprocess.Popen(
                 cmd,
                 cwd=str(repo_dir),
                 stdin=(
                     cli.subprocess.PIPE
                     if prompt_stdin is not None
-                    else cli.subprocess.DEVNULL
+                    else (
+                        None if provider == "codex" else cli.subprocess.DEVNULL
+                    )
                 ),
                 stdout=cli.subprocess.PIPE,
                 stderr=cli.subprocess.PIPE,
@@ -732,7 +903,11 @@ def _run_exec_provider_prompt(
             ) from exc
         _write_prompt_to_process_stdin(process, prompt_stdin)
         if use_json_stream:
-            return_code = _stream_provider_exec_output(process, provider=provider)
+            return_code = _stream_provider_exec_output(
+                process,
+                provider=provider,
+                stream_history_path=stream_history,
+            )
         else:
             return_code = cli._stream_exec_process_output(process)
         stop_requested = _consume_last_wait_stop_requested()

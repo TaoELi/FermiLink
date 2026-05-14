@@ -2046,7 +2046,12 @@ async def on_message(message: cl.Message):
                             prefix = ""
                             if step.content and not step.content.endswith("\n"):
                                 prefix = "\n"
-                            step.content = (step.content or "") + prefix + output_text
+                            display_output = chat_helpers._format_muted_auxiliary_text(
+                                output_text
+                            )
+                            step.content = (
+                                (step.content or "") + prefix + display_output
+                            )
                             await step.update()
 
                 elif item_type == "exec_command_end":

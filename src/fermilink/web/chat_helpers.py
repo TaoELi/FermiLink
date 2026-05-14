@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import html
 from typing import Any
+
+COMPACT_AUXILIARY_MAX_LINES = 5
 
 
 _NON_ASSISTANT_EVENT_TYPES = {
@@ -104,6 +107,35 @@ def _extract_command(payload: dict[str, Any]) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _compact_auxiliary_text(
+    text: str,
+    *,
+    max_lines: int = COMPACT_AUXILIARY_MAX_LINES,
+) -> str:
+    """Return a display-only first-lines preview for noisy stream payloads."""
+
+    lines = str(text or "").splitlines()
+    if max_lines <= 0:
+        return ""
+    if len(lines) <= max_lines:
+        return str(text or "")
+    omitted = len(lines) - max_lines
+    return "\n".join(lines[:max_lines]) + f"\n... ({omitted} more lines)"
+
+
+def _format_muted_auxiliary_text(text: str) -> str:
+    """Render compact auxiliary output in muted gray for Chainlit markdown."""
+
+    compact = _compact_auxiliary_text(text)
+    if not compact:
+        return ""
+    escaped = html.escape(compact)
+    return (
+        '<pre style="color:#6b7280;white-space:pre-wrap;">'
+        f"{escaped}</pre>"
+    )
 
 
 def _truncate_history_entry(text: str, *, history_entry_max_chars: int) -> str:

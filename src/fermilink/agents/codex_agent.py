@@ -58,6 +58,9 @@ class CodexAgent(ProviderAgent):
     def supports_direct_terminal_stream(self) -> bool:
         return True
 
+    def uses_json_stream(self) -> bool:
+        return True
+
     def uses_json_output_for_second_guess(self) -> bool:
         return True
 
@@ -67,6 +70,8 @@ class CodexAgent(ProviderAgent):
         *,
         last_message_path: Path,
     ) -> list[str]:
+        if "--json" in command:
+            return command
         command = self.prepare_one_shot_exec_command(command)
         return self.prepare_final_reply_capture_command(
             command,
@@ -75,6 +80,8 @@ class CodexAgent(ProviderAgent):
         )
 
     def prepare_one_shot_exec_command(self, command: list[str]) -> list[str]:
+        if "--json" in command:
+            return command
         return insert_option_before_prompt(command, "--color", "always")
 
     def prepare_final_reply_capture_command(

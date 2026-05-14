@@ -128,6 +128,7 @@ def test_codex_agent_provider_runtime_hooks(tmp_path: Path) -> None:
     agent = CodexAgent()
     last_message_path = tmp_path / "last_message.txt"
 
+    assert agent.uses_json_stream() is True
     assert agent.uses_json_output_for_second_guess() is True
     assert agent.prepare_one_shot_exec_command(["codex", "exec", "hello"]) == [
         "codex",
@@ -136,6 +137,8 @@ def test_codex_agent_provider_runtime_hooks(tmp_path: Path) -> None:
         "always",
         "hello",
     ]
+    json_command = ["codex", "exec", "--json", "hello"]
+    assert agent.prepare_one_shot_exec_command(json_command) == json_command
     assert agent.prepare_final_reply_capture_command(
         ["codex", "exec", "hello"],
         last_message_path=last_message_path,
@@ -152,6 +155,129 @@ def test_codex_agent_provider_runtime_hooks(tmp_path: Path) -> None:
         last_message_path=last_message_path,
         json_output=True,
     ) == ["codex", "exec", "hello"]
+    assert (
+        agent.prepare_shared_turn_command(
+            json_command,
+            last_message_path=last_message_path,
+        )
+        == json_command
+    )
+
+
+def test_codex_agent_render_stream_event_compacts_noisy_output() -> None:
+    agent = CodexAgent()
+
+    user_message = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {"type": "user_message", "content": "Original prompt"},
+        },
+        use_color=False,
+    )
+    assert user_message == "Original prompt"
+
+    reasoning = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "Need inspect files."}],
+            },
+        },
+        use_color=False,
+    )
+    assert reasoning == "[reasoning] Need inspect files."
+
+    assistant_message = agent.render_stream_event(
+        {
+            "item": {"type": "agent_message_delta"},
+            "delta": "I will inspect files.",
+        },
+        use_color=False,
+    )
+    assert assistant_message == "[agent] I will inspect files."
+
+    tool_call = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "function_call",
+                "name": "shell",
+                "arguments": '{"cmd": "sed -n 1,20p app.py"}',
+            },
+        },
+        use_color=False,
+    )
+    assert tool_call == "[shell] sed -n 1,20p app.py"
+
+    completed_command = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "command_execution",
+                "command": "sed -n '1,20p' AGENTS.md",
+            },
+        },
+        use_color=False,
+    )
+    assert completed_command is None
+
+    long_output = "\n".join(f"line {index}" for index in range(12))
+    completed_command_output = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "command_execution",
+                "command": "sed -n '1,20p' AGENTS.md",
+                "stdout": long_output,
+            },
+        },
+        use_color=False,
+    )
+    assert completed_command_output is not None
+    command_lines = completed_command_output.splitlines()
+    assert len(command_lines) == 6
+    assert command_lines[:5] == [f"line {index}" for index in range(5)]
+    assert "7 more lines" in command_lines[-1]
+
+    output = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {"type": "exec_command_output_delta"},
+            "delta": long_output,
+        },
+        use_color=False,
+    )
+    assert output is not None
+    lines = output.splitlines()
+    assert len(lines) == 6
+    assert lines[:5] == [f"line {index}" for index in range(5)]
+    assert "7 more lines" in lines[-1]
+    assert lines == command_lines
+
+    codex_output_delta = agent.render_stream_event(
+        {
+            "type": "exec_command_output_delta",
+            "item": {
+                "type": "command_execution",
+                "command": "sed -n '1,20p' AGENTS.md",
+            },
+            "delta": long_output,
+        },
+        use_color=False,
+    )
+    assert codex_output_delta is not None
+    assert codex_output_delta.splitlines() == lines
+
+    item_output = agent.render_stream_event(
+        {
+            "type": "item.completed",
+            "item": {"type": "tool_result", "content": long_output},
+        },
+        use_color=False,
+    )
+    assert item_output is not None
+    assert item_output.splitlines() == lines
 
 
 def test_non_codex_agents_build_provider_native_commands(tmp_path: Path) -> None:
