@@ -17,6 +17,7 @@ measurements.
   `projects/memory.md`.
 - Proceed each step sequentially, and do post-processing only after the corresponding
   measurement is finished.
+- Do not directly modify skills folder.
 
 ## Windows measurement launch
 
