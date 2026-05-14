@@ -1736,6 +1736,61 @@ def test_run_exec_chat_turn_uses_direct_terminal_stream_and_output_file(
     assert env.get("CODEX_HOME_NORMALIZED") == "1"
 
 
+def test_run_exec_chat_turn_decodes_provider_json_stream_as_utf8(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    captured: dict[str, object] = {}
+    runner_app = SimpleNamespace(
+        _sanitize_env=lambda env: env,
+        _normalize_provider_home=lambda env, _provider: env,
+    )
+    monkeypatch.setattr(cli, "_load_runner_app_module", lambda: runner_app)
+    monkeypatch.setattr(cli, "_should_use_direct_terminal_stream", lambda: False)
+    monkeypatch.setattr(exec_runtime, "_should_pipe_prompt_via_stdin", lambda _p: False)
+
+    event_bytes = (
+        json.dumps(
+            {
+                "item": {"type": "agent_message_delta"},
+                "delta": "utf8 \u20ac output",
+            },
+            ensure_ascii=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+    def fake_popen(cmd, **kwargs):
+        captured["encoding"] = kwargs.get("encoding")
+        captured["errors"] = kwargs.get("errors")
+        encoding = str(kwargs.get("encoding") or "gbk")
+        errors = str(kwargs.get("errors") or "strict")
+        return SimpleNamespace(
+            stdout=io.TextIOWrapper(
+                io.BytesIO(event_bytes),
+                encoding=encoding,
+                errors=errors,
+            ),
+            stderr=io.StringIO(""),
+            wait=lambda: 0,
+        )
+
+    monkeypatch.setattr(cli.subprocess, "Popen", fake_popen)
+
+    result = cli._run_exec_chat_turn(
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox="read-only",
+        provider_bin_override="codex",
+        provider="codex",
+        sandbox_policy="enforce",
+    )
+
+    assert result["assistant_text"] == "utf8 \u20ac output"
+    assert result["return_code"] == 0
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"
+
+
 def test_run_exec_chat_turn_claude_streams_and_captures_assistant_text(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

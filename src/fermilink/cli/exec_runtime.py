@@ -22,6 +22,15 @@ _STREAM_HISTORY_ROOT = Path("projects") / "agent_streams"
 _CODEX_STDIN_NOTICE = "Reading additional input from stdin..."
 _PROMPT_PREVIEW_HEAD_LINES = 20
 _PROMPT_PREVIEW_TAIL_LINES = 10
+_PROVIDER_TEXT_IO_KWARGS = {
+    "text": True,
+    "encoding": "utf-8",
+    "errors": "replace",
+}
+
+
+def _provider_popen_text_kwargs() -> dict[str, object]:
+    return {**_PROVIDER_TEXT_IO_KWARGS, "bufsize": 1}
 
 
 def _stream_history_path(repo_dir: Path, *, provider: str) -> Path | None:
@@ -682,8 +691,7 @@ def _run_exec_chat_turn(
                         ),
                         stdout=cli.subprocess.PIPE,
                         stderr=cli.subprocess.PIPE,
-                        text=True,
-                        bufsize=1,
+                        **_provider_popen_text_kwargs(),
                         env=env,
                     )
                 except FileNotFoundError as exc:
@@ -727,7 +735,7 @@ def _run_exec_chat_turn(
                     }
                     if prompt_stdin is not None:
                         run_kwargs["input"] = prompt_stdin
-                        run_kwargs["text"] = True
+                        run_kwargs.update(_PROVIDER_TEXT_IO_KWARGS)
                     completed = cli.subprocess.run(cmd, **run_kwargs)
                 except FileNotFoundError as exc:
                     env_key = cli.provider_bin_env_key(provider)
@@ -747,8 +755,7 @@ def _run_exec_chat_turn(
                         ),
                         stdout=cli.subprocess.PIPE,
                         stderr=cli.subprocess.PIPE,
-                        text=True,
-                        bufsize=1,
+                        **_provider_popen_text_kwargs(),
                         env=env,
                     )
                 except FileNotFoundError as exc:
@@ -857,7 +864,7 @@ def _run_exec_provider_prompt(
                 }
                 if prompt_stdin is not None:
                     run_kwargs["input"] = prompt_stdin
-                    run_kwargs["text"] = True
+                    run_kwargs.update(_PROVIDER_TEXT_IO_KWARGS)
                 completed = cli.subprocess.run(cmd, **run_kwargs)
             except FileNotFoundError as exc:
                 env_key = cli.provider_bin_env_key(provider)
@@ -891,8 +898,7 @@ def _run_exec_provider_prompt(
                 ),
                 stdout=cli.subprocess.PIPE,
                 stderr=cli.subprocess.PIPE,
-                text=True,
-                bufsize=1,
+                **_provider_popen_text_kwargs(),
                 env=env,
             )
         except FileNotFoundError as exc:
