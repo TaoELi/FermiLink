@@ -1,5 +1,14 @@
 {% extends "!page.html" %}
 
+{% block body -%}
+  {% if pagename != "index" %}
+    <script>
+      document.body.classList.add("mxl-docs");
+    </script>
+  {% endif %}
+  {{ super() }}
+{%- endblock body %}
+
 {% block content %}
   {% if pagename == "index" %}
     <script>
@@ -11,7 +20,7 @@
       <header class="mxl-simple-topbar">
         <a class="mxl-simple-brand" href="{{ pathto('index') }}" aria-label="FermiLink home">
           <img
-            src="{{ pathto('_static/img/mark.svg', 1) }}"
+            src="{{ pathto('_static/img/mark-light.svg', 1) }}"
             alt=""
             loading="eager"
             decoding="async"
@@ -20,12 +29,11 @@
         </a>
 
         <nav class="mxl-simple-nav" aria-label="Documentation links">
-          <a href="{{ pathto('overview') }}">Docs</a>
-          <a href="{{ pathto('quickstart') }}">Quickstart</a>
-          <a href="{{ pathto('scientific_packages') }}">Packages</a>
-          <a href="{{ pathto('architecture') }}">Architecture</a>
           <a href="https://github.com/TaoELi/FermiLink" target="_blank" rel="noopener noreferrer">GitHub</a>
-          <a href="http://project-optimization.fermilink.org/">Project Optimization</a>
+          <a href="{{ pathto('overview') }}">Docs</a>
+          <a href="{{ pathto('scientific_packages') }}">Packages</a>
+          <a href="http://project-optimization.fermilink.org/">Optimization</a>
+          <a class="mxl-simple-nav__cta" href="{{ pathto('quickstart') }}">Get started</a>
         </nav>
       </header>
 
@@ -33,48 +41,54 @@
         <div class="mxl-hero-wrapper">
           {# ── Hero section ── #}
           <section class="mxl-simple-hero">
-            <p class="mxl-simple-kicker">
-              <span class="mxl-kicker-symbol" aria-hidden="true"></span>
-              Autonomous Scientific Computing
-            </p>
-            <h1>
-              Write a <code style="background:rgba(106,214,255,0.15);border-radius:6px;padding:0.1em 0.35em;font-family:var(--mxl-code-font);">goal.md</code>.
-              Let AI handle
-              <span class="mxl-typewriter-wrap">
-                <span class="mxl-typewriter" aria-label="HPC computing, DFT calculations, LAMMPS simulations, code optimization"></span>
-                <span class="mxl-typewriter-cursor" aria-hidden="true"></span>
-              </span>
-            </h1>
+            <h1>The autonomous scientific computing agent</h1>
             <p class="mxl-simple-lead">
-              With a simple markdown file describing your scientific computing goal,
-              <b>FermiLink</b> autonomously performs simulation jobs and analyzes results on your laptop or HPC clusters.
+              Write a <code>goal.md</code>, <b>FermiLink</b> runs it autonomously on your laptop, HPC cluster, or experimental device.
             </p>
-            <div class="mxl-simple-actions">
-              <a class="mxl-simple-btn mxl-simple-btn--primary" href="{{ pathto('quickstart') }}">
-                Get Started
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <path d="M3.5 8h9M9 4.5L12.5 8 9 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </a>
-              <a class="mxl-simple-btn" href="{{ pathto('overview') }}">Browse Docs</a>
-              <a class="mxl-simple-btn" href="{{ pathto('scientific_packages') }}">150+ Packages</a>
+
+            <div class="mxl-install-block" aria-label="Install FermiLink">
+              <div class="mxl-install-tabs" role="tablist" aria-label="Install options">
+                <button type="button" role="tab" aria-selected="true">pip</button>
+              </div>
+              <div class="mxl-install-panel">
+                <button
+                  type="button"
+                  class="mxl-install-command mxl-install-copy"
+                  data-copy="pip install fermilink"
+                  aria-label="Copy install command"
+                >
+                  <code><span class="mxl-install-prompt" aria-hidden="true">$</span> pip install <span class="mxl-install-highlight">fermilink</span></code>
+                  <span class="mxl-install-copy-label" aria-hidden="true">Copy</span>
+                </button>
+              </div>
             </div>
           </section>
 
-          {# ── Capability + demo: Autonomous Simulations ── #}
-          <section class="mxl-pair">
-            <div class="mxl-feature-card mxl-pair__card">
-              <div class="mxl-feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          {# ── Capability: Package Knowledge Base ── #}
+          <section class="mxl-cap">
+            <div class="mxl-cap__head">
+              <h2 class="mxl-cap__title">
+                <a href="{{ pathto('scientific_packages') }}" class="mxl-cap__link">Knowledge Base Manager</a>
+                <span class="mxl-cap__badge">stable</span>
+              </h2>
+              <p class="mxl-cap__desc"><b>FermiLink</b> provides an easy solution to manage package knowledge and skills, then leaves you free to work interactively with any AI agent.</p>
+              <div class="mxl-cap__cmds" aria-label="Package management commands">
+                <code>fermilink install &lt;pkg-id&gt;</code>
+                <code>fermilink init &lt;pkg-id&gt;</code>
               </div>
-              <h3><a href="{{ pathto('introduction') }}" class="mxl-pair__card-link">Autonomous Simulations</a> <span style="font-size:0.72rem;opacity:0.7;font-weight:400;margin-left:0.4rem;">stable</span></h3>
-              <p>Describe a simulation in <code>goal.md</code>. <b>FermiLink</b> picks the right packages, generates input files, submits jobs, monitors progress, and analyzes the data, even across multi-day HPC campaigns.</p>
-              <p class="mxl-pair__card-cmd"><code style="color:var(--mxl-simple-accent);font-family:var(--mxl-code-font);font-size:0.88rem;">fermilink loop goal.md</code></p>
-              <p class="mxl-pair__card-caption">
-                See the <a href="{{ pathto('quickstart') }}" style="color:var(--mxl-simple-accent);text-decoration:none;font-weight:600;">quickstart</a> for details on writing your first <code>goal.md</code>.
-              </p>
             </div>
-            <div class="mxl-pair__demo">
+          </section>
+
+          {# ── Capability: Autonomous Simulations ── #}
+          <section class="mxl-cap">
+            <div class="mxl-cap__head">
+              <h2 class="mxl-cap__title">
+                <a href="{{ pathto('introduction') }}" class="mxl-cap__link">Autonomous Simulations</a>
+                <span class="mxl-cap__badge">stable</span>
+              </h2>
+              <p class="mxl-cap__desc">Describe a <b>simulation goal</b>, <b>FermiLink</b> picks the right package and then performs the simulation across multi-day HPC campaigns.</p>
+            </div>
+            <div class="mxl-cap__demo">
               {# ── Quickstart cartoon: three commands ── #}
               <section class="po-cartoon po-cartoon--quickstart" aria-label="Quickstart in three commands">
                 <div class="po-term" role="presentation">
@@ -91,7 +105,6 @@
                         <span class="po-term-prompt">$</span>
                         <span class="po-qs-cmd"></span><span class="po-term-cursor po-qs-cursor" aria-hidden="true"></span>
                       </div>
-                      <div class="po-qs-out"></div>
                     </div>
                     <div class="po-qs-step">
                       <div class="po-term-line">
@@ -99,7 +112,6 @@
                         <span class="po-term-prompt">$</span>
                         <span class="po-qs-cmd"></span><span class="po-term-cursor po-qs-cursor" aria-hidden="true"></span>
                       </div>
-                      <div class="po-qs-out"></div>
                     </div>
                     <div class="po-qs-step">
                       <div class="po-term-line">
@@ -107,7 +119,6 @@
                         <span class="po-term-prompt">$</span>
                         <span class="po-qs-cmd"></span><span class="po-term-cursor po-qs-cursor" aria-hidden="true"></span>
                       </div>
-                      <div class="po-qs-out"></div>
                     </div>
                   </div>
                 </div>
@@ -115,20 +126,16 @@
             </div>
           </section>
 
-          {# ── Capability + demo: Code Optimization (reversed: cartoon-left/card-right) ── #}
-          <section class="mxl-pair mxl-pair--reverse">
-            <div class="mxl-feature-card mxl-pair__card">
-              <div class="mxl-feature-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              </div>
-              <h3><a href="{{ pathto('optimize') }}" class="mxl-pair__card-link">Code Optimization</a> <span style="font-size:0.72rem;opacity:0.7;font-weight:400;margin-left:0.4rem;">beta</span></h3>
-              <p>Apply <b>FermiLink</b> to your existing scientific code with a <b>performance goal</b>. It iteratively modifies hot paths and runs deterministic benchmarks.</p>
-              <p class="mxl-pair__card-cmd"><code style="color:var(--mxl-simple-accent);font-family:var(--mxl-code-font);font-size:0.88rem;">fermilink optimize goal.md</code></p>
-              <p class="mxl-pair__card-caption">
-                Write a <code>goal.md</code>. <b>FermiLink</b> provides a new angle on scientific code optimization.
-              </p>
+          {# ── Capability: Code Optimization ── #}
+          <section class="mxl-cap">
+            <div class="mxl-cap__head">
+              <h2 class="mxl-cap__title">
+                <a href="{{ pathto('optimize') }}" class="mxl-cap__link">Code Optimization</a>
+                <span class="mxl-cap__badge">beta</span>
+              </h2>
+              <p class="mxl-cap__desc">Apply <b>FermiLink</b> to your existing scientific code with a <b>performance goal</b>. It iteratively modifies hot paths and runs deterministic benchmarks.</p>
             </div>
-            <div class="mxl-pair__demo">
+            <div class="mxl-cap__demo">
               {# ── Animated terminal cartoon (mirrors project-optimization hero) ── #}
               <section class="po-cartoon" aria-label="Animated optimize run">
                 <div class="po-term" role="presentation">
@@ -225,7 +232,7 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                 </div>
                 <h3>Command line</h3>
-                <p>Headless autonomy for scripting and HPC</p>
+                <p>Most powerful way for advanced users</p>
               </a>
               <a href="{{ pathto('usage_web_ui') }}" class="mxl-feature-card" style="text-align:center;text-decoration:none;color:inherit;cursor:pointer;">
                 <div class="mxl-feature-icon" style="margin:0 auto 0.6rem;">
@@ -239,7 +246,7 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
                 </div>
                 <h3>Telegram bot</h3>
-                <p>Monitor and steer from your phone</p>
+                <p>Monitor from your phone</p>
               </a>
             </div>
           </section>
@@ -248,14 +255,6 @@
           <footer class="mxl-landing-foot">
             <div class="mxl-landing-foot__inner">
               <span class="mxl-landing-foot__brand">FermiLink</span>
-              <nav class="mxl-landing-foot__links" aria-label="Footer links">
-                <a href="{{ pathto('overview') }}">Docs</a>
-                <a href="{{ pathto('quickstart') }}">Quickstart</a>
-                <a href="{{ pathto('contributing') }}">Contributing</a>
-                <a href="{{ pathto('privacy') }}">Privacy</a>
-                <a href="{{ pathto('terms') }}">Terms</a>
-                <a href="https://github.com/TaoELi/FermiLink" target="_blank" rel="noopener noreferrer">GitHub</a>
-              </nav>
               <span class="mxl-landing-foot__copyright">Copyright &#169; {{ copyright }}</span>
             </div>
           </footer>
@@ -265,162 +264,62 @@
 
     <script>
     (function () {
-      // Typewriter animation
-      var words = ["HPC computing.", "DFT calculations.", "LAMMPS simulations.", "code optimization."];
-      var el = document.querySelector(".mxl-typewriter");
-      if (!el) return;
-      var prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (prefersReduced) {
-        el.textContent = words[0];
-        return;
-      }
-      var wordIdx = 0;
-      var charIdx = 0;
-      var deleting = false;
-      var pauseMs = 2000;
-      var typeMs = 80;
-      var deleteMs = 40;
-
-      function tick() {
-        var word = words[wordIdx];
-        if (!deleting) {
-          charIdx++;
-          el.textContent = word.slice(0, charIdx);
-          if (charIdx === word.length) {
-            deleting = true;
-            setTimeout(tick, pauseMs);
-            return;
-          }
-          setTimeout(tick, typeMs);
-        } else {
-          charIdx--;
-          el.textContent = word.slice(0, charIdx);
-          if (charIdx === 0) {
-            deleting = false;
-            wordIdx = (wordIdx + 1) % words.length;
-            setTimeout(tick, 300);
-            return;
-          }
-          setTimeout(tick, deleteMs);
-        }
-      }
-      tick();
-
-      // Symbol cycling for kicker
-      var symbols = ["\u25C8", "\u25D3", "\u273D", "\u25D0", "\u25D1", "\u2726"];
-      var symEl = document.querySelector(".mxl-kicker-symbol");
-      var symIdx = 0;
-      if (symEl) {
-        symEl.textContent = symbols[0];
-        if (!prefersReduced) {
-          setInterval(function () {
-            symIdx = (symIdx + 1) % symbols.length;
-            symEl.textContent = symbols[symIdx];
-          }, 1200);
-        }
+      // Copy-to-clipboard for the hero install command.
+      var copyBtn = document.querySelector(".mxl-install-copy");
+      if (copyBtn && navigator.clipboard) {
+        copyBtn.addEventListener("click", function () {
+          var text = copyBtn.getAttribute("data-copy") || "";
+          navigator.clipboard.writeText(text).then(function () {
+            var label = copyBtn.querySelector(".mxl-install-copy-label");
+            if (!label) return;
+            var prev = label.textContent;
+            label.textContent = "Copied";
+            setTimeout(function () { label.textContent = prev; }, 1400);
+          }).catch(function () {});
+        });
       }
 
-      function wait(ms) {
-        return new Promise(function (resolve) { setTimeout(resolve, ms); });
-      }
-
-      // Quickstart cartoon cycle: type three commands in sequence with brief outputs.
+      // Render the landing-page terminal examples as static snapshots.
       var qsSteps = document.querySelectorAll(".po-qs-step");
       var qsCmds = document.querySelectorAll(".po-qs-cmd");
-      var qsOuts = document.querySelectorAll(".po-qs-out");
-      if (qsSteps.length === 3 && qsCmds.length === 3 && qsOuts.length === 3) {
+      if (qsSteps.length === 3 && qsCmds.length === 3) {
         var QS_STEPS = [
-          { cmd: "pip install fermilink",  out: "\u2192 Successfully installed fermilink" },
-          { cmd: "fermilink agent codex",  out: "\u2192 Active agent: codex" },
-          { cmd: "fermilink loop goal.md", out: "\u2192 Looping on goal.md \u2026" }
+          { cmd: "fermilink loop goal.md" },
+          { cmd: "fermilink reproduce goal.md" },
+          { cmd: "fermilink research goal.md" }
         ];
 
-        if (prefersReduced) {
-          qsSteps.forEach(function (step, i) {
-            step.classList.add("po-qs-step--visible");
-            qsCmds[i].textContent = QS_STEPS[i].cmd;
-            qsOuts[i].textContent = QS_STEPS[i].out;
-          });
-        } else {
-          (async function qsLoop() {
-            await wait(400);
-            while (true) {
-              qsSteps.forEach(function (step, i) {
-                step.classList.remove("po-qs-step--visible", "po-qs-step--typing");
-                qsCmds[i].textContent = "";
-                qsOuts[i].textContent = "";
-              });
-              await wait(550);
-
-              for (var s = 0; s < QS_STEPS.length; s++) {
-                var step = qsSteps[s];
-                step.classList.add("po-qs-step--visible", "po-qs-step--typing");
-                var cmd = QS_STEPS[s].cmd;
-                for (var c = 1; c <= cmd.length; c++) {
-                  qsCmds[s].textContent = cmd.slice(0, c);
-                  await wait(60);
-                }
-                await wait(380);
-                step.classList.remove("po-qs-step--typing");
-                qsOuts[s].textContent = QS_STEPS[s].out;
-                await wait(720);
-              }
-
-              await wait(3500);
-            }
-          })();
-        }
+        qsSteps.forEach(function (step, i) {
+          step.classList.add("po-qs-step--visible");
+          qsCmds[i].textContent = QS_STEPS[i].cmd;
+        });
       }
 
-      // Terminal cartoon cycle: type command -> show "..." -> draw chart -> hold -> restart.
       var cmdEl = document.querySelector(".po-term-cmd");
       var dotsEl = document.querySelector(".po-term-dots");
       var chartEl = document.querySelector(".po-term-chart");
       if (!cmdEl || !dotsEl || !chartEl) return;
 
-      var COMMAND = "fermilink optimize goal.md";
-
-      if (prefersReduced) {
-        cmdEl.textContent = COMMAND;
-        dotsEl.textContent = "...";
-        chartEl.classList.add("po-term-chart--visible");
-        return;
-      }
-
-      async function runCycle() {
-        cmdEl.textContent = "";
-        dotsEl.textContent = "\u00A0";
-        chartEl.classList.remove("po-term-chart--visible");
-        await wait(550);
-
-        for (var i = 1; i <= COMMAND.length; i++) {
-          cmdEl.textContent = COMMAND.slice(0, i);
-          await wait(72);
-        }
-        await wait(620);
-
-        for (var d = 1; d <= 3; d++) {
-          dotsEl.textContent = ".".repeat(d);
-          await wait(430);
-        }
-        await wait(420);
-
-        chartEl.classList.add("po-term-chart--visible");
-        await wait(5200);
-      }
-
-      async function loopCartoon() {
-        await wait(400);
-        while (true) {
-          await runCycle();
-          await wait(900);
-        }
-      }
-      loopCartoon();
+      cmdEl.textContent = "fermilink optimize goal.md";
+      dotsEl.textContent = "...";
+      chartEl.classList.add("po-term-chart--visible");
     })();
     </script>
   {% else %}
-    {{ super() }}
+    <nav class="mxl-doc-topbar" aria-label="Documentation">
+      <a class="mxl-doc-topbar__brand" href="{{ pathto('index') }}" aria-label="FermiLink home">
+        <img src="{{ pathto('_static/img/mark-light.svg', 1) }}" alt="" loading="eager" decoding="async" />
+        <span>FermiLink</span>
+      </a>
+      <div class="mxl-doc-topbar__links">
+        <a href="{{ pathto('overview') }}">Docs</a>
+        <a href="{{ pathto('quickstart') }}">Quickstart</a>
+        <a href="{{ pathto('scientific_packages') }}">Packages</a>
+        <a href="http://project-optimization.fermilink.org/">Optimization</a>
+        <a href="https://github.com/TaoELi/FermiLink" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </nav>
+    {{ body }}
   {% endif %}
 {% endblock %}
 

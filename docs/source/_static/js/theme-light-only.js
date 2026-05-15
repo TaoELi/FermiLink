@@ -26,13 +26,13 @@
 
   function init() {
     const body = document.body;
-    const forceDarkLanding = !!(
+    const forceLightLanding = !!(
       body && body.classList.contains("mxl-landing-simple")
     );
 
-    if (forceDarkLanding) {
-      // Keep the index landing in dark mode without changing global preference.
-      applyTheme("dark", { persist: false });
+    if (forceLightLanding) {
+      // Keep the index landing in the bright documentation style without changing global preference.
+      applyTheme("light", { persist: false });
       return;
     }
 

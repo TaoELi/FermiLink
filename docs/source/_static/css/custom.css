@@ -1464,6 +1464,7 @@ body.mxl-landing .content-icon-container,
 body.mxl-landing .back-to-top,
 body.mxl-landing .related-pages,
 body.mxl-landing .footer,
+body.mxl-landing .bottom-of-page,
 body.mxl-landing .theme-toggle-container,
 body.mxl-landing .skip-to-content {
   display: none !important;
@@ -1512,21 +1513,23 @@ body.mxl-landing h1.mxl-hero__title {
 
 /* --- Simplified landing page (index only) --- */
 body.mxl-landing.mxl-landing-simple {
-  --mxl-simple-bg: #090f1d;
-  --mxl-simple-card: rgba(14, 24, 40, 0.72);
-  --mxl-simple-border: rgba(140, 208, 255, 0.18);
-  --mxl-simple-text: #e9f4ff;
-  --mxl-simple-muted: #bdd4ea;
-  --mxl-simple-accent: #6ad6ff;
-  --mxl-simple-accent-strong: #23b2f1;
-  --mxl-simple-card-bg: linear-gradient(160deg, rgba(14, 28, 48, 0.72), rgba(10, 20, 36, 0.55) 56%, rgba(14, 32, 56, 0.48));
-  --mxl-simple-card-border: rgba(140, 208, 255, 0.12);
-  background:
-    radial-gradient(ellipse 80% 50% at 16% 6%, rgba(35, 178, 241, 0.18), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 84% 10%, rgba(138, 197, 255, 0.14), transparent 52%),
-    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(20, 80, 160, 0.08), transparent 60%),
-    linear-gradient(180deg, #050a16 0%, #0b1324 54%, #0f1a2f 100%);
+  --mxl-simple-bg: #fffdfd;
+  --mxl-simple-bg-weak: #f7f6f4;
+  --mxl-simple-bg-weak-hover: #efeeeb;
+  --mxl-simple-card: #f7f6f4;
+  --mxl-simple-border: rgba(33, 30, 30, 0.12);
+  --mxl-simple-border-strong: #dedbd8;
+  --mxl-simple-text: #211e1e;
+  --mxl-simple-muted: #656363;
+  --mxl-simple-faint: #8e8b8b;
+  --mxl-simple-accent: #211e1e;
+  --mxl-simple-accent-strong: #111010;
+  --mxl-simple-interactive: #f5f3c7;
+  --mxl-simple-card-bg: #f7f6f4;
+  --mxl-simple-card-border: rgba(33, 30, 30, 0.12);
+  background: var(--mxl-simple-bg);
   color: var(--mxl-simple-text);
+  font-family: var(--mxl-code-font);
 }
 
 body.mxl-landing.mxl-landing-simple .main > .content {
@@ -1542,41 +1545,43 @@ body.mxl-landing.mxl-landing-simple .main > .content > .article-container > arti
 }
 
 .mxl-simple-shell {
-  width: min(1100px, 94vw);
+  width: min(67.5rem, 100%);
   min-height: 100vh;
-  padding: 1.4rem 0 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
+  border-left: 1px solid var(--mxl-simple-border);
+  border-right: 1px solid var(--mxl-simple-border);
+  background: var(--mxl-simple-bg);
 }
 
 .mxl-simple-topbar {
   width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.2rem;
-  padding: 0.6rem 0 0.8rem;
+  gap: 1.5rem;
+  height: 80px;
+  min-height: 80px;
+  padding: 24px 5rem;
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(11, 19, 36, 0.55);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(140, 208, 255, 0.06);
-  margin: 0 calc(-3vw);
-  padding-left: 3vw;
-  padding-right: 3vw;
+  background: var(--mxl-simple-bg);
+  border-bottom: 1px solid var(--mxl-simple-border);
 }
 
 .mxl-simple-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.65rem;
   text-decoration: none;
   font-weight: 700;
   color: var(--mxl-simple-text);
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
+  font-size: 1rem;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .mxl-simple-brand:visited {
@@ -1584,16 +1589,14 @@ body.mxl-landing.mxl-landing-simple .main > .content > .article-container > arti
 }
 
 .mxl-simple-brand:hover {
-  color: #fff;
+  color: var(--mxl-simple-text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .mxl-simple-brand img {
-  width: 2.15rem;
-  height: 2.15rem;
-  border-radius: 0.7rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 0.15rem;
+  width: 2.1rem;
+  height: 2.1rem;
 }
 
 .mxl-simple-nav {
@@ -1601,18 +1604,18 @@ body.mxl-landing.mxl-landing-simple .main > .content > .article-container > arti
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.2rem;
+  gap: 2rem;
 }
 
 .mxl-simple-nav a {
   text-decoration: none;
   color: var(--mxl-simple-muted);
   font-weight: 500;
-  padding: 0.35rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
   font-size: 0.92rem;
-  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
 .mxl-simple-nav a:visited {
@@ -1620,9 +1623,30 @@ body.mxl-landing.mxl-landing-simple .main > .content > .article-container > arti
 }
 
 .mxl-simple-nav a:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--mxl-simple-text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.mxl-simple-nav .mxl-simple-nav__cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 4px;
+  background: var(--mxl-simple-text);
+  color: var(--mxl-simple-bg);
+  text-decoration: none;
+}
+
+.mxl-simple-nav .mxl-simple-nav__cta:visited {
+  color: var(--mxl-simple-bg);
+}
+
+.mxl-simple-nav .mxl-simple-nav__cta:hover {
+  background: #353131;
+  color: var(--mxl-simple-bg);
+  text-decoration: none;
 }
 
 .mxl-simple-main {
@@ -1642,10 +1666,14 @@ body.mxl-landing.mxl-landing-simple .main > .content > .article-container > arti
 
 /* ── Hero ── */
 .mxl-simple-hero {
-  width: min(840px, 100%);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   text-align: center;
-  padding: clamp(4rem, 10vw, 7rem) clamp(1.2rem, 4vw, 3.6rem) clamp(2.4rem, 5vw, 3.6rem);
+  padding: 6rem 5rem 4.5rem;
+  border-bottom: 1px solid var(--mxl-simple-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .mxl-simple-kicker {
@@ -1669,12 +1697,14 @@ body.mxl-landing.mxl-landing-simple .main > .content > .article-container > arti
 }
 
 body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 4.8vw, 3.6rem);
-  line-height: 1.12;
-  color: #fff;
+  margin: 0 auto;
+  max-width: 22ch;
+  font-size: clamp(2.05rem, 1.2rem + 2.6vw, 2.85rem);
+  line-height: 1.16;
+  color: var(--mxl-simple-text);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  text-align: center;
 }
 
 .mxl-typewriter-wrap {
@@ -1701,11 +1731,12 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
 }
 
 .mxl-simple-lead {
-  margin: 1.4rem auto 0;
-  max-width: 58ch;
+  margin: 1.1rem auto 0;
+  max-width: 52ch;
   color: var(--mxl-simple-muted);
-  font-size: clamp(1.02rem, 1.8vw, 1.15rem);
-  line-height: 1.6;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  text-align: center;
 }
 
 .mxl-simple-actions {
@@ -1724,81 +1755,105 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   gap: 0.4rem;
   min-width: 9.2rem;
   padding: 0.78rem 1.4rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  border: 1px solid var(--mxl-simple-border);
   text-decoration: none;
-  color: #fff;
+  color: var(--mxl-simple-text);
   font-weight: 600;
   font-size: 0.95rem;
-  background: rgba(255, 255, 255, 0.04);
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  background: var(--mxl-simple-bg-weak);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .mxl-simple-btn:visited {
-  color: #fff;
+  color: var(--mxl-simple-text);
 }
 
 .mxl-simple-btn:hover {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 24px -12px rgba(106, 214, 255, 0.15);
+  background: var(--mxl-simple-bg-weak-hover);
+  border-color: var(--mxl-simple-border-strong);
 }
 
 .mxl-simple-btn--primary {
-  color: #06101e;
+  color: var(--mxl-simple-bg);
   font-weight: 700;
-  background: linear-gradient(135deg, #6ad6ff 0%, #23b2f1 100%);
+  background: var(--mxl-simple-text);
   border-color: transparent;
-  box-shadow: 0 4px 18px -6px rgba(35, 178, 241, 0.4);
+  box-shadow: none;
 }
 
 .mxl-simple-btn--primary:visited {
-  color: #06101e;
+  color: var(--mxl-simple-bg);
 }
 
 .mxl-simple-btn--primary:hover {
-  background: linear-gradient(135deg, #88e2ff, #42c4f7);
+  background: #353131;
   border-color: transparent;
-  box-shadow: 0 8px 28px -8px rgba(35, 178, 241, 0.5);
-}
-
-.mxl-simple-btn--primary svg {
-  transition: transform 0.2s ease;
-}
-
-.mxl-simple-btn--primary:hover svg {
-  transform: translateX(3px);
+  box-shadow: none;
 }
 
 /* ── Install command block ── */
 .mxl-install-block {
-  margin: 0 auto;
-  width: min(480px, 100%);
-  padding: 2.4rem 0 0;
-  text-align: center;
+  margin: 2.2rem auto 0;
+  width: 100%;
+  max-width: 27rem;
+  text-align: left;
+  overflow: hidden;
 }
 
-.mxl-install-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(189, 212, 234, 0.55);
-  margin-bottom: 0.6rem;
+.mxl-install-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--mxl-simple-border);
+  border-bottom: 0;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background: var(--mxl-simple-bg-weak);
+}
+
+.mxl-install-tabs button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 1rem 0;
+  cursor: default;
+  color: var(--mxl-simple-muted);
+  line-height: 1;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+}
+
+.mxl-install-tabs button[aria-selected="true"] {
+  color: var(--mxl-simple-text);
+  border-bottom-color: var(--mxl-simple-text);
+}
+
+.mxl-install-panel {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding: 1rem;
 }
 
 .mxl-install-command {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 0.65rem 0.65rem 1.2rem;
-  border-radius: 14px;
-  background: rgba(14, 24, 40, 0.6);
-  border: 1px solid rgba(140, 208, 255, 0.14);
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border-radius: 4px;
+  background: transparent;
+  border: 0;
   font-family: var(--mxl-code-font);
-  font-size: 0.92rem;
-  color: var(--mxl-simple-accent);
+  font-size: 1rem;
+  color: var(--mxl-simple-muted);
+  cursor: pointer;
+  text-align: left;
 }
 
 .mxl-install-command code {
@@ -1814,23 +1869,65 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   text-overflow: ellipsis;
 }
 
-.mxl-install-copy {
-  padding: 0.35rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--mxl-simple-muted);
-  font-weight: 600;
-  font-size: 0.78rem;
-  cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
-  white-space: nowrap;
-  font-family: var(--mxl-body-font);
+.mxl-install-command:hover {
+  background: var(--mxl-simple-bg-weak-hover);
 }
 
-.mxl-install-copy:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+.mxl-install-copy-label {
+  flex: 0 0 auto;
+  color: var(--mxl-simple-faint);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.mxl-install-prompt {
+  color: var(--mxl-simple-faint);
+  user-select: none;
+}
+
+.mxl-install-highlight {
+  color: var(--mxl-simple-text);
+  font-weight: 500;
+}
+
+/* ── Hero feature checklist (opencode-style calm list) ── */
+.mxl-hero-checklist {
+  list-style: none;
+  margin: 2.4rem auto 0;
+  padding: 0;
+  width: 100%;
+  max-width: 34rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--mxl-simple-muted);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.mxl-hero-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.mxl-hero-checklist b {
+  color: var(--mxl-simple-text);
+  font-weight: 600;
+}
+
+.mxl-hero-checklist__mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  margin-top: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--mxl-simple-faint);
 }
 
 /* ── Feature grid ── */
@@ -1839,24 +1936,24 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
-  margin-top: clamp(3.6rem, 7vw, 5.6rem);
-  border-radius: 24px;
+  margin-top: 0;
+  border-radius: 0;
   overflow: hidden;
-  background: rgba(140, 208, 255, 0.08);
+  background: var(--mxl-simple-border);
   border: 1px solid var(--mxl-simple-card-border);
 }
 
 .mxl-feature-card {
   padding: 1.8rem 1.6rem;
-  background: rgba(8, 16, 30, 0.85);
-  transition: background 0.25s ease;
+  background: var(--mxl-simple-bg);
+  transition: background 0.15s ease;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
 .mxl-feature-card:hover {
-  background: rgba(14, 28, 48, 0.92);
+  background: var(--mxl-simple-bg-weak);
 }
 
 .mxl-feature-icon {
@@ -1865,9 +1962,9 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  background: rgba(106, 214, 255, 0.1);
-  border: 1px solid rgba(106, 214, 255, 0.18);
+  border-radius: 6px;
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
   color: var(--mxl-simple-accent);
   margin-bottom: 0.4rem;
 }
@@ -1881,8 +1978,8 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   margin: 0;
   font-size: 1.02rem;
   font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.01em;
+  color: var(--mxl-simple-text);
+  letter-spacing: 0;
 }
 
 .mxl-feature-card p {
@@ -1892,124 +1989,170 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   color: var(--mxl-simple-muted);
 }
 
-/* ── Capability + demo pair rows ── */
-.mxl-pair {
+/* ── Capability sections (centered, stacked) ── */
+.mxl-cap {
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
-  gap: clamp(1.4rem, 3.2vw, 2.4rem);
-  align-items: stretch;
-  margin-top: clamp(2.6rem, 6vw, 4.4rem);
-}
-
-/* Zig-zag: row 2 swaps visual order while keeping card first in DOM. */
-.mxl-pair--reverse > .mxl-pair__card { order: 2; }
-.mxl-pair--reverse > .mxl-pair__demo { order: 1; }
-
-.mxl-pair__card {
-  position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(140, 208, 255, 0.14);
-  border-radius: 18px;
-  padding: clamp(1.8rem, 3.2vw, 2.4rem);
-  gap: 0.85rem;
-  background: rgba(8, 16, 30, 0.85);
-  transition: background 0.25s ease, border-color 0.25s ease;
+  align-items: center;
+  text-align: center;
+  padding: 4.5rem 5rem;
+  border-bottom: 1px solid var(--mxl-simple-border);
 }
 
-/* The h3 link is the card's primary anchor; its ::before extends the click
-   target to fill the entire card so the whole card stays clickable. */
-.mxl-pair__card-link {
+.mxl-cap__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 52ch;
+}
+
+.mxl-cap .mxl-feature-icon {
+  margin: 0 0 0.3rem;
+}
+
+.mxl-cap__title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--mxl-simple-text);
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mxl-cap__link {
   color: inherit;
   text-decoration: none;
 }
 
-.mxl-pair__card-link::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border-radius: inherit;
+.mxl-cap__link:visited {
+  color: inherit;
 }
 
-/* Inline links inside the caption sit above the overlay so they remain
-   independently clickable (e.g., the quickstart-guide link). */
-.mxl-pair__card-caption a {
-  position: relative;
-  z-index: 2;
+.mxl-cap__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
-/* Snippet + caption form a "footer" group anchored to the bottom of a
-   stretched card; description floats at the top with leftover height between. */
-.mxl-pair__card-cmd {
-  margin-top: auto;
-  padding-top: 0.4rem;
+.mxl-cap__badge {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mxl-simple-faint);
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 999px;
+  padding: 0.16rem 0.5rem;
 }
 
-.mxl-pair__card-caption {
-  margin: 0.55rem 0 0;
-  font-size: 0.82rem;
-  line-height: 1.55;
+.mxl-cap__desc {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.65;
   color: var(--mxl-simple-muted);
-  opacity: 0.85;
 }
 
-.mxl-pair__card-caption code {
-  background: rgba(106, 214, 255, 0.12);
-  border: 1px solid rgba(106, 214, 255, 0.18);
+.mxl-cap__desc code,
+.mxl-cap__caption code {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
   border-radius: 5px;
   padding: 0.05em 0.32em;
   color: var(--mxl-simple-accent);
   font-family: var(--mxl-code-font);
-  font-size: 0.92em;
+  font-size: 0.9em;
 }
 
-.mxl-pair__card:hover {
-  background: rgba(14, 28, 48, 0.92);
-  border-color: rgba(106, 214, 255, 0.28);
+.mxl-cap__cmd {
+  margin: 0.4rem 0 0;
 }
 
-.mxl-pair__demo {
-  width: 100%;
-  min-width: 0;
+.mxl-cap__cmds {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 0.55rem;
+  margin: 0.45rem 0 0;
 }
 
-.mxl-pair__demo .po-cartoon {
+.mxl-cap__cmd code,
+.mxl-cap__cmds code {
+  color: var(--mxl-simple-accent);
+  font-family: var(--mxl-code-font);
+  font-size: 0.9rem;
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  padding: 0.32rem 0.62rem;
+}
+
+.mxl-cap__demo {
+  width: 100%;
+  max-width: 38rem;
+  margin: 2.4rem auto 0;
+}
+
+.mxl-cap__demo--wide {
+  max-width: 50rem;
+}
+
+.mxl-cap__demo .po-cartoon {
   width: 100%;
   max-width: none;
   padding: 0;
   margin: 0;
 }
 
-@media (max-width: 860px) {
-  .mxl-pair {
-    grid-template-columns: 1fr;
-    gap: 1.4rem;
-  }
-  /* On a single-column stack, always show card → cartoon regardless of row. */
-  .mxl-pair--reverse > .mxl-pair__card,
-  .mxl-pair--reverse > .mxl-pair__demo {
-    order: 0;
-  }
+.mxl-cap__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  background: var(--mxl-simple-bg-weak);
+}
+
+.mxl-cap__caption {
+  margin: 1.6rem auto 0;
+  max-width: 48ch;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--mxl-simple-muted);
+}
+
+.mxl-cap__caption a {
+  color: var(--mxl-simple-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.mxl-cap__caption a:visited {
+  color: var(--mxl-simple-accent);
+}
+
+.mxl-cap__caption a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ── How it works ── */
 .mxl-how-section {
   width: 100%;
-  margin-top: clamp(3.6rem, 7vw, 5.6rem);
+  margin-top: 0;
+  padding: 4rem 5rem;
   text-align: center;
+  border-bottom: 1px solid var(--mxl-simple-border);
 }
 
 .mxl-section-title {
-  font-size: clamp(1.4rem, 2.5vw, 1.8rem);
+  font-size: 1rem;
   font-weight: 700;
-  color: #fff;
-  margin: 0 0 2.4rem;
-  letter-spacing: -0.02em;
+  color: var(--mxl-simple-text);
+  margin: 0 0 1.5rem;
+  letter-spacing: 0;
 }
 
 .mxl-how-steps {
@@ -2037,15 +2180,15 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   font-weight: 800;
   font-size: 1rem;
   color: var(--mxl-simple-accent);
-  background: rgba(106, 214, 255, 0.1);
-  border: 1px solid rgba(106, 214, 255, 0.22);
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
 }
 
 .mxl-how-step h3 {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--mxl-simple-text);
 }
 
 .mxl-how-step p {
@@ -2060,7 +2203,7 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   align-items: center;
   justify-content: center;
   padding-top: 2.2rem;
-  color: rgba(140, 208, 255, 0.3);
+  color: var(--mxl-simple-faint);
 }
 
 .mxl-how-connector svg {
@@ -2071,9 +2214,9 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
 /* ── Landing footer ── */
 .mxl-landing-foot {
   width: 100%;
-  margin-top: clamp(3.6rem, 7vw, 5.6rem);
-  padding: 2rem 0;
-  border-top: 1px solid rgba(140, 208, 255, 0.08);
+  margin-top: 0;
+  padding: 2rem 5rem;
+  border-top: 0;
 }
 
 .mxl-landing-foot__inner {
@@ -2087,54 +2230,51 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
 .mxl-landing-foot__brand {
   font-weight: 700;
   font-size: 0.9rem;
-  color: rgba(189, 212, 234, 0.5);
-}
-
-.mxl-landing-foot__links {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.mxl-landing-foot__links a {
-  text-decoration: none;
-  color: rgba(189, 212, 234, 0.5);
-  font-weight: 500;
-  font-size: 0.85rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 8px;
-  transition: color 0.18s ease, background 0.18s ease;
-}
-
-.mxl-landing-foot__links a:visited {
-  color: rgba(189, 212, 234, 0.5);
-}
-
-.mxl-landing-foot__links a:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--mxl-simple-faint);
 }
 
 .mxl-landing-foot__copyright {
   font-size: 0.82rem;
-  color: rgba(189, 212, 234, 0.5);
+  color: var(--mxl-simple-faint);
 }
 
 /* ── Responsive ── */
+@media (max-width: 65rem) {
+  .mxl-simple-shell {
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .mxl-simple-topbar,
+  .mxl-simple-hero,
+  .mxl-cap,
+  .mxl-how-section,
+  .mxl-landing-foot {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
 @media (max-width: 820px) {
   .mxl-simple-topbar {
-    flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 80px;
   }
 
   .mxl-simple-nav {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
   }
 
   .mxl-feature-grid {
     grid-template-columns: repeat(2, 1fr);
-    border-radius: 20px;
+    border-radius: 0;
   }
 
   .mxl-how-steps {
@@ -2151,21 +2291,25 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
 @media (max-width: 540px) {
   .mxl-feature-grid {
     grid-template-columns: 1fr;
-    border-radius: 18px;
+    border-radius: 0;
   }
 
-  .mxl-simple-hero {
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .mxl-simple-hero,
+  .mxl-cap {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
   }
 
   body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
-    font-size: clamp(1.8rem, 7vw, 2.6rem);
+    font-size: 1.6rem;
   }
 
-  .mxl-simple-actions {
-    flex-direction: column;
-    align-items: stretch;
+  .mxl-simple-lead {
+    line-height: 1.75;
+  }
+
+  .mxl-install-command code {
+    max-width: calc(100vw - 7rem);
   }
 
   .mxl-landing-foot__inner {
@@ -2592,16 +2736,13 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 /* ==========================================================================
-   Animated optimize cartoon (mirrored from project-optimization hero).
-   Placed on the landing page between the two capability cards and the
-   "Get running in 3 steps" quickstart. Variables reference the shared
-   --mxl-simple-* tokens already defined for the landing shell.
+   Static terminal demos for the landing page.
    ========================================================================== */
 
 .po-cartoon {
   width: min(680px, 100%);
-  margin: clamp(1rem, 3vw, 2rem) auto 0;
-  padding: 0 clamp(1.2rem, 4vw, 3.6rem);
+  margin: 0 auto;
+  padding: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2609,12 +2750,10 @@ body:not(.mxl-landing) .content > p:first-of-type {
 
 .po-term {
   width: 100%;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(10, 18, 32, 0.92) 0%, rgba(8, 14, 26, 0.92) 100%);
-  border: 1px solid rgba(140, 208, 255, 0.14);
-  box-shadow:
-    0 22px 50px -28px rgba(0, 0, 0, 0.75),
-    0 1px 0 rgba(140, 208, 255, 0.06) inset;
+  border-radius: 6px;
+  background: var(--mxl-simple-bg);
+  border: 1px solid var(--mxl-simple-border);
+  box-shadow: none;
   overflow: hidden;
   font-family: var(--mxl-code-font);
 }
@@ -2624,8 +2763,8 @@ body:not(.mxl-landing) .content > p:first-of-type {
   align-items: center;
   gap: 0.45rem;
   padding: 0.55rem 0.85rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(140, 208, 255, 0.08);
+  background: var(--mxl-simple-bg-weak);
+  border-bottom: 1px solid var(--mxl-simple-border);
 }
 
 .po-term-dot {
@@ -2641,10 +2780,10 @@ body:not(.mxl-landing) .content > p:first-of-type {
 
 .po-term-title {
   margin-left: 0.6rem;
-  font-family: var(--mxl-body-font);
+  font-family: var(--mxl-code-font);
   font-size: 0.78rem;
-  color: rgba(189, 212, 234, 0.5);
-  letter-spacing: 0.01em;
+  color: var(--mxl-simple-faint);
+  letter-spacing: 0;
 }
 
 .po-term-body {
@@ -2655,7 +2794,7 @@ body:not(.mxl-landing) .content > p:first-of-type {
   color: var(--mxl-simple-text);
   font-size: 0.95rem;
   line-height: 1.5;
-  min-height: 15rem;
+  min-height: 13rem;
 }
 
 .po-term-line {
@@ -2672,19 +2811,19 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-term-cmd {
-  color: #f4fbff;
+  color: var(--mxl-simple-text);
   white-space: pre;
 }
 
 .po-term-cursor {
-  display: inline-block;
+  display: none;
   width: 8px;
   height: 1.05em;
   background: var(--mxl-simple-accent);
   margin-left: 2px;
   vertical-align: text-bottom;
   transform: translateY(2px);
-  animation: po-term-blink 0.8s steps(2, start) infinite;
+  animation: none;
 }
 
 @keyframes po-term-blink {
@@ -2692,7 +2831,7 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-term-dots {
-  color: rgba(189, 212, 234, 0.7);
+  color: var(--mxl-simple-muted);
   letter-spacing: 0.1em;
   min-height: 1.2em;
 }
@@ -2700,12 +2839,12 @@ body:not(.mxl-landing) .content > p:first-of-type {
 .po-term-chart {
   margin-top: 0.1rem;
   padding: 0.55rem 0.4rem 0.15rem;
-  border-radius: 10px;
-  background: rgba(106, 214, 255, 0.04);
-  border: 1px solid rgba(106, 214, 255, 0.10);
+  border-radius: 6px;
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.45s ease, transform 0.45s ease;
+  transform: none;
+  transition: none;
   min-height: 9.5rem;
 }
 
@@ -2719,7 +2858,7 @@ body:not(.mxl-landing) .content > p:first-of-type {
   align-items: baseline;
   gap: 0.4rem;
   padding: 0 0.55rem 0.25rem;
-  font-family: var(--mxl-body-font);
+  font-family: var(--mxl-code-font);
   font-size: 0.78rem;
   color: var(--mxl-simple-muted);
   letter-spacing: 0.02em;
@@ -2734,12 +2873,12 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-chart-caption-arrow {
-  color: #ff8b8b;
+  color: var(--mxl-simple-faint);
   font-weight: 700;
 }
 
 .po-chart-caption-sub {
-  color: rgba(189, 212, 234, 0.6);
+  color: var(--mxl-simple-faint);
   font-size: 0.72rem;
   margin-left: auto;
 }
@@ -2752,24 +2891,24 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-trend-grid line {
-  stroke: rgba(140, 208, 255, 0.10);
+  stroke: var(--mxl-simple-border);
   stroke-width: 1;
   stroke-dasharray: 2 4;
 }
 
 .po-trend-axis {
-  stroke: rgba(140, 208, 255, 0.28);
+  stroke: var(--mxl-simple-faint);
   stroke-width: 1;
 }
 
 .po-trend-tick {
   font-family: var(--mxl-code-font);
   font-size: 8px;
-  fill: rgba(189, 212, 234, 0.55);
+  fill: var(--mxl-simple-faint);
 }
 
 .po-trend-axis-label {
-  font-family: var(--mxl-body-font);
+  font-family: var(--mxl-code-font);
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -2779,9 +2918,9 @@ body:not(.mxl-landing) .content > p:first-of-type {
 
 .po-trend-area {
   fill: url(#po-trend-area-grad);
-  fill: rgba(106, 214, 255, 0.12);
-  opacity: 0;
-  transition: opacity 0.9s ease 1.4s;
+  fill: rgba(33, 30, 30, 0.06);
+  opacity: 1;
+  transition: none;
 }
 
 .po-trend-line {
@@ -2790,13 +2929,13 @@ body:not(.mxl-landing) .content > p:first-of-type {
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 2px 6px rgba(106, 214, 255, 0.35));
+  filter: none;
   stroke-dasharray: 560;
-  stroke-dashoffset: 560;
+  stroke-dashoffset: 0;
 }
 
 .po-term-chart--visible .po-trend-line {
-  animation: po-trend-draw 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: none;
 }
 
 @keyframes po-trend-draw {
@@ -2808,17 +2947,17 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-trend-points circle {
-  fill: #06101e;
+  fill: var(--mxl-simple-bg);
   stroke: var(--mxl-simple-accent);
   stroke-width: 1.6;
-  opacity: 0;
+  opacity: 1;
   transform-origin: center;
-  transform: scale(0.2);
+  transform: none;
 }
 
 .po-term-chart--visible .po-trend-points circle {
-  animation: po-point-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  animation-delay: calc(0.25s + var(--i, 0) * 0.18s);
+  animation: none;
+  animation-delay: 0s;
 }
 
 @keyframes po-point-pop {
@@ -2835,8 +2974,8 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-cartoon-caption code {
-  background: rgba(106, 214, 255, 0.12);
-  border: 1px solid rgba(106, 214, 255, 0.18);
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
   border-radius: 5px;
   padding: 0.05em 0.32em;
   color: var(--mxl-simple-accent);
@@ -2846,8 +2985,8 @@ body:not(.mxl-landing) .content > p:first-of-type {
 
 /* Quickstart cartoon (three commands) */
 .po-term-body--quickstart {
-  gap: 0.85rem;
-  min-height: 15rem;
+  gap: 0.75rem;
+  min-height: 9rem;
   justify-content: center;
 }
 
@@ -2856,8 +2995,8 @@ body:not(.mxl-landing) .content > p:first-of-type {
   flex-direction: column;
   gap: 0.25rem;
   opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.35s ease, transform 0.35s ease;
+  transform: none;
+  transition: none;
 }
 
 .po-qs-step--visible {
@@ -2871,10 +3010,11 @@ body:not(.mxl-landing) .content > p:first-of-type {
   justify-content: center;
   width: 1.35em;
   height: 1.35em;
-  border-radius: 999px;
-  background: rgba(106, 214, 255, 0.14);
+  border-radius: 4px;
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
   color: var(--mxl-simple-accent);
-  font-family: var(--mxl-body-font);
+  font-family: var(--mxl-code-font);
   font-size: 0.72rem;
   font-weight: 700;
   margin-right: 0.6rem;
@@ -2883,7 +3023,7 @@ body:not(.mxl-landing) .content > p:first-of-type {
 }
 
 .po-qs-cmd {
-  color: #f4fbff;
+  color: var(--mxl-simple-text);
   white-space: pre;
 }
 
@@ -2893,14 +3033,6 @@ body:not(.mxl-landing) .content > p:first-of-type {
 
 .po-qs-step--typing .po-qs-cursor {
   display: inline-block;
-}
-
-.po-qs-out {
-  padding-left: 2rem;
-  color: rgba(189, 212, 234, 0.7);
-  font-size: 0.88rem;
-  min-height: 1.2em;
-  white-space: pre;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2915,9 +3047,8 @@ body:not(.mxl-landing) .content > p:first-of-type {
 @media (max-width: 540px) {
   .po-cartoon { padding-left: 1rem; padding-right: 1rem; }
   .po-term-body { font-size: 0.82rem; padding: 0.85rem 0.8rem 1rem; }
-  .po-term-body--quickstart { min-height: 13rem; }
+  .po-term-body--quickstart { min-height: 9rem; }
   .po-term-chart { padding: 0.4rem 0.25rem 0.1rem; min-height: 8rem; }
-  .po-qs-out { padding-left: 1.7rem; font-size: 0.8rem; }
 }
 
 /* --- Docs responsive layout refinements (non-landing pages) ---
@@ -3095,5 +3226,597 @@ body:not(.mxl-landing) .content .table-wrapper table.docutils {
   body:not(.mxl-landing) .sidebar-tree .caption,
   body:not(.mxl-landing) .sidebar-tree p.caption {
     margin-top: 0.85rem;
+  }
+}
+
+/* --- OpenCode-style documentation shell (non-landing pages) --- */
+body.mxl-docs {
+  --mxl-simple-bg: #fffdfd;
+  --mxl-simple-bg-weak: #f7f6f4;
+  --mxl-simple-bg-weak-hover: #efeeeb;
+  --mxl-simple-border: rgba(33, 30, 30, 0.12);
+  --mxl-simple-border-strong: #dedbd8;
+  --mxl-simple-text: #211e1e;
+  --mxl-simple-muted: #656363;
+  --mxl-simple-faint: #8e8b8b;
+  --mxl-simple-interactive: #f5f3c7;
+  --mxl-doc-sidebar-width: 17rem;
+  --mxl-doc-toc-width: 14.5rem;
+  --mxl-doc-content-max: 50rem;
+  --mxl-border-rgb: 33, 30, 30;
+  --mxl-card-border: var(--mxl-simple-border);
+  --mxl-text-muted: #3f3c3c;
+  --mxl-surface: var(--mxl-simple-bg);
+  --mxl-surface-subtle: var(--mxl-simple-bg-weak);
+  --mxl-code-surface: var(--mxl-simple-bg-weak);
+  --mxl-code-border: var(--mxl-simple-border);
+  --mxl-code-shadow: none;
+  --mxl-inline-code-bg: var(--mxl-simple-bg-weak);
+  --mxl-inline-code-border: var(--mxl-simple-border);
+  --mxl-inline-code-color: var(--mxl-simple-text);
+  --color-background-primary: var(--mxl-simple-bg);
+  --color-background-secondary: var(--mxl-simple-bg-weak);
+  --color-background-hover: var(--mxl-simple-bg-weak-hover);
+  --color-background-border: var(--mxl-simple-border);
+  --color-foreground-primary: var(--mxl-simple-text);
+  --color-foreground-secondary: var(--mxl-simple-muted);
+  --color-foreground-muted: var(--mxl-simple-faint);
+  --color-foreground-border: var(--mxl-simple-border-strong);
+  --color-brand-primary: var(--mxl-simple-text);
+  --color-brand-content: var(--mxl-simple-text);
+  --color-brand-visited: var(--mxl-simple-text);
+  --color-sidebar-background: var(--mxl-simple-bg);
+  --color-sidebar-background-border: var(--mxl-simple-border);
+  --color-sidebar-brand-text: var(--mxl-simple-text);
+  --color-sidebar-caption-text: var(--mxl-simple-faint);
+  --color-sidebar-link-text: var(--mxl-simple-muted);
+  --color-sidebar-link-text--top-level: var(--mxl-simple-text);
+  --color-sidebar-item-background: transparent;
+  --color-sidebar-item-background--current: var(--mxl-simple-interactive);
+  --color-sidebar-item-background--hover: var(--mxl-simple-bg-weak);
+  --color-sidebar-search-background: var(--mxl-simple-bg-weak);
+  --color-sidebar-search-background--focus: var(--mxl-simple-bg);
+  --color-sidebar-search-border: var(--mxl-simple-border);
+  --color-sidebar-search-icon: var(--mxl-simple-faint);
+  --color-toc-background: var(--mxl-simple-bg);
+  --color-toc-title-text: var(--mxl-simple-faint);
+  --color-toc-item-text: var(--mxl-simple-muted);
+  --color-toc-item-text--hover: var(--mxl-simple-text);
+  --color-toc-item-text--active: var(--mxl-simple-text);
+  background: var(--mxl-simple-bg);
+  color: var(--mxl-simple-text);
+}
+
+body.mxl-docs .page,
+body.mxl-docs .main {
+  background: var(--mxl-simple-bg);
+}
+
+body.mxl-docs .sidebar-drawer {
+  background: var(--mxl-simple-bg);
+  border-right: 1px solid var(--mxl-simple-border);
+  flex: 0 0 var(--mxl-doc-sidebar-width);
+  justify-content: flex-start;
+  min-width: var(--mxl-doc-sidebar-width);
+  width: var(--mxl-doc-sidebar-width);
+}
+
+body.mxl-docs .sidebar-container {
+  width: var(--mxl-doc-sidebar-width);
+}
+
+body.mxl-docs .sidebar-sticky {
+  height: 100vh;
+}
+
+body.mxl-docs .sidebar-brand {
+  align-items: center;
+  border-bottom: 1px solid var(--mxl-simple-border);
+  display: flex;
+  flex-direction: row;
+  gap: 0.65rem;
+  margin: 0;
+  min-height: 4.75rem;
+  padding: 1rem 1.15rem;
+}
+
+body.mxl-docs .sidebar-logo-container {
+  background: transparent;
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  box-shadow: none;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0.25rem;
+  width: 2.25rem;
+}
+
+body.mxl-docs .sidebar-brand:hover .sidebar-logo-container {
+  box-shadow: none;
+  transform: none;
+}
+
+body.mxl-docs .sidebar-brand img.sidebar-logo {
+  height: 100%;
+  width: 100%;
+}
+
+body.mxl-docs .sidebar-brand-text {
+  color: var(--mxl-simple-text);
+  font-family: var(--mxl-code-font);
+  font-size: 0.95rem !important;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+body.mxl-docs .sidebar-search-container {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  margin: 0.9rem 1rem 0.55rem;
+}
+
+body.mxl-docs .sidebar-search-container:focus-within,
+body.mxl-docs .sidebar-search-container:hover {
+  background: var(--mxl-simple-bg);
+  border-color: var(--mxl-simple-border-strong);
+}
+
+body.mxl-docs .sidebar-search {
+  border: 0;
+  color: var(--mxl-simple-text);
+  font-family: var(--mxl-code-font);
+  min-height: 2.4rem;
+}
+
+body.mxl-docs .sidebar-tree {
+  font-family: var(--mxl-body-font);
+  margin-top: 0.25rem;
+  padding: 0 0.65rem 1.2rem;
+}
+
+body.mxl-docs .sidebar-tree .caption,
+body.mxl-docs .sidebar-tree p.caption {
+  color: var(--mxl-simple-faint);
+  font-family: var(--mxl-code-font);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  padding: 0.65rem 0.4rem 0.25rem;
+}
+
+body.mxl-docs .sidebar-tree li > ul {
+  margin-left: 0.75rem;
+}
+
+body.mxl-docs .sidebar-tree .reference {
+  border-radius: 6px;
+  color: var(--mxl-simple-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  padding: 0.38rem 0.55rem;
+}
+
+body.mxl-docs .sidebar-tree .reference:hover {
+  background: var(--mxl-simple-bg-weak);
+  color: var(--mxl-simple-text);
+}
+
+body.mxl-docs .sidebar-tree .current > .reference,
+body.mxl-docs .sidebar-tree .current-page > .reference,
+body.mxl-docs .sidebar nav a.current {
+  background: var(--mxl-simple-interactive);
+  color: var(--mxl-simple-text);
+  font-weight: 600;
+}
+
+body.mxl-docs .sidebar-tree label {
+  border-radius: 6px;
+}
+
+body.mxl-docs .main {
+  justify-content: flex-start;
+}
+
+body.mxl-docs .content {
+  box-sizing: border-box;
+  max-width: none;
+  padding-left: clamp(2rem, 4vw, 4.25rem);
+  padding-right: clamp(1.5rem, 3vw, 3.25rem);
+  width: min(
+    var(--mxl-doc-content-max),
+    calc(100vw - var(--mxl-doc-sidebar-width) - var(--mxl-doc-toc-width))
+  );
+}
+
+body.mxl-docs .article-container,
+body.mxl-docs article {
+  max-width: none;
+  width: 100%;
+}
+
+body.mxl-docs .content-icon-container {
+  display: none;
+}
+
+.mxl-doc-topbar {
+  align-items: center;
+  background: rgba(255, 253, 253, 0.94);
+  border-bottom: 1px solid var(--mxl-simple-border);
+  display: flex;
+  gap: 1.4rem;
+  justify-content: space-between;
+  margin: 0 0 2.4rem;
+  min-height: 4.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.mxl-doc-topbar__brand {
+  align-items: center;
+  color: var(--mxl-simple-text);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-family: var(--mxl-code-font);
+  font-size: 0.95rem;
+  font-weight: 700;
+  gap: 0.55rem;
+  text-decoration: none;
+}
+
+.mxl-doc-topbar__brand:visited {
+  color: var(--mxl-simple-text);
+}
+
+.mxl-doc-topbar__brand:hover {
+  color: var(--mxl-simple-text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.mxl-doc-topbar__brand img {
+  height: 1.55rem;
+  width: 1.55rem;
+}
+
+.mxl-doc-topbar__links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.15rem;
+  justify-content: flex-end;
+}
+
+.mxl-doc-topbar__links a {
+  border-bottom: 0 !important;
+  color: var(--mxl-simple-muted) !important;
+  font-family: var(--mxl-code-font);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.mxl-doc-topbar__links a:hover {
+  color: var(--mxl-simple-text) !important;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+body.mxl-docs .toc-drawer {
+  background: var(--mxl-simple-bg);
+  border-left: 1px solid var(--mxl-simple-border);
+  box-sizing: border-box;
+  flex: 0 0 var(--mxl-doc-toc-width);
+  padding: 0 1.25rem;
+  width: var(--mxl-doc-toc-width);
+}
+
+body.mxl-docs .toc-sticky {
+  padding-top: 4.75rem;
+}
+
+body.mxl-docs .toc-title {
+  color: var(--mxl-simple-faint);
+  font-family: var(--mxl-code-font);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+body.mxl-docs .toc-tree {
+  border-left: 0;
+  font-family: var(--mxl-body-font);
+  padding-left: 0;
+}
+
+body.mxl-docs .toc-tree a.reference {
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+  color: var(--mxl-simple-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  padding: 0.22rem 0.55rem;
+}
+
+body.mxl-docs .toc-tree a.reference:hover,
+body.mxl-docs .toc-tree .scroll-current > a.reference {
+  background: var(--mxl-simple-bg-weak);
+  border-left-color: var(--mxl-simple-text);
+  color: var(--mxl-simple-text);
+}
+
+body.mxl-docs .content h1,
+body.mxl-docs .content h2,
+body.mxl-docs .content h3,
+body.mxl-docs .content h4 {
+  color: var(--mxl-simple-text);
+  font-family: var(--mxl-code-font);
+  letter-spacing: 0;
+}
+
+body.mxl-docs .content h1 {
+  border-bottom: 0;
+  font-size: 2.15rem;
+  line-height: 1.14;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+body.mxl-docs .content h2 {
+  border-top: 1px solid var(--mxl-simple-border);
+  font-size: 1.35rem;
+  line-height: 1.25;
+  margin-top: 2.7rem;
+  padding-top: 2rem;
+}
+
+body.mxl-docs .content h3 {
+  font-size: 1.08rem;
+  line-height: 1.35;
+  margin-top: 2rem;
+}
+
+body.mxl-docs .content h4 {
+  font-size: 0.98rem;
+  letter-spacing: 0;
+}
+
+body.mxl-docs .content p,
+body.mxl-docs .content li {
+  color: var(--mxl-text-muted);
+  font-size: 0.98rem;
+  line-height: 1.68;
+}
+
+body.mxl-docs .content > section > p:first-of-type,
+body.mxl-docs .content > p:first-of-type {
+  color: var(--mxl-text-muted);
+  font-size: 1rem;
+}
+
+body.mxl-docs .content a:not(.headerlink) {
+  border-bottom: 1px solid var(--mxl-simple-border);
+  color: var(--mxl-simple-text);
+  text-decoration: none;
+}
+
+body.mxl-docs .content a:not(.headerlink):hover {
+  border-bottom-color: var(--mxl-simple-text);
+  color: var(--mxl-simple-text);
+}
+
+body.mxl-docs .content code.literal {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 5px;
+  color: var(--mxl-simple-text);
+  font-family: var(--mxl-code-font);
+  padding: 0.08rem 0.33rem;
+}
+
+body.mxl-docs .content .highlight,
+body.mxl-docs .content > pre,
+body.mxl-docs .content > div > pre:not(.highlight pre) {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body.mxl-docs .content .highlight pre {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  padding: 1rem 1.1rem !important;
+}
+
+body.mxl-docs .content .admonition,
+body.mxl-docs .content .note,
+body.mxl-docs .content .tip,
+body.mxl-docs .content .warning,
+body.mxl-docs .content .important,
+body.mxl-docs .content .caution,
+body.mxl-docs .content .seealso {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-left: 4px solid var(--mxl-simple-text);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body.mxl-docs .content .admonition .admonition-title,
+body.mxl-docs .content .admonition > p.admonition-title {
+  color: var(--mxl-simple-text);
+  font-family: var(--mxl-code-font);
+  letter-spacing: 0.08em;
+}
+
+body.mxl-docs .content .admonition .admonition-title::before,
+body.mxl-docs .content .admonition > p.admonition-title::before {
+  background-color: var(--mxl-simple-text);
+}
+
+body.mxl-docs .content table.docutils {
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body.mxl-docs .content table.docutils thead {
+  background: var(--mxl-simple-bg-weak);
+}
+
+body.mxl-docs .content table.docutils tbody tr:nth-child(even),
+body.mxl-docs .content table.docutils tbody tr:hover {
+  background: transparent;
+}
+
+body.mxl-docs .content table.docutils th,
+body.mxl-docs .content table.docutils td {
+  border-color: var(--mxl-simple-border);
+}
+
+body.mxl-docs .content blockquote {
+  background: var(--mxl-simple-bg-weak);
+  border-left-color: var(--mxl-simple-text);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body.mxl-docs .content figure,
+body.mxl-docs .content .figure {
+  margin-bottom: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+body.mxl-docs .content figure img,
+body.mxl-docs .content .figure img {
+  border-radius: 6px;
+}
+
+body.mxl-docs .related-pages {
+  border-top: 1px solid var(--mxl-simple-border);
+  gap: 1rem;
+}
+
+body.mxl-docs .related-pages a {
+  background: var(--mxl-simple-bg-weak);
+  border: 1px solid var(--mxl-simple-border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+body.mxl-docs .related-pages a:hover {
+  border-color: var(--mxl-simple-border-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+body.mxl-docs .bottom-of-page {
+  border-top: 1px solid var(--mxl-simple-border);
+  color: var(--mxl-simple-faint);
+}
+
+@media (max-width: 82em) {
+  body.mxl-docs .content {
+    width: min(
+      var(--mxl-doc-content-max),
+      calc(100vw - var(--mxl-doc-sidebar-width))
+    );
+  }
+
+  body.mxl-docs .toc-content-icon {
+    display: flex;
+  }
+
+  body.mxl-docs .toc-drawer {
+    border-left: 1px solid var(--mxl-simple-border);
+    height: 100vh;
+    position: fixed;
+    right: calc(0px - var(--mxl-doc-toc-width));
+    top: 0;
+  }
+}
+
+@media (max-width: 63em) {
+  body.mxl-docs,
+  body.mxl-docs .page,
+  body.mxl-docs .main {
+    max-width: 100vw;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  body.mxl-docs .main,
+  body.mxl-docs .content,
+  body.mxl-docs .article-container,
+  body.mxl-docs article {
+    min-width: 0;
+  }
+
+  body.mxl-docs .sidebar-drawer {
+    height: 100vh;
+    left: calc(0px - var(--mxl-doc-sidebar-width));
+    position: fixed;
+    top: 0;
+  }
+
+  body.mxl-docs .mobile-header {
+    background: var(--mxl-simple-bg);
+    border-bottom: 1px solid var(--mxl-simple-border);
+  }
+
+  body.mxl-docs .content {
+    box-sizing: border-box;
+    flex: 0 1 auto;
+    max-width: 100vw;
+    overflow-x: hidden;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    width: 100vw;
+  }
+
+  body.mxl-docs .article-container,
+  body.mxl-docs article,
+  body.mxl-docs article > section {
+    box-sizing: border-box;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  body.mxl-docs .content p,
+  body.mxl-docs .content li,
+  body.mxl-docs .content blockquote,
+  body.mxl-docs .content .admonition {
+    box-sizing: border-box;
+    max-width: calc(100vw - 2rem) !important;
+    overflow-wrap: anywhere;
+  }
+
+  body.mxl-docs .content .highlight {
+    box-sizing: border-box;
+    max-width: calc(100vw - 2rem) !important;
+    overflow-x: auto;
+  }
+
+  .mxl-doc-topbar {
+    display: none;
+  }
+}
+
+@media (max-width: 42em) {
+  body.mxl-docs .content {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  body.mxl-docs .content h1 {
+    font-size: 1.65rem;
+  }
+
+  body.mxl-docs .content h2 {
+    font-size: 1.2rem;
+  }
+
+  body.mxl-docs .content .table-wrapper table.docutils {
+    min-width: 34rem;
   }
 }
