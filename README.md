@@ -20,9 +20,21 @@ then autonomously runs multi-job multi-day simulations on your laptop or HPC clu
 
 ## Key Features
 
-### 🔬 Autonomous Scientific Simulations *(stable)*
+#### Package Knowledge Base Manager 
 
-Describe a **simulation goal** in plain language. **FermiLink** loads the suitable package knowledge base, generates input files, submits jobs, monitors progress, analyzes the data, and generate a brief simulation report. It can sustain **multi-task multi-day HPC** runs.
+Use **FermiLink** to conveniently load package knowledge base to your local workspace; and then apply any local agent for interactive research.
+
+```bash
+fermilink install <pkg-id>
+cd /path/to/workspace/
+fermilink init <pkg-id>
+# then try any agent 
+codex 
+```
+
+#### Autonomous Scientific Simulations 
+
+Beyond interactive use,  **FermiLink** can also sustain **multi-task multi-day** simulations on either your laptop or HPC.
 
 ```bash
 fermilink loop goal.md          # long-running simulations on workstations or HPC
@@ -30,7 +42,7 @@ fermilink reproduce paper.tex   # reproduction of a full research paper
 fermilink research goal.md      # full research-paper-scale, multi-task campaigns
 ```
 
-### ⚡ Autonomous Code Optimization *(beta)*
+#### Autonomous Code Optimization *(beta)*
 
 Apply **FermiLink** to your existing scientific code with a **performance goal**. It iteratively modifies hot paths and runs deterministic benchmarks. 
 
@@ -86,24 +98,6 @@ The key design principle of **FermiLink** is the segregation of  package knowled
 | `research` | Multi-task, paper-scale research | Days -> weeks | HPC clusters |
 | `optimize` | Code performance tuning *(beta)* | Hours | Any |
 
-![workflow](./docs/source/_static/img/major_modes_workflow.svg)
-
-Apart from the above simulation workflows, it also supports an ``optimize`` workflow for optimizing the performance of scientific packages.
-
-<p align="center">
-<img src="./docs/source/_static/img/optimize_mode_workflow.svg" alt="FermiLink optimize" width="200"/>
-</p>
-
----
-
-## Interaction surfaces
-
-**FermiLink** isn't just a CLI tool. Pick the interface that fits you:
-
-- **Command line** — `fermilink exec/loop/reproduce/research/optimize goal.md` for headless, scriptable autonomy
-- **Web UI** — `fermilink start` launches a ChatGPT-style browser interface for interactive sessions
-- **Telegram bot** — `fermilink gateway` connects to Telegram so you can run and monitor HPC jobs from your phone
-
 ---
 
 ## Built-in Scientific Packages
@@ -125,19 +119,13 @@ Browse the [full package list →](https://fermilink.org/built_in_scientific_pac
 
 ---
 
-## Build Your Own Package Knowledge Base
+## Interaction surfaces
 
-If you have a research pipeline described in a paper or group-specific workflow, you can turn them into a **FermiLink**-compatible knowledge base:
+**FermiLink** isn't just a CLI tool. Pick the interface that fits you:
 
-```bash
-# Compile a local code into a knowledge base
-fermilink compile /path/to/my-simulation-code
-
-# Recompile after updating your code
-fermilink recompile my-simulation-code
-```
-
-This means **FermiLink** can autonomously operate *any* scientific code, not just the 150+ that ship built-in.
+- **Command line** — `fermilink exec/loop/reproduce/research/optimize goal.md` for headless, scriptable autonomy
+- **Web UI** — `fermilink start` launches a ChatGPT-style browser interface for interactive sessions
+- **Telegram bot** — `fermilink gateway` connects to Telegram so you can run and monitor HPC jobs from your phone
 
 ---
 
@@ -149,8 +137,6 @@ This means **FermiLink** can autonomously operate *any* scientific code, not jus
 | Installation guide | [fermilink.org/installation](https://fermilink.org/installation.html) |
 | Laptop tutorial | [fermilink.org/tutorial_laptop](https://fermilink.org/tutorial_laptop.html) |
 | HPC tutorial | [fermilink.org/tutorial_hpc](https://fermilink.org/tutorial_hpc.html) |
-| Architecture | [fermilink.org/architecture](https://fermilink.org/architecture.html) |
-| API reference | [fermilink.org/api](https://fermilink.org/api/modules.html) |
 
 ---
 
