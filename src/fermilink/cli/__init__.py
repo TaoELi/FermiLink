@@ -136,6 +136,7 @@ from fermilink.packages.package_registry import (
     PackageValidationError,
     activate_package,
     delete_package,
+    install_from_git_url,
     install_from_local_path,
     install_from_zip,
     list_packages,

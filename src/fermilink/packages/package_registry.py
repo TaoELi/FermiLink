@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -12,6 +13,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from fermilink.packages import (
     PACKAGE_DEPENDENCIES_DIRNAME,
@@ -45,6 +47,8 @@ PROGRESS_REFRESH_SECONDS = 0.1
 PROGRESS_BAR_WIDTH = 24
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 PROGRESS_DOT_FRAMES = (".  ", ".. ", "...")
+GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 class PackageError(RuntimeError):
@@ -106,6 +110,49 @@ def normalize_package_workflow_type(value: str | None) -> str:
             f"Unsupported package workflow type '{normalized}'. Supported values: {supported}"
         )
     return normalized
+
+
+def _normalize_github_install_url(url: str) -> tuple[str, str, str, str]:
+    cleaned = str(url or "").strip()
+    if not cleaned:
+        raise PackageError("GitHub repository URL is required.")
+
+    owner = ""
+    repo = ""
+    if cleaned.startswith("git@github.com:"):
+        suffix = cleaned.split(":", 1)[1]
+        path_parts = [part for part in suffix.split("/") if part]
+        if len(path_parts) >= 2:
+            owner = path_parts[0].strip()
+            repo = path_parts[1].strip()
+    else:
+        parsed = urlparse(cleaned)
+        host = (parsed.netloc or "").lower()
+        if parsed.scheme not in {"http", "https"} or host not in {
+            "github.com",
+            "www.github.com",
+        }:
+            raise PackageError(
+                f"Only GitHub repository URLs are supported for git installs: {cleaned}"
+            )
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if len(path_parts) >= 2:
+            owner = path_parts[0].strip()
+            repo = path_parts[1].strip()
+
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+    if (
+        not owner
+        or not repo
+        or not GITHUB_OWNER_RE.fullmatch(owner)
+        or not GITHUB_REPO_RE.fullmatch(repo)
+    ):
+        raise PackageError(f"Invalid GitHub repository URL: {cleaned}")
+
+    canonical_url = f"https://github.com/{owner}/{repo}"
+    clone_url = f"git@github.com:{owner}/{repo}.git"
+    return owner, repo, canonical_url, clone_url
 
 
 def packages_root(scipkg_root: Path) -> Path:
@@ -988,6 +1035,94 @@ def install_from_local_path(
         title=title,
         activate=activate,
         extra={PACKAGE_WORKFLOW_TYPE_KEY: normalized_workflow_type},
+    )
+
+
+def install_from_git_url(
+    scipkg_root: Path,
+    package_id: str,
+    *,
+    git_url: str,
+    title: str | None = None,
+    activate: bool = False,
+    force: bool = False,
+    workflow_type: str | None = DEFAULT_PACKAGE_WORKFLOW_TYPE,
+) -> dict[str, Any]:
+    """
+    Install a package by cloning a GitHub repository over SSH and registering it.
+
+    Parameters
+    ----------
+    scipkg_root : Path
+        Scientific package root containing registry and package files.
+    package_id : str
+        Normalized package identifier, usually the repository name.
+    git_url : str
+        GitHub repository URL to clone.
+    title : str | None
+        Optional human-readable package title.
+    activate : bool
+        Whether to mark the package as active after operation completion.
+    force : bool
+        Whether existing package ids may be overwritten.
+    workflow_type : str | None
+        Package workflow type (`simulation` or `experiment`) used by workspace init.
+
+    Returns
+    -------
+    dict[str, Any]
+        Package metadata for the installed package.
+    """
+    normalized_id = normalize_package_id(package_id)
+    normalized_workflow_type = normalize_package_workflow_type(workflow_type)
+    _owner, repo_name, canonical_url, clone_url = _normalize_github_install_url(
+        git_url
+    )
+    target_dir = packages_root(scipkg_root) / normalized_id
+
+    if target_dir.exists() or target_dir.is_symlink():
+        if not force:
+            raise PackageError(
+                f"Target package directory already exists: {target_dir}. Use --force to clone again."
+            )
+        if target_dir.is_dir() and not target_dir.is_symlink():
+            shutil.rmtree(target_dir)
+        else:
+            target_dir.unlink(missing_ok=True)
+
+    try:
+        completed = subprocess.run(
+            ["git", "clone", clone_url, str(target_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise PackageError("Command not found: git") from exc
+
+    if completed.returncode != 0:
+        detail = (completed.stderr or "").strip() or (completed.stdout or "").strip()
+        if not detail:
+            detail = f"exit code {completed.returncode}"
+        raise PackageError(f"Command failed (git clone {clone_url}): {detail}")
+
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise PackageError(f"Git clone did not create package directory: {target_dir}")
+
+    return register_package(
+        scipkg_root,
+        normalized_id,
+        installed_path=target_dir,
+        source=f"git:{canonical_url}",
+        title=title or repo_name,
+        activate=activate,
+        extra={
+            "git": {
+                "upstream_repo_url": canonical_url,
+                "clone_url": clone_url,
+            },
+            PACKAGE_WORKFLOW_TYPE_KEY: normalized_workflow_type,
+        },
     )
 
 

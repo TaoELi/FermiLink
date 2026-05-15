@@ -89,6 +89,182 @@ def test_cli_install_local_records_workflow_type(monkeypatch, tmp_path: Path) ->
     )
 
 
+def test_cli_install_infers_local_path_package_id(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    source = tmp_path / "mos2-quantum-transport-skill"
+    _make_local_package(source)
+
+    code = cli.main(["install", str(source), "--no-router-sync"])
+    assert code == 0
+
+    registry = load_registry(scipkg_root)
+    meta = registry["packages"]["mos2-quantum-transport-skill"]
+    assert meta["source"] == f"local-path:{source.resolve()}"
+
+
+def test_cli_install_rejects_empty_inferred_local_path(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    source = tmp_path / "empty-package"
+    source.mkdir()
+
+    code = cli.main(["install", str(source)])
+    assert code == 2
+
+    err = capsys.readouterr().err
+    assert "not an existing non-empty directory" in err
+
+
+def test_cli_install_infers_github_repo_url(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+
+    install_calls: list[dict[str, object]] = []
+
+    def fake_install_from_git_url(
+        root: Path,
+        package_id: str,
+        *,
+        git_url: str,
+        title: str | None,
+        activate: bool,
+        force: bool,
+        workflow_type: str,
+    ) -> dict[str, object]:
+        install_calls.append(
+            {
+                "root": root,
+                "package_id": package_id,
+                "git_url": git_url,
+                "title": title,
+                "activate": activate,
+                "force": force,
+                "workflow_type": workflow_type,
+            }
+        )
+        return {
+            "id": package_id,
+            "source": "git:https://github.com/TaoELi/mos2-quantum-transport-skill",
+        }
+
+    monkeypatch.setattr(cli, "install_from_git_url", fake_install_from_git_url)
+
+    code = cli.main(
+        [
+            "install",
+            "https://github.com/TaoELi/mos2-quantum-transport-skill",
+            "--workflow-type",
+            "experiment",
+            "--activate",
+            "--no-router-sync",
+        ]
+    )
+    assert code == 0
+    assert install_calls == [
+        {
+            "root": scipkg_root,
+            "package_id": "mos2-quantum-transport-skill",
+            "git_url": "https://github.com/TaoELi/mos2-quantum-transport-skill",
+            "title": None,
+            "activate": True,
+            "force": False,
+            "workflow_type": "experiment",
+        }
+    ]
+
+
+def test_cli_install_bare_local_path_falls_back_after_curated_miss(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.chdir(tmp_path)
+
+    source = tmp_path / "custom-skill"
+    _make_local_package(source)
+
+    code = cli.main(["install", "custom-skill", "--no-router-sync"])
+    assert code == 0
+
+    registry = load_registry(scipkg_root)
+    assert registry["packages"]["custom-skill"]["source"] == (
+        f"local-path:{source.resolve()}"
+    )
+
+
+def test_cli_install_curated_id_wins_over_same_named_local_dir(
+    monkeypatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
+    monkeypatch.chdir(tmp_path)
+    _make_local_package(tmp_path / "ase")
+
+    install_calls: list[dict[str, object]] = []
+
+    def fake_install_from_zip(
+        root: Path,
+        package_id: str,
+        *,
+        zip_url: str,
+        title: str | None,
+        activate: bool,
+        force: bool,
+        max_zip_bytes: int,
+        workflow_type: str,
+    ) -> dict[str, object]:
+        install_calls.append(
+            {
+                "root": root,
+                "package_id": package_id,
+                "zip_url": zip_url,
+                "title": title,
+                "activate": activate,
+                "force": force,
+                "max_zip_bytes": max_zip_bytes,
+                "workflow_type": workflow_type,
+            }
+        )
+        return {"id": package_id}
+
+    monkeypatch.setattr(cli, "install_from_zip", fake_install_from_zip)
+    monkeypatch.setattr(
+        cli,
+        "resolve_curated_package",
+        lambda package_id, channel: ChannelPackage(
+            package_id=package_id,
+            zip_url="https://example.invalid/ase.zip",
+            title="ASE",
+            default_version="branch-head",
+            versions=(
+                ChannelPackageVersion(
+                    version_id="branch-head",
+                    source_archive_url="https://example.invalid/ase.zip",
+                    verified=True,
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(cli, "sync_router_rules", lambda _root: {})
+    monkeypatch.setattr(
+        cli, "load_registry", lambda _root: {"packages": {}, "active_package": "ase"}
+    )
+    monkeypatch.setattr(cli, "save_registry", lambda _root, payload: payload)
+
+    code = cli.main(["install", "ase"])
+    assert code == 0
+    assert install_calls[0]["zip_url"] == "https://example.invalid/ase.zip"
+
+
 def test_cli_dependencies(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
     monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))

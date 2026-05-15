@@ -44,13 +44,19 @@ def register_package_install_compile_parsers(
     """
     install_parser = subparsers.add_parser(
         "install",
-        help="Install scientific package from curated channel, zip URL, or local path.",
+        help=(
+            "Install scientific package from curated channel, local path, "
+            "GitHub repository URL, or zip URL."
+        ),
     )
     add_json_option(install_parser)
     install_parser.add_argument(
         "package_id",
         nargs="+",
-        help="One or more package ids to install, e.g. ase meep qutip",
+        help=(
+            "One or more curated package ids, or one install key such as "
+            "a local path or GitHub repository URL."
+        ),
     )
     install_parser.add_argument(
         "--channel",

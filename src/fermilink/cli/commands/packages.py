@@ -177,6 +177,69 @@ def _normalize_github_repo_url(url: str) -> tuple[str, str, str]:
     return owner, repo, canonical
 
 
+def _is_github_repo_install_key(value: str) -> bool:
+    cleaned = str(value or "").strip()
+    if cleaned.startswith("git@github.com:"):
+        return True
+    parsed = urlparse(cleaned)
+    host = (parsed.netloc or "").lower()
+    return parsed.scheme in {"http", "https"} and host in {
+        "github.com",
+        "www.github.com",
+    }
+
+
+def _looks_like_local_path_key(value: str) -> bool:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return False
+    if cleaned in {".", ".."}:
+        return True
+    if cleaned.startswith(("~", ".", "/", "\\")):
+        return True
+    if "/" in cleaned or "\\" in cleaned:
+        return True
+    return bool(re.match(r"^[A-Za-z]:[\\/]", cleaned))
+
+
+def _resolve_nonempty_local_install_path(value: str) -> Path | None:
+    cli = _cli()
+    path = Path(str(value or "").strip()).expanduser()
+    if not path.exists() or not path.is_dir():
+        return None
+    try:
+        next(path.iterdir())
+    except StopIteration:
+        return None
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Unable to inspect local source path {path}: {exc}"
+        ) from exc
+    return path.resolve()
+
+
+def _package_id_from_local_install_path(path: Path) -> str:
+    cli = _cli()
+    name = path.expanduser().resolve().name
+    if not name:
+        raise cli.PackageError(f"Unable to derive package id from local path: {path}")
+    return cli.normalize_package_id(name)
+
+
+def _reject_curated_only_flags_for_source(
+    *,
+    requested_version: str | None,
+    require_verified: bool,
+) -> None:
+    cli = _cli()
+    if requested_version:
+        raise cli.PackageError("--version only applies to curated channel installs.")
+    if require_verified:
+        raise cli.PackageError(
+            "--require-verified only applies to curated channel installs."
+        )
+
+
 def _load_auto_compile_specs(
     *,
     package_id_arg: str | None,
@@ -2812,9 +2875,51 @@ def cmd_install(args: argparse.Namespace) -> int:
             "--require-verified only applies to curated channel installs."
         )
 
-    package_ids = [cli.normalize_package_id(item) for item in requested_ids]
     normalized_channel = cli.normalize_channel_id(args.channel)
     workflow_type = str(getattr(args, "workflow_type", "simulation") or "simulation")
+    inferred_local_path: Path | None = None
+    inferred_git_url: str | None = None
+
+    if len(requested_ids) == 1 and not args.local_path and not args.zip_url:
+        install_key = requested_ids[0]
+        if _is_github_repo_install_key(install_key):
+            _reject_curated_only_flags_for_source(
+                requested_version=requested_version,
+                require_verified=require_verified,
+            )
+            _owner, repo_name, _canonical = _normalize_github_repo_url(install_key)
+            requested_ids = [repo_name]
+            inferred_git_url = install_key
+        else:
+            local_path = _resolve_nonempty_local_install_path(install_key)
+            path_like = _looks_like_local_path_key(install_key)
+            if path_like:
+                if local_path is None:
+                    raise cli.PackageError(
+                        "Install key looks like a local path but is not an existing "
+                        f"non-empty directory: {install_key}"
+                    )
+                _reject_curated_only_flags_for_source(
+                    requested_version=requested_version,
+                    require_verified=require_verified,
+                )
+                inferred_local_path = local_path
+                requested_ids = [_package_id_from_local_install_path(local_path)]
+            elif local_path is not None:
+                candidate_id = cli.normalize_package_id(install_key)
+                try:
+                    cli.resolve_curated_package(
+                        candidate_id, channel=normalized_channel
+                    )
+                except ValueError:
+                    _reject_curated_only_flags_for_source(
+                        requested_version=requested_version,
+                        require_verified=require_verified,
+                    )
+                    inferred_local_path = local_path
+                    requested_ids = [_package_id_from_local_install_path(local_path)]
+
+    package_ids = [cli.normalize_package_id(item) for item in requested_ids]
     if len(package_ids) > 1:
         if args.activate:
             raise cli.PackageError(
@@ -2922,17 +3027,33 @@ def cmd_install(args: argparse.Namespace) -> int:
     title = args.title
     source: str
     selected_unverified_label: str | None = None
-    if args.local_path:
+    if args.local_path or inferred_local_path is not None:
+        local_source_path = (
+            inferred_local_path
+            if inferred_local_path is not None
+            else Path(args.local_path)
+        )
         meta = cli.install_from_local_path(
             scipkg_root,
             package_id,
-            local_path=Path(args.local_path),
+            local_path=local_source_path,
             title=title,
             activate=args.activate,
             force=args.force,
             workflow_type=workflow_type,
         )
-        source = f"local-path:{Path(args.local_path).expanduser().resolve()}"
+        source = f"local-path:{local_source_path.expanduser().resolve()}"
+    elif inferred_git_url is not None:
+        meta = cli.install_from_git_url(
+            scipkg_root,
+            package_id,
+            git_url=inferred_git_url,
+            title=title,
+            activate=args.activate,
+            force=args.force,
+            workflow_type=workflow_type,
+        )
+        source = str(meta.get("source") or inferred_git_url)
     else:
         zip_url = args.zip_url
         selected_version_id: str | None = None

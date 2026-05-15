@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
+from fermilink.packages import package_registry
 from fermilink.packages.package_registry import (
     PackageNotFoundError,
     PACKAGE_WORKFLOW_TYPE_KEY,
+    install_from_git_url,
     install_from_local_path,
     load_registry,
     normalize_package_id,
@@ -102,3 +105,52 @@ def test_install_from_local_path_force_allows_source_equal_target(
     assert meta["id"] == "ase"
     assert (source / "skills" / "README.md").is_file()
     assert registry["packages"]["ase"]["installed_path"] == str(source.resolve())
+
+
+def test_install_from_git_url_clones_with_ssh_and_registers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    scipkg_root = tmp_path / "scientific_packages"
+    calls: list[list[str]] = []
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        assert capture_output is True
+        assert text is True
+        assert check is False
+        calls.append(command)
+        target_dir = Path(command[-1])
+        _make_local_package(target_dir)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(package_registry.subprocess, "run", fake_run)
+
+    meta = install_from_git_url(
+        scipkg_root,
+        "mos2-quantum-transport-skill",
+        git_url="https://github.com/TaoELi/mos2-quantum-transport-skill",
+        activate=True,
+        workflow_type="experiment",
+    )
+
+    registry = load_registry(scipkg_root)
+    assert calls == [
+        [
+            "git",
+            "clone",
+            "git@github.com:TaoELi/mos2-quantum-transport-skill.git",
+            str(scipkg_root / "packages" / "mos2-quantum-transport-skill"),
+        ]
+    ]
+    assert meta["id"] == "mos2-quantum-transport-skill"
+    assert (
+        meta["source"]
+        == "git:https://github.com/TaoELi/mos2-quantum-transport-skill"
+    )
+    assert meta[PACKAGE_WORKFLOW_TYPE_KEY] == "experiment"
+    assert registry["active_package"] == "mos2-quantum-transport-skill"
