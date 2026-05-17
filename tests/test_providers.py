@@ -152,27 +152,75 @@ def test_build_exec_command_claude_bypass_sandbox(tmp_path: Path) -> None:
     ]
 
 
-def test_build_exec_command_deepseek_model_and_reasoning(tmp_path: Path) -> None:
+def test_build_exec_command_opencode_model_and_reasoning(tmp_path: Path) -> None:
     cmd = build_exec_command(
-        provider="deepseek",
-        provider_bin="deepseek",
+        provider="opencode",
+        provider_bin="opencode",
         repo_dir=tmp_path,
         prompt="hello",
         sandbox_policy="enforce",
         sandbox_mode="workspace-write",
-        model="deepseek-chat",
+        model="openai/gpt-5.1-codex",
         reasoning_effort="high",
         json_output=True,
     )
     assert cmd == [
-        "deepseek",
-        "--workspace",
+        "opencode",
+        "run",
+        "--dir",
         str(Path(tmp_path)),
-        "--quiet",
-        "--no-global",
+        "--format",
+        "json",
         "--model",
-        "deepseek-chat",
-        "--prompt=hello",
+        "openai/gpt-5.1-codex",
+        "--variant",
+        "high",
+        "hello",
+    ]
+
+
+def test_build_exec_command_opencode_read_only_uses_plan_agent(
+    tmp_path: Path,
+) -> None:
+    cmd = build_exec_command(
+        provider="opencode",
+        provider_bin="opencode",
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="enforce",
+        sandbox_mode="read-only",
+        json_output=False,
+    )
+    assert cmd == [
+        "opencode",
+        "run",
+        "--dir",
+        str(Path(tmp_path)),
+        "--agent",
+        "plan",
+        "hello",
+    ]
+
+
+def test_build_exec_command_opencode_bypass_skips_permissions(
+    tmp_path: Path,
+) -> None:
+    cmd = build_exec_command(
+        provider="opencode",
+        provider_bin="opencode",
+        repo_dir=tmp_path,
+        prompt="hello",
+        sandbox_policy="bypass",
+        sandbox_mode="workspace-write",
+        json_output=False,
+    )
+    assert cmd == [
+        "opencode",
+        "run",
+        "--dir",
+        str(Path(tmp_path)),
+        "--dangerously-skip-permissions",
+        "hello",
     ]
 
 

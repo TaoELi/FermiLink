@@ -51,13 +51,17 @@ Setting up your agent
 
    # Switch providers later
    fermilink agent claude
+   fermilink agent gemini
+   fermilink agent opencode --model openai/gpt-5.5
 
 
 How to choose
 -------------
 
-All providers work with all **FermiLink** workflows. The best choice depends on
-your priorities:
+All providers work with the main **FermiLink** workflows
+(``exec``, ``chat``, ``loop``, ``research``, ``reproduce``, and ``optimize``).
+The ``exploop`` Windows workflow is documented separately and remains
+Codex-tested. The best provider choice depends on your priorities:
 
 **If you want the broadest compatibility:** Codex and Claude are the most tested providers, which give the richest interactive experience.
 
@@ -94,8 +98,16 @@ require bypassing the sandbox. You can do this per-provider:
    # bypass sandbox for claude
    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
 
+   # bypass sandbox for gemini
+   fermilink agent gemini --bypass-sandbox --model auto-gemini-3 --reasoning-effort high
+
+   # bypass sandbox for opencode
+   fermilink agent opencode --bypass-sandbox --model openai/gpt-5.5 --reasoning-effort xhigh
+
 .. warning::
 
    When ``fermilink agent --bypass-sandbox`` is needed for maximal functionality, **NEVER run it as a root user.** 
 
 By default, **FermiLink** normalizes the reasoning effort setting for agents to the ``codex`` provider's reasoning effort levels (``low``, ``medium``, ``high``, ``xhigh``). 
+For OpenCode, use model identifiers in ``provider/model`` form; FermiLink maps
+``xhigh`` reasoning effort to OpenCode's ``max`` variant.

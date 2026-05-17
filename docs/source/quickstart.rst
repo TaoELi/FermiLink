@@ -10,7 +10,7 @@ autonomous simulation with **FermiLink**.
    after installing. An interactive setup wizard walks you through everything.
 
 1. Install **FermiLink**
---------------------
+-------------------------
 
 .. code-block:: bash
 
@@ -30,6 +30,7 @@ authenticate:
    fermilink agent codex       # OpenAI Codex
    fermilink agent claude      # Anthropic Claude
    fermilink agent gemini      # Google Gemini
+   fermilink agent opencode    # OpenCode provider/model profiles
 
 See :doc:`choosing_agent` for a comparison of providers.
 
@@ -131,7 +132,7 @@ If you are not sure how to use **FermiLink** for your specific needs, simply ask
 
    cp myproject/
    fermilink init
-   codex
+   codex        # or claude, gemini, opencode
 
 Then ask your coding agent what you want to do. `fermilink init` will provide 
 all context of **FermiLink** for agent reasoning.

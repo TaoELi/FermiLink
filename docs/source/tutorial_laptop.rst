@@ -40,7 +40,8 @@ Use conda environment so your laptop test does not modify your system Python:
 Step 2. Install agent provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**FermiLink** currently supports **OpenAI Codex**, **Claude**, and **Gemini** as the agent providers.
+**FermiLink** currently supports **OpenAI Codex**, **Claude**, **Gemini**, and
+**OpenCode** as the agent providers.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -48,11 +49,13 @@ Install and authenticate the provider you want to use:
    # Codex option
    npm i -g @openai/codex
    codex login
-   # Please read the official documentation of Claude and Gemini for installation.
+   # Please read the official documentation of Claude, Gemini, and OpenCode for installation.
    # Claude login
    claude 
    # Gemini login
    gemini
+   # OpenCode login
+   opencode auth login
 
 .. note::
 
@@ -129,6 +132,11 @@ By default, **FermiLink** runs in a restricted sandbox, but you can also relax t
 
    # relax sandbox for codex (for better performance)
    fermilink agent codex --bypass-sandbox --model gpt-5.3-codex --reasoning-effort high
+
+   # relax sandbox for claude, gemini, or opencode
+   fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+   fermilink agent gemini --bypass-sandbox --model auto-gemini-3 --reasoning-effort high
+   fermilink agent opencode --bypass-sandbox --model openai/gpt-5.5 --reasoning-effort xhigh
 
 .. warning::
 
@@ -245,7 +253,8 @@ Troubleshooting quick checks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - **Provider CLI not found**: confirm install/PATH for the selected provider
-  (``codex`` or ``claude``), then run the corresponding login command.
+  (``codex``, ``claude``, ``gemini``, or ``opencode``), then run the
+  corresponding login command.
 - **No packages installed**: run ``fermilink install <package_id> --activate``,
   then verify with ``fermilink list``.
 - **Runtime package missing**: install the underlying package (for example

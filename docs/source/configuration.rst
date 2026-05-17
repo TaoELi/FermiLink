@@ -19,7 +19,7 @@ Agent runtime policy
    ``FERMILINK_HOME/agent_runtime.json``.
 3. Built-in defaults.
 
-Supported providers: ``codex``, ``claude``, and ``gemini``.
+Supported providers: ``codex``, ``claude``, ``gemini``, and ``opencode``.
 
 Set policy via CLI:
 
@@ -30,6 +30,7 @@ Set policy via CLI:
    fermilink agent codex
    fermilink agent claude
    fermilink agent gemini
+   fermilink agent opencode
    fermilink agent --model gpt-5.3-codex
    fermilink agent --clear-model
    fermilink agent --reasoning-effort high
@@ -39,6 +40,10 @@ When the provider is ``gemini``, ``--reasoning-effort`` is translated by
 ``fermilink exec/chat/loop`` into Gemini ``thinkingConfig`` overrides
 (``thinkingLevel`` for Gemini 3 model families, ``thinkingBudget`` for older
 families) via a temporary system-settings file.
+
+When the provider is ``opencode``, use OpenCode model names in
+``provider/model`` form (for example ``openai/gpt-5.5``). FermiLink maps
+``--reasoning-effort xhigh`` to OpenCode's ``max`` variant.
 
 Core path variables
 -------------------
@@ -86,6 +91,9 @@ Common runner/web controls
    * - ``FERMILINK_GEMINI_BIN``
      - ``gemini``
      - Provider binary path for gemini runs.
+   * - ``FERMILINK_OPENCODE_BIN``
+     - ``opencode``
+     - Provider binary path for opencode runs.
    * - ``FERMILINK_RUNNER_MAX_RUNTIME_SECONDS``
      - ``600``
      - Per-run hard timeout in runner.

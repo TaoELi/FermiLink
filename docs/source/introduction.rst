@@ -3,7 +3,9 @@ How **FermiLink** Works
 
 **FermiLink** is designed to be agnostic to AI agent providers, scientific packages, and your computing environments.
 
-- You choose your favorite agent provider (e.g., OpenAI Codex, Anthropic Claude, Google Gemini) and **FermiLink** will rely on it for reasoning and decision-making.
+- You choose your favorite agent provider (e.g., OpenAI Codex, Anthropic
+  Claude, Google Gemini, or OpenCode) and **FermiLink** will rely on it for
+  reasoning and decision-making.
 - The built-in 150+ scientific package knowledge bases provide the agent source-grounded rich context for reasoning. You can also create custom knowledge bases by yourselves using ``fermilink compile``.
 - **FermiLink** focuses on providing a set of advanced workflows (``exec``, ``loop``, ``research``, ``reproduce`` for simulations and ``optimize`` for code optimization) specifically designed for scientific computing.
 - **FermiLink** works on your laptop, workstation, HPC cluster, or even your phone via Telegram. 

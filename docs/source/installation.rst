@@ -25,14 +25,15 @@ Prerequisites
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (workspaces are git repos)
 - Node.js + ``npm`` (commonly used for local agent provider CLIs) or ``homebrew`` installed for Mac
-- Supported provider CLI on ``PATH``: Codex (``codex``) or Claude (``claude``) or Gemini (``gemini``)
+- Supported provider CLI on ``PATH``: Codex (``codex``), Claude (``claude``),
+  Gemini (``gemini``), or OpenCode (``opencode``)
 
 .. note::
 
    For HPC users without sudo access, you need to install Node.js and ``npm`` locally first.
 
-Install provider CLI (Codex or Claude or Gemini)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Install provider CLI (Codex, Claude, Gemini, or OpenCode)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -40,7 +41,15 @@ Install provider CLI (Codex or Claude or Gemini)
    npm i -g @openai/codex  # Use ``brew install codex`` for Mac
 
 
-Apart from OpenAI Codex, users can also install Claude or Gemini CLI from its official distribution.
+Apart from OpenAI Codex, users can also install Claude, Gemini, or OpenCode
+from each provider's official distribution.
+
+OpenCode is useful if you want **FermiLink** to connect through a single CLI
+to a wider range of third-party model providers. Configure the provider/model
+profiles in OpenCode first, then select ``opencode`` in **FermiLink** with a
+model name in ``provider/model`` form. This lets you use OpenCode-backed
+providers such as DeepSeek and other supported services without requiring a
+separate **FermiLink** adapter for each one.
 
 Provider authentication
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,6 +67,8 @@ Example login commands:
    claude
    # Gemini
    gemini
+   # OpenCode
+   opencode auth login
 
 Install **FermiLink**
 ~~~~~~~~~~~~~~~~~~~~~
@@ -133,6 +144,12 @@ require bypassing the sandbox. You can do this per-provider:
 
    # bypass sandbox for claude
    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+
+   # bypass sandbox for gemini
+   fermilink agent gemini --bypass-sandbox --model auto-gemini-3 --reasoning-effort high
+
+   # bypass sandbox for opencode
+   fermilink agent opencode --bypass-sandbox --model openai/gpt-5.5 --reasoning-effort xhigh
 
 .. warning::
 

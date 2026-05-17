@@ -46,7 +46,7 @@ development and testing on macOS/Linux.
 
 
 Step 1. Install **FermiLink**
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A clean Python environment is recommended:
 

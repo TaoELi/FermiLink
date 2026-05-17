@@ -79,7 +79,7 @@ codex login
 Then set FermiLink's default provider:
 
 ```bash
-fermilink agent codex    # or claude, gemini, deepseek
+fermilink agent codex    # or claude, gemini, opencode
 ```
 
 ### Step 2: Install a scientific package

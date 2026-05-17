@@ -43,7 +43,7 @@ The most significant storage is for workspaces, which might generate large runti
 Step 2. Install agent provider CLI and authenticate
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**FermiLink** currently supports OpenAI Codex, Claude and Gemini.
+**FermiLink** currently supports OpenAI Codex, Claude, Gemini, and OpenCode.
 Install and authenticate the provider you want to use:
 
 .. code-block:: bash
@@ -51,11 +51,13 @@ Install and authenticate the provider you want to use:
    # Codex option
    npm i -g @openai/codex
    codex login
-   # Install Claude / Gemini CLI from its official distribution, then:
+   # Install Claude / Gemini / OpenCode CLI from its official distribution, then:
    # Claude login
    claude 
    # Gemini login
    gemini
+   # OpenCode login
+   opencode auth login
 
 Step 3. Install **FermiLink**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -110,6 +112,12 @@ By default, **FermiLink** runs in a restricted sandbox. For HPC runs, you might 
    # bypass sandbox for claude
    fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
 
+   # bypass sandbox for gemini
+   fermilink agent gemini --bypass-sandbox --model auto-gemini-3 --reasoning-effort high
+
+   # bypass sandbox for opencode
+   fermilink agent opencode --bypass-sandbox --model openai/gpt-5.5 --reasoning-effort xhigh
+
 .. warning::
 
    If you bypass the sandbox, **never** run as root. Use a dedicated non-root
@@ -123,6 +131,7 @@ To avoid having to specify HPC settings in every prompt, create an HPC profile f
 The simplest way to do it is to run:
 
 .. code-block:: bash
+
    fermilink hpc
 
 The following output will be printed,
@@ -347,7 +356,8 @@ Troubleshooting quick checks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - **Provider CLI not found**: confirm install/PATH for the selected provider
-  (``codex``, ``claude``, ``gemini``), then run the corresponding login command.
+  (``codex``, ``claude``, ``gemini``, or ``opencode``), then run the
+  corresponding login command.
 - **Jobs run locally instead of SLURM**: ensure you passed ``--hpc-profile`` and
   the JSON file path is correct.
 - **``sbatch`` not found**: you are not on a SLURM-enabled node or SLURM tools

@@ -8,8 +8,8 @@ import pytest
 from fermilink.agents import (
     ClaudeAgent,
     CodexAgent,
-    DeepseekAgent,
     GeminiAgent,
+    OpenCodeAgent,
     get_default_agent_registry,
     get_provider_agent,
 )
@@ -19,17 +19,18 @@ from fermilink.agents.base import ProviderAgent
 def test_agent_registry_exposes_provider_binary_maps() -> None:
     registry = get_default_agent_registry()
     codex_default = "codex.cmd" if os.name == "nt" else "codex"
+    opencode_default = "opencode.cmd" if os.name == "nt" else "opencode"
     assert registry.provider_bin_env_map() == {
         "codex": "FERMILINK_CODEX_BIN",
         "claude": "FERMILINK_CLAUDE_BIN",
         "gemini": "FERMILINK_GEMINI_BIN",
-        "deepseek": "FERMILINK_DEEPSEEK_BIN",
+        "opencode": "FERMILINK_OPENCODE_BIN",
     }
     assert registry.provider_bin_default_map() == {
         "codex": codex_default,
         "claude": "claude",
         "gemini": "gemini",
-        "deepseek": "deepseek",
+        "opencode": opencode_default,
     }
 
 
@@ -60,10 +61,68 @@ def test_stub_provider_resolve_binary_uses_env(monkeypatch) -> None:
     assert agent.resolve_binary() == "gemini-env"
 
 
-def test_deepseek_provider_resolve_binary_uses_env(monkeypatch) -> None:
-    monkeypatch.setenv("FERMILINK_DEEPSEEK_BIN", "deepseek-env")
-    agent = get_provider_agent("deepseek")
-    assert agent.resolve_binary() == "deepseek-env"
+def test_opencode_provider_resolve_binary_uses_env(monkeypatch) -> None:
+    monkeypatch.setenv("FERMILINK_OPENCODE_BIN", "opencode-env")
+    agent = get_provider_agent("opencode")
+    assert agent.resolve_binary() == "opencode-env"
+
+
+def test_opencode_provider_resolve_binary_uses_local_install(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import fermilink.agents.opencode_agent as opencode_agent
+
+    local_binary = tmp_path / ".opencode" / "bin" / "opencode"
+    local_binary.parent.mkdir(parents=True)
+    local_binary.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.delenv("FERMILINK_OPENCODE_BIN", raising=False)
+    monkeypatch.setattr(opencode_agent.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(opencode_agent.shutil, "which", lambda _binary: None)
+
+    agent = get_provider_agent("opencode")
+
+    assert agent.resolve_binary() == str(local_binary)
+
+
+def test_opencode_agent_renders_native_json_events() -> None:
+    agent = OpenCodeAgent()
+
+    tool_event = {
+        "type": "tool_use",
+        "part": {
+            "type": "tool",
+            "tool": "read",
+            "state": {
+                "status": "completed",
+                "input": {
+                    "filePath": "/tmp/probe.txt",
+                    "offset": 1,
+                    "limit": 2000,
+                },
+                "output": (
+                    "<path>/tmp/probe.txt</path>\n"
+                    "<type>file</type>\n"
+                    "<content>\n"
+                    "1: probe content\n"
+                    "\n"
+                    "(End of file - total 1 lines)\n"
+                    "</content>"
+                ),
+            },
+        },
+    }
+    rendered_tool = agent.render_stream_event(tool_event, use_color=False)
+    assert rendered_tool is not None
+    assert rendered_tool.startswith("[read] /tmp/probe.txt")
+    assert "probe content" in rendered_tool
+    assert "2 more lines" in rendered_tool
+
+    text_event = {
+        "type": "text",
+        "part": {"type": "text", "text": "done"},
+    }
+    assert agent.render_stream_event(text_event, use_color=False) == "[agent] done"
+    assert agent.extract_assistant_text_chunk(text_event) == ("done", False)
 
 
 def test_provider_base_build_exec_command_raises_clean_not_implemented(
@@ -332,23 +391,26 @@ def test_non_codex_agents_build_provider_native_commands(tmp_path: Path) -> None
         "--prompt=hello",
     ]
 
-    deepseek = DeepseekAgent()
-    assert deepseek.build_exec_command(
-        provider_bin=deepseek.default_binary,
+    opencode = OpenCodeAgent()
+    assert opencode.build_exec_command(
+        provider_bin=opencode.default_binary,
         repo_dir=tmp_path,
         prompt="hello",
         sandbox_policy="enforce",
         sandbox_mode="workspace-write",
-        model="test-model",
+        model="anthropic/claude-sonnet-4-5",
         reasoning_effort="xhigh",
         json_output=True,
     ) == [
-        "deepseek",
-        "--workspace",
+        "opencode",
+        "run",
+        "--dir",
         str(Path(tmp_path)),
-        "--quiet",
-        "--no-global",
+        "--format",
+        "json",
         "--model",
-        "test-model",
-        "--prompt=hello",
+        "anthropic/claude-sonnet-4-5",
+        "--variant",
+        "max",
+        "hello",
     ]

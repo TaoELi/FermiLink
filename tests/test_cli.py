@@ -548,7 +548,7 @@ def _make_zero_arg_state(
             },
             "claude": {"binary_found": False, "auth_state": "missing"},
             "gemini": {"binary_found": False, "auth_state": "missing"},
-            "deepseek": {"binary_found": False, "auth_state": "missing"},
+            "opencode": {"binary_found": False, "auth_state": "missing"},
         },
         "packages": {
             "count": 1 if has_packages else 0,
@@ -696,7 +696,7 @@ def test_zero_arg_provider_status_row_is_concise() -> None:
         "codex": {"binary_found": True, "auth_state": "unknown"},
         "claude": {"binary_found": True, "auth_state": "unknown"},
         "gemini": {"binary_found": True, "auth_state": "unknown"},
-        "deepseek": {"binary_found": True, "auth_state": "unknown"},
+        "opencode": {"binary_found": True, "auth_state": "unknown"},
     }
 
     row = zero_arg._zero_arg_provider_status_row(state)
@@ -704,7 +704,7 @@ def test_zero_arg_provider_status_row_is_concise() -> None:
     assert row == (
         "Providers",
         "codex pending",
-        "default=codex; detected=codex, claude, gemini, deepseek",
+        "default=codex; detected=codex, claude, gemini, opencode",
     )
 
 

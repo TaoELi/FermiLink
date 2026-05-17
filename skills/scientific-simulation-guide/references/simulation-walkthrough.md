@@ -29,7 +29,7 @@ At least one must be installed, authenticated, and set as the default.
 Set the active provider:
 
 ```bash
-fermilink agent codex          # or claude, gemini, deepseek
+fermilink agent codex          # or claude, gemini, opencode
 ```
 
 Optional tuning:

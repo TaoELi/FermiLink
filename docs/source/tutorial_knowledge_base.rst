@@ -4,8 +4,9 @@ Tutorial: FermiLink as a Knowledge Base for Any Agent
 This tutorial shows how to use **FermiLink** purely as a **scientific package
 knowledge base** under your favorite coding agent --- whether you use the
 **Codex CLI**, **Claude Code CLI**, **Claude Desktop**, the **Claude Code VS
-Code extension**, **Cursor**, **Gemini CLI**, or any other agent that reads
-``AGENTS.md`` / ``CLAUDE.md`` files in the current working directory.
+Code extension**, **Cursor**, **Gemini CLI**, **OpenCode CLI**, or any other
+agent that reads ``AGENTS.md`` / provider-specific instruction aliases in the
+current working directory.
 
 The overall workflow is very straightforward:
 
@@ -33,7 +34,7 @@ You need:
 - Python ``>= 3.11``
 - ``git`` on ``PATH``
 - One coding agent already installed and authenticated (Codex, Claude, Gemini,
-  Cursor, etc.)
+  OpenCode, Cursor, etc.)
 
 This tutorial assumes the default **FermiLink** runtime location at
 ``~/.fermilink``. If you want a different location later, see
@@ -163,8 +164,9 @@ What this does:
 - Copies the ``skills/`` directory as a managed local copy (the agent's
   primary entry point for package-specific guidance).
 - Drops an ``AGENTS.md`` policy file in the current directory and creates
-  ``CLAUDE.md`` / ``GEMINI.md`` aliases so any agent that follows the standard
-  ``AGENTS.md`` convention picks up the same context.
+  ``CLAUDE.md`` / ``GEMINI.md`` aliases so agents that follow the standard
+  ``AGENTS.md`` convention or provider-specific aliases pick up the same
+  context.
 - Records a ``.package_manifest.json`` so ``fermilink clean`` can later
   reverse the overlay safely.
 
@@ -182,8 +184,8 @@ Step 4. Use any agent to solve the problem
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Now hand the directory over to whichever agent you prefer. Each agent picks
-up the overlaid ``AGENTS.md`` / ``CLAUDE.md`` and the package ``skills/``
-automatically.
+up the overlaid ``AGENTS.md`` / provider-specific aliases and the package
+``skills/`` automatically.
 
 **Codex CLI**
 
@@ -231,6 +233,16 @@ the workspace root the same way the CLI does.
 
 Gemini CLI reads ``GEMINI.md`` (also aliased to ``AGENTS.md`` by
 ``fermilink init``).
+
+**OpenCode CLI**
+
+.. code-block:: bash
+
+   cd ~/projects/jc_demo
+   opencode
+
+OpenCode reads the workspace instructions and can use any provider/model
+profile configured in OpenCode.
 
 
 Step 5. Clean up the overlay with ``fermilink clean``

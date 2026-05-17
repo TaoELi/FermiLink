@@ -22,7 +22,7 @@ def provider_bin_env_key(provider: str) -> str:
     ----------
     provider : str
         Provider identifier (for example `codex`, `claude`, `gemini`, or
-        `deepseek`).
+        `opencode`).
 
     Returns
     -------
@@ -44,7 +44,7 @@ def resolve_provider_binary(
     ----------
     provider : str
         Provider identifier (for example `codex`, `claude`, `gemini`, or
-        `deepseek`).
+        `opencode`).
     provider_bin_override : str | None
         Optional provider-specific binary override consumed by the selected
         agent adapter.
@@ -118,7 +118,7 @@ def build_exec_command(
     ----------
     provider : str
         Provider identifier (for example `codex`, `claude`, `gemini`, or
-        `deepseek`).
+        `opencode`).
     provider_bin : str
         Executable or command name used to run the provider.
     repo_dir : Path

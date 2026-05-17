@@ -30,7 +30,7 @@ If you are not sure how to use **FermiLink** for your specific needs, simply ask
 
    cp myproject/
    fermilink init
-   codex
+   codex        # or claude, gemini, opencode
 
 Then ask your coding agent what you want to do. ``fermilink init`` will provide all context of **FermiLink** for agent reasoning.
 
@@ -267,6 +267,9 @@ Use ``fermilink agent`` to set global runtime defaults used by
    # set Gemini with sandbox for better safety
    fermilink agent gemini --sandbox --model auto-gemini-3 --reasoning-effort high
 
+   # set OpenCode with a configured provider/model profile
+   fermilink agent opencode --bypass-sandbox --model openai/gpt-5.5 --reasoning-effort xhigh
+
    # clear provider/model override and reasoning effort settings 
    # so FermiLink will use the default provider/model and reasoning effort
    fermilink agent --clear-model
@@ -307,7 +310,7 @@ A sample HPC profile (``HPC_PROFILE.json``) looks like this:
 See also
 --------
 
-- :doc:`installation` for initial setup (provider auth for Codex/Claude/Gemini, first package install).
+- :doc:`installation` for initial setup (provider auth for Codex/Claude/Gemini/OpenCode, first package install).
 - :doc:`configuration` for runtime variables and provider/sandbox policy.
 - :doc:`architecture` for the request flow and streaming contracts.
 - :doc:`scientific_packages` for install/compile/recompile workflows.

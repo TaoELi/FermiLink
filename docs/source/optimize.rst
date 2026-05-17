@@ -24,7 +24,8 @@ sudo required):
 
 - Python ``>= 3.11``
 - ``git`` on ``PATH`` (optimize campaigns run inside a git worktree)
-- Node.js + ``npm`` (for the Codex agent CLI)
+- Node.js + ``npm`` (for the Codex agent CLI; other provider CLIs may use
+  their own installers)
 - A C / C++ / Fortran toolchain **if** the package you want to optimize
   is compiled (e.g. ``gcc``, ``g++``, ``gfortran``, ``cmake``, ``make``)
 
@@ -49,7 +50,7 @@ interactively without being prompted for credentials.
 
 .. note::
 
-   **FermiLink** also supports Claude and Gemini agents. For
+   **FermiLink** also supports Claude, Gemini, and OpenCode agents. For
    optimization we recommend Codex because of its superior code-editing
    and profiling behavior at high reasoning effort as well as its relative affordability. If you prefer a
    different provider, see :doc:`choosing_agent`.
@@ -84,6 +85,11 @@ highest reasoning effort:
 
    fermilink agent codex --bypass-sandbox \
      --model gpt-5.4 \
+     --reasoning-effort xhigh
+
+   # OpenCode is also supported when you prefer OpenCode-managed profiles
+   fermilink agent opencode --bypass-sandbox \
+     --model openai/gpt-5.5 \
      --reasoning-effort xhigh
 
    # verify what is active
@@ -162,6 +168,7 @@ Save this file anywhere -- e.g. ``~/goals/pyscf-diis.md``.
 
    If you are new to writing optimization goals, ask **FermiLink**
    itself. From any directory, run ``fermilink init`` then ``codex``
+   (or ``claude``, ``gemini``, or ``opencode``)
    and tell the agent: *"Use the optimize-goal-authoring skill to
    write a well-structured optimization goal for <routine> in
    <package>."* See :ref:`Goal files for code optimization <goal-files-for-code-optimization>` for the full prompt.
@@ -412,7 +419,7 @@ Shared between ``fermilink-optimize-python`` and
        SLURM submission. See :doc:`tutorial_hpc`.
    * - ``--worker-provider NAME``
      - Override the worker-agent provider (e.g. ``claude``,
-       ``gemini``).
+       ``gemini``, ``opencode``).
    * - ``--worker-model MODEL``
      - Override the worker-agent model. Inherits sandbox/reasoning
        from the active agent policy.
@@ -520,8 +527,8 @@ Further reading
   and domain-specific examples.
 - :doc:`tutorial_hpc` -- how to wire ``--hpc-profile`` for SLURM so
   optimize benchmarks run on a cluster instead of your laptop.
-- :doc:`choosing_agent` -- picking between Codex, Claude, and
-  Gemini as the worker or controller agent.
+- :doc:`choosing_agent` -- picking between Codex, Claude, Gemini, and
+  OpenCode as the worker or controller agent.
 - :doc:`configuration` -- ``FERMILINK_HOME`` and related
   environment variables.
 - :doc:`usage_advanced_configuration` -- reusable pipelines and

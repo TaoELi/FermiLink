@@ -48,14 +48,14 @@ def test_agent_updates_provider_and_sandbox_policy(
     assert persisted["sandbox_policy"] == "bypass"
 
 
-def test_agent_accepts_deepseek_provider(monkeypatch, tmp_path: Path, capsys) -> None:
+def test_agent_accepts_opencode_provider(monkeypatch, tmp_path: Path, capsys) -> None:
     home = tmp_path / "fermilink-home"
     monkeypatch.setenv("FERMILINK_HOME", str(home))
 
-    code = cli.main(["agent", "deepseek", "--json"])
+    code = cli.main(["agent", "opencode", "--json"])
     assert code == 0
     payload = _parse_stdout_json(capsys)
-    assert payload["provider"] == "deepseek"
+    assert payload["provider"] == "opencode"
 
 
 def test_agent_prints_bypass_hint_when_setting_provider(

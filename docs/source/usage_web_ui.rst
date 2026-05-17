@@ -103,11 +103,12 @@ Troubleshooting (common first-run issues)
     fermilink install <package_id> --activate
 
 - **Runner fails with a provider error**:
-  ensure the active provider CLI (``codex``, ``claude``, or ``gemini``) is on
-  ``PATH`` and authenticated, then restart. 
+  ensure the active provider CLI (``codex``, ``claude``, ``gemini``, or
+  ``opencode``) is on ``PATH`` and authenticated, then restart.
   
   You can check or change provider
   selection with ``fermilink agent``::
+
     # check current provider and reasoning effort
     fermilink agent --json
 
@@ -116,6 +117,12 @@ Troubleshooting (common first-run issues)
 
     # switch to Claude with relaxed sandbox for better performance
     fermilink agent claude --bypass-sandbox --model sonnet --reasoning-effort high
+
+    # switch to Gemini
+    fermilink agent gemini --sandbox --model auto-gemini-3 --reasoning-effort high
+
+    # switch to OpenCode with a configured provider/model profile
+    fermilink agent opencode --bypass-sandbox --model openai/gpt-5.5 --reasoning-effort xhigh
 
     # restart the web UI service of FermiLink to apply the new provider settings
     fermilink restart

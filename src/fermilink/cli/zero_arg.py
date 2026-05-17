@@ -547,8 +547,8 @@ def _login_command_for_provider(provider: str) -> str:
         return "claude login"
     if provider == "gemini":
         return "gemini login"
-    if provider == "deepseek":
-        return "deepseek login"
+    if provider == "opencode":
+        return "opencode auth login"
     return f"{provider} login"
 
 
@@ -566,6 +566,7 @@ def _run_zero_arg_provider_setup(state: dict[str, object]) -> None:
         print("- Codex: `brew install codex` on macOS or `npm i -g @openai/codex`")
         print("- Claude: install the Claude CLI, then run `claude login`")
         print("- Gemini: install the Gemini CLI, then run `gemini login`")
+        print("- OpenCode: install OpenCode, then run `opencode auth login`")
         return
 
     recommended = state.get("selected_provider") or available[0]

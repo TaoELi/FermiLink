@@ -235,6 +235,22 @@ def _on_builder_inited(app: object) -> None:
     _generate_built_in_scientific_packages_page()
 
 
+def _skip_noisy_inherited_members(
+    app: object,
+    what: str,
+    name: str,
+    obj: object,
+    skip: bool,
+    options: object,
+) -> bool:
+    del app, what, options
+    module = getattr(obj, "__module__", "")
+    if name == "model_json_schema" and module.startswith("pydantic."):
+        return True
+    return skip
+
+
 def setup(app: object) -> dict[str, bool]:
     app.connect("builder-inited", _on_builder_inited)
+    app.connect("autodoc-skip-member", _skip_noisy_inherited_members)
     return {"parallel_read_safe": True, "parallel_write_safe": True}

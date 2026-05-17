@@ -153,7 +153,7 @@ For users new to optimization, feel free to use the skills available in **FermiL
    cd myproject/
    fermilink init
    # start a coding agent
-   codex
+   codex        # or claude, gemini, opencode
 
 Then ask the agent:
 

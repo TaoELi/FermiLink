@@ -32,6 +32,7 @@ Reference
    :hidden:
    :maxdepth: 1
 
+   Command Line Tools <usage>
    Web UI <usage_web_ui>
    Telegram Bot <usage_chatting_apps>
    Built-in Packages <built_in_scientific_packages>
