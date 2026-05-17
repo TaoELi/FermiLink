@@ -89,9 +89,7 @@ def test_cli_install_local_records_workflow_type(monkeypatch, tmp_path: Path) ->
     )
 
 
-def test_cli_install_infers_local_path_package_id(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_cli_install_infers_local_path_package_id(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
     monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 
@@ -122,9 +120,7 @@ def test_cli_install_rejects_empty_inferred_local_path(
     assert "not an existing non-empty directory" in err
 
 
-def test_cli_install_infers_github_repo_url(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_cli_install_infers_github_repo_url(monkeypatch, tmp_path: Path) -> None:
     scipkg_root = tmp_path / "scientific_packages"
     monkeypatch.setenv("FERMILINK_SCIPKG_ROOT", str(scipkg_root))
 

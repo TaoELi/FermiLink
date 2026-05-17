@@ -684,9 +684,7 @@ def _run_exec_chat_turn(
                             cli.subprocess.PIPE
                             if prompt_stdin is not None
                             else (
-                                None
-                                if provider == "codex"
-                                else cli.subprocess.DEVNULL
+                                None if provider == "codex" else cli.subprocess.DEVNULL
                             )
                         ),
                         stdout=cli.subprocess.PIPE,
@@ -892,9 +890,7 @@ def _run_exec_provider_prompt(
                 stdin=(
                     cli.subprocess.PIPE
                     if prompt_stdin is not None
-                    else (
-                        None if provider == "codex" else cli.subprocess.DEVNULL
-                    )
+                    else (None if provider == "codex" else cli.subprocess.DEVNULL)
                 ),
                 stdout=cli.subprocess.PIPE,
                 stderr=cli.subprocess.PIPE,

@@ -473,9 +473,9 @@ class ProviderAgent(ABC):
             command_preview = _extract_command_preview(event)
             if not name and not command_preview:
                 return None
-            if normalized_item_type == "command_execution" and str(
-                event_type
-            ).endswith(".completed"):
+            if normalized_item_type == "command_execution" and str(event_type).endswith(
+                ".completed"
+            ):
                 return None
             return (
                 f"{c['tool_label']}[{name}]{reset} "

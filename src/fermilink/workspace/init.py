@@ -178,15 +178,13 @@ def _filter_package_init_meta(
         filtered_entries = [
             entry.name
             for entry in selected_entries
-            if entry.name not in reserved_names
-            and entry.name not in copied_entry_names
+            if entry.name not in reserved_names and entry.name not in copied_entry_names
         ]
     else:
         filtered_entries = [
             entry_name
             for entry_name in configured_entries
-            if entry_name not in reserved_names
-            and entry_name not in copied_entry_names
+            if entry_name not in reserved_names and entry_name not in copied_entry_names
         ]
 
     sanitized = dict(package_meta)

@@ -149,8 +149,7 @@ def test_install_from_git_url_clones_with_ssh_and_registers(
     ]
     assert meta["id"] == "mos2-quantum-transport-skill"
     assert (
-        meta["source"]
-        == "git:https://github.com/TaoELi/mos2-quantum-transport-skill"
+        meta["source"] == "git:https://github.com/TaoELi/mos2-quantum-transport-skill"
     )
     assert meta[PACKAGE_WORKFLOW_TYPE_KEY] == "experiment"
     assert registry["active_package"] == "mos2-quantum-transport-skill"

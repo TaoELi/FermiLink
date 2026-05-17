@@ -171,7 +171,9 @@ class OpenCodeAgent(ProviderAgent):
             ).strip()
             output = _opencode_tool_output(part)
             if output:
-                return f"{header}\n{c['tool_out']}{_truncate_tool_output(output)}{reset}"
+                return (
+                    f"{header}\n{c['tool_out']}{_truncate_tool_output(output)}{reset}"
+                )
             return header if header else None
 
         if event_type == "error":

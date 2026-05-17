@@ -1075,9 +1075,7 @@ def install_from_git_url(
     """
     normalized_id = normalize_package_id(package_id)
     normalized_workflow_type = normalize_package_workflow_type(workflow_type)
-    _owner, repo_name, canonical_url, clone_url = _normalize_github_install_url(
-        git_url
-    )
+    _owner, repo_name, canonical_url, clone_url = _normalize_github_install_url(git_url)
     target_dir = packages_root(scipkg_root) / normalized_id
 
     if target_dir.exists() or target_dir.is_symlink():

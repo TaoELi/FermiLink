@@ -132,10 +132,7 @@ def _format_muted_auxiliary_text(text: str) -> str:
     if not compact:
         return ""
     escaped = html.escape(compact)
-    return (
-        '<pre style="color:#6b7280;white-space:pre-wrap;">'
-        f"{escaped}</pre>"
-    )
+    return '<pre style="color:#6b7280;white-space:pre-wrap;">' f"{escaped}</pre>"
 
 
 def _truncate_history_entry(text: str, *, history_entry_max_chars: int) -> str:
