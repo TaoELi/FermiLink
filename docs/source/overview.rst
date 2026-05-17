@@ -44,6 +44,7 @@ where it can identify performance bottlenecks and optimize them iteratively usin
 
    quickstart
    installation
+   tutorial_knowledge_base
    tutorial_laptop
    tutorial_hpc
    optimize
