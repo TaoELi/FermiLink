@@ -28,10 +28,11 @@ Supported providers
      - ``gemini``
      - See `Gemini CLI docs <https://github.com/google-gemini/gemini-cli>`_
      - Google's Gemini CLI. 
-   * - **DeepSeek**
-     - ``deepseek``
-     - See `DeepSeek docs <https://www.deepseek.com/>`_
-     - DeepSeek CLI. 
+   * - **OpenCode**
+     - ``opencode``
+     - See `OpenCode docs <https://opencode.ai/docs/>`_
+     - Model-agnostic OpenCode CLI. Authenticate providers with
+       ``opencode auth login`` and use model names in ``provider/model`` form.
 
 
 Setting up your agent
@@ -59,6 +60,9 @@ All providers work with all **FermiLink** workflows. The best choice depends on
 your priorities:
 
 **If you want the broadest compatibility:** Codex and Claude are the most tested providers, which give the richest interactive experience.
+
+**If you want flexible model/provider routing:** OpenCode lets **FermiLink** use
+any provider/model profile configured in OpenCode.
 
 **If you use Google Cloud:** Gemini is a natural fit if you're already in the
 Google ecosystem.

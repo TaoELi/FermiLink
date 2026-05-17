@@ -48,6 +48,7 @@ where it can identify performance bottlenecks and optimize them iteratively usin
    tutorial_laptop
    tutorial_hpc
    optimize
+   tutorial_exploop
    choosing_agent
 
 .. toctree::
