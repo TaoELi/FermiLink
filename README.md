@@ -10,17 +10,17 @@
   <a href="https://arxiv.org/abs/2604.03460"><img src="https://img.shields.io/badge/arXiv-2604.03460-b31b1b.svg" alt="arXiv:2604.03460"></a>
 </p>
 
-<h3 align="center">Write a <code>goal.md</code> for scientific simulations!</h3>
+<h3 align="center">Write a <code>goal.md</code> for scientific simulations and more!</h3>
 
 <p align="center">
-<b> FermiLink </b> reads a simple markdown file describing your scientific computing goal,<br>
+<b> FermiLink </b> reads a simple markdown file describing your scientific goal,<br>
 then autonomously runs multi-job multi-day simulations on your laptop or HPC clusters.</p>
 
 ---
 
 ## Key Features
 
-#### Package Knowledge Base Manager 
+#### [Package Knowledge Base Manager](https://fermilink.org/tutorial_knowledge_base.html)
 
 Use **FermiLink** to conveniently load package knowledge base to your local workspace; and then apply any local agent for interactive research.
 
@@ -32,7 +32,7 @@ fermilink init <pkg-id>
 codex 
 ```
 
-#### Autonomous Scientific Simulations 
+#### [Autonomous Scientific Simulations](https://fermilink.org/tutorial_laptop.html)
 
 Beyond interactive use,  **FermiLink** can also sustain **multi-task multi-day** simulations on either your laptop or HPC.
 
@@ -42,7 +42,7 @@ fermilink reproduce paper.tex   # reproduction of a full research paper
 fermilink research goal.md      # full research-paper-scale, multi-task campaigns
 ```
 
-#### Autonomous Code Optimization *(beta)*
+#### [Autonomous Code Optimization *(beta)*](https://fermilink.org/optimize.html)
 
 Apply **FermiLink** to your existing scientific code with a **performance goal**. It iteratively modifies hot paths and runs deterministic benchmarks. 
 
@@ -87,7 +87,7 @@ The key design principle of **FermiLink** is the segregation of  package knowled
 
 ## Supported Workflows
 
-**FermiLink** supports the following six major commands for various simulation workflows:
+**FermiLink** supports the following seven major commands for various simulation workflows:
 
 | Command | Best for | Duration | Recommended Environment |
 |---|---|---|---|
@@ -97,6 +97,8 @@ The key design principle of **FermiLink** is the segregation of  package knowled
 | `reproduce` | Multi-task, paper-scale reproducation of papers | Days -> weeks | HPC clusters |
 | `research` | Multi-task, paper-scale research | Days -> weeks | HPC clusters |
 | `optimize` | Code performance tuning *(beta)* | Hours | Any |
+| `exploop` | Iterative experimental jobs with PID monitoring | Hours -> days | Workstation |
+
 
 ---
 
