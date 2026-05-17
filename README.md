@@ -61,7 +61,7 @@ fermilink optimize goal.md      # iterative code with correctness guarantees
 pip install fermilink
 
 # 2. Set up an AI agent (pick one)
-fermilink agent codex        # or: claude, gemini
+fermilink agent codex        # or: claude, gemini, opencode
 
 # 3. Install a scientific package knowledge base
 fermilink install meep       # 150+ packages available
