@@ -139,6 +139,28 @@ def register_workflow_parsers(
         action="store_true",
         help="Skip final report generation after all tasks complete.",
     )
+    post_task_audit_group = reproduce_parser.add_mutually_exclusive_group(
+        required=False
+    )
+    post_task_audit_group.add_argument(
+        "--post-task-plan-audit",
+        dest="post_task_plan_audit",
+        action="store_true",
+        default=True,
+        help=(
+            "After each task loop, run a conservative audit that may update only "
+            "remaining task prompts before continuing (default)."
+        ),
+    )
+    post_task_audit_group.add_argument(
+        "--no-post-task-plan-audit",
+        dest="post_task_plan_audit",
+        action="store_false",
+        help=(
+            "Disable the conservative post-task plan audit and run the original "
+            "fixed task sequence."
+        ),
+    )
     resume_group = reproduce_parser.add_mutually_exclusive_group(required=False)
     resume_group.add_argument(
         "--resume",
@@ -277,6 +299,28 @@ def register_workflow_parsers(
         "--skip-report",
         action="store_true",
         help="Skip final report generation after all tasks complete.",
+    )
+    research_post_task_audit_group = research_parser.add_mutually_exclusive_group(
+        required=False
+    )
+    research_post_task_audit_group.add_argument(
+        "--post-task-plan-audit",
+        dest="post_task_plan_audit",
+        action="store_true",
+        default=True,
+        help=(
+            "After each task loop, run a conservative audit that may update only "
+            "remaining task prompts before continuing (default)."
+        ),
+    )
+    research_post_task_audit_group.add_argument(
+        "--no-post-task-plan-audit",
+        dest="post_task_plan_audit",
+        action="store_false",
+        help=(
+            "Disable the conservative post-task plan audit and run the original "
+            "fixed task sequence."
+        ),
     )
     research_resume_group = research_parser.add_mutually_exclusive_group(required=False)
     research_resume_group.add_argument(

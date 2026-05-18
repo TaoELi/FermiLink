@@ -51,6 +51,11 @@ WORKFLOW_TASK_DATA_MAP_TOKEN_RE = re.compile(
     r"<task_data_map>\s*(\{.*?\})\s*</task_data_map>",
     re.DOTALL,
 )
+WORKFLOW_PLAN_UPDATE_TAG = "workflow_plan_update"
+WORKFLOW_PLAN_UPDATE_TOKEN_RE = re.compile(
+    r"<workflow_plan_update>\s*(\{.*?\})\s*</workflow_plan_update>",
+    re.DOTALL,
+)
 
 LOOP_PROMPT_PREFIX = (
     "You are running in **FermiLink loop mode**.\n"
@@ -296,5 +301,47 @@ WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX = (
     "- Keep confidence in [0.0, 1.0].\n"
     "- Prefer narrow, high-signal file subsets per task.\n"
     "- Explicitly flag unknown/low-confidence regions.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+)
+
+WORKFLOW_POST_TASK_PLAN_AUDITOR_PROMPT_PREFIX = (
+    "You are running in **FermiLink post-task plan audit mode**.\n"
+    "\n"
+    "Goal: conservatively decide whether remaining research/reproduce workflow tasks\n"
+    "should be adjusted after one task loop has completed or failed.\n"
+    "\n"
+    "Return exactly one XML-like block:\n"
+    f"<{WORKFLOW_PLAN_UPDATE_TAG}>{{JSON}}</{WORKFLOW_PLAN_UPDATE_TAG}>\n"
+    "\n"
+    "JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "decision": "no_change | update_remaining | continue_with_failed_task | abort",\n'
+    '  "reason": "short factual rationale",\n'
+    '  "completed_or_failed_task_id": "task_001",\n'
+    '  "remaining_tasks": [\n'
+    "    {\n"
+    '      "id": "task_002",\n'
+    '      "title": "short title",\n'
+    '      "figure_targets": ["Figure 1b"],\n'
+    '      "objective": "what to reproduce or research",\n'
+    '      "simulation_requirements": ["what to simulate"],\n'
+    '      "parameter_constraints": ["parameters/conditions"],\n'
+    '      "plot_requirements": ["axes/style/colors"],\n'
+    '      "acceptance_checks": ["completion criteria"],\n'
+    '      "prompt_markdown": "prompt text for one future fermilink loop task"\n'
+    "    }\n"
+    "  ],\n"
+    '  "audit_notes": ["short notes for state history"]\n'
+    "}\n"
+    "\n"
+    "Rules:\n"
+    "- Prefer `no_change` when the current remaining plan is still feasible.\n"
+    "- Modify only remaining future tasks; never rewrite completed or failed task evidence.\n"
+    "- Preserve the original scientific goal and evidence standards.\n"
+    "- Do not silently remove acceptance checks; strengthen or clarify them when needed.\n"
+    "- Keep existing task ids stable unless splitting or replacing a future task is necessary.\n"
+    "- If a task failed, use `continue_with_failed_task` only when the remaining tasks can still produce a useful, honest report; otherwise use `abort`.\n"
+    "- `remaining_tasks` must be the complete replacement list of future executable tasks after the completed/failed task. Use an empty list only when no future task remains.\n"
     "- Return valid JSON only inside the tag (no markdown fences).\n"
 )

@@ -35,6 +35,9 @@ def test_reproduce_parser_defaults() -> None:
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
+    assert args.post_task_plan_audit is True
+    opt_out_args = parser.parse_args(["reproduce", "paper.md", "--no-post-task-plan-audit"])
+    assert opt_out_args.post_task_plan_audit is False
     assert not hasattr(args, "dry_run")
     assert args.resume is True
 
@@ -402,7 +405,9 @@ def test_reproduce_executes_tasks_with_retries(
         },
     )
 
-    code = cli.main(["reproduce", "paper.md", "--task-max-runs", "3"])
+    code = cli.main(
+        ["reproduce", "paper.md", "--task-max-runs", "3", "--no-post-task-plan-audit"]
+    )
     assert code == 0
     assert len(loop_calls) == 3
     assert loop_calls[0].name == "task_001.md"
@@ -438,6 +443,278 @@ def test_reproduce_executes_tasks_with_retries(
     assert "## Workflow context" in memory
     assert f"projects/reproduce/{latest_run}/plan.json" in memory
     assert f"projects/reproduce/{latest_run}/state.json" in memory
+
+
+def test_reproduce_post_task_plan_audit_updates_remaining_prompt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                },
+                {
+                    "id": "task_002",
+                    "title": "task two",
+                    "prompt_markdown": "run task two",
+                },
+            ],
+        },
+    )
+
+    loop_prompt_texts: list[str] = []
+
+    def fake_loop(loop_args) -> int:
+        prompt_path = Path(str(getattr(loop_args, "prompt", [""])[0]))
+        loop_prompt_texts.append(prompt_path.read_text(encoding="utf-8"))
+        return 0
+
+    def fake_exec_turn(**_kwargs) -> dict[str, object]:
+        payload = {
+            "version": 1,
+            "decision": "update_remaining",
+            "reason": "task one completed the baseline; narrow task two",
+            "completed_or_failed_task_id": "task_001",
+            "remaining_tasks": [
+                {
+                    "id": "task_002",
+                    "title": "task two revised",
+                    "objective": "finish revised follow-up",
+                    "prompt_markdown": "run revised task two",
+                }
+            ],
+            "audit_notes": ["revised task two after task one completion"],
+        }
+        return {
+            "return_code": 0,
+            "assistant_text": (
+                f"<{cli.WORKFLOW_PLAN_UPDATE_TAG}>"
+                + json.dumps(payload)
+                + f"</{cli.WORKFLOW_PLAN_UPDATE_TAG}>"
+            ),
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_workflow_report",
+        lambda **kwargs: {
+            "report_path": str(Path(kwargs["run_dir"]) / "report.md"),
+            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
+            "summary_count": 2,
+        },
+    )
+
+    code = cli.main(["reproduce", "paper.md", "--post-task-plan-audit"])
+    assert code == 0
+    assert loop_prompt_texts == ["run task one\n", "run revised task two\n"]
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+
+    assert (run_dir / "prompts" / "task_001.md").read_text(encoding="utf-8") == (
+        "run task one\n"
+    )
+    assert (run_dir / "prompts" / "task_002.md").read_text(encoding="utf-8") == (
+        "run revised task two\n"
+    )
+    assert plan["tasks"][1]["title"] == "task two revised"
+    assert state["plan_revisions"][0]["decision"] == "update_remaining"
+    assert state["plan_revisions"][0]["changed_task_ids"] == ["task_002"]
+    assert state["task_runs"]["task_002"] == 1
+
+
+def test_reproduce_post_task_plan_audit_invalid_response_keeps_plan(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                },
+                {
+                    "id": "task_002",
+                    "title": "task two",
+                    "prompt_markdown": "run task two",
+                },
+            ],
+        },
+    )
+
+    loop_prompt_texts: list[str] = []
+
+    def fake_loop(loop_args) -> int:
+        prompt_path = Path(str(getattr(loop_args, "prompt", [""])[0]))
+        loop_prompt_texts.append(prompt_path.read_text(encoding="utf-8"))
+        return 0
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    monkeypatch.setattr(
+        workflow_commands,
+        "_run_reproduce_exec_turn",
+        lambda **_kwargs: {
+            "return_code": 0,
+            "assistant_text": "missing tagged JSON",
+            "stderr": "",
+        },
+    )
+    monkeypatch.setattr(
+        cli,
+        "_finalize_workflow_report",
+        lambda **kwargs: {
+            "report_path": str(Path(kwargs["run_dir"]) / "report.md"),
+            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
+            "summary_count": 2,
+        },
+    )
+
+    code = cli.main(["reproduce", "paper.md", "--post-task-plan-audit"])
+    assert code == 0
+    assert loop_prompt_texts == ["run task one\n", "run task two\n"]
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    state = json.loads(
+        (runs_root / latest_run / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["plan_revisions"][0]["decision"] == "no_change"
+    assert state["plan_revisions"][0]["changed_task_ids"] == []
+
+
+def test_reproduce_post_task_plan_audit_can_continue_after_failed_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "paper.md").write_text("paper request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_reproduce_plan",
+        lambda **_kwargs: {
+            "version": 1,
+            "paper_source": "paper.md",
+            "assumptions": [],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "task one",
+                    "prompt_markdown": "run task one",
+                },
+                {
+                    "id": "task_002",
+                    "title": "task two",
+                    "prompt_markdown": "run task two",
+                },
+            ],
+        },
+    )
+
+    loop_calls: list[str] = []
+
+    def fake_loop(loop_args) -> int:
+        prompt_path = Path(str(getattr(loop_args, "prompt", [""])[0]))
+        loop_calls.append(prompt_path.name)
+        if prompt_path.name == "task_001.md":
+            loop_args._fermilink_loop_outcome = {
+                "status": "incomplete_max_iterations",
+                "reason": "max_iterations_reached",
+            }
+            return 1
+        loop_args._fermilink_loop_outcome = {
+            "status": "done",
+            "reason": "done_token",
+        }
+        return 0
+
+    def fake_exec_turn(**_kwargs) -> dict[str, object]:
+        payload = {
+            "version": 1,
+            "decision": "continue_with_failed_task",
+            "reason": "task one failed, but task two remains independently useful",
+            "completed_or_failed_task_id": "task_001",
+            "remaining_tasks": [
+                {
+                    "id": "task_002",
+                    "title": "task two",
+                    "objective": "independent follow-up",
+                    "prompt_markdown": "run task two",
+                }
+            ],
+            "audit_notes": ["record task one as failed and continue honestly"],
+        }
+        return {
+            "return_code": 0,
+            "assistant_text": (
+                f"<{cli.WORKFLOW_PLAN_UPDATE_TAG}>"
+                + json.dumps(payload)
+                + f"</{cli.WORKFLOW_PLAN_UPDATE_TAG}>"
+            ),
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_workflow_report",
+        lambda **kwargs: {
+            "report_path": str(Path(kwargs["run_dir"]) / "report.md"),
+            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
+            "summary_count": 2,
+        },
+    )
+
+    code = cli.main(
+        ["reproduce", "paper.md", "--task-max-runs", "1", "--post-task-plan-audit"]
+    )
+    assert code == 0
+    assert loop_calls == ["task_001.md", "task_002.md"]
+
+    runs_root = repo_dir / "projects" / "reproduce"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    state = json.loads(
+        (runs_root / latest_run / "state.json").read_text(encoding="utf-8")
+    )
+    assert state["status"] == "completed"
+    assert state["tasks"][0]["status"] == "failed_continued"
+    assert state["plan_revisions"][0]["decision"] == "continue_with_failed_task"
+    assert state["task_runs"] == {"task_001": 1, "task_002": 1}
 
 
 def test_reproduce_status_hook_emits_task_progress_with_totals(
@@ -480,7 +757,9 @@ def test_reproduce_status_hook_emits_task_progress_with_totals(
 
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
     parser = cli._build_parser()
-    args = parser.parse_args(["reproduce", "paper.md", "--skip-report"])
+    args = parser.parse_args(
+        ["reproduce", "paper.md", "--skip-report", "--no-post-task-plan-audit"]
+    )
     setattr(
         args,
         "_fermilink_workflow_status_hook",

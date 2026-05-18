@@ -114,6 +114,9 @@ from fermilink.cli.workflow_prompts import (
     WORKFLOW_REPORT_FILENAME,
     WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX,
     WORKFLOW_SUMMARIES_DIRNAME,
+    WORKFLOW_PLAN_UPDATE_TAG,
+    WORKFLOW_PLAN_UPDATE_TOKEN_RE,
+    WORKFLOW_POST_TASK_PLAN_AUDITOR_PROMPT_PREFIX,
     UNIFIED_MEMORY_PROMPT_PREFIX,
 )
 from fermilink.agent_runtime import (
@@ -345,13 +348,19 @@ _render_reproduce_task_prompt = workflow_commands._render_reproduce_task_prompt
 _extract_tagged_json_payload = workflow_commands._extract_tagged_json_payload
 _extract_reproduce_plan_payload = workflow_commands._extract_reproduce_plan_payload
 _extract_research_plan_payload = workflow_commands._extract_research_plan_payload
+_extract_workflow_plan_update_payload = (
+    workflow_commands._extract_workflow_plan_update_payload
+)
 _normalize_automation_plan = workflow_commands._normalize_automation_plan
 _normalize_reproduce_plan = workflow_commands._normalize_reproduce_plan
 _normalize_research_plan = workflow_commands._normalize_research_plan
+_normalize_workflow_plan_update = workflow_commands._normalize_workflow_plan_update
 _run_reproduce_exec_turn = workflow_commands._run_reproduce_exec_turn
 _generate_mode_plan = workflow_commands._generate_mode_plan
 _generate_reproduce_plan = workflow_commands._generate_reproduce_plan
 _generate_research_plan = workflow_commands._generate_research_plan
+_run_post_task_plan_update = workflow_commands._run_post_task_plan_update
+_apply_remaining_task_updates = workflow_commands._apply_remaining_task_updates
 _resolve_invocation_hpc_context = workflow_commands._resolve_invocation_hpc_context
 _build_hpc_prompt_lines = workflow_commands._build_hpc_prompt_lines
 _resolve_invocation_data_context = workflow_commands._resolve_invocation_data_context

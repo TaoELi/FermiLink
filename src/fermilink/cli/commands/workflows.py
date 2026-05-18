@@ -42,6 +42,9 @@ from fermilink.cli.workflow_prompts import (
     WORKFLOW_REPORT_FILENAME,
     WORKFLOW_REPORT_GENERATOR_PROMPT_PREFIX,
     WORKFLOW_SUMMARIES_DIRNAME,
+    WORKFLOW_PLAN_UPDATE_TAG,
+    WORKFLOW_PLAN_UPDATE_TOKEN_RE,
+    WORKFLOW_POST_TASK_PLAN_AUDITOR_PROMPT_PREFIX,
     WORKFLOW_TASK_DATA_MAP_FILENAME,
     WORKFLOW_TASK_DATA_MAP_TAG,
     WORKFLOW_TASK_DATA_MAP_TOKEN_RE,
@@ -1774,6 +1777,14 @@ def _extract_task_data_map_payload(assistant_text: str) -> dict[str, object] | N
     )
 
 
+def _extract_workflow_plan_update_payload(
+    assistant_text: str,
+) -> dict[str, object] | None:
+    return _extract_tagged_json_payload(
+        assistant_text, token_re=WORKFLOW_PLAN_UPDATE_TOKEN_RE
+    )
+
+
 def _coerce_confidence(raw: object, *, default: float = 0.5) -> float:
     try:
         value = float(raw)
@@ -3198,6 +3209,473 @@ def _generate_research_plan(
         hpc_context=hpc_context,
         workflow_status_hook=workflow_status_hook,
     )
+
+
+WORKFLOW_PLAN_UPDATE_DECISIONS = {
+    "no_change",
+    "update_remaining",
+    "continue_with_failed_task",
+    "abort",
+}
+
+
+def _fallback_workflow_plan_update(
+    *,
+    task_id: str,
+    reason: str,
+) -> dict[str, object]:
+    return {
+        "version": 1,
+        "decision": "no_change",
+        "reason": str(reason or "post-task plan audit produced no valid update"),
+        "completed_or_failed_task_id": task_id,
+        "remaining_tasks": [],
+        "audit_notes": [str(reason or "no valid update")],
+    }
+
+
+def _normalize_workflow_plan_update(
+    raw_payload: object,
+    *,
+    source_description: str,
+    completed_or_failed_task_id: str,
+    hpc_context: dict[str, object] | None = None,
+) -> dict[str, object]:
+    cli = _cli()
+    if not isinstance(raw_payload, dict):
+        raise cli.PackageError("Workflow plan update must be a JSON object.")
+
+    decision = str(raw_payload.get("decision") or "").strip()
+    if decision not in WORKFLOW_PLAN_UPDATE_DECISIONS:
+        raise cli.PackageError(
+            "Workflow plan update decision must be one of: "
+            + ", ".join(sorted(WORKFLOW_PLAN_UPDATE_DECISIONS))
+        )
+
+    payload_task_id = str(
+        raw_payload.get("completed_or_failed_task_id") or ""
+    ).strip()
+    if payload_task_id and payload_task_id != completed_or_failed_task_id:
+        raise cli.PackageError(
+            "Workflow plan update task id mismatch: "
+            f"{payload_task_id!r} != {completed_or_failed_task_id!r}"
+        )
+
+    remaining_tasks: list[dict[str, object]] = []
+    if decision in {"update_remaining", "continue_with_failed_task"}:
+        raw_remaining_tasks = raw_payload.get("remaining_tasks")
+        if not isinstance(raw_remaining_tasks, list):
+            raise cli.PackageError(
+                "Workflow plan update must include `remaining_tasks` list."
+            )
+        if raw_remaining_tasks:
+            normalized_remaining_plan = _normalize_automation_plan(
+                {
+                    "version": 1,
+                    "paper_source": source_description,
+                    "assumptions": [],
+                    "tasks": raw_remaining_tasks,
+                },
+                source_description=source_description,
+                hpc_context=hpc_context,
+            )
+            normalized_tasks = normalized_remaining_plan.get("tasks")
+            if not isinstance(normalized_tasks, list):
+                raise cli.PackageError(
+                    "Workflow plan update remaining tasks did not normalize to a list."
+                )
+            remaining_tasks = [
+                item for item in normalized_tasks if isinstance(item, dict)
+            ]
+
+    return {
+        "version": 1,
+        "decision": decision,
+        "reason": str(raw_payload.get("reason") or "").strip(),
+        "completed_or_failed_task_id": completed_or_failed_task_id,
+        "remaining_tasks": remaining_tasks,
+        "audit_notes": _normalize_string_list(raw_payload.get("audit_notes")),
+    }
+
+
+def _workflow_plan_remaining_task_ids(
+    *,
+    run_dir: Path,
+    completed_or_failed_count: int,
+) -> list[str]:
+    plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+    plan_payload = _load_json_if_exists(plan_path)
+    if not isinstance(plan_payload, dict):
+        return []
+    tasks = plan_payload.get("tasks")
+    if not isinstance(tasks, list):
+        return []
+    task_ids: list[str] = []
+    for index, item in enumerate(tasks[completed_or_failed_count:], start=1):
+        if not isinstance(item, dict):
+            continue
+        task_id = str(item.get("id") or f"task_{index:03d}").strip()
+        if task_id:
+            task_ids.append(task_id)
+    return task_ids
+
+
+def _changed_remaining_task_ids(
+    previous_tasks: list[dict[str, object]],
+    new_tasks: list[dict[str, object]],
+) -> list[str]:
+    previous_by_id = {
+        str(item.get("id") or "").strip(): item
+        for item in previous_tasks
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+    new_by_id = {
+        str(item.get("id") or "").strip(): item
+        for item in new_tasks
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+    changed: set[str] = set(previous_by_id).symmetric_difference(set(new_by_id))
+    for task_id, new_task in new_by_id.items():
+        previous_task = previous_by_id.get(task_id)
+        if previous_task is None:
+            continue
+        if previous_task != new_task:
+            changed.add(task_id)
+    return sorted(changed)
+
+
+def _append_workflow_plan_revision(
+    state: dict[str, object],
+    *,
+    trigger_task_id: str,
+    trigger_status: str,
+    decision: str,
+    reason: str,
+    audit_notes: list[str],
+    previous_remaining_task_ids: list[str],
+    new_remaining_task_ids: list[str],
+    changed_task_ids: list[str],
+) -> None:
+    revisions = state.get("plan_revisions")
+    if not isinstance(revisions, list):
+        revisions = []
+        state["plan_revisions"] = revisions
+    revisions.append(
+        {
+            "version": 1,
+            "updated_at_utc": _utc_now_z(),
+            "trigger_task_id": trigger_task_id,
+            "trigger_status": trigger_status,
+            "decision": decision,
+            "reason": reason,
+            "audit_notes": audit_notes,
+            "previous_remaining_task_ids": previous_remaining_task_ids,
+            "new_remaining_task_ids": new_remaining_task_ids,
+            "changed_task_ids": changed_task_ids,
+        }
+    )
+
+
+def _run_post_task_plan_update(
+    *,
+    repo_dir: Path,
+    run_dir: Path,
+    workflow_name: str,
+    source_description: str,
+    task_id: str,
+    task_status: str,
+    run_number: int,
+    completed_or_failed_count: int,
+    requested_package_id: str | None,
+    sandbox_override: str | None,
+    provider_bin_override: str,
+    max_tries: int,
+    data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
+) -> dict[str, object]:
+    cli = _cli()
+    plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+    state_path = run_dir / REPRODUCE_STATE_FILENAME
+    log_path = (
+        run_dir
+        / REPRODUCE_LOGS_DIRNAME
+        / f"{task_id}_run_{run_number:02d}.json"
+    )
+    plan_payload = _load_json_if_exists(plan_path)
+    if not isinstance(plan_payload, dict):
+        return _fallback_workflow_plan_update(
+            task_id=task_id,
+            reason=f"missing workflow plan for post-task audit: {plan_path}",
+        )
+    plan_tasks = plan_payload.get("tasks")
+    if not isinstance(plan_tasks, list):
+        return _fallback_workflow_plan_update(
+            task_id=task_id,
+            reason="workflow plan has no task list for post-task audit",
+        )
+    remaining_plan_tasks = [
+        item
+        for item in plan_tasks[completed_or_failed_count:]
+        if isinstance(item, dict)
+    ]
+    if not remaining_plan_tasks:
+        return _fallback_workflow_plan_update(
+            task_id=task_id,
+            reason="no remaining workflow tasks to audit",
+        )
+
+    state_payload = _load_json_if_exists(state_path) or {}
+    log_payload = _load_json_if_exists(log_path) or {}
+
+    def _display_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(repo_dir))
+        except ValueError:
+            return str(path)
+
+    prompt = (
+        f"{WORKFLOW_POST_TASK_PLAN_AUDITOR_PROMPT_PREFIX}\n\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
+        f"Workflow: {workflow_name}\n"
+        f"Source description: {source_description}\n"
+        f"Trigger task id: {task_id}\n"
+        f"Trigger task status: {task_status}\n"
+        "Completed-or-failed task count before future tasks: "
+        f"{completed_or_failed_count}\n"
+        "\n"
+        "Execution target constraints:\n"
+        + "\n".join(_build_hpc_prompt_lines(hpc_context))
+        + "\n\n"
+        "Artifacts to read if needed:\n"
+        f"- Memory: projects/memory.md\n"
+        f"- Plan JSON: {_display_path(plan_path)}\n"
+        f"- State JSON: {_display_path(state_path)}\n"
+        f"- Trigger task run log: {_display_path(log_path)}\n"
+        "\n"
+        "Current full plan JSON:\n"
+        f"{json.dumps(plan_payload, indent=2)}\n\n"
+        "Current state JSON excerpt:\n"
+        f"{json.dumps(state_payload, indent=2)}\n\n"
+        "Trigger task run log JSON:\n"
+        f"{json.dumps(log_payload, indent=2)}\n\n"
+        "Current remaining future tasks JSON:\n"
+        f"{json.dumps(remaining_plan_tasks, indent=2)}\n"
+    )
+
+    tries = max(1, int(max_tries or 1))
+    _emit_workflow_status(
+        workflow_status_hook, f"{workflow_name} post-task plan audit"
+    )
+    for attempt in range(1, tries + 1):
+        cli._print_tagged(
+            workflow_name,
+            f"post-task plan audit attempt {attempt}/{tries}",
+        )
+        run_result = _run_reproduce_exec_turn(
+            repo_dir=repo_dir,
+            prompt=prompt,
+            requested_package_id=requested_package_id,
+            sandbox_override=sandbox_override,
+            provider_bin_override=provider_bin_override,
+            data_context=data_context,
+        )
+        return_code = int(run_result.get("return_code") or 0)
+        if return_code != 0:
+            cli._print_tagged(
+                workflow_name,
+                f"post-task plan audit exited with code {return_code}.",
+                stderr=True,
+            )
+            continue
+        raw_payload = _extract_workflow_plan_update_payload(
+            str(run_result.get("assistant_text") or "")
+        )
+        if raw_payload is None:
+            cli._print_tagged(
+                workflow_name,
+                "post-task plan audit missing "
+                f"<{WORKFLOW_PLAN_UPDATE_TAG}> JSON block.",
+                stderr=True,
+            )
+            continue
+        try:
+            return _normalize_workflow_plan_update(
+                raw_payload,
+                source_description=source_description,
+                completed_or_failed_task_id=task_id,
+                hpc_context=hpc_context,
+            )
+        except cli.PackageError as exc:
+            cli._print_tagged(
+                workflow_name,
+                f"post-task plan audit response invalid: {exc}",
+                stderr=True,
+            )
+            continue
+    return _fallback_workflow_plan_update(
+        task_id=task_id,
+        reason="post-task plan audit did not return a valid update; keeping plan unchanged",
+    )
+
+
+def _apply_remaining_task_updates(
+    *,
+    repo_dir: Path,
+    run_dir: Path,
+    state: dict[str, object],
+    workflow_name: str,
+    source_description: str,
+    completed_or_failed_count: int,
+    remaining_tasks: list[dict[str, object]],
+    data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
+) -> list[str]:
+    cli = _cli()
+    plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+    plan_payload = _load_json_if_exists(plan_path)
+    if not isinstance(plan_payload, dict):
+        raise cli.PackageError(f"Missing workflow plan for update: {plan_path}")
+    plan_tasks = plan_payload.get("tasks")
+    if not isinstance(plan_tasks, list):
+        raise cli.PackageError(f"Workflow plan has no task list: {plan_path}")
+
+    prefix_count = max(0, min(int(completed_or_failed_count), len(plan_tasks)))
+    completed_plan_tasks = [
+        item for item in plan_tasks[:prefix_count] if isinstance(item, dict)
+    ]
+    previous_remaining_tasks = [
+        item for item in plan_tasks[prefix_count:] if isinstance(item, dict)
+    ]
+    completed_ids = {
+        str(item.get("id") or "").strip()
+        for item in completed_plan_tasks
+        if str(item.get("id") or "").strip()
+    }
+
+    new_ids: list[str] = []
+    seen_new_ids: set[str] = set()
+    for index, task in enumerate(remaining_tasks, start=1):
+        if not isinstance(task, dict):
+            raise cli.PackageError(f"Updated remaining task {index} is invalid.")
+        task_id = str(task.get("id") or "").strip()
+        if not task_id:
+            raise cli.PackageError(f"Updated remaining task {index} has no id.")
+        if task_id in completed_ids:
+            raise cli.PackageError(
+                f"Updated remaining task reuses completed/failed task id: {task_id}"
+            )
+        if task_id in seen_new_ids:
+            raise cli.PackageError(
+                f"Updated remaining tasks contain duplicate id: {task_id}"
+            )
+        seen_new_ids.add(task_id)
+        new_ids.append(task_id)
+
+    prompts_dir = run_dir / REPRODUCE_PROMPTS_DIRNAME
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    updated_plan_tasks: list[dict[str, object]] = []
+    updated_state_tasks: list[dict[str, object]] = []
+    for task in remaining_tasks:
+        task_id = str(task.get("id") or "").strip()
+        prompt_markdown = str(task.get("prompt_markdown") or "").strip()
+        if not prompt_markdown:
+            raise cli.PackageError(
+                f"Updated task {task_id} has empty prompt_markdown."
+            )
+        prompt_rel = f"{REPRODUCE_PROMPTS_DIRNAME}/{task_id}.md"
+        prompt_path = run_dir / prompt_rel
+        try:
+            prompt_path.write_text(prompt_markdown.strip() + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to write updated task prompt file: {prompt_path}: {exc}"
+            ) from exc
+
+        plan_task = dict(task)
+        plan_task["prompt_file"] = prompt_rel
+        updated_plan_tasks.append(plan_task)
+        state_task: dict[str, object] = {
+            "id": task_id,
+            "title": str(task.get("title") or task_id),
+            "prompt_file": prompt_rel,
+        }
+        data_context_file = str(task.get("data_context_file") or "").strip()
+        if data_context_file:
+            state_task["data_context_file"] = data_context_file
+        updated_state_tasks.append(state_task)
+
+    plan_payload["tasks"] = [*completed_plan_tasks, *updated_plan_tasks]
+    if _is_data_context_enabled(data_context):
+        artifacts = (
+            data_context.get("artifacts") if isinstance(data_context, dict) else {}
+        )
+        if not isinstance(artifacts, dict):
+            raise cli.PackageError("Data context artifacts missing during plan update.")
+        manifest_rel = str(
+            artifacts.get("manifest_compact") or artifacts.get("manifest") or ""
+        ).strip()
+        task_map_rel = str(artifacts.get("task_map") or "").strip()
+        if not manifest_rel:
+            raise cli.PackageError(
+                "Data context manifest path missing during plan update."
+            )
+        manifest_payload = _load_json_if_exists(repo_dir / manifest_rel)
+        if not isinstance(manifest_payload, dict):
+            raise cli.PackageError(
+                f"Failed to load data manifest during plan update: {repo_dir / manifest_rel}"
+            )
+        existing_task_map = (
+            _load_json_if_exists(repo_dir / task_map_rel) if task_map_rel else None
+        )
+        normalized_plan_map = _synchronize_task_data_artifacts_with_plan(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            plan=plan_payload,
+            manifest_payload=manifest_payload,
+            existing_task_map=existing_task_map,
+        )
+        if isinstance(data_context, dict):
+            data_context["task_map_updated_at_utc"] = str(
+                normalized_plan_map.get("updated_at_utc") or _utc_now_z()
+            )
+
+    _write_json_atomic(plan_path, plan_payload)
+
+    state_tasks = state.get("tasks")
+    completed_state_tasks = (
+        [item for item in state_tasks[:prefix_count] if isinstance(item, dict)]
+        if isinstance(state_tasks, list)
+        else []
+    )
+    state["tasks"] = [*completed_state_tasks, *updated_state_tasks]
+    task_runs_raw = state.get("task_runs")
+    task_runs = task_runs_raw if isinstance(task_runs_raw, dict) else {}
+    state["task_runs"] = {
+        str(task.get("id") or ""): int(
+            task_runs.get(str(task.get("id") or ""), 0) or 0
+        )
+        for task in state["tasks"]
+        if isinstance(task, dict) and str(task.get("id") or "").strip()
+    }
+    state["last_error"] = ""
+    changed_task_ids = _changed_remaining_task_ids(
+        previous_remaining_tasks,
+        updated_plan_tasks,
+    )
+    cli._print_tagged(
+        workflow_name,
+        (
+            "post-task plan audit updated remaining tasks: "
+            + (
+                ", ".join(changed_task_ids)
+                if changed_task_ids
+                else "no content changes"
+            )
+        ),
+    )
+    return changed_task_ids
 
 
 def _archive_loop_memory(
@@ -5239,6 +5717,7 @@ def cmd_plan_workflow(
     plan_only = bool(getattr(args, "plan_only", False))
     report_only = bool(getattr(args, "report_only", False))
     skip_report = bool(getattr(args, "skip_report", False))
+    post_task_plan_audit = bool(getattr(args, "post_task_plan_audit", True))
     if plan_only and report_only:
         raise cli.PackageError("Cannot combine --plan-only and --report-only.")
     if report_only and skip_report:
@@ -5662,6 +6141,97 @@ def cmd_plan_workflow(
         else {}
     )
 
+    def _post_task_plan_audit(
+        *,
+        task_id: str,
+        trigger_status: str,
+        run_number: int,
+        completed_or_failed_count: int,
+        apply_decisions: set[str],
+    ) -> str:
+        if not post_task_plan_audit:
+            return "disabled"
+        if completed_or_failed_count >= len(tasks_state):
+            return "no_remaining_tasks"
+
+        previous_remaining_task_ids = _workflow_plan_remaining_task_ids(
+            run_dir=run_dir,
+            completed_or_failed_count=completed_or_failed_count,
+        )
+        plan_update = _run_post_task_plan_update(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            workflow_name=workflow_name,
+            source_description=source_description,
+            task_id=task_id,
+            task_status=trigger_status,
+            run_number=run_number,
+            completed_or_failed_count=completed_or_failed_count,
+            requested_package_id=args.package_id,
+            sandbox_override=args.sandbox,
+            provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+            max_tries=auditor_max_tries,
+            data_context=state_data_context,
+            hpc_context=state_hpc_context,
+            workflow_status_hook=workflow_status_hook,
+        )
+        decision = str(plan_update.get("decision") or "no_change").strip()
+        reason = str(plan_update.get("reason") or "").strip()
+        audit_notes = _normalize_string_list(plan_update.get("audit_notes"))
+        changed_task_ids: list[str] = []
+
+        if decision in {"update_remaining", "continue_with_failed_task"}:
+            if decision not in apply_decisions:
+                reason = (
+                    f"post-task plan audit decision {decision!r} is not valid for "
+                    f"trigger status {trigger_status!r}; keeping plan unchanged"
+                )
+                audit_notes.append(reason)
+                decision = "no_change"
+            else:
+                remaining_tasks = plan_update.get("remaining_tasks")
+                if not isinstance(remaining_tasks, list):
+                    remaining_tasks = []
+                try:
+                    changed_task_ids = _apply_remaining_task_updates(
+                        repo_dir=repo_dir,
+                        run_dir=run_dir,
+                        state=state,
+                        workflow_name=workflow_name,
+                        source_description=source_description,
+                        completed_or_failed_count=completed_or_failed_count,
+                        remaining_tasks=[
+                            item for item in remaining_tasks if isinstance(item, dict)
+                        ],
+                        data_context=state_data_context,
+                        hpc_context=state_hpc_context,
+                    )
+                except cli.PackageError as exc:
+                    reason = (
+                        "post-task plan audit update could not be applied; "
+                        f"keeping plan unchanged: {exc}"
+                    )
+                    audit_notes.append(reason)
+                    decision = "no_change"
+                    changed_task_ids = []
+
+        new_remaining_task_ids = _workflow_plan_remaining_task_ids(
+            run_dir=run_dir,
+            completed_or_failed_count=completed_or_failed_count,
+        )
+        _append_workflow_plan_revision(
+            state,
+            trigger_task_id=task_id,
+            trigger_status=trigger_status,
+            decision=decision,
+            reason=reason,
+            audit_notes=audit_notes,
+            previous_remaining_task_ids=previous_remaining_task_ids,
+            new_remaining_task_ids=new_remaining_task_ids,
+            changed_task_ids=changed_task_ids,
+        )
+        return decision
+
     while True:
         current_index_raw = state.get("current_task_index", 0)
         try:
@@ -5998,6 +6568,40 @@ def cmd_plan_workflow(
             pass
 
         if loop_status == "done":
+            if post_task_plan_audit:
+                task["status"] = "done"
+                task["completed_at_utc"] = finished_at
+                audit_decision = _post_task_plan_audit(
+                    task_id=task_id,
+                    trigger_status="done",
+                    run_number=run_number,
+                    completed_or_failed_count=current_index + 1,
+                    apply_decisions={"update_remaining"},
+                )
+                if audit_decision == "abort":
+                    state["status"] = "failed"
+                    state["last_error"] = (
+                        f"Post-task plan audit requested abort after task {task_id}."
+                    )
+                    state["updated_at_utc"] = cli._utc_now_z()
+                    cli._write_json_atomic(
+                        run_dir / cli.REPRODUCE_STATE_FILENAME, state
+                    )
+                    cli._print_tagged(
+                        workflow_name, str(state["last_error"]), stderr=True
+                    )
+                    return 1
+                tasks_state = (
+                    state.get("tasks")
+                    if isinstance(state.get("tasks"), list)
+                    else tasks_state
+                )
+                task_runs_state = (
+                    state.get("task_runs")
+                    if isinstance(state.get("task_runs"), dict)
+                    else task_runs_state
+                )
+                total_task_count = len(tasks_state)
             state["current_task_index"] = current_index + 1
             state["last_error"] = ""
             cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
@@ -6012,11 +6616,51 @@ def cmd_plan_workflow(
             continue
 
         if loop_status == "incomplete_max_iterations":
+            audit_decision = "disabled"
+            if post_task_plan_audit:
+                task["status"] = "failed_continuation_candidate"
+                task["failed_at_utc"] = finished_at
+                audit_decision = _post_task_plan_audit(
+                    task_id=task_id,
+                    trigger_status="failed",
+                    run_number=run_number,
+                    completed_or_failed_count=current_index + 1,
+                    apply_decisions={"continue_with_failed_task"},
+                )
+            if audit_decision == "continue_with_failed_task":
+                task["status"] = "failed_continued"
+                state["current_task_index"] = current_index + 1
+                state["last_error"] = ""
+                state["updated_at_utc"] = cli._utc_now_z()
+                tasks_state = (
+                    state.get("tasks")
+                    if isinstance(state.get("tasks"), list)
+                    else tasks_state
+                )
+                task_runs_state = (
+                    state.get("task_runs")
+                    if isinstance(state.get("task_runs"), dict)
+                    else task_runs_state
+                )
+                total_task_count = len(tasks_state)
+                cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+                cli._print_tagged(
+                    workflow_name,
+                    f"continuing after failed task {task_id} per post-task plan audit",
+                    stderr=True,
+                )
+                continue
+
             state["status"] = "failed"
-            state["last_error"] = (
-                f"Task {task_id} exceeded --task-max-runs ({task_max_runs}) "
-                f"without {cli.LOOP_DONE_TOKEN}."
-            )
+            if audit_decision == "abort":
+                state["last_error"] = (
+                    f"Post-task plan audit requested abort after failed task {task_id}."
+                )
+            else:
+                state["last_error"] = (
+                    f"Task {task_id} exceeded --task-max-runs ({task_max_runs}) "
+                    f"without {cli.LOOP_DONE_TOKEN}."
+                )
             state["updated_at_utc"] = cli._utc_now_z()
             cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
             cli._print_tagged(workflow_name, str(state["last_error"]), stderr=True)

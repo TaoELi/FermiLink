@@ -36,6 +36,9 @@ def test_research_parser_defaults() -> None:
     assert args.plan_only is False
     assert args.report_only is False
     assert args.skip_report is False
+    assert args.post_task_plan_audit is True
+    opt_out_args = parser.parse_args(["research", "idea.md", "--no-post-task-plan-audit"])
+    assert opt_out_args.post_task_plan_audit is False
     assert not hasattr(args, "dry_run")
     assert args.resume is True
 
@@ -411,7 +414,9 @@ def test_research_executes_tasks_with_retries(
         },
     )
 
-    code = cli.main(["research", "idea.md", "--task-max-runs", "3"])
+    code = cli.main(
+        ["research", "idea.md", "--task-max-runs", "3", "--no-post-task-plan-audit"]
+    )
     assert code == 0
     assert len(loop_calls) == 3
     assert loop_calls[0].name == "task_001.md"
@@ -489,7 +494,9 @@ def test_research_status_hook_emits_task_progress_with_totals(
 
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
     parser = cli._build_parser()
-    args = parser.parse_args(["research", "idea.md", "--skip-report"])
+    args = parser.parse_args(
+        ["research", "idea.md", "--skip-report", "--no-post-task-plan-audit"]
+    )
     setattr(
         args,
         "_fermilink_workflow_status_hook",
@@ -576,7 +583,7 @@ def test_research_resume_uses_user_edited_plan(
         lambda loop_args: loop_calls.append(Path(str(loop_args.prompt[0]))) or 0,
     )
 
-    assert cli.main(["research", "idea.md"]) == 0
+    assert cli.main(["research", "idea.md", "--no-post-task-plan-audit"]) == 0
     assert len(loop_calls) == 2
     assert loop_calls[0].name == "task_001.md"
     assert loop_calls[1].name == "task_edited.md"
