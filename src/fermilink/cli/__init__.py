@@ -34,6 +34,7 @@ from fermilink.cli.commands import services as service_commands
 from fermilink.cli.commands import sessions as session_commands
 from fermilink.cli.commands import workspace as workspace_commands
 from fermilink.cli.commands import workflows as workflow_commands
+from fermilink.drvloop import main as drvloop_commands
 from fermilink.exploop import main as exploop_commands
 from fermilink.cli.compile_prompts import (
     COMPILE_EVIDENCE_DIR_REL_PATH,
@@ -83,6 +84,7 @@ from fermilink.cli.parser_packages import (
 from fermilink.cli.parser_services import register_service_parsers
 from fermilink.cli.parser_sessions import (
     register_chat_parser,
+    register_drvloop_parser,
     register_exec_loop_parsers,
     register_exploop_parser,
 )
@@ -381,6 +383,7 @@ _cmd_chat = session_commands.cmd_chat
 _cmd_loop = session_commands.cmd_loop
 _cmd_exec = session_commands.cmd_exec
 _cmd_exploop = exploop_commands.cmd_exploop
+_cmd_drvloop = drvloop_commands.cmd_drvloop
 _cmd_init = workspace_commands.cmd_init
 _cmd_clean = workspace_commands.cmd_clean
 _cmd_hpc = workspace_commands.cmd_hpc

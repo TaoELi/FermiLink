@@ -94,6 +94,7 @@ fermilink = [
   "public/*",
   "software/*",
   "exploop/*",
+  "drvloop/*",
   "data/**/*",
   "tools/**/*",
   "_workspace_payload/*",

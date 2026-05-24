@@ -239,6 +239,57 @@ def register_exploop_parser(
     exploop_parser.set_defaults(func=cmd_exploop)
 
 
+def register_drvloop_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
+    *,
+    cmd_drvloop: CommandHandler,
+) -> None:
+    """
+    Register parser arguments for derivation loop mode.
+
+    Parameters
+    ----------
+    subparsers : argparse._SubParsersAction[argparse.ArgumentParser]
+        Subparser collection created from the root parser.
+    cmd_drvloop : CommandHandler
+        Command handler for `drvloop` subcommands.
+    Returns
+    -------
+    None
+        No return value; parser objects are mutated in place.
+    """
+    drvloop_parser = subparsers.add_parser(
+        "drvloop",
+        help=(
+            "Run a minimal derivation loop using compact projects/memory.md "
+            "for stepwise analytical work."
+        ),
+    )
+    drvloop_parser.add_argument(
+        "prompt",
+        nargs="+",
+        help=(
+            "Either prompt text, or a path to a markdown/text file containing "
+            "the derivation goal (e.g. goal.md)."
+        ),
+    )
+    drvloop_parser.add_argument(
+        "--sandbox",
+        default=None,
+        help=(
+            "Override sandbox mode for this run. "
+            "When omitted, uses `fermilink agent` policy."
+        ),
+    )
+    drvloop_parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=30,
+        help="Maximum drvloop iterations to run before stopping (default: 30).",
+    )
+    drvloop_parser.set_defaults(func=cmd_drvloop)
+
+
 def register_chat_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
     *,
