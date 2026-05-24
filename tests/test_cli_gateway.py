@@ -685,6 +685,8 @@ def test_handle_telegram_text_supports_sticky_new_and_use(tmp_path: Path) -> Non
         _loop_config: gateway_commands.GatewayLoopConfig,
     ) -> tuple[int, dict[str, object]]:
         run_paths.append(repo_dir)
+        artifact_path = repo_dir / "projects" / f"run-{len(run_paths)}.json"
+        artifact_path.write_text("{}", encoding="utf-8")
         return 0, {"status": "done", "reason": "done_token"}
 
     chat_id = "42"
@@ -1976,7 +1978,7 @@ def test_status_reports_queued_when_requests_waiting() -> None:
     assert "<b>Current Run</b>" not in status
 
 
-def test_collect_media_for_run_reply_prefers_memory_and_recent_files(
+def test_collect_media_for_run_reply_uses_current_run_snapshot(
     tmp_path: Path,
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -1989,8 +1991,6 @@ def test_collect_media_for_run_reply_prefers_memory_and_recent_files(
     key_image.write_bytes(b"png")
     key_doc = projects_dir / "report.pdf"
     key_doc.write_bytes(b"pdf")
-    recent_image = outputs_dir / "recent.png"
-    recent_image.write_bytes(b"png")
 
     (projects_dir / "memory.md").write_text(
         (
@@ -2004,26 +2004,115 @@ def test_collect_media_for_run_reply_prefers_memory_and_recent_files(
 
     now = time.time()
     old = now - 120
-    newer = now - 1
-    # Keep key artifacts old to validate memory-evidence inclusion.
-    key_image.touch()
-    key_doc.touch()
-    recent_image.touch()
-    key_image_mtime = old
-    key_doc_mtime = old
-    recent_mtime = newer
     import os
 
-    os.utime(key_image, (key_image_mtime, key_image_mtime))
-    os.utime(key_doc, (key_doc_mtime, key_doc_mtime))
-    os.utime(recent_image, (recent_mtime, recent_mtime))
+    os.utime(key_image, (old, old))
+    os.utime(key_doc, (old, old))
+    artifact_snapshot = gateway_commands._snapshot_gateway_artifacts(repo_dir)
+
+    key_doc.write_bytes(b"pdf-updated")
+    recent_image = outputs_dir / "recent.png"
+    recent_image.write_bytes(b"png")
 
     images, docs = gateway_commands._collect_media_for_run_reply(
-        repo_dir, run_started_epoch=now - 10
+        repo_dir,
+        run_started_epoch=now,
+        artifact_snapshot=artifact_snapshot,
     )
-    assert key_image in images
+    assert key_image not in images
     assert recent_image in images
     assert key_doc in docs
+
+
+def test_send_run_media_reply_skips_unchanged_loop_media(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    old_image = projects_dir / "old.png"
+    old_image.write_bytes(b"png")
+    old_pdf = projects_dir / "old.pdf"
+    old_pdf.write_bytes(b"pdf")
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Key results\n"
+            "- k1 | old figure | generated | old run | projects/old.png\n"
+            "- k2 | old report | generated | old run | projects/old.pdf\n"
+        ),
+        encoding="utf-8",
+    )
+    artifact_snapshot = gateway_commands._snapshot_gateway_artifacts(repo_dir)
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.photos: list[Path] = []
+            self.documents: list[Path] = []
+
+        def send_photo(
+            self, *, chat_id: str, file_path: Path, caption: str | None = None
+        ) -> None:
+            del chat_id, caption
+            self.photos.append(file_path)
+
+        def send_document(
+            self, *, chat_id: str, file_path: Path, caption: str | None = None
+        ) -> None:
+            del chat_id, caption
+            self.documents.append(file_path)
+
+    fake_client = _FakeClient()
+    errors: list[str] = []
+    gateway_commands._send_run_media_reply(
+        client=fake_client,
+        chat_id="42",
+        workspace={"id": "w1", "label": "main"},
+        repo_dir=repo_dir,
+        mode="loop",
+        run_started_epoch=time.time(),
+        artifact_snapshot=artifact_snapshot,
+        on_error=errors.append,
+    )
+
+    assert errors == []
+    assert fake_client.photos == []
+    assert fake_client.documents == []
+
+
+def test_run_summary_recent_artifacts_uses_current_run_snapshot(
+    tmp_path: Path,
+) -> None:
+    repo_dir = tmp_path / "repo"
+    projects_dir = repo_dir / "projects"
+    projects_dir.mkdir(parents=True, exist_ok=True)
+    (projects_dir / "old-result.json").write_text("{}", encoding="utf-8")
+    (projects_dir / "memory.md").write_text(
+        (
+            "# FermiLink Unified Memory\n\n"
+            "### Plan\n"
+            "- [x] Run current task\n\n"
+            "### Key results\n"
+            "- current | metric | ok | current run | projects/new-result.json\n"
+        ),
+        encoding="utf-8",
+    )
+    artifact_snapshot = gateway_commands._snapshot_gateway_artifacts(repo_dir)
+    (projects_dir / "new-result.json").write_text("{}", encoding="utf-8")
+
+    summary = gateway_commands._build_run_summary_message(
+        mode="loop",
+        workspace={"id": "w1", "label": "main"},
+        repo_dir=repo_dir,
+        code=0,
+        outcome={"status": "done", "reason": "done_token"},
+        artifact_snapshot=artifact_snapshot,
+        run_started_epoch=time.time(),
+    )
+
+    assert "<b>Recent Artifacts</b>" in summary
+    assert "projects/new-result.json" in summary
+    assert "projects/old-result.json" not in summary
 
 
 def test_resolve_workflow_report_markdown_path_uses_latest_run_pointer(

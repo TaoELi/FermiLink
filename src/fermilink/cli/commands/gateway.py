@@ -135,6 +135,8 @@ DrvloopRunner = Callable[
 WorkspaceRepoEnsurer = Callable[[Path, bool], None]
 LoopIterationHook = Callable[[int, int], None]
 WorkflowStatusHook = Callable[[str], None]
+ArtifactFingerprint = tuple[int, int]
+ArtifactSnapshot = dict[str, ArtifactFingerprint]
 
 
 @dataclass(frozen=True)
@@ -2374,19 +2376,89 @@ def _display_repo_path(repo_dir: Path, path: Path) -> str:
         return path.as_posix()
 
 
-def _collect_recent_artifacts(repo_dir: Path, *, max_items: int = 4) -> list[str]:
-    roots = [repo_dir / "projects", repo_dir / "outputs"]
+def _artifact_roots(repo_dir: Path) -> list[Path]:
+    return [repo_dir / "projects", repo_dir / "outputs"]
+
+
+def _artifact_fingerprint(path: Path) -> ArtifactFingerprint | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _artifact_relative_key(repo_dir: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_dir.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _snapshot_gateway_artifacts(repo_dir: Path) -> ArtifactSnapshot:
+    snapshot: ArtifactSnapshot = {}
+    for root in _artifact_roots(repo_dir):
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            fingerprint = _artifact_fingerprint(path)
+            if fingerprint is None:
+                continue
+            snapshot[_artifact_relative_key(repo_dir, path)] = fingerprint
+    return snapshot
+
+
+def _artifact_changed_since_snapshot(
+    repo_dir: Path,
+    path: Path,
+    artifact_snapshot: ArtifactSnapshot,
+) -> bool:
+    fingerprint = _artifact_fingerprint(path)
+    if fingerprint is None:
+        return False
+    key = _artifact_relative_key(repo_dir, path)
+    return artifact_snapshot.get(key) != fingerprint
+
+
+def _artifact_mtime_at_or_after(path: Path, since_epoch: float) -> bool:
+    try:
+        return path.stat().st_mtime >= float(since_epoch)
+    except OSError:
+        return False
+
+
+def _collect_recent_artifacts(
+    repo_dir: Path,
+    *,
+    max_items: int = 4,
+    artifact_snapshot: ArtifactSnapshot | None = None,
+    since_epoch: float | None = None,
+) -> list[str]:
     files: list[tuple[float, Path]] = []
-    for root in roots:
+    since = float(since_epoch) if since_epoch is not None else None
+    for root in _artifact_roots(repo_dir):
         if not root.is_dir():
             continue
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
             try:
-                files.append((path.stat().st_mtime, path))
+                stat = path.stat()
             except OSError:
                 continue
+            if artifact_snapshot is not None and not _artifact_changed_since_snapshot(
+                repo_dir, path, artifact_snapshot
+            ):
+                continue
+            if (
+                artifact_snapshot is None
+                and since is not None
+                and stat.st_mtime < since
+            ):
+                continue
+            files.append((stat.st_mtime, path))
     files.sort(key=lambda item: item[0], reverse=True)
     selected: list[str] = []
     seen: set[str] = set()
@@ -2444,14 +2516,14 @@ def _collect_recent_media(
     repo_dir: Path,
     *,
     since_epoch: float | None,
+    artifact_snapshot: ArtifactSnapshot | None = None,
     max_images: int = 3,
     max_documents: int = 1,
 ) -> tuple[list[Path], list[Path]]:
-    roots = [repo_dir / "projects", repo_dir / "outputs"]
     images: list[tuple[float, Path]] = []
     documents: list[tuple[float, Path]] = []
     since = float(since_epoch) if since_epoch is not None else None
-    for root in roots:
+    for root in _artifact_roots(repo_dir):
         if not root.is_dir():
             continue
         for path in root.rglob("*"):
@@ -2464,7 +2536,11 @@ def _collect_recent_media(
                 mtime = path.stat().st_mtime
             except OSError:
                 continue
-            if since is not None and mtime < (since - 2.0):
+            if artifact_snapshot is not None and not _artifact_changed_since_snapshot(
+                repo_dir, path, artifact_snapshot
+            ):
+                continue
+            if artifact_snapshot is None and since is not None and mtime < since:
                 continue
             if suffix in IMAGE_SUFFIXES:
                 images.append((mtime, path))
@@ -2852,6 +2928,8 @@ def _build_run_summary_message(
     repo_dir: Path,
     code: int,
     outcome: dict[str, Any] | None,
+    artifact_snapshot: ArtifactSnapshot | None = None,
+    run_started_epoch: float | None = None,
 ) -> str:
     status = str((outcome or {}).get("status") or "").strip()
     reason = str((outcome or {}).get("reason") or "").strip().replace("_", " ")
@@ -3005,7 +3083,11 @@ def _build_run_summary_message(
             for item in pending_steps:
                 lines.append(f"• {_html_escape(item)}")
 
-        recent_artifacts = _collect_recent_artifacts(repo_dir)
+        recent_artifacts = _collect_recent_artifacts(
+            repo_dir,
+            artifact_snapshot=artifact_snapshot,
+            since_epoch=run_started_epoch,
+        )
         if recent_artifacts:
             lines.append("")
             lines.append("<b>Recent Artifacts</b>")
@@ -3087,7 +3169,11 @@ def _build_run_summary_message(
         for item in pending_steps:
             lines.append(f"• {_html_escape(item)}")
 
-    recent_artifacts = _collect_recent_artifacts(repo_dir)
+    recent_artifacts = _collect_recent_artifacts(
+        repo_dir,
+        artifact_snapshot=artifact_snapshot,
+        since_epoch=run_started_epoch,
+    )
     if recent_artifacts:
         lines.append("")
         lines.append("<b>Recent Artifacts</b>")
@@ -3279,6 +3365,7 @@ def _run_prompt_for_workspace(
     repo_ensurer(repo_dir, loop_config.init_git)
 
     mode = _resolve_run_mode(chat_state, requested_mode=requested_mode)
+    artifact_snapshot = _snapshot_gateway_artifacts(repo_dir)
     run_started_epoch = time.time()
     chat_state["last_run_started_at_utc"] = _now_utc_iso()
     chat_state["last_run_mode"] = mode
@@ -3305,6 +3392,8 @@ def _run_prompt_for_workspace(
         repo_dir=repo_dir,
         code=code,
         outcome=outcome,
+        artifact_snapshot=artifact_snapshot,
+        run_started_epoch=run_started_epoch,
     )
     reply_style = _effective_reply_style(chat_state)
     final_reply = _compose_run_completion_message(
@@ -3671,23 +3760,33 @@ def _collect_media_for_run_reply(
     repo_dir: Path,
     *,
     run_started_epoch: float | None,
+    artifact_snapshot: ArtifactSnapshot | None = None,
 ) -> tuple[list[Path], list[Path]]:
+    if artifact_snapshot is None and run_started_epoch is None:
+        return [], []
+
     key_results = _load_memory_key_results(repo_dir)
     key_media = _collect_key_result_media(repo_dir, key_results)
+    if artifact_snapshot is not None:
+        key_media = [
+            path
+            for path in key_media
+            if _artifact_changed_since_snapshot(repo_dir, path, artifact_snapshot)
+        ]
+    elif run_started_epoch is not None:
+        key_media = [
+            path
+            for path in key_media
+            if _artifact_mtime_at_or_after(path, float(run_started_epoch))
+        ]
     key_images = [path for path in key_media if path.suffix.lower() in IMAGE_SUFFIXES]
     key_docs = [path for path in key_media if path.suffix.lower() in DOCUMENT_SUFFIXES]
 
     recent_images, recent_docs = _collect_recent_media(
         repo_dir,
         since_epoch=run_started_epoch,
+        artifact_snapshot=artifact_snapshot,
     )
-    if not recent_images and not recent_docs:
-        recent_images, recent_docs = _collect_recent_media(
-            repo_dir,
-            since_epoch=None,
-            max_images=1,
-            max_documents=1,
-        )
 
     images: list[Path] = []
     docs: list[Path] = []
@@ -3717,6 +3816,7 @@ def _send_run_media_reply(
     repo_dir: Path | None,
     mode: str | None,
     run_started_epoch: float | None,
+    artifact_snapshot: ArtifactSnapshot | None = None,
     on_error: Callable[[str], None],
 ) -> None:
     if workspace is None or repo_dir is None or not repo_dir.is_dir():
@@ -3782,6 +3882,7 @@ def _send_run_media_reply(
     images, documents = _collect_media_for_run_reply(
         repo_dir,
         run_started_epoch=run_started_epoch,
+        artifact_snapshot=artifact_snapshot,
     )
     if not images and not documents:
         return
@@ -3897,7 +3998,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                 "label": job.workspace_label,
             }
             repo_dir = workspaces_root / job.workspace_id / "repo"
-            run_started_epoch = time.time()
+            run_started_epoch: float | None = None
+            artifact_snapshot: ArtifactSnapshot | None = None
 
             with state_lock:
                 telegram_local = _telegram_state(state)
@@ -3927,6 +4029,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
             )
             try:
                 _ensure_workspace_repo(repo_dir, loop_config.init_git)
+                artifact_snapshot = _snapshot_gateway_artifacts(repo_dir)
+                run_started_epoch = time.time()
                 run_loop_config = replace(
                     loop_config,
                     max_iterations=job.max_iterations,
@@ -4007,6 +4111,8 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                     repo_dir=repo_dir,
                     code=code,
                     outcome=outcome,
+                    artifact_snapshot=artifact_snapshot,
+                    run_started_epoch=run_started_epoch,
                 )
                 final_reply = _compose_run_completion_message(
                     summary=summary,
@@ -4060,6 +4166,7 @@ def cmd_gateway(args: argparse.Namespace) -> int:
                         repo_dir=repo_dir,
                         mode=mode,
                         run_started_epoch=run_started_epoch,
+                        artifact_snapshot=artifact_snapshot,
                         on_error=lambda msg: cli._print_tagged(
                             "gateway", msg, stderr=True
                         ),
