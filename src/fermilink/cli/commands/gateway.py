@@ -57,13 +57,19 @@ PROGRESS_LOG_TIMESTAMP_RE = re.compile(
     r"^\s*(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s*:\s*(?P<body>.+)\s*$"
 )
 SUPPORTED_EXECUTION_MODES = {"loop", "exec"}
+SUPPORTED_DERIVATION_MODES = {"drvloop"}
 SUPPORTED_WORKFLOW_PROMPT_MODES = {"research", "reproduce"}
 SUPPORTED_GATEWAY_RUN_MODES = (
-    SUPPORTED_EXECUTION_MODES | SUPPORTED_WORKFLOW_PROMPT_MODES
+    SUPPORTED_EXECUTION_MODES
+    | SUPPORTED_DERIVATION_MODES
+    | SUPPORTED_WORKFLOW_PROMPT_MODES
+)
+SUPPORTED_COMMAND_PROMPT_MODES = (
+    SUPPORTED_DERIVATION_MODES | SUPPORTED_WORKFLOW_PROMPT_MODES
 )
 SUPPORTED_REPLY_STYLES = {"summary", "agent", "both"}
-WORKFLOW_PROMPT_RE = re.compile(
-    r"^\s*fermilink\s+(research|reproduce)\s+(.*?)\s*$",
+COMMAND_PROMPT_RE = re.compile(
+    r"^\s*fermilink\s+(drvloop|research|reproduce)\s+(.*?)\s*$",
     re.IGNORECASE | re.DOTALL,
 )
 LOOP_WAIT_LINE_RE = re.compile(
@@ -95,7 +101,8 @@ GATEWAY_HELP_TEXT = (
     "Commands:\n"
     "/new [name] - create and switch to a new workspace\n"
     "/use <name-or-id> - switch active workspace\n"
-    "/mode <exec|loop|research|reproduce> - switch run mode for normal messages\n"
+    "/mode <exec|loop|drvloop|research|reproduce> "
+    "- switch run mode for normal messages\n"
     "/stop - stop current run and clear queued runs for this chat\n"
     "/loopcfg - show/set loop max-iterations and max-wait-seconds\n"
     "/reply <summary|agent|both> - switch final-reply style\n"
@@ -105,7 +112,8 @@ GATEWAY_HELP_TEXT = (
     "/help - show commands\n\n"
     "Workflow prompts:\n"
     "fermilink research <prompt-or-file> - run research workflow\n"
-    "fermilink reproduce <prompt-or-file> - run reproduce workflow\n\n"
+    "fermilink reproduce <prompt-or-file> - run reproduce workflow\n"
+    "fermilink drvloop <prompt-or-file> - run derivation loop mode\n\n"
     "File uploads:\n"
     "send Telegram document/photo to save under repo/telegram_uploads/\n"
     "caption text (optional) is treated as the run message"
@@ -119,6 +127,9 @@ ExecRunner = Callable[
     [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
 ]
 WorkflowRunner = Callable[
+    [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
+]
+DrvloopRunner = Callable[
     [Path, str, "GatewayLoopConfig"], tuple[int, dict[str, Any] | None]
 ]
 WorkspaceRepoEnsurer = Callable[[Path, bool], None]
@@ -729,6 +740,8 @@ def _normalize_chat_state(raw: object) -> dict[str, Any]:
         payload[key] = value
     if payload["last_run_agent_reply_source"] not in {
         "exec_last_message",
+        "drvloop_last_informative_turn",
+        "drvloop_final_turn",
         "loop_last_informative_turn",
         "loop_final_turn",
         "none",
@@ -1046,11 +1059,12 @@ def _build_loopcfg_message(
     max_wait_source = (
         "chat override" if max_wait_override is not None else "gateway default"
     )
+    max_wait_text = _format_loop_control_number(effective.max_wait_seconds)
     return (
-        "Current loop controls for normal `loop`/workflow runs:\n"
+        "Current loop controls for normal `loop`/`drvloop`/workflow runs:\n"
         f"- max-iterations: {effective.max_iterations} ({iterations_source})\n"
-        f"- max-wait-seconds: {_format_loop_control_number(effective.max_wait_seconds)} "
-        f"({max_wait_source})\n"
+        f"- max-wait-seconds: {max_wait_text} ({max_wait_source}) "
+        "(loop/workflow wait polling only)\n"
         "Usage: /loopcfg [--max-iterations N] [--max-wait-seconds S] [--reset]"
     )
 
@@ -1090,6 +1104,15 @@ def _loop_done_token() -> str:
         return "<promise>DONE</promise>"
 
 
+def _drvloop_done_token() -> str:
+    try:
+        from fermilink.drvloop.prompts import DRVLOOP_DONE_TOKEN
+
+        return str(DRVLOOP_DONE_TOKEN)
+    except Exception:
+        return "<promise>DONE</promise>"
+
+
 def _is_loop_control_line(line: str, *, done_token: str) -> bool:
     stripped = str(line or "").strip()
     if not stripped:
@@ -1122,26 +1145,31 @@ def _strip_loop_control_lines(text: str, *, done_token: str | None = None) -> st
     return "\n".join(lines).strip()
 
 
-def _derive_loop_agent_reply_payload(turns: list[str]) -> dict[str, Any]:
-    done_token = _loop_done_token()
+def _derive_turn_agent_reply_payload(
+    turns: list[str],
+    *,
+    done_token: str,
+    source_prefix: str,
+) -> dict[str, Any]:
+    prefix = str(source_prefix or "loop").strip().lower() or "loop"
     turn_texts = [str(turn or "") for turn in turns]
     non_empty_turns = [turn.strip() for turn in turn_texts if turn.strip()]
     final_raw = non_empty_turns[-1] if non_empty_turns else ""
     payload: dict[str, Any] = {
         "agent_reply_source": "none",
         "agent_reply_exact": False,
-        "loop_turn_count": len(turn_texts),
-        "loop_done_token_seen": any(
+        f"{prefix}_turn_count": len(turn_texts),
+        f"{prefix}_done_token_seen": any(
             _contains_done_token_line(turn, done_token=done_token)
             for turn in turn_texts
         ),
-        "loop_final_reply_raw": final_raw,
+        f"{prefix}_final_reply_raw": final_raw,
     }
     final_cleaned = _strip_loop_control_lines(final_raw, done_token=done_token)
     if final_cleaned:
         payload["agent_reply_raw"] = final_raw
         payload["agent_reply_text"] = final_cleaned
-        payload["agent_reply_source"] = "loop_final_turn"
+        payload["agent_reply_source"] = f"{prefix}_final_turn"
         payload["agent_reply_exact"] = True
         return payload
 
@@ -1151,10 +1179,26 @@ def _derive_loop_agent_reply_payload(turns: list[str]) -> dict[str, Any]:
             continue
         payload["agent_reply_raw"] = raw
         payload["agent_reply_text"] = cleaned
-        payload["agent_reply_source"] = "loop_last_informative_turn"
+        payload["agent_reply_source"] = f"{prefix}_last_informative_turn"
         payload["agent_reply_exact"] = True
         return payload
     return payload
+
+
+def _derive_loop_agent_reply_payload(turns: list[str]) -> dict[str, Any]:
+    return _derive_turn_agent_reply_payload(
+        turns,
+        done_token=_loop_done_token(),
+        source_prefix="loop",
+    )
+
+
+def _derive_drvloop_agent_reply_payload(turns: list[str]) -> dict[str, Any]:
+    return _derive_turn_agent_reply_payload(
+        turns,
+        done_token=_drvloop_done_token(),
+        source_prefix="drvloop",
+    )
 
 
 def _derive_exec_agent_reply_payload(assistant_reply: str) -> dict[str, Any]:
@@ -1182,8 +1226,10 @@ def _extract_outcome_agent_reply_text(outcome: dict[str, Any] | None) -> str:
     if not raw:
         return ""
     source = str(outcome.get("agent_reply_source") or "").strip().lower()
+    if source.startswith("drvloop_"):
+        return _strip_loop_control_lines(raw, done_token=_drvloop_done_token())
     if source.startswith("loop_"):
-        return _strip_loop_control_lines(raw)
+        return _strip_loop_control_lines(raw, done_token=_loop_done_token())
     return raw
 
 
@@ -1199,6 +1245,8 @@ def _record_last_run_agent_reply(
         exact = bool(outcome.get("agent_reply_exact"))
     if source not in {
         "exec_last_message",
+        "drvloop_last_informative_turn",
+        "drvloop_final_turn",
         "loop_last_informative_turn",
         "loop_final_turn",
         "none",
@@ -1489,13 +1537,13 @@ def _parse_loopcfg_updates(
     return max_iterations, max_wait_seconds, reset, None
 
 
-def _parse_gateway_workflow_prompt(text: str) -> tuple[str, str] | None:
-    match = WORKFLOW_PROMPT_RE.match(str(text or ""))
+def _parse_gateway_command_prompt(text: str) -> tuple[str, str] | None:
+    match = COMMAND_PROMPT_RE.match(str(text or ""))
     if match is None:
         return None
     mode = str(match.group(1) or "").strip().lower()
     prompt = str(match.group(2) or "").strip()
-    if mode not in SUPPORTED_WORKFLOW_PROMPT_MODES or not prompt:
+    if mode not in SUPPORTED_COMMAND_PROMPT_MODES or not prompt:
         return None
     return mode, prompt
 
@@ -1505,9 +1553,9 @@ def _resolve_prompt_mode_and_text(
     chat_state: dict[str, Any],
     text: str,
 ) -> tuple[str, str]:
-    workflow_request = _parse_gateway_workflow_prompt(text)
-    if workflow_request is not None:
-        return workflow_request
+    command_prompt = _parse_gateway_command_prompt(text)
+    if command_prompt is not None:
+        return command_prompt
     return _effective_execution_mode(chat_state), str(text or "").strip()
 
 
@@ -1721,6 +1769,60 @@ def _run_exec_in_workspace(
     }
 
 
+def _run_drvloop_in_workspace(
+    repo_dir: Path,
+    prompt: str,
+    loop_config: GatewayLoopConfig,
+) -> tuple[int, dict[str, Any] | None]:
+    cli = _cli()
+    captured_assistant_turns: list[str] = []
+    original_run_exec_chat_turn = getattr(cli, "_run_exec_chat_turn", None)
+    should_capture_turns = callable(original_run_exec_chat_turn)
+
+    def _run_exec_chat_turn_capture(*args: Any, **kwargs: Any) -> dict[str, object]:
+        result = original_run_exec_chat_turn(*args, **kwargs)  # type: ignore[misc]
+        if isinstance(result, dict):
+            captured_assistant_turns.append(str(result.get("assistant_text") or ""))
+        return result
+
+    drvloop_args = argparse.Namespace(
+        command="drvloop",
+        prompt=[prompt],
+        sandbox=loop_config.sandbox,
+        max_iterations=loop_config.max_iterations,
+    )
+    previous_cwd = Path.cwd()
+    try:
+        if should_capture_turns:
+            setattr(cli, "_run_exec_chat_turn", _run_exec_chat_turn_capture)
+        os.chdir(repo_dir)
+        code = cli._cmd_drvloop(drvloop_args)
+    finally:
+        if should_capture_turns:
+            setattr(cli, "_run_exec_chat_turn", original_run_exec_chat_turn)
+        os.chdir(previous_cwd)
+
+    agent_reply_payload = _derive_drvloop_agent_reply_payload(captured_assistant_turns)
+    if int(code) == 0:
+        return int(code), {
+            "status": "done",
+            "reason": "drvloop_completed",
+            **agent_reply_payload,
+        }
+    if int(code) == 130:
+        return int(code), {
+            "status": "stopped_by_user",
+            "reason": "gateway_stop_command",
+            **agent_reply_payload,
+        }
+    return int(code), {
+        "status": "provider_failure",
+        "reason": f"drvloop_exit_code_{int(code)}",
+        "provider_exit_code": int(code),
+        **agent_reply_payload,
+    }
+
+
 def _run_workflow_in_workspace(
     repo_dir: Path,
     prompt: str,
@@ -1865,6 +1967,36 @@ def _extract_plan_progress(
     if max_pending > 0:
         pending = pending[:max_pending]
     return done, pending
+
+
+def _extract_bulleted_section_items(
+    memory_text: str,
+    *,
+    heading: str,
+    max_items: int = 5,
+    skip_exact: set[str] | None = None,
+) -> list[str]:
+    lines = memory_text.splitlines()
+    in_section = False
+    items: list[str] = []
+    skipped = {item.strip().lower() for item in (skip_exact or set()) if item.strip()}
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("### "):
+            if stripped == heading:
+                in_section = True
+                continue
+            if in_section:
+                break
+        if not in_section or not stripped.startswith("- "):
+            continue
+        item = stripped[2:].strip()
+        if not item:
+            continue
+        if item.lower() in skipped:
+            continue
+        items.append(item)
+    return items[-max_items:]
 
 
 def _extract_memory_section_items(
@@ -2762,6 +2894,17 @@ def _build_run_summary_message(
             )
         else:
             lines.append(f"Execution failed with status code {code}.")
+    elif effective_mode == "drvloop":
+        if status == "stopped_by_user":
+            lines.append("The derivation loop was stopped by /stop before completion.")
+        elif code == 0 and status in {"", "done"}:
+            lines.append("Derivation loop finished successfully.")
+        elif isinstance(provider_exit_code, int):
+            lines.append(
+                f"Derivation loop failed with provider exit code {provider_exit_code}."
+            )
+        else:
+            lines.append(f"Derivation loop failed with status code {code}.")
     else:
         workflow_label = (
             "Research workflow"
@@ -2794,30 +2937,91 @@ def _build_run_summary_message(
     try:
         if memory_path.is_file():
             memory_text = memory_path.read_text(encoding="utf-8")
-            key_results = _extract_key_results(memory_text, max_items=20)
-            done_steps, pending_steps = _extract_plan_progress(memory_text)
-            parameter_source_items = _extract_memory_section_items(
-                memory_text,
-                heading="### Parameter source mapping",
-                placeholder_markers=("run_id", "parameter_or_setting", "source"),
-                max_items=8,
-            )
-            simulation_uncertainty_items = _extract_memory_section_items(
-                memory_text,
-                heading="### Simulation uncertainty",
-                placeholder_markers=(
-                    "run_id",
-                    "uncertainty_or_assumption",
-                    "mitigation_or_next_step",
-                ),
-                max_items=8,
-            )
+            if effective_mode == "drvloop":
+                done_steps = _extract_bulleted_section_items(
+                    memory_text,
+                    heading="### Major done",
+                    max_items=4,
+                    skip_exact={"initialized"},
+                )
+                pending_steps = _extract_bulleted_section_items(
+                    memory_text,
+                    heading="### Major needed",
+                    max_items=2,
+                )
+                key_results = _extract_bulleted_section_items(
+                    memory_text,
+                    heading="### Major conclusions",
+                    max_items=4,
+                    skip_exact={"No major conclusions recorded yet."},
+                )
+            else:
+                key_results = _extract_key_results(memory_text, max_items=20)
+                done_steps, pending_steps = _extract_plan_progress(memory_text)
+                parameter_source_items = _extract_memory_section_items(
+                    memory_text,
+                    heading="### Parameter source mapping",
+                    placeholder_markers=("run_id", "parameter_or_setting", "source"),
+                    max_items=8,
+                )
+                simulation_uncertainty_items = _extract_memory_section_items(
+                    memory_text,
+                    heading="### Simulation uncertainty",
+                    placeholder_markers=(
+                        "run_id",
+                        "uncertainty_or_assumption",
+                        "mitigation_or_next_step",
+                    ),
+                    max_items=8,
+                )
     except OSError:
         key_results = []
         done_steps = []
         pending_steps = []
         parameter_source_items = []
         simulation_uncertainty_items = []
+
+    if effective_mode == "drvloop":
+        if done_steps:
+            lines.append("")
+            lines.append("<b>Major Done</b>")
+            for item in done_steps:
+                lines.append(f"• {_html_escape(item)}")
+
+        lines.append("")
+        lines.append("<b>Major Conclusions</b>")
+        if key_results:
+            for item in key_results:
+                lines.append(f"• {_html_escape(item)}")
+        else:
+            lines.append(
+                "• Major conclusions are not recorded yet in "
+                "<code>projects/memory.md</code>."
+            )
+
+        if pending_steps:
+            lines.append("")
+            lines.append("<b>Major Needed</b>")
+            for item in pending_steps:
+                lines.append(f"• {_html_escape(item)}")
+
+        recent_artifacts = _collect_recent_artifacts(repo_dir)
+        if recent_artifacts:
+            lines.append("")
+            lines.append("<b>Recent Artifacts</b>")
+            for rel in recent_artifacts:
+                lines.append(f"• <code>{_html_escape(rel)}</code>")
+
+        lines.append("")
+        lines.append(
+            "Commands: <code>/new</code>, <code>/use</code>, <code>/mode</code>, "
+            "<code>/stop</code>, <code>/loopcfg</code>, <code>/reply</code>, "
+            "<code>/where</code>, <code>/list</code>"
+        )
+        message = "\n".join(lines)
+        if len(message) > 4096:
+            message = "\n".join(lines[:22])
+        return message
 
     summary_key_results = _select_key_results_for_summary(key_results, max_items=1)
     parameter_source_items = _filter_items_to_latest_run_id(
@@ -3064,6 +3268,7 @@ def _run_prompt_for_workspace(
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
     exec_runner: ExecRunner | None = None,
+    drvloop_runner: DrvloopRunner | None = None,
     research_runner: WorkflowRunner | None = None,
     reproduce_runner: WorkflowRunner | None = None,
     workspace_repo_ensurer: WorkspaceRepoEnsurer | None = None,
@@ -3084,6 +3289,7 @@ def _run_prompt_for_workspace(
         loop_config=loop_config,
         loop_runner=loop_runner,
         exec_runner=exec_runner,
+        drvloop_runner=drvloop_runner,
         research_runner=research_runner,
         reproduce_runner=reproduce_runner,
     )
@@ -3117,6 +3323,7 @@ def _run_prompt_with_mode(
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
     exec_runner: ExecRunner | None = None,
+    drvloop_runner: DrvloopRunner | None = None,
     research_runner: WorkflowRunner | None = None,
     reproduce_runner: WorkflowRunner | None = None,
 ) -> tuple[int, dict[str, Any] | None]:
@@ -3124,6 +3331,8 @@ def _run_prompt_with_mode(
         runner = exec_runner or _run_exec_in_workspace
     elif mode == "loop":
         runner = loop_runner or _run_loop_in_workspace
+    elif mode == "drvloop":
+        runner = drvloop_runner or _run_drvloop_in_workspace
     elif mode == "research":
         runner = research_runner or _run_research_in_workspace
     elif mode == "reproduce":
@@ -3131,6 +3340,17 @@ def _run_prompt_with_mode(
     else:
         runner = loop_runner or _run_loop_in_workspace
     return runner(repo_dir, prompt, loop_config)
+
+
+def _queued_run_controls_text(job: QueuedRunJob) -> str:
+    mode = str(job.mode or "").strip().lower()
+    if mode == "drvloop":
+        return f"Drvloop controls: <code>--max-iterations={job.max_iterations}</code>."
+    max_wait_text = _format_loop_control_number(job.max_wait_seconds)
+    return (
+        f"Loop controls: <code>--max-iterations={job.max_iterations}, "
+        f"--max-wait-seconds={max_wait_text}</code>."
+    )
 
 
 def _queue_telegram_run(
@@ -3170,21 +3390,20 @@ def _queue_telegram_run(
         run_generation=run_generation,
     )
 
+    workspace_label = _html_escape(workspace["label"])
     if bool(chat_state.get("is_running")) or pending_count > 0:
         reply = (
-            f"Queued request in workspace <code>{_html_escape(workspace['label'])}</code>.\n"
+            f"Queued request in workspace <code>{workspace_label}</code>.\n"
             f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
-            f"Loop controls: <code>--max-iterations={job.max_iterations}, "
-            f"--max-wait-seconds={_format_loop_control_number(job.max_wait_seconds)}</code>.\n"
+            f"{_queued_run_controls_text(job)}\n"
             f"Queue position: <code>{queue_position}</code>.\n"
             "Use <code>/status</code> to monitor progress."
         )
     else:
         reply = (
-            f"Request accepted in workspace <code>{_html_escape(workspace['label'])}</code>.\n"
+            f"Request accepted in workspace <code>{workspace_label}</code>.\n"
             f"Execution mode: <code>{_html_escape(mode)}</code>.\n"
-            f"Loop controls: <code>--max-iterations={job.max_iterations}, "
-            f"--max-wait-seconds={_format_loop_control_number(job.max_wait_seconds)}</code>.\n"
+            f"{_queued_run_controls_text(job)}\n"
             "Run queued and starting shortly.\n"
             "Use <code>/status</code> to monitor progress."
         )
@@ -3224,6 +3443,7 @@ def _handle_telegram_text(
     loop_config: GatewayLoopConfig,
     loop_runner: LoopRunner | None = None,
     exec_runner: ExecRunner | None = None,
+    drvloop_runner: DrvloopRunner | None = None,
     research_runner: WorkflowRunner | None = None,
     reproduce_runner: WorkflowRunner | None = None,
     workspace_repo_ensurer: WorkspaceRepoEnsurer | None = None,
@@ -3264,7 +3484,7 @@ def _handle_telegram_text(
         if not argument:
             return (
                 f"Current mode: {current_mode}\n"
-                "Usage: /mode <exec|loop|research|reproduce>\n"
+                "Usage: /mode <exec|loop|drvloop|research|reproduce>\n"
                 "Normal messages run with this mode in the active workspace."
             )
 
@@ -3272,7 +3492,7 @@ def _handle_telegram_text(
         if requested not in SUPPORTED_GATEWAY_RUN_MODES:
             return (
                 f"Unsupported mode: {requested}\n"
-                "Usage: /mode <exec|loop|research|reproduce>"
+                "Usage: /mode <exec|loop|drvloop|research|reproduce>"
             )
 
         chat_state["execution_mode"] = requested
@@ -3285,6 +3505,11 @@ def _handle_telegram_text(
             return (
                 "Execution mode set to loop.\n"
                 "Normal messages will run with `fermilink loop`."
+            )
+        if requested == "drvloop":
+            return (
+                "Execution mode set to drvloop.\n"
+                "Normal messages will run with `fermilink drvloop`."
             )
         if requested == "research":
             return (
@@ -3402,6 +3627,7 @@ def _handle_telegram_text(
         loop_config=effective_loop_config,
         loop_runner=loop_runner,
         exec_runner=exec_runner,
+        drvloop_runner=drvloop_runner,
         research_runner=research_runner,
         reproduce_runner=reproduce_runner,
         workspace_repo_ensurer=workspace_repo_ensurer,

@@ -12,7 +12,11 @@ DRVLOOP_STATE_FILENAME = "state.json"
 
 
 DRVLOOP_PROMPT_PREFIX = (
-    "You are a top-tier analytical specialist for derivations. Your task is to creatively and rigorously analyze the provided user prompt, then iteratively derive a solution in this loop mode.\n"
+    "FermiLink drvloop mode: derivation work.\n"
+    "Read `AGENTS.md` and `projects/memory.md` before acting.\n"
+    "You are a top-tier analytical specialist for derivations. Your task is to "
+    "creatively and rigorously analyze the provided user prompt, then "
+    "iteratively derive a solution in this loop mode.\n"
     f"Output `{DRVLOOP_DONE_TOKEN}` on its own line only when the requested "
     "derivation is complete and double checked.\n"
 )

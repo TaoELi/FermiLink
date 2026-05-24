@@ -97,6 +97,7 @@ def build_drvloop_prompt(
     artifact_lines = _format_artifact_change_lines(artifact_changes)
 
     parts = [DRVLOOP_PROMPT_PREFIX.rstrip()]
+    parts.append("Local derivation skills:\n" + "\n".join(skill_lines))
     parts.append(
         "New or modified derivation artifacts before this turn:\n"
         + "\n".join(artifact_lines)

@@ -75,15 +75,18 @@ def register_gateway_parser(
         "--sandbox",
         default=None,
         help=(
-            "Override sandbox mode for loop/workflow runs triggered by gateway messages. "
-            "When omitted, uses `fermilink agent` policy."
+            "Override sandbox mode for loop/drvloop/workflow runs triggered by "
+            "gateway messages. When omitted, uses `fermilink agent` policy."
         ),
     )
     gateway_parser.add_argument(
         "--max-iterations",
         type=int,
         default=10,
-        help="Forwarded to loop: max iterations per message (default: 10).",
+        help=(
+            "Forwarded to loop/drvloop/workflow runs: max iterations per "
+            "message (default: 10)."
+        ),
     )
     gateway_parser.add_argument(
         "--wait-seconds",

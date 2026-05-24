@@ -91,8 +91,8 @@ What ``fermilink gateway`` launches
 
 - listens for Telegram messages sent to your bot;
 - queues requests quickly (so you can disconnect from the network and come back);
-- runs the requested workflow (``exec``/``loop``/``research``/``reproduce``) on
-  the machine where the gateway is running;
+- runs the requested workflow (``exec``/``loop``/``drvloop``/``research``/
+  ``reproduce``) on the machine where the gateway is running;
 - replies with the final completion message and attaches generated artifacts.
 
 Logs are written under ``$FERMILINK_RUNTIME_ROOT/logs/``.
@@ -107,8 +107,9 @@ supports multiple run modes.
 Core commands:
 
 - ``/new [name]``: create and switch to a new workspace (with a fresh memory for a different job).
-- ``/mode <exec|loop|research|reproduce>``: set the default run mode for normal
-  messages in this chat. By default, the gateway starts in ``exec`` mode, which is good for quick one-turn runs. 
+- ``/mode <exec|loop|drvloop|research|reproduce>``: set the default run mode
+  for normal messages in this chat. By default, the gateway starts in ``exec``
+  mode, which is good for quick one-turn runs.
 - ``/status``: show current gateway state (mode, workspace, run status).
 - ``/stop``: stop the active run and clear queued runs for this chat.
 - ``/loopcfg``: show or update loop controls (max iterations + wait caps).
@@ -120,8 +121,15 @@ Practical starting pattern:
 1. Start in ``exec`` mode (default) for quick one-turn runs.
 2. Switch to ``loop`` mode when you need autonomous iteration and waiting for
    local PID or HPC SLURM jobs.
-3. Use ``research`` / ``reproduce`` when you want a workflow
-   that produces a final report artifact at a research paper scale, which is great if you need to sleep or travel while the agent is working.
+3. Switch to ``drvloop`` mode when you want stepwise analytical derivations with
+   compact memory and derivation artifacts under ``projects/``.
+4. Use ``research`` / ``reproduce`` when you want a workflow that produces a
+   final report artifact at a research paper scale, which is useful if you need
+   to sleep or travel while the agent is working.
+
+You can also override the current chat mode for one message by sending a
+command-style prompt such as ``fermilink drvloop derive ...``,
+``fermilink research ...``, or ``fermilink reproduce ...``.
 
 Advanced: An Army of **FermiLink** Bots
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

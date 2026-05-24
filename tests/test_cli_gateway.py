@@ -297,6 +297,28 @@ def test_gateway_state_round_trip_preserves_workflow_mode(tmp_path: Path) -> Non
     assert loaded_chat["execution_mode"] == "research"
 
 
+def test_gateway_state_round_trip_preserves_drvloop_mode(tmp_path: Path) -> None:
+    state_path = tmp_path / "chat_sessions.json"
+    state = gateway_commands._default_gateway_state()
+    telegram = gateway_commands._telegram_state(state)
+    chat_state = gateway_commands._ensure_chat_state(telegram, "telegram:44")
+    gateway_commands._create_workspace(
+        chat_state,
+        chat_id="44",
+        requested_label="derivation",
+        created_via="new",
+    )
+    chat_state["execution_mode"] = "drvloop"
+
+    gateway_commands._save_gateway_state(state_path, state)
+    loaded = gateway_commands._load_gateway_state(state_path)
+    loaded_chat = gateway_commands._ensure_chat_state(
+        gateway_commands._telegram_state(loaded), "telegram:44"
+    )
+
+    assert loaded_chat["execution_mode"] == "drvloop"
+
+
 def test_run_loop_in_workspace_forwards_iteration_hook(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -486,6 +508,60 @@ def test_run_exec_in_workspace_captures_last_message(
         outcome.get("agent_reply_text") == "Exact exec reply with final recommendation."
     )
     assert captured_hpc_profile == "scripts/hpc_profile_anvil.json"
+
+
+def test_run_drvloop_in_workspace_forwards_sandbox_and_max_iterations(
+    monkeypatch, tmp_path: Path
+) -> None:
+    captured_args: object | None = None
+
+    class _FakeCli:
+        def _run_exec_chat_turn(
+            self, *_args: object, **_kwargs: object
+        ) -> dict[str, object]:
+            return {
+                "assistant_text": (
+                    "Derived the dispersion relation.\n<promise>DONE</promise>"
+                ),
+                "return_code": 0,
+                "stderr": "",
+            }
+
+        def _cmd_drvloop(self, args: object) -> int:
+            nonlocal captured_args
+            captured_args = args
+            self._run_exec_chat_turn()
+            return 0
+
+    monkeypatch.setattr(gateway_commands, "_cli", lambda: _FakeCli())
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    code, outcome = gateway_commands._run_drvloop_in_workspace(
+        repo_dir,
+        "derive the normal modes",
+        gateway_commands.GatewayLoopConfig(
+            package_id="ignored-for-drvloop",
+            sandbox="workspace-write",
+            max_iterations=6,
+            wait_seconds=2.0,
+            max_wait_seconds=10.0,
+            pid_stall_seconds=0.0,
+            init_git=True,
+            hpc_profile="ignored-by-drvloop.json",
+        ),
+    )
+
+    assert code == 0
+    assert isinstance(outcome, dict)
+    assert outcome.get("status") == "done"
+    assert outcome.get("reason") == "drvloop_completed"
+    assert outcome.get("agent_reply_source") == "drvloop_final_turn"
+    assert outcome.get("agent_reply_text") == "Derived the dispersion relation."
+    assert captured_args is not None
+    assert getattr(captured_args, "command") == "drvloop"
+    assert getattr(captured_args, "prompt") == ["derive the normal modes"]
+    assert getattr(captured_args, "sandbox") == "workspace-write"
+    assert getattr(captured_args, "max_iterations") == 6
 
 
 def test_run_research_in_workspace_forwards_hpc_profile(
@@ -936,6 +1012,83 @@ def test_handle_telegram_text_mode_switches_to_workflow_modes(
     assert research_calls[0][0] == reproduce_calls[0][0]
 
 
+def test_handle_telegram_text_mode_switches_to_drvloop(
+    tmp_path: Path,
+) -> None:
+    state = gateway_commands._default_gateway_state()
+    workspaces_root = tmp_path / "workspaces"
+    drvloop_calls: list[tuple[Path, str, int]] = []
+
+    def fake_repo_ensurer(repo_dir: Path, _init_git: bool) -> None:
+        (repo_dir / "projects").mkdir(parents=True, exist_ok=True)
+        (repo_dir / "projects" / "memory.md").write_text(
+            (
+                "# FermiLink Drvloop Memory\n\n"
+                "## Unified Memory\n\n"
+                "### Major done\n"
+                "- chose a Lagrangian route\n\n"
+                "### Major needed\n"
+                "- finish the Euler-Lagrange algebra\n\n"
+                "### Major conclusions\n"
+                "- the symmetry reduces the derivation to one coordinate\n"
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_drvloop_runner(
+        repo_dir: Path,
+        prompt: str,
+        loop_config: gateway_commands.GatewayLoopConfig,
+    ) -> tuple[int, dict[str, object]]:
+        drvloop_calls.append((repo_dir, prompt, loop_config.max_iterations))
+        return 0, {"status": "done", "reason": "drvloop_completed"}
+
+    chat_id = "512"
+    chat_key = "telegram:512"
+    loop_config = _loop_config()
+
+    set_drvloop = gateway_commands._handle_telegram_text(
+        text="/mode drvloop",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        drvloop_runner=fake_drvloop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    drvloop_run = gateway_commands._handle_telegram_text(
+        text="derive the cavity normal modes",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        drvloop_runner=fake_drvloop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+    where = gateway_commands._handle_telegram_text(
+        text="/where",
+        chat_id=chat_id,
+        chat_key=chat_key,
+        state=state,
+        workspaces_root=workspaces_root,
+        loop_config=loop_config,
+        drvloop_runner=fake_drvloop_runner,
+        workspace_repo_ensurer=fake_repo_ensurer,
+    )
+
+    assert "Execution mode set to drvloop." in set_drvloop
+    assert "Execution mode: <code>drvloop</code>." in drvloop_run
+    assert "Derivation loop finished successfully." in drvloop_run
+    assert "<b>Major Conclusions</b>" in drvloop_run
+    assert "the symmetry reduces the derivation to one coordinate" in drvloop_run
+    assert "Current mode: drvloop" in where
+    assert len(drvloop_calls) == 1
+    assert drvloop_calls[0][1] == "derive the cavity normal modes"
+    assert drvloop_calls[0][2] == 2
+
+
 def test_handle_telegram_text_loopcfg_overrides_apply_without_restart(
     tmp_path: Path,
 ) -> None:
@@ -1200,6 +1353,21 @@ def test_queue_telegram_run_detects_workflow_prompt_mode() -> None:
     assert job.max_iterations == 10
     assert job.max_wait_seconds == 6000.0
     assert "Execution mode: <code>research</code>." in reply
+
+
+def test_queue_telegram_run_detects_drvloop_prompt_mode() -> None:
+    state = gateway_commands._default_gateway_state()
+    job, reply = gateway_commands._queue_telegram_run(
+        text="fermilink drvloop derive the polariton dispersion",
+        chat_id="907",
+        chat_key="telegram:907",
+        state=state,
+    )
+    assert job.mode == "drvloop"
+    assert job.prompt == "derive the polariton dispersion"
+    assert job.max_iterations == 10
+    assert "Execution mode: <code>drvloop</code>." in reply
+    assert "Drvloop controls: <code>--max-iterations=10</code>." in reply
 
 
 def test_handle_telegram_text_supports_workflow_prompts(
