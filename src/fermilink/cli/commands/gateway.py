@@ -1792,6 +1792,7 @@ def _run_drvloop_in_workspace(
         prompt=[prompt],
         sandbox=loop_config.sandbox,
         max_iterations=loop_config.max_iterations,
+        proof_depth="publication",
     )
     previous_cwd = Path.cwd()
     try:

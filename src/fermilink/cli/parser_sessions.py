@@ -287,6 +287,16 @@ def register_drvloop_parser(
         default=30,
         help="Maximum drvloop iterations to run before stopping (default: 30).",
     )
+    drvloop_parser.add_argument(
+        "--proof-depth",
+        choices=("quick", "standard", "publication"),
+        default="publication",
+        help=(
+            "Derivation workflow rigor: quick is validator-only, standard "
+            "requires staged derivation, publication requires multi-route "
+            "population and review (default: publication)."
+        ),
+    )
     drvloop_parser.set_defaults(func=cmd_drvloop)
 
 

@@ -119,14 +119,14 @@ Install the repository as a **FermiLink** package knowledge base:
 
 .. code-block:: bash
 
-   fermilink install https://github.com/your-org/lab-experiment-skills --workflow-type experiment
+   fermilink install https://github.com/skilled-quantum/skill-mos2-quantum-transport --workflow-type experiment
 
 
 The option ``--workflow-type experiment`` is necessary as **FermiLink** by default expects simulation workflows.
 
 If the repository is private, make sure your GitHub SSH key has access. The
 package id is derived from the GitHub repository name. In the example above,
-the package id is ``lab-experiment-skills``.
+the package id is ``skill-mos2-quantum-transport``.
 
 Confirm that the package is registered:
 
@@ -143,10 +143,10 @@ installed GitHub repository name:
 
 .. code-block:: bash
 
-   mkdir -p ~/experiments/laser_scan_demo
-   cd ~/experiments/laser_scan_demo
+   mkdir -p ~/experiments/mos2-transport-demo
+   cd ~/experiments/mos2-transport-demo
 
-   fermilink init lab-experiment-skills
+   fermilink init skill-mos2-quantum-transport
 
 What ``fermilink init <github-url-repo-name>`` does here:
 
@@ -169,41 +169,23 @@ Create a concise goal file in the workspace. The exact content depends on your
 instrument and skills, but a good experimental goal states the objective,
 safety constraints, allowed scripts, expected artifacts, and done criteria.
 
+If the experimental skill is well-written, you can write a brief goal and
+let the agent to figure out what to do.
+
 Example:
 
 .. code-block:: markdown
 
-   # Goal: Laser power sweep
+   # Goal: Single-layer MOS2 quantum transport measurement
 
-   Use the local experimental skills to run a small laser power sweep on the
-   mock or lab instrument controller.
+   This is a dry-run. You are expected to provide a procedure.md file with a step-by-step procedure, without launching and submitting pid jobs.
 
-   ## Objective
+   Follow the five-step procedure to measure quantum transport in a single-layer MoS2 2D material sample.
 
-   Measure detector response at 5, 10, 15, and 20 mW. Save raw logs and a
-   summary plot under `projects/YYYY-MM-DD-laser-power-sweep/`.
+   Note that for step 2, sample 1001 V_TG points instead of using smaller sweeps.
 
-   ## Safety constraints
 
-   - Do not exceed 20 mW.
-   - Do not modify hardware safety limits.
-   - If the instrument reports an interlock, stop and summarize the condition.
-
-   ## Execution guidance
-
-   - Read `skills/*/SKILL.md` before choosing scripts.
-   - Start long measurements as detached processes.
-   - When a long measurement starts, emit `<pid_number>PID</pid_number>` for
-     the final detached measurement process, not a launcher or wrapper.
-   - Update `projects/memory.md` after each step with parameters, commands,
-     PIDs, output paths, and pending work.
-
-   ## Done criteria
-
-   - Raw data for all four powers are saved.
-   - A summary CSV and plot are saved.
-   - The final response includes `<promise>DONE</promise>` only after all
-     measurement and analysis work is complete.
+For the above goal, delete the second line (``This is a dry-run...``) for a real run. The agent will read the goal, plan a procedure, and execute it by calling the experimental skills and scripts you installed.
 
 
 Step 6. Run ``exploop``
@@ -219,7 +201,7 @@ For very long measurements, tune the iteration and polling limits:
 
 .. code-block:: bash
 
-   fermilink exploop --max-iterations 50 --wait-seconds 10 --max-wait-seconds 172800 goal.md
+   fermilink exploop --max-iterations 30 --wait-seconds 10 --max-wait-seconds 259200 goal.md
 
 Useful options:
 

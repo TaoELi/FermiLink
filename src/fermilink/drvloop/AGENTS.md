@@ -1,70 +1,152 @@
 # FermiLink Drvloop Guide
 
-You are running in FermiLink derivation loop mode. At each round of agent reasoning, due to the limit of context window, do not try to resolve everything and only focus on one key step. Later agent rounds will continue this quest.
+You are running in FermiLink derivation loop mode. Each round should advance one
+major analytical step, update persistent artifacts, and leave the next round a
+clear verifier-aware handoff.
 
 ## Operating rules
 
 - Read `projects/memory.md` before acting.
-- For a new derivation, work under `projects/YEAR-MM-DD-NAME`, where `NAME` is a brief name of this task.
-- Save detailed algebra, equation transformations, failed routes, and checks under `projects/YEAR-MM-DD-NAME`.
-- Keep `projects/memory.md` compact: only major done steps, major needed steps, and major conclusions.
-- Stop at this round if you find the contiuned derivation is hopeless; next round will contiune your quest.
-- Follow the step-by-step guides below. Each section below should use at least one fresh agent round.
+- Work under the active `projects/YEAR-MM-DD-NAME` directory named in the prompt, where `NAME` is a short name for representing this derivation.
+- Treat `derivation_spec.yaml` as the locked problem statement. Do not silently
+  weaken the target, assumptions, or non-goals. If the statement appears wrong
+  or ambiguous, write a separate spec-amendment note and continue against the
+  locked spec until the user accepts a change.
+- Save detailed algebra, equation transformations, failed routes, numerical
+  checks, proof sketches, LaTeX, and review notes under the active project
+  directory.
+- Keep `projects/memory.md` compact: only major done steps, major needed steps,
+  and major conclusions.
+- Treat `fermilink-drvloop/workflow_state.json` as a hard process gate. A
+  validation-clean final manuscript is not enough for publication-depth work;
+  route population, pathway development, synthesis, review, numerical checks,
+  and final packaging must also be complete.
+- If the current route is hopeless, record why and move to a different route in
+  a later round.
+- Use explicit `route_id` values in proof obligations when exploring multiple
+  pathways. This lets the controller score and revisit routes separately.
 
-## 1. Start
+## Proof obligations
 
-- At the start of a new derivation work, **creatively** provide 10 different pathways for derivations.
+Maintain `proof_obligations.yaml` in the active project. Every nontrivial claim
+that supports the final result should have an obligation entry, especially:
 
-## 2. Exploring EVERY Pathway
+- algebraic identities and commutator/operator identities;
+- limits, asymptotic reductions, perturbation-order claims, and approximations;
+- dimensional or unit-consistency claims;
+- numerical spot checks for major analytical results;
+- imported theorems, textbook facts, or literature-backed equations;
+- final LaTeX build checks when manuscripts are ready;
+- optional formal checks such as Lean snippets for small mathematical kernels.
 
-- In each agent round after the starting pathway generation, focus on each signle major derivation pathway and provide a detailed step-by-step derivation, with all major assumptions properly provided.
+Use this YAML shape:
 
-- ENSURE every pathway is explored in detail.
+```yaml
+obligations:
+  - id: algebra-main-1
+    type: algebra
+    claim: "The simplified residual is zero."
+    lhs: "(x + 1)**2"
+    rhs: "x**2 + 2*x + 1"
+    symbols: [x]
+    covers_target_claims: [target-1]
+    critical: true
+```
 
-## 3. Summarized Pathway
+Supported `type` values include `algebra`, `commutator`, `limit`, `dimension`,
+`numeric_check`, `citation`, `assumption`, `latex_build`, and
+`formal_optional`. Domain-specific validators also accept `trace_preservation`,
+`hermiticity`, `tensor_index`, `bch_order`, `perturbation_order`, and
+`conservation`. Use `covers_target_claims` when a strong mechanical or
+reviewer-backed obligation establishes a locked target claim. Broad `citation`,
+`derived_here`, `manual`, `assumption`, `latex_build`, or final-artifact
+obligations do not count as target coverage by themselves. Final completion
+requires granular algebra, limit, dimensional, commutator, numerical, formal, or
+domain-specific obligations for the target claims.
 
-- After each pathway is explored in detail, stop, then in a fresh agent round, learn from the advantages and disadvantages of each pathway, provide the most natrual, elegant, robust derivation as the final official derivation for the task.
+For numerical scripts, place the script under `projects/`, reference it with a
+relative path, and set `trusted: true` only when it is safe for the controller to
+run. For literature-backed claims, either provide `derived_here: true` or a real
+`citation`/`source`, not a placeholder.
 
-## 4. LaTeX writing rules
+The controller automatically scans manuscript-like artifacts for displayed
+equations, assumptions, citation placeholders, hidden-lemma phrases, and
+therefore/hence-style transitions. If these auto-extracted reviewer obligations
+appear in the prompt, either add explicit validating obligations with
+`source_file` pointing at the artifact or revise the artifact.
 
-- After the whole derivation is double checked for correctness, for every nontrival equation introduced beyond the entry-level graduate student level, try to search textbooks or peer-reviewd papers to insert correct citations. 
+## Search workflow
 
-- If this equation is derived by you, provide a detailed explanation of the assumptions and your reasoning.
+For publication-depth drvloop runs, follow this staged process unless the
+workflow prompt explicitly says a lighter profile is active:
 
-- The final manuscript should exceed the quality of standard Phys Rev A/B or J Chem Phys quality and be self-contained and publication ready.
+1. Write a route-population artifact, usually `00_pathways.md`, with at least
+   ten plausible derivation pathways. For each route list its starting
+   equations, assumptions, expected validation kernels, risks, and why it might
+   fail.
+2. Explore one major pathway per round in a dedicated artifact such as
+   `01_pathway1_*.md`. The controller expects developed route artifacts, not
+   only a compact route list.
+3. Record proof obligations while deriving, not only after the manuscript is
+   done. Keep route IDs stable.
+4. Rank or compare the route population using target coverage, unresolved
+   obligations, unsupported assumptions, and numerical/verifier evidence.
+5. Write an official synthesis artifact that chooses the cleanest route or
+   combines independent routes.
+6. Draft the final manuscript only after synthesis. It should be self-contained
+   and equation-rich enough for a physics or chemistry preprint.
+7. Write a gap review before finalization. Search for hidden lemmas,
+   unjustified transitions, assumption drift, and missing citations.
+8. Add numerical or limiting-case checks for the major analytical claims.
+9. Write the pedagogical note with intermediate derivation details.
+10. Finish with a final consistency review that checks the manuscript, note,
+    obligations, numerical evidence, and locked spec together.
 
-## 5. Review for gaps and invalid derivations
+After the derivation workflow is final-ready, the drvloop controller may launch
+a separate final publication sweep. That sweep is responsible for polished
+APS-style LaTeX/PDF exports and should not be mixed into the normal derivation
+stages.
 
-- In a fresh round, examine whether the LaTeX manuscript has any gap, assumption error in derivations or whether if there is anything wrong between every step of derivations, and then fix them. 
+If `workflow_state.json` reports an open `next_stage`, work on that stage
+instead of attempting final completion.
 
-## 6. Numerical calculation rules
+## LaTeX and review
 
-- For major analytical results, if possible, use numerical calculations to double check;
+- For every nontrivial equation beyond entry-level graduate material, either
+  derive it in the manuscript or record a reliable citation obligation.
+- The final manuscript should be self-contained and suitable for a physics or
+  chemistry preprint. Publication-depth runs should first finish the analytical
+  manuscript and note in the normal derivation workflow; polished LaTeX/PDF
+  exports belong to the controller's final publication sweep.
+- In a fresh round before final completion, review the manuscript for gaps,
+  assumption errors, hidden changes to the problem statement, and invalid
+  equation transitions. Fix issues and update obligations.
+- Provide a supplementary pedagogical note with intermediate derivation details
+  when the task calls for a publication-style result.
 
-- Supply the numerical calculation results together with the final latex document when possible.
+## Stop criteria
 
-- For disagreed numerical vs analytical results, dig deeply to figure out the issue. Fix either numerical or analytical derivations.
-
-## 7. Supplementary pedagogical step-by-step enrichment rules
-
-- After all the above steps, in a fresh agent round, provide a supplementary pedagogical note which is an extended version of the latex manuscript.
-
-- Provide detailed derivation between every equation in the latex manuscript;
-
-- For every introduced new equation not derived in the manuscript, either provide a comprehensive derivation or provide the reliable citation for user to check;
-
-- Finalize this pedagogical step-by-step note to ensure senior undergraduate students in this major or first-year graduate students can understand properly.
-
-- This note should also be prepared as a latex document with pdf output.
-
-- Continue to next step ONLY when this pedagogical step-by-step note can be properly understood by senior undergraduate students in this major or first-year graduate students.
-
-## 8. Stop criteria
-
-- When and only when a) the requested derivation is complete and double-checked for correctness, b) a revtex preprint sytle latex document for the derivation is written (and compiled to pdf if possible), and c) the supplementary pedagogical enriched latex note is provided, output exactly:
+Output exactly:
 
 ```xml
 <promise>DONE</promise>
 ```
 
-- Then stop the whole derivation workflow.
+only when all of the following are true:
+
+- the requested derivation is complete;
+- `proof_obligations.yaml` covers every locked target claim;
+- the validation report is validation-ready with no failed or unresolved
+  critical obligations;
+- `fermilink-drvloop/workflow_state.json` is workflow-ready and quality-ready
+  for the active proof-depth profile;
+- the final manuscript and requested supplementary note are written. By default
+  the runner requires final manuscript and pedagogical-note artifacts under the
+  active project unless `derivation_spec.yaml` explicitly relaxes that
+  requirement;
+- if the controller has started the final publication sweep, it has produced
+  the requested APS-style LaTeX/PDF exports;
+- LaTeX build obligations are included when relevant.
+
+The runner will withhold completion if validation or workflow gates are not
+final-ready.
