@@ -481,6 +481,11 @@ often want to pass through.
    * - ``--plan-only``
      - Initialize state and validate inputs without running the
        loop.
+   * - ``--compile_agent_skills=<True|False>``
+     - Control whether a missing ``skills/`` directory may be created.
+       The default is ``True``. Set it to ``False`` to continue without
+       channel or compile bootstrapping; an existing ``skills/`` directory
+       is still used. ``--compile-agent-skills`` is an equivalent alias.
    * - ``--resume``
      - Resume an existing campaign from local state (see Step 7).
    * - ``--max-iterations <n>``

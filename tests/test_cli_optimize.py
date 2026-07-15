@@ -494,7 +494,26 @@ def test_optimize_parser_supports_core_flags() -> None:
     assert args.worker_max_wait_seconds == 20
     assert args.worker_pid_stall_seconds == 30
     assert args.hpc_profile == "scripts/hpc_profile_anvil.json"
+    assert args.compile_agent_skills is True
     assert args.forever is True
+
+
+@pytest.mark.parametrize(
+    "option",
+    ("--compile-agent-skills=False", "--compile_agent_skills=False"),
+)
+def test_optimize_parser_can_disable_agent_skill_compilation(option: str) -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(["optimize", "goal.md", option])
+
+    assert args.compile_agent_skills is False
+
+
+def test_optimize_parser_rejects_invalid_agent_skill_compilation_value() -> None:
+    parser = cli._build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["optimize", "goal.md", "--compile_agent_skills=sometimes"])
 
 
 @pytest.mark.parametrize(
@@ -1554,6 +1573,55 @@ def test_optimize_quick_mode_compiles_skills_when_missing(
     assert payload["status"] == "planned"
     assert compile_calls == [str(repo_dir)]
     assert (repo_dir / "skills" / "README.md").read_text(encoding="utf-8") == "skills"
+
+
+def test_optimize_quick_mode_skips_skills_bootstrap_when_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_dir, _benchmark_path = _init_optimize_repo(tmp_path, with_skills=False)
+    prompt_path = repo_dir / "prompt.txt"
+    prompt_path.write_text(
+        ("# Prompt\n" "\n" "```bash\n" "python -c \"print('ok')\"\n" "```\n"),
+        encoding="utf-8",
+    )
+    _git(repo_dir, "add", "prompt.txt")
+    _git(
+        repo_dir,
+        "-c",
+        "user.name=Tests",
+        "-c",
+        "user.email=tests@example.com",
+        "commit",
+        "-m",
+        "add prompt",
+    )
+    monkeypatch.chdir(repo_dir)
+
+    def unexpected_compile(_args: argparse.Namespace) -> int:
+        raise AssertionError("agent skill compilation must remain disabled")
+
+    monkeypatch.setattr(cli, "_cmd_compile", unexpected_compile)
+
+    parser = cli._build_parser()
+    args = parser.parse_args(
+        [
+            "optimize",
+            "prompt.txt",
+            "--plan-only",
+            "--skills-source",
+            "compile",
+            "--compile_agent_skills=False",
+        ]
+    )
+    payload = optimize_controller.run_quick_campaign(args)
+
+    assert payload["status"] == "planned"
+    assert payload["skills_bootstrap"] == {
+        "source": "disabled",
+        "skills_path": "",
+        "created": False,
+    }
+    assert not (repo_dir / "skills").exists()
 
 
 def test_optimize_quick_mode_seeds_from_reference_templates(

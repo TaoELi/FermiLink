@@ -98,6 +98,7 @@ def test_optimize_cpp_launcher_defaults_to_repo_root_and_sibling_worktree(
             "--",
             "--max-iterations",
             "12",
+            "--compile_agent_skills=False",
         ],
         cwd=str(repo_dir),
         text=True,
@@ -117,6 +118,7 @@ def test_optimize_cpp_launcher_defaults_to_repo_root_and_sibling_worktree(
     assert (
         f"  {true_bin} optimize {goal_path} --goal --branch "
         "fermilink-optimize/lammps-comm --max-iterations 12 "
+        "--compile_agent_skills=False "
     ) in completed.stdout
 
     worktree_dir = tmp_path / "lammps-comm"

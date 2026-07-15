@@ -2470,6 +2470,7 @@ def _ensure_skills(
     project_root: Path,
     *,
     package_id: str,
+    compile_agent_skills: bool,
     skills_source: str,
     channel: str,
     version_id: str | None,
@@ -2480,6 +2481,13 @@ def _ensure_skills(
         return {
             "source": "existing",
             "skills_path": str(target_skills),
+            "created": False,
+        }
+
+    if not compile_agent_skills:
+        return {
+            "source": "disabled",
+            "skills_path": "",
             "created": False,
         }
 
@@ -6648,6 +6656,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, Any]:
     skills_bootstrap = _ensure_skills(
         project_root,
         package_id=package_id,
+        compile_agent_skills=bool(getattr(args, "compile_agent_skills", True)),
         skills_source=str(getattr(args, "skills_source", "auto") or "auto"),
         channel=str(getattr(args, "channel", "skilled-scipkg") or "skilled-scipkg"),
         version_id=getattr(args, "version_id", None),
