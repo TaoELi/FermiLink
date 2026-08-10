@@ -145,7 +145,272 @@ def test_generate_research_plan_includes_unified_memory_stage_instructions(
     assert status_updates == ["research plan", "research audit"]
 
 
-def test_research_plan_only_writes_plan_without_running_loop(
+# ---------------------------------------------------------------------------
+# Research v2 (exploratory charter -> phase loop -> paper) behavioral tests.
+# The legacy deterministic research path was replaced; these cover the new one.
+# ---------------------------------------------------------------------------
+
+
+def _research_task(task_id: str, executor: str = "loop", **overrides) -> dict:
+    task = {
+        "id": task_id,
+        "phase": 1,
+        "title": f"probe {task_id}",
+        "executor": executor,
+        "approach_id": "a1",
+        "objective": "objective",
+        "probe_question": "question",
+        "methods": [],
+        "parameter_constraints": [],
+        "expected_evidence": [],
+        "success_checks": [],
+        "kill_checks": [],
+        "plot_requirements": [],
+        "prompt_markdown": f"do {task_id}",
+    }
+    task.update(overrides)
+    return task
+
+
+def _charter_plan(tasks: list[dict]) -> dict:
+    return {
+        "version": 2,
+        "mode": "research",
+        "paper_source": "idea.md",
+        "central_question": "Does X hold?",
+        "hypotheses": [{"id": "h1", "statement": "X holds", "status": "open"}],
+        "approaches": [
+            {
+                "id": "a1",
+                "summary": "approach one",
+                "rationale": "because",
+                "risks": ["risk"],
+                "mitigations": ["mitigate"],
+                "fallback": "fallback",
+                "status": "candidate",
+            }
+        ],
+        "success_criteria": ["publishable signal"],
+        "kill_criteria": ["no signal"],
+        "deliverable_kind": "paper",
+        "assumptions": [],
+        "phases": [
+            {
+                "index": 1,
+                "goal": "learn",
+                "approach_id": "a1",
+                "task_ids": [t["id"] for t in tasks],
+                "status": "planned",
+                "findings_file": "",
+                "decision": "",
+            }
+        ],
+        "tasks": tasks,
+    }
+
+
+def _reflection(
+    *, phase_index: int, decision: str, next_tasks: list[dict] | None = None, **extra
+) -> dict:
+    payload = {
+        "version": 1,
+        "phase_index": phase_index,
+        "decision": decision,
+        "reason": "reflection reason",
+        "findings_markdown": "what happened",
+        "belief_updates": [],
+        "approach_updates": [],
+        "deliverable_kind": "negative_result_paper"
+        if decision == "declare_negative_result"
+        else "paper",
+        "next_phase": {
+            "goal": "next",
+            "approach_id": "a1",
+            "tasks": next_tasks or [],
+        },
+        "findings_file": f"findings/phase_{phase_index:02d}_findings.md",
+    }
+    payload.update(extra)
+    return payload
+
+
+def test_research_parser_new_flag_defaults() -> None:
+    parser = cli._build_parser()
+    args = parser.parse_args(["research", "idea.md"])
+    assert args.max_phases == 6
+    assert args.enable_exploop is False
+    assert args.enable_code is True
+    assert args.enable_derivation is True
+    assert args.allow_pivot is True
+    assert args.proof_depth == "standard"
+    assert args.charter_only is False
+
+    tuned = parser.parse_args(
+        [
+            "research",
+            "idea.md",
+            "--charter-only",
+            "--enable-exploop",
+            "--no-enable-code",
+            "--no-enable-derivation",
+            "--no-allow-pivot",
+            "--max-phases",
+            "3",
+            "--proof-depth",
+            "publication",
+        ]
+    )
+    assert tuned.charter_only is True
+    assert tuned.enable_exploop is True
+    assert tuned.enable_code is False
+    assert tuned.enable_derivation is False
+    assert tuned.allow_pivot is False
+    assert tuned.max_phases == 3
+    assert tuned.proof_depth == "publication"
+
+
+def test_coerce_research_executor_gates_disabled_backends() -> None:
+    assert (
+        workflow_commands._coerce_research_executor("drvloop", {"loop", "drvloop"})
+        == "drvloop"
+    )
+    assert workflow_commands._coerce_research_executor("exploop", {"loop"}) == "loop"
+    assert workflow_commands._coerce_research_executor("bogus", {"loop", "code"}) == "loop"
+    assert workflow_commands._coerce_research_executor(None, {"loop"}) == "loop"
+
+
+def test_normalize_research_charter_builds_phase_one() -> None:
+    raw = {
+        "central_question": "Does X hold?",
+        "approaches": [{"id": "a1", "summary": "s"}],
+        "phase_1_tasks": [
+            {
+                "id": "task_001",
+                "title": "t",
+                "executor": "exploop",
+                "prompt_markdown": "do it",
+            }
+        ],
+    }
+    plan = workflow_commands._normalize_research_charter(
+        raw,
+        source_description="idea.md",
+        enabled_executors={"loop", "drvloop"},
+    )
+    assert plan["version"] == 2
+    assert plan["central_question"] == "Does X hold?"
+    assert plan["tasks"][0]["executor"] == "loop"  # exploop disabled -> loop
+    assert plan["tasks"][0]["phase"] == 1
+    assert plan["phases"][0]["task_ids"] == ["task_001"]
+
+
+def test_normalize_research_charter_requires_question_and_tasks() -> None:
+    with pytest.raises(cli.PackageError):
+        workflow_commands._normalize_research_charter(
+            {"phase_1_tasks": [{"id": "t", "prompt_markdown": "x"}]},
+            source_description="idea.md",
+            enabled_executors={"loop"},
+        )
+    with pytest.raises(cli.PackageError):
+        workflow_commands._normalize_research_charter(
+            {"central_question": "Q", "phase_1_tasks": []},
+            source_description="idea.md",
+            enabled_executors={"loop"},
+        )
+
+
+def test_normalize_research_reflection_decisions() -> None:
+    downgraded = workflow_commands._normalize_research_reflection(
+        {
+            "decision": "revise_approach",
+            "reason": "r",
+            "next_phase": {"tasks": [{"id": "task_009", "prompt_markdown": "x"}]},
+        },
+        phase_index=1,
+        allow_pivot=False,
+        enabled_executors={"loop"},
+        completed_ids={"task_001"},
+    )
+    assert downgraded["decision"] == "deepen"
+
+    terminal = workflow_commands._normalize_research_reflection(
+        {
+            "decision": "converge_to_paper",
+            "next_phase": {"tasks": [{"id": "x", "prompt_markdown": "y"}]},
+        },
+        phase_index=1,
+        allow_pivot=True,
+        enabled_executors={"loop"},
+        completed_ids=set(),
+    )
+    assert terminal["next_phase"]["tasks"] == []
+
+    negative = workflow_commands._normalize_research_reflection(
+        {"decision": "declare_negative_result"},
+        phase_index=1,
+        allow_pivot=True,
+        enabled_executors={"loop"},
+        completed_ids=set(),
+    )
+    assert negative["deliverable_kind"] == "negative_result_paper"
+
+    with pytest.raises(cli.PackageError):
+        workflow_commands._normalize_research_reflection(
+            {"decision": "not_a_decision"},
+            phase_index=1,
+            allow_pivot=True,
+            enabled_executors={"loop"},
+            completed_ids=set(),
+        )
+
+
+def test_generate_research_charter_uses_charter_prompts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    prompts: list[str] = []
+
+    charter_payload = {
+        "central_question": "Does X hold?",
+        "approaches": [{"id": "a1", "summary": "s"}],
+        "phase_1_tasks": [
+            {"id": "task_001", "title": "t", "executor": "loop", "prompt_markdown": "go"}
+        ],
+    }
+
+    def fake_exec_turn(**kwargs) -> dict[str, object]:
+        prompts.append(str(kwargs.get("prompt") or ""))
+        return {
+            "return_code": 0,
+            "assistant_text": "<research_plan>"
+            + json.dumps(charter_payload)
+            + "</research_plan>",
+            "stderr": "",
+        }
+
+    monkeypatch.setattr(workflow_commands, "_run_reproduce_exec_turn", fake_exec_turn)
+    plan = workflow_commands._generate_research_charter(
+        repo_dir=repo_dir,
+        run_dir=repo_dir,
+        source_text="request",
+        source_description="idea.md",
+        requested_package_id=None,
+        sandbox_override=None,
+        provider_bin_override="codex",
+        planner_max_tries=1,
+        auditor_max_tries=1,
+        enabled_executors={"loop", "code", "drvloop"},
+    )
+    assert plan["central_question"] == "Does X hold?"
+    assert plan["tasks"][0]["executor"] == "loop"
+    assert len(prompts) == 2
+    assert "research charter mode" in prompts[0]
+    assert "research charter audit mode" in prompts[1]
+    assert "Enabled executors:" in prompts[0]
+
+
+def test_research_charter_only_writes_charter_without_running(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -156,107 +421,32 @@ def test_research_plan_only_writes_plan_without_running_loop(
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     monkeypatch.setattr(
         cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
     )
     monkeypatch.setattr(
         cli,
         "_cmd_loop",
         lambda _args: (_ for _ in ()).throw(
-            AssertionError("loop should not run in --plan-only")
+            AssertionError("executor should not run in --charter-only")
         ),
     )
 
-    code = cli.main(["research", "idea.md", "--plan-only"])
-    assert code == 0
+    assert cli.main(["research", "idea.md", "--charter-only"]) == 0
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
     run_dir = runs_root / latest_run
     assert (run_dir / "plan.json").is_file()
+    assert (run_dir / "charter.md").is_file()
     assert (run_dir / "prompts" / "task_001.md").is_file()
-
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert state["status"] == "plan_ready"
-    assert state["current_task_index"] == 0
-    hpc_context = state.get("hpc_context")
-    assert isinstance(hpc_context, dict)
-    assert hpc_context.get("enabled") is False
-    assert hpc_context.get("mode") == "local"
+    assert state["status"] == "charter_ready"
+    assert state["mode"] == "research"
+    assert state["task_executors"]["task_001"] == "loop"
 
 
-def test_research_plan_only_uses_default_home_hpc_profile_when_flag_absent(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(repo_dir)
-    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-    home = tmp_path / ".fermilink"
-    monkeypatch.setenv("FERMILINK_HOME", str(home))
-    profile = home / "HPC_PROFILE.json"
-    profile.parent.mkdir(parents=True, exist_ok=True)
-    profile.write_text(
-        json.dumps(
-            {
-                "slurm_default_partition": "debug",
-                "slurm_defaults": "--nodes=1 --ntasks=2 --time=00:15:00",
-                "slurm_resource_policy": "Prefer debug queue",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
-    )
-    monkeypatch.setattr(
-        cli,
-        "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(
-            AssertionError("loop should not run in --plan-only")
-        ),
-    )
-
-    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-    runs_root = repo_dir / "projects" / "research"
-    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
-    run_dir = runs_root / latest_run
-    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    hpc_context = state.get("hpc_context")
-    assert isinstance(hpc_context, dict)
-    assert hpc_context.get("enabled") is True
-    assert hpc_context.get("source") == "default_home_hpc_profile"
-    assert hpc_context.get("profile_path") == str(profile)
-
-
-def test_research_loop_preamble_enforces_simulation_execution(
+def test_research_runs_phase_then_converges_and_writes_paper(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -267,194 +457,412 @@ def test_research_loop_preamble_enforces_simulation_execution(
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     monkeypatch.setattr(
         cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "prepare scripts only",
-                }
-            ],
-        },
-    )
-
-    loop_preambles: list[str] = []
-
-    def fake_loop(loop_args) -> int:
-        loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
-        return 0
-
-    monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
-    code = cli.main(["research", "idea.md", "--skip-report"])
-    assert code == 0
-    assert len(loop_preambles) == 1
-    assert "Simulation policy:" in loop_preambles[0]
-    assert "Execute the simulations required by each task" in loop_preambles[0]
-    assert "execution_target: local machine (workflow default)." in loop_preambles[0]
-
-    runs_root = repo_dir / "projects" / "research"
-    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
-    run_dir = runs_root / latest_run
-    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    assert "dry_run" not in state
-
-
-def test_research_attempts_completion_checkpoint_commit(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(repo_dir)
-    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
-    )
-    monkeypatch.setattr(
-        cli,
-        "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(
-            AssertionError("loop should not run in --plan-only")
-        ),
-    )
-
-    completion_calls: list[tuple[Path, str]] = []
-    monkeypatch.setattr(
-        workflow_commands,
-        "_workflow_completion_commit",
-        lambda *, repo_dir, mode_name: completion_calls.append(
-            (Path(repo_dir), str(mode_name))
-        )
-        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
-    )
-
-    code = cli.main(["research", "idea.md", "--plan-only"])
-    assert code == 0
-    assert completion_calls == [(repo_dir, "research")]
-
-
-def test_research_executes_tasks_with_retries(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(repo_dir)
-    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                },
-                {
-                    "id": "task_002",
-                    "title": "task two",
-                    "prompt_markdown": "run task two",
-                },
-            ],
-        },
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
     )
 
     loop_calls: list[Path] = []
-    loop_preambles: list[str] = []
-    run_results = [1, 0, 0]
 
     def fake_loop(loop_args) -> int:
-        prompt_values = getattr(loop_args, "prompt", [])
-        assert isinstance(prompt_values, list)
-        setattr(
-            loop_args,
-            "_fermilink_completion_commit",
-            {
-                "status": "noop",
-                "sha": "",
-                "error": "",
-                "memory_only": "false",
-            },
-        )
-        loop_calls.append(Path(str(prompt_values[0])))
-        loop_preambles.append(str(getattr(loop_args, "workflow_prompt_preamble", "")))
-        return run_results[len(loop_calls) - 1]
+        loop_calls.append(Path(str(loop_args.prompt[0])))
+        return 0
 
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
-    monkeypatch.setattr(
-        cli,
-        "_finalize_workflow_report",
-        lambda **kwargs: {
-            "report_path": str(Path(kwargs["runs_root"]) / "report.md"),
-            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
-            "summary_count": 2,
-        },
-    )
 
-    code = cli.main(
-        ["research", "idea.md", "--task-max-runs", "3", "--no-post-task-plan-audit"]
-    )
-    assert code == 0
-    assert len(loop_calls) == 3
-    assert loop_calls[0].name == "task_001.md"
-    assert loop_calls[1].name == "task_001.md"
-    assert loop_calls[2].name == "task_002.md"
-    assert (
-        "Before acting, read short/long term memory at `projects/memory.md`."
-        in loop_preambles[0]
-    )
-    assert (
-        "Before acting, optionally read original paper or request at `idea.md` "
-        "for additional context if needed."
-    ) in loop_preambles[0]
+    reflect_calls: list[int] = []
+
+    def fake_reflect(**kwargs) -> dict:
+        reflect_calls.append(int(kwargs["phase_index"]))
+        return _reflection(phase_index=int(kwargs["phase_index"]), decision="converge_to_paper")
+
+    monkeypatch.setattr(cli, "_run_research_reflection", fake_reflect)
+
+    paper_calls: list[dict] = []
+
+    def fake_paper(**kwargs) -> dict:
+        paper_calls.append(kwargs)
+        return {
+            "report_path": str(Path(kwargs["run_dir"]) / "paper.md"),
+            "paper_path": str(Path(kwargs["run_dir"]) / "paper.md"),
+            "deliverable_kind": "paper",
+        }
+
+    monkeypatch.setattr(cli, "_finalize_research_paper", fake_paper)
+
+    assert cli.main(["research", "idea.md"]) == 0
+    assert [p.name for p in loop_calls] == ["task_001.md"]
+    assert reflect_calls == [1]
+    assert len(paper_calls) == 1
 
     runs_root = repo_dir / "projects" / "research"
     latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
     run_dir = runs_root / latest_run
-    assert f"projects/research/{latest_run}/plan.json" in loop_preambles[0]
-    assert "latest archived memory" not in loop_preambles[2]
     state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
-    run_log = json.loads(
-        (run_dir / "logs" / "task_001_run_01.json").read_text(encoding="utf-8")
-    )
-    assert run_log["completion_commit_status"] == "noop"
-    assert run_log["completion_commit_sha"] == ""
-    assert run_log["completion_commit_error"] == ""
-    assert run_log["completion_commit_memory_only"] == "false"
     assert state["status"] == "completed"
-    assert state["current_task_index"] == 2
-    assert list((run_dir / "archive").glob("memory_*.md")) == []
-
-    memory = (repo_dir / "projects" / "memory.md").read_text(encoding="utf-8")
-    assert "## Workflow context" in memory
-    assert f"projects/research/{latest_run}/plan.json" in memory
-    assert f"projects/research/{latest_run}/state.json" in memory
+    assert state["decision"] == "converge_to_paper"
 
 
-def test_research_status_hook_emits_task_progress_with_totals(
+def test_research_reflection_replans_next_phase(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
+    )
+
+    loop_calls: list[str] = []
+    monkeypatch.setattr(
+        cli,
+        "_cmd_loop",
+        lambda loop_args: loop_calls.append(Path(str(loop_args.prompt[0])).name) or 0,
+    )
+
+    def fake_reflect(**kwargs) -> dict:
+        phase = int(kwargs["phase_index"])
+        if phase == 1:
+            return _reflection(
+                phase_index=1,
+                decision="advance",
+                next_tasks=[_research_task("task_002", phase=2)],
+            )
+        return _reflection(phase_index=phase, decision="converge_to_paper")
+
+    monkeypatch.setattr(cli, "_run_research_reflection", fake_reflect)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert cli.main(["research", "idea.md"]) == 0
+    assert loop_calls == ["task_001.md", "task_002.md"]
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
+    assert [t["id"] for t in plan["tasks"]] == ["task_001", "task_002"]
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["phase_index"] == 2
+    assert len(state["phases"]) == 2
+    assert (run_dir / "prompts" / "task_002.md").is_file()
+
+
+def test_research_reflection_receives_only_current_phase_tasks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
+    )
+    monkeypatch.setattr(cli, "_cmd_loop", lambda _a: 0)
+
+    seen_phase_ids: list[list[str]] = []
+
+    def fake_reflect(**kwargs) -> dict:
+        seen_phase_ids.append(sorted(kwargs["phase_task_ids"]))
+        phase = int(kwargs["phase_index"])
+        if phase == 1:
+            return _reflection(
+                phase_index=1,
+                decision="advance",
+                next_tasks=[_research_task("task_002", phase=2)],
+            )
+        return _reflection(phase_index=phase, decision="converge_to_paper")
+
+    monkeypatch.setattr(cli, "_run_research_reflection", fake_reflect)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert cli.main(["research", "idea.md"]) == 0
+    # Phase 2 reflection must see ONLY task_002, not the cumulative [task_001, task_002].
+    assert seen_phase_ids == [["task_001"], ["task_002"]]
+
+
+def test_research_dispatches_executor_per_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan(
+            [
+                _research_task("task_001", executor="loop"),
+                _research_task("task_002", executor="drvloop"),
+                _research_task("task_003", executor="exploop"),
+            ]
+        ),
+    )
+
+    loop_calls: list = []
+    drv_calls: list = []
+    exp_calls: list = []
+    monkeypatch.setattr(cli, "_cmd_loop", lambda a: loop_calls.append(a) or 0)
+    monkeypatch.setattr(cli, "_cmd_drvloop", lambda a: drv_calls.append(a) or 0)
+    monkeypatch.setattr(cli, "_cmd_exploop", lambda a: exp_calls.append(a) or 0)
+    monkeypatch.setattr(
+        cli,
+        "_run_research_reflection",
+        lambda **kwargs: _reflection(
+            phase_index=int(kwargs["phase_index"]), decision="converge_to_paper"
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert (
+        cli.main(
+            ["research", "idea.md", "--enable-exploop", "--proof-depth", "publication"]
+        )
+        == 0
+    )
+    assert len(loop_calls) == 1
+    assert len(drv_calls) == 1
+    assert len(exp_calls) == 1
+    assert drv_calls[0].command == "drvloop"
+    assert drv_calls[0].proof_depth == "publication"
+    assert exp_calls[0].command == "exploop"
+    # exploop/drvloop receive a folded prompt (text), not a bare file path.
+    assert "research" in str(drv_calls[0].prompt[0]).lower()
+
+
+def test_research_exploop_downgraded_when_not_enabled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    # Charter itself would coerce, but simulate a plan that still carries exploop.
+    plan = _charter_plan([_research_task("task_001", executor="exploop")])
+    plan["tasks"][0]["executor"] = "exploop"
+    monkeypatch.setattr(cli, "_generate_research_charter", lambda **_kwargs: plan)
+
+    loop_calls: list = []
+    monkeypatch.setattr(cli, "_cmd_loop", lambda a: loop_calls.append(a) or 0)
+    monkeypatch.setattr(
+        cli,
+        "_cmd_exploop",
+        lambda a: (_ for _ in ()).throw(
+            AssertionError("exploop must not run without --enable-exploop")
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_run_research_reflection",
+        lambda **kwargs: _reflection(
+            phase_index=int(kwargs["phase_index"]), decision="converge_to_paper"
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert cli.main(["research", "idea.md"]) == 0  # exploop NOT enabled
+    assert len(loop_calls) == 1  # downgraded to loop
+
+
+def test_research_probe_failure_is_tolerated_and_advances(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
+    )
+
+    loop_calls: list[int] = []
+    monkeypatch.setattr(
+        cli, "_cmd_loop", lambda _a: loop_calls.append(1) or 1
+    )  # always incomplete
+    monkeypatch.setattr(
+        cli,
+        "_run_research_reflection",
+        lambda **kwargs: _reflection(
+            phase_index=int(kwargs["phase_index"]), decision="converge_to_paper"
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert cli.main(["research", "idea.md", "--task-max-runs", "2"]) == 0
+    assert len(loop_calls) == 2  # retried up to task-max-runs, then advanced
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["status"] == "completed"
+    assert state["tasks"][0]["status"] == "failed"
+
+
+def test_research_max_phases_forces_convergence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
+    )
+    monkeypatch.setattr(cli, "_cmd_loop", lambda _a: 0)
+
+    reflect_phases: list[int] = []
+    counter = {"n": 0}
+
+    def never_terminal(**kwargs) -> dict:
+        reflect_phases.append(int(kwargs["phase_index"]))
+        counter["n"] += 1
+        return _reflection(
+            phase_index=int(kwargs["phase_index"]),
+            decision="advance",
+            next_tasks=[_research_task(f"task_x{counter['n']:03d}", phase=99)],
+        )
+
+    monkeypatch.setattr(cli, "_run_research_reflection", never_terminal)
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert cli.main(["research", "idea.md", "--max-phases", "2"]) == 0
+    assert reflect_phases == [1, 2]  # stops at max phases
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["decision"] == "converge_to_paper"
+
+
+def test_research_abort_returns_nonzero_without_paper(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
+    )
+    monkeypatch.setattr(cli, "_cmd_loop", lambda _a: 0)
+    monkeypatch.setattr(
+        cli,
+        "_run_research_reflection",
+        lambda **kwargs: _reflection(
+            phase_index=int(kwargs["phase_index"]), decision="abort"
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("paper must not be written on abort")
+        ),
+    )
+
+    assert cli.main(["research", "idea.md"]) != 0
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert state["status"] == "failed"
+    assert state["decision"] == "abort"
+
+
+def test_research_negative_result_sets_deliverable_kind(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.chdir(repo_dir)
+    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
+
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        cli,
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
+    )
+    monkeypatch.setattr(cli, "_cmd_loop", lambda _a: 0)
+    monkeypatch.setattr(
+        cli,
+        "_run_research_reflection",
+        lambda **kwargs: _reflection(
+            phase_index=int(kwargs["phase_index"]),
+            decision="declare_negative_result",
+        ),
+    )
+
+    paper_calls: list = []
+    monkeypatch.setattr(
+        cli,
+        "_finalize_research_paper",
+        lambda **kwargs: paper_calls.append(kwargs)
+        or {"report_path": "paper.md", "paper_path": "paper.md"},
+    )
+
+    assert cli.main(["research", "idea.md"]) == 0
+    assert len(paper_calls) == 1
+
+    runs_root = repo_dir / "projects" / "research"
+    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
+    run_dir = runs_root / latest_run
+    plan = json.loads((run_dir / "plan.json").read_text(encoding="utf-8"))
+    assert plan["deliverable_kind"] == "negative_result_paper"
+
+
+def test_research_status_hook_emits_phase_progress(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -466,52 +874,40 @@ def test_research_status_hook_emits_task_progress_with_totals(
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     monkeypatch.setattr(
         cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                },
-                {
-                    "id": "task_002",
-                    "title": "task two",
-                    "prompt_markdown": "run task two",
-                },
-            ],
-        },
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
     )
 
     def fake_loop(loop_args) -> int:
-        iteration_hook = getattr(loop_args, "_fermilink_loop_iteration_hook", None)
-        if callable(iteration_hook):
-            iteration_hook(2, 10)
+        hook = getattr(loop_args, "_fermilink_loop_iteration_hook", None)
+        if callable(hook):
+            hook(2, 10)
         return 0
 
     monkeypatch.setattr(cli, "_cmd_loop", fake_loop)
-    parser = cli._build_parser()
-    args = parser.parse_args(
-        ["research", "idea.md", "--skip-report", "--no-post-task-plan-audit"]
+    monkeypatch.setattr(
+        cli,
+        "_run_research_reflection",
+        lambda **kwargs: _reflection(
+            phase_index=int(kwargs["phase_index"]), decision="converge_to_paper"
+        ),
     )
+    monkeypatch.setattr(cli, "_finalize_research_paper", lambda **kwargs: {})
+
+    parser = cli._build_parser()
+    args = parser.parse_args(["research", "idea.md"])
     setattr(
         args,
         "_fermilink_workflow_status_hook",
         lambda mode_text: status_updates.append(str(mode_text)),
     )
-
-    code = cli._cmd_research(args)
-    assert code == 0
-    assert status_updates == [
-        "research task 1/2 loop 2/10",
-        "research task 2/2 loop 2/10",
-    ]
+    assert cli._cmd_research(args) == 0
+    assert any(
+        s == "research phase task 1/1 [loop] loop 2/10" for s in status_updates
+    )
 
 
-def test_research_resume_uses_user_edited_plan(
+def test_research_completion_checkpoint_commit_invoked(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repo_dir = tmp_path / "repo"
@@ -522,253 +918,22 @@ def test_research_resume_uses_user_edited_plan(
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
     monkeypatch.setattr(
         cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
+        "_generate_research_charter",
+        lambda **_kwargs: _charter_plan([_research_task("task_001")]),
     )
-    monkeypatch.setattr(cli, "_cmd_loop", lambda _args: 0)
+
+    completion_calls: list = []
     monkeypatch.setattr(
-        cli,
-        "_finalize_workflow_report",
-        lambda **kwargs: {
-            "report_path": str(Path(kwargs["runs_root"]) / "report.md"),
-            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
-            "summary_count": 2,
-        },
-    )
-
-    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-
-    runs_root = repo_dir / "projects" / "research"
-    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
-    run_dir = runs_root / latest_run
-    plan_path = run_dir / "plan.json"
-    edited_plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    edited_plan["tasks"] = [
-        {
-            "id": "task_001",
-            "title": "task one",
-            "prompt_markdown": "run task one",
-        },
-        {
-            "id": "task_edited",
-            "title": "edited task",
-            "prompt_markdown": "run edited task",
-        },
-    ]
-    plan_path.write_text(json.dumps(edited_plan, indent=2) + "\n", encoding="utf-8")
-
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: (_ for _ in ()).throw(
-            AssertionError("edited plan should run without replanning")
-        ),
-    )
-
-    loop_calls: list[Path] = []
-    monkeypatch.setattr(
-        cli,
-        "_cmd_loop",
-        lambda loop_args: loop_calls.append(Path(str(loop_args.prompt[0]))) or 0,
-    )
-
-    assert cli.main(["research", "idea.md", "--no-post-task-plan-audit"]) == 0
-    assert len(loop_calls) == 2
-    assert loop_calls[0].name == "task_001.md"
-    assert loop_calls[1].name == "task_edited.md"
-
-
-def test_research_resume_ignores_legacy_dry_run_state(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
-) -> None:
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(repo_dir)
-    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
-    )
-    monkeypatch.setattr(
-        cli,
-        "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(
-            AssertionError("loop should not run in --plan-only")
-        ),
-    )
-
-    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-
-    runs_root = repo_dir / "projects" / "research"
-    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
-    run_dir = runs_root / latest_run
-    state_path = run_dir / "state.json"
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["dry_run"] = True
-    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-
-    monkeypatch.setattr(cli, "_cmd_loop", lambda _args: 0)
-    monkeypatch.setattr(
-        cli,
-        "_finalize_workflow_report",
-        lambda **kwargs: {
-            "report_path": str(Path(kwargs["runs_root"]) / "report.md"),
-            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
-            "summary_count": 1,
-        },
-    )
-
-    code = cli.main(["research", "idea.md"])
-    assert code == 0
-    assert "matching dry-run mode" not in capsys.readouterr().err
-
-
-def test_research_resume_ignores_legacy_data_context(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
-) -> None:
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(repo_dir)
-    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
-    )
-    monkeypatch.setattr(
-        cli,
-        "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(
-            AssertionError("loop should not run in --plan-only")
-        ),
-    )
-
-    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-
-    runs_root = repo_dir / "projects" / "research"
-    latest_run = (runs_root / "latest_run.txt").read_text(encoding="utf-8").strip()
-    run_dir = runs_root / latest_run
-    state_path = run_dir / "state.json"
-    state = json.loads(state_path.read_text(encoding="utf-8"))
-    state["data_context"] = {
-        "enabled": True,
-        "source_path": str(repo_dir / "input_data"),
-        "read_only": True,
-        "limits": {},
-        "artifacts": {},
-    }
-    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-
-    monkeypatch.setattr(cli, "_cmd_loop", lambda _args: 0)
-    monkeypatch.setattr(
-        cli,
-        "_finalize_workflow_report",
-        lambda **kwargs: {
-            "report_path": str(Path(kwargs["runs_root"]) / "report.md"),
-            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
-            "summary_count": 1,
-        },
-    )
-
-    code = cli.main(["research", "idea.md"])
-    assert code == 0
-    error_text = capsys.readouterr().err
-    assert "matching data-dir mode" not in error_text
-
-
-def test_research_resume_rejects_mismatched_hpc_profile_mode(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
-) -> None:
-    repo_dir = tmp_path / "repo"
-    repo_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.chdir(repo_dir)
-    (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-    (repo_dir / "anvil.json").write_text(
-        json.dumps(
-            {
-                "slurm_default_partition": "shared",
-                "slurm_defaults": "--nodes=1 --ntasks=1 --ntasks-per-node=1",
-                "slurm_resource_policy": "Use single-node defaults unless MPI is required",
-            }
+        workflow_commands,
+        "_workflow_completion_commit",
+        lambda *, repo_dir, mode_name: completion_calls.append(
+            (Path(repo_dir), str(mode_name))
         )
-        + "\n",
-        encoding="utf-8",
+        or {"status": "noop", "sha": "", "error": "", "memory_only": "false"},
     )
 
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    monkeypatch.setattr(
-        cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "paper_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
-    )
-    monkeypatch.setattr(
-        cli,
-        "_cmd_loop",
-        lambda _args: (_ for _ in ()).throw(
-            AssertionError("loop should not run in --plan-only")
-        ),
-    )
-
-    assert cli.main(["research", "idea.md", "--plan-only"]) == 0
-    code = cli.main(
-        [
-            "research",
-            "idea.md",
-            "--hpc-profile",
-            "anvil.json",
-        ]
-    )
-    assert code == 2
-    assert "matching --hpc-profile mode" in capsys.readouterr().err
+    assert cli.main(["research", "idea.md", "--charter-only"]) == 0
+    assert completion_calls == [(repo_dir, "research")]
 
 
 def test_research_report_only_conflicts_with_restart(
@@ -779,8 +944,7 @@ def test_research_report_only_conflicts_with_restart(
     monkeypatch.chdir(repo_dir)
     (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
-    code = cli.main(["research", "idea.md", "--report-only", "--restart"])
-    assert code == 2
+    assert cli.main(["research", "idea.md", "--report-only", "--restart"]) == 2
 
 
 def test_research_report_only_requires_existing_run(
@@ -792,75 +956,54 @@ def test_research_report_only_requires_existing_run(
     (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
     monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
 
-    code = cli.main(["research", "idea.md", "--report-only"])
-    assert code == 2
+    assert cli.main(["research", "idea.md", "--report-only"]) == 2
     assert "requires an existing resumable research run" in capsys.readouterr().err
 
 
-def test_research_report_only_uses_saved_hpc_context_without_mode_match(
+def test_research_report_only_finalizes_from_existing_run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(repo_dir)
     (repo_dir / "idea.md").write_text("research request", encoding="utf-8")
-    (repo_dir / "anvil.json").write_text(
-        json.dumps(
-            {
-                "slurm_default_partition": "debug",
-                "slurm_defaults": "--time=00:05:00",
-                "slurm_resource_policy": "keep allocations small",
-            }
-        ),
+    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+
+    import hashlib
+
+    fingerprint = hashlib.sha256("research request".encode("utf-8")).hexdigest()
+    runs_root = repo_dir / "projects" / "research"
+    run_dir = runs_root / "20240101-000000"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (runs_root / "latest_run.txt").write_text("20240101-000000\n", encoding="utf-8")
+    state = {
+        "version": 2,
+        "run_id": "20240101-000000",
+        "mode": "research",
+        "status": "running_tasks",
+        "source_fingerprint": fingerprint,
+        "tasks": [{"id": "task_001", "title": "t", "prompt_file": "prompts/task_001.md"}],
+        "task_runs": {"task_001": 1},
+        "hpc_context": {"enabled": False, "mode": "local"},
+    }
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+    (run_dir / "plan.json").write_text(
+        json.dumps({"version": 2, "deliverable_kind": "paper", "tasks": state["tasks"]}),
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(cli, "_ensure_exec_repo_ready", lambda *_a, **_k: None)
+    paper_calls: list = []
     monkeypatch.setattr(
         cli,
-        "_generate_research_plan",
-        lambda **_kwargs: {
-            "version": 1,
-            "request_source": "idea.md",
-            "assumptions": [],
-            "tasks": [
-                {
-                    "id": "task_001",
-                    "title": "task one",
-                    "prompt_markdown": "run task one",
-                }
-            ],
-        },
+        "_finalize_research_paper",
+        lambda **kwargs: paper_calls.append(kwargs)
+        or {"report_path": "paper.md", "paper_path": "paper.md"},
     )
 
-    captured_hpc_context: dict[str, object] = {}
-
-    def _capture_finalize(**kwargs):
-        raw_hpc_context = kwargs.get("hpc_context")
-        if isinstance(raw_hpc_context, dict):
-            captured_hpc_context.update(raw_hpc_context)
-        return {
-            "report_path": str(Path(kwargs["run_dir"]) / "report.md"),
-            "summaries_root": str(Path(kwargs["run_dir"]) / "summaries"),
-            "summary_count": 1,
-        }
-
-    monkeypatch.setattr(cli, "_finalize_workflow_report", _capture_finalize)
-
-    assert (
-        cli.main(
-            [
-                "research",
-                "idea.md",
-                "--plan-only",
-                "--hpc-profile",
-                "anvil.json",
-            ]
-        )
-        == 0
-    )
     assert cli.main(["research", "idea.md", "--report-only"]) == 0
-    assert captured_hpc_context.get("enabled") is True
+    assert len(paper_calls) == 1
+    updated = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+    assert "report" in updated
 
 
 def test_workflow_checkpoint_commit_stages_all_changes_under_limits(

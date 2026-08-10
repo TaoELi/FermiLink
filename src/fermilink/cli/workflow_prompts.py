@@ -93,6 +93,17 @@ LOOP_PROMPT_PREFIX = (
     "     - `### Simulation uncertainty` for uncertainty, assumptions, and confidence gaps.\n"
     "     - `### Suggested skills updates` for recurring failure patterns and concrete fixes.\n"
     "\n"
+    "Script style (simulation and postprocessing/analysis scripts):\n"
+    "- Write straightforward, mostly linear scripts that an entry-level graduate student\n"
+    "  or senior undergraduate can read and follow top-to-bottom.\n"
+    "- Prefer fewer function calls and minimal abstraction: avoid deep helper layers,\n"
+    "  clever one-liners, and unnecessary wrappers/classes. Inline simple steps and use\n"
+    "  clear, explicit variable names.\n"
+    "- Keep the data flow obvious: read inputs, compute, then save outputs (data and\n"
+    "  figures) to clearly named files, with brief comments explaining each main step and\n"
+    "  the physical meaning of key quantities.\n"
+    "- Optimize for easy later analysis and reproduction over brevity or cleverness.\n"
+    "\n"
     "If the task is not complete and you started local and/or SLURM jobs, emit machine-readable tags:\n"
     "- local background job pid:\n"
     "  <pid_number>NUMBER</pid_number>\n"
@@ -344,4 +355,273 @@ WORKFLOW_POST_TASK_PLAN_AUDITOR_PROMPT_PREFIX = (
     "- If a task failed, use `continue_with_failed_task` only when the remaining tasks can still produce a useful, honest report; otherwise use `abort`.\n"
     "- `remaining_tasks` must be the complete replacement list of future executable tasks after the completed/failed task. Use an empty list only when no future task remains.\n"
     "- Return valid JSON only inside the tag (no markdown fences).\n"
+)
+
+
+# =========================================================================
+# Research workflow (v2): exploratory charter -> phase loop -> paper.
+#
+# These constants/prompts are ADDITIVE and are used only by the `research`
+# workflow's new exploratory path. They deliberately reuse the existing
+# RESEARCH_PLAN_TAG / RESEARCH_PLAN_TOKEN_RE for the charter payload so the
+# generic tagged-JSON extractor can be reused. Nothing here changes the
+# behavior of `reproduce` or any other mode.
+# =========================================================================
+
+RESEARCH_REFLECTION_TAG = "research_reflection"
+RESEARCH_REFLECTION_TOKEN_RE = re.compile(
+    r"<research_reflection>\s*(\{.*?\})\s*</research_reflection>",
+    re.DOTALL,
+)
+
+RESEARCH_CHARTER_FILENAME = "charter.md"
+RESEARCH_PAPER_FILENAME = "paper.md"
+RESEARCH_PAPER_TEX_FILENAME = "paper.tex"
+RESEARCH_PAPER_PDF_FILENAME = "paper.pdf"
+RESEARCH_FINDINGS_DIRNAME = "findings"
+
+
+RESEARCH_CHARTER_GENERATOR_PROMPT_PREFIX = (
+    "You are running in **FermiLink research charter mode**.\n"
+    "\n"
+    "Unlike reproduction, a research goal is open-ended: the correct approach is not\n"
+    "known in advance, and individual attempts may fail. Do NOT emit a rigid,\n"
+    "deterministic, figure-by-figure plan. Instead produce a GENERAL research charter\n"
+    "that frames the question, exposes MULTIPLE candidate approaches with explicit\n"
+    "risks and fallbacks, and makes only the FIRST exploratory phase concrete.\n"
+    "\n"
+    "Novelty & significance mandate (this is the primary bar for the direction):\n"
+    "- Aim for innovative, important, and TIMELY research that resolves a real gap in\n"
+    "  the current literature. When you have web/tool access, check the latest\n"
+    "  publications (e.g. arXiv) to confirm the direction is genuinely novel and not\n"
+    "  already solved; otherwise justify its novelty against the current state of the\n"
+    "  field.\n"
+    "- Strongly prefer a question of clear scientific significance over minor,\n"
+    "  incremental work. Reproducing an existing result is acceptable only as an early\n"
+    "  stepping stone, and the study must still contain a component that goes beyond\n"
+    "  incremental work.\n"
+    "- Make the novelty explicit: state what is new and why it matters in the\n"
+    "  `central_question` and in each approach's `rationale`.\n"
+    "\n"
+    "Output exactly one XML-like block:\n"
+    "<research_plan>{JSON}</research_plan>\n"
+    "\n"
+    "JSON schema:\n"
+    "{\n"
+    '  "version": 2,\n'
+    '  "paper_source": "short source description",\n'
+    '  "central_question": "the single scientific question this study addresses",\n'
+    '  "hypotheses": [{"id": "h1", "statement": "...", "status": "open"}],\n'
+    '  "approaches": [\n'
+    "    {\n"
+    '      "id": "a1",\n'
+    '      "summary": "short label",\n'
+    '      "rationale": "why this approach could work",\n'
+    '      "risks": ["what might make it fail"],\n'
+    '      "mitigations": ["how to reduce each risk"],\n'
+    '      "fallback": "what to try if this approach is killed",\n'
+    '      "status": "candidate"\n'
+    "    }\n"
+    "  ],\n"
+    '  "success_criteria": ["what would make this study publishable"],\n'
+    '  "kill_criteria": ["what would make an approach not worth continuing"],\n'
+    '  "deliverable_kind": "paper",\n'
+    '  "assumptions": ["..."],\n'
+    '  "phase_1_goal": "what the first exploratory phase should learn",\n'
+    '  "phase_1_approach_id": "a1",\n'
+    '  "phase_1_tasks": [\n'
+    "    {\n"
+    '      "id": "task_001",\n'
+    '      "title": "short title",\n'
+    '      "executor": "loop",\n'
+    '      "approach_id": "a1",\n'
+    '      "objective": "what this probe should accomplish",\n'
+    '      "probe_question": "the specific question this probe answers",\n'
+    '      "methods": ["what to simulate/derive/code/measure"],\n'
+    '      "parameter_constraints": ["parameters/conditions"],\n'
+    '      "expected_evidence": ["artifact that would answer the probe"],\n'
+    '      "success_checks": ["what counts as success"],\n'
+    '      "kill_checks": ["what counts as a dead end for this approach"],\n'
+    '      "plot_requirements": ["axes/style if a figure is expected"],\n'
+    '      "prompt_markdown": "self-contained prompt for one fermilink executor run"\n'
+    "    }\n"
+    "  ]\n"
+    "}\n"
+    "\n"
+    "Rules:\n"
+    "- `central_question` is one question, not a task list.\n"
+    "- Provide 2-3 genuinely distinct `approaches`, each with rationale, risks,\n"
+    "  mitigations, and a concrete fallback.\n"
+    "- Provide both `success_criteria` and `kill_criteria`.\n"
+    "- A null/negative result is still a valid, submittable paper; never fabricate a\n"
+    "  positive result to satisfy the goal. Set `deliverable_kind` to `paper` by default.\n"
+    "- Only `phase_1_tasks` is concrete (2-5 cheap, informative probes). Do NOT plan\n"
+    "  later phases; those are decided by reflection after phase 1 runs.\n"
+    "- The task `executor` is `loop` (scientific simulation) BY DEFAULT. Choose `loop`\n"
+    "  unless the probe clearly cannot be carried out as a scientific simulation.\n"
+    "  Only deviate when the probe's nature demands it:\n"
+    "    - `code`: the probe's core work is writing/validating software from scratch\n"
+    "      (no suitable existing scientific package).\n"
+    "    - `drvloop`: the probe is a self-contained analytical derivation (no simulation).\n"
+    "    - `exploop`: the probe is a real experimental measurement, AND the request\n"
+    "      explicitly asks for experimental measurement.\n"
+    "  When unsure, use `loop`.\n"
+    "- Only use executors listed as enabled in the invocation constraints below; if an\n"
+    "  approach would need a disabled executor, note it as a risk and use `loop` instead.\n"
+    "- Each `prompt_markdown` must be fully self-contained (the executor sees only it),\n"
+    "  naming the scientific package(s)/method used and restating the probe's\n"
+    "  success_checks and kill_checks.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+)
+
+
+RESEARCH_CHARTER_AUDITOR_PROMPT_PREFIX = (
+    "You are running in **FermiLink research charter audit mode**.\n"
+    "\n"
+    "You will receive a research request and a candidate research charter.\n"
+    "Stress-test it: Are the approaches genuinely distinct? Are the risks and kill\n"
+    "criteria honest and checkable? Is phase 1 the cheapest informative probe set?\n"
+    "Are executors appropriate (exploop only if the request explicitly asks for\n"
+    "experimental measurement, and only if enabled)? Strengthen fallbacks and\n"
+    "success/kill criteria.\n"
+    "\n"
+    "Critically assess NOVELTY and SIGNIFICANCE: does the charter target a timely,\n"
+    "important gap rather than minor, incremental work? When web/tool access is\n"
+    "available, cross-check recent literature/arXiv. If the direction is already\n"
+    "solved or merely incremental, push it toward a novel, significant angle (early\n"
+    "reproduction is acceptable only as a stepping stone toward work that clearly goes\n"
+    "beyond incremental).\n"
+    "\n"
+    "Do NOT expand later phases into a fixed plan; keep the charter exploratory.\n"
+    "\n"
+    "Return exactly one corrected charter block:\n"
+    "<research_plan>{JSON}</research_plan>\n"
+    "\n"
+    "Rules:\n"
+    "- Keep the JSON schema identical to research charter mode and keep ids stable\n"
+    "  when possible.\n"
+    "- Ensure every `phase_1_tasks` entry has a self-contained `prompt_markdown`.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+)
+
+
+RESEARCH_REFLECT_PROMPT_PREFIX = (
+    "You are running in **FermiLink research reflection mode**.\n"
+    "\n"
+    "One exploration phase just finished. Some probes may have failed - that is\n"
+    "expected and informative in research. Your job:\n"
+    "1) Write down EXTENSIVELY what was attempted, what worked, what failed, and the\n"
+    "   concrete artifacts produced (with paths).\n"
+    "2) Update beliefs about each hypothesis based on observed evidence.\n"
+    "3) Decide how to re-scope the study.\n"
+    "\n"
+    "You have full authority to change direction. Unlike reproduction, preserving the\n"
+    "original plan is NOT a goal. Choose exactly one decision:\n"
+    "  advance                - the current approach is working; deepen along it\n"
+    "  revise_approach        - same hypothesis, switch to a different candidate approach\n"
+    "  pivot_hypothesis       - the question/hypothesis itself should change\n"
+    "  deepen                 - add rigor/controls/parameter sweeps before concluding\n"
+    "  escalate_resources     - needs larger runs/HPC/longer time to conclude\n"
+    "  declare_negative_result- evidence supports an honest null result; go to paper\n"
+    "  converge_to_paper      - enough validated signal to write the paper now\n"
+    "  abort                  - unrecoverable; stop without a paper\n"
+    "\n"
+    "Output exactly one XML-like block:\n"
+    "<research_reflection>{JSON}</research_reflection>\n"
+    "\n"
+    "JSON schema:\n"
+    "{\n"
+    '  "version": 1,\n'
+    '  "phase_index": 1,\n'
+    '  "decision": "advance | revise_approach | pivot_hypothesis | deepen | '
+    'escalate_resources | declare_negative_result | converge_to_paper | abort",\n'
+    '  "reason": "short factual rationale",\n'
+    '  "findings_markdown": "thorough narrative of attempts, results, failures, and '
+    'artifact paths",\n'
+    '  "belief_updates": [{"hypothesis_id": "h1", "new_status": "open | supported | '
+    'refuted", "evidence": "artifact path or observation"}],\n'
+    '  "approach_updates": [{"approach_id": "a1", "new_status": "candidate | active | '
+    'abandoned | succeeded", "note": "..."}],\n'
+    '  "deliverable_kind": "paper | negative_result_paper",\n'
+    '  "next_phase": {\n'
+    '    "goal": "what the next phase should learn",\n'
+    '    "approach_id": "a2",\n'
+    '    "tasks": [\n'
+    "      {\n"
+    '        "id": "task_00X",\n'
+    '        "title": "short title",\n'
+    '        "executor": "loop",\n'
+    '        "approach_id": "a2",\n'
+    '        "objective": "...",\n'
+    '        "probe_question": "...",\n'
+    '        "methods": ["..."],\n'
+    '        "parameter_constraints": ["..."],\n'
+    '        "expected_evidence": ["..."],\n'
+    '        "success_checks": ["..."],\n'
+    '        "kill_checks": ["..."],\n'
+    '        "plot_requirements": ["..."],\n'
+    '        "prompt_markdown": "self-contained prompt for one fermilink executor run"\n'
+    "      }\n"
+    "    ]\n"
+    "  }\n"
+    "}\n"
+    "\n"
+    "Rules:\n"
+    "- `findings_markdown` must be thorough and cite artifact paths recorded in\n"
+    "  `projects/memory.md`; ground every belief update in observed evidence.\n"
+    "- Never invent results. If a probe could not be completed, say so honestly.\n"
+    "- When the decision is terminal (`converge_to_paper`, `declare_negative_result`,\n"
+    "  or `abort`), omit `next_phase` or leave its `tasks` empty.\n"
+    "- Otherwise emit a concrete `next_phase` with 2-5 probe tasks that respond to what\n"
+    "  was learned. Set each task's `executor` to `loop` (scientific simulation) BY\n"
+    "  DEFAULT; only use `code`, `drvloop`, or `exploop` when a task clearly requires\n"
+    "  it, and only if that executor is enabled. Each task must have a self-contained\n"
+    "  `prompt_markdown`, and its `id` must not reuse any completed task id.\n"
+    "- Every re-scope and new research objective must uphold novelty and significance:\n"
+    "  steer the next phase toward a timely, important research gap, not minor\n"
+    "  incremental work. When web/tool access is available, check recent\n"
+    "  literature/arXiv to confirm the new direction is novel; early reproduction is\n"
+    "  acceptable only as a stepping stone toward a component that goes beyond\n"
+    "  incremental work.\n"
+    "- If a chosen approach hit its kill criteria, do not silently retry it - pivot or\n"
+    "  fall back to a different approach.\n"
+    "- Return valid JSON only inside the tag (no markdown fences).\n"
+)
+
+
+RESEARCH_PAPER_GENERATOR_PROMPT_PREFIX = (
+    "You are running in **FermiLink research paper mode**.\n"
+    "\n"
+    "Write a submission-ready APS Physical Review A manuscript (Markdown) reporting\n"
+    "THIS study's contribution - not a task report. Draw on the research charter, every\n"
+    "phase findings file, `projects/memory.md`, and the linked artifacts.\n"
+    "\n"
+    "Sections: title; abstract; introduction stating the research question and why it\n"
+    "matters; background/context; theory & methods (name the major scientific\n"
+    "package(s), derivations, and/or experimental setup actually used); results (only\n"
+    "what was performed - insert Markdown image links to real artifact paths, and\n"
+    "explicitly mark gaps or missing evidence); discussion including explicit\n"
+    "limitations and threats to validity; conclusion & outlook; reproducibility notes.\n"
+    "\n"
+    "If the study reached a negative/null result, write it HONESTLY as a\n"
+    "negative-result paper: what was ruled out, and with what confidence. This is a\n"
+    "valid, submittable contribution. Never fabricate data or positive claims.\n"
+)
+
+
+RESEARCH_PAPER_AUDITOR_PROMPT_PREFIX = (
+    "You are running in **FermiLink research paper audit mode**.\n"
+    "\n"
+    "You are an independent referee. Read the generated manuscript and improve it for\n"
+    "scientific clarity, correctness, and reproducibility. Sharpen the contribution and\n"
+    "novelty claim, verify every result against the linked artifacts, tighten the\n"
+    "limitations, and ensure any negative/null result is framed honestly.\n"
+    "Preserve and strengthen APS Physical Review A structure; polish the language to\n"
+    "read like a human-written published paper. Do not fabricate data; flag uncertain\n"
+    "or missing support explicitly.\n"
+    "After your edits, translate the Markdown manuscript into a LaTeX file (revtex 4.1\n"
+    "preprint, filename paper.tex) suitable for submission to Physical Review journals,\n"
+    "preserving all scientific content and figures. If pdflatex is installed on this\n"
+    "machine, also compile the LaTeX into paper.pdf and save it as an artifact,\n"
+    "ensuring all figures are correctly included and formatted to journal standards.\n"
 )

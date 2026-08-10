@@ -12,10 +12,21 @@ This page explains how to write effective ``goal.md`` files for both
 Goal files for simulations
 --------------------------
 
-When you run ``fermilink loop goal.md`` or ``fermilink research goal.md``, the
-agent reads your goal and autonomously plans and executes the simulation.
+When you run ``fermilink loop goal.md``, the agent reads your goal and
+autonomously plans and executes the simulation.
 
 Simulation goals are free-form markdown. The agent interprets your intent from the structure and content.
+
+.. note::
+
+   ``fermilink research goal.md`` also accepts a free-form markdown goal, but it
+   treats it as an **open-ended research idea** rather than a fixed simulation
+   spec: it first drafts a research *charter* (question, candidate approaches,
+   risks, success/kill criteria), then runs an explore → reflect → re-plan loop
+   that may change approach between phases, and finally writes a
+   submission-ready paper. Use ``loop``/``reproduce`` when you already know
+   exactly what to compute; use ``research`` when the approach itself is part of
+   what you want to discover.
 
 Recommended structure
 ~~~~~~~~~~~~~~~~~~~~~

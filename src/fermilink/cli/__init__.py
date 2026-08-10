@@ -378,6 +378,11 @@ _maybe_sync_mode_plan_from_disk = workflow_commands._maybe_sync_mode_plan_from_d
 _finalize_workflow_report = workflow_commands._finalize_workflow_report
 _workflow_completion_commit = workflow_commands._workflow_completion_commit
 
+# Research workflow (v2) stage aliases (additive; used by `cmd_research_workflow`).
+_generate_research_charter = workflow_commands._generate_research_charter
+_run_research_reflection = workflow_commands._run_research_reflection
+_finalize_research_paper = workflow_commands._finalize_research_paper
+
 # Command entrypoint aliases
 _cmd_chat = session_commands.cmd_chat
 _cmd_loop = session_commands.cmd_loop

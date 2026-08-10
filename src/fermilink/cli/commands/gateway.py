@@ -36,6 +36,9 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 DOCUMENT_SUFFIXES = {".pdf"}
 WORKFLOW_LATEST_RUN_FILENAME = "latest_run.txt"
 WORKFLOW_REPORT_MARKDOWN_FILENAME = "report.md"
+# The `research` workflow writes its final manuscript as `paper.md`/`paper.pdf`
+# instead of `report.md`/`report.pdf`; the report resolvers are mode-aware.
+WORKFLOW_PAPER_MARKDOWN_FILENAME = "paper.md"
 WORKFLOW_REPORT_HTML_FILENAME = "report.embedded.html"
 WORKFLOW_REPORT_PDF_FILENAME = "report.pdf"
 WORKFLOW_REPORT_EMBED_MAX_IMAGES = 24
@@ -2618,6 +2621,18 @@ def _safe_mtime(path: Path) -> float:
         return -1.0
 
 
+def _workflow_report_markdown_filename(mode: str) -> str:
+    """Return the final-report markdown filename for a workflow mode.
+
+    `research` writes `paper.md`; `reproduce` (and any other workflow mode)
+    writes `report.md`.
+    """
+
+    if str(mode or "").strip().lower() == "research":
+        return WORKFLOW_PAPER_MARKDOWN_FILENAME
+    return WORKFLOW_REPORT_MARKDOWN_FILENAME
+
+
 def _resolve_workflow_report_markdown_path(
     repo_dir: Path,
     *,
@@ -2628,6 +2643,7 @@ def _resolve_workflow_report_markdown_path(
     if workflow_mode not in SUPPORTED_WORKFLOW_PROMPT_MODES:
         return None
 
+    report_filename = _workflow_report_markdown_filename(workflow_mode)
     runs_root = repo_dir / "projects" / workflow_mode
     if not runs_root.is_dir():
         return None
@@ -2642,7 +2658,7 @@ def _resolve_workflow_report_markdown_path(
             latest_run_id = ""
         if latest_run_id:
             latest_report = (
-                runs_root / latest_run_id / WORKFLOW_REPORT_MARKDOWN_FILENAME
+                runs_root / latest_run_id / report_filename
             ).resolve()
             if latest_report.is_file():
                 candidates.append(latest_report)
@@ -2654,7 +2670,7 @@ def _resolve_workflow_report_markdown_path(
     except OSError:
         run_dirs = []
     for run_dir in run_dirs:
-        report_path = (run_dir / WORKFLOW_REPORT_MARKDOWN_FILENAME).resolve()
+        report_path = (run_dir / report_filename).resolve()
         if report_path.is_file() and report_path not in candidates:
             candidates.append(report_path)
 
@@ -2916,7 +2932,10 @@ def _export_workflow_report_html(
 def _resolve_workflow_report_pdf_path(report_path: Path | None) -> Path | None:
     if report_path is None:
         return None
-    pdf_path = report_path.parent / WORKFLOW_REPORT_PDF_FILENAME
+    # Derive the PDF next to the markdown report so this works for both
+    # `report.md` -> `report.pdf` (reproduce) and `paper.md` -> `paper.pdf`
+    # (research).
+    pdf_path = report_path.with_suffix(".pdf")
     if pdf_path.is_file():
         return pdf_path
     return None

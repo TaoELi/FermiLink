@@ -284,21 +284,110 @@ def register_workflow_parsers(
     )
     research_parser.add_argument(
         "--plan-only",
+        dest="plan_only",
         action="store_true",
-        help="Only generate and persist plan/prompts; do not execute tasks.",
+        help=(
+            "Only generate and persist the research charter (question, approaches, "
+            "risks) and phase-1 probes; do not execute them. Alias: --charter-only."
+        ),
+    )
+    research_parser.add_argument(
+        "--charter-only",
+        dest="charter_only",
+        action="store_true",
+        help="Same as --plan-only: stop after generating the research charter.",
     )
     research_parser.add_argument(
         "--report-only",
         action="store_true",
         help=(
-            "Only generate/audit top-level report from existing run artifacts "
+            "Only generate/audit the final paper from existing run artifacts "
             "(requires --resume)."
         ),
     )
     research_parser.add_argument(
         "--skip-report",
         action="store_true",
-        help="Skip final report generation after all tasks complete.",
+        help="Skip final paper generation after the exploration loop concludes.",
+    )
+    research_parser.add_argument(
+        "--max-phases",
+        type=int,
+        default=6,
+        help=(
+            "Maximum explore/reflect/re-plan phases before converging to a paper "
+            "(default: 6)."
+        ),
+    )
+    research_parser.add_argument(
+        "--proof-depth",
+        choices=("quick", "standard", "publication"),
+        default="standard",
+        help=(
+            "Rigor forwarded to derivation (drvloop) probes: quick, standard, or "
+            "publication (default: standard)."
+        ),
+    )
+    research_parser.add_argument(
+        "--enable-exploop",
+        dest="enable_exploop",
+        action="store_true",
+        default=False,
+        help=(
+            "Allow experimental-measurement probes to run via exploop (drives real "
+            "hardware; off by default)."
+        ),
+    )
+    research_enable_code_group = research_parser.add_mutually_exclusive_group(
+        required=False
+    )
+    research_enable_code_group.add_argument(
+        "--enable-code",
+        dest="enable_code",
+        action="store_true",
+        default=True,
+        help="Allow write-code-from-scratch probes (default).",
+    )
+    research_enable_code_group.add_argument(
+        "--no-enable-code",
+        dest="enable_code",
+        action="store_false",
+        help="Disable write-code-from-scratch probes.",
+    )
+    research_enable_derivation_group = research_parser.add_mutually_exclusive_group(
+        required=False
+    )
+    research_enable_derivation_group.add_argument(
+        "--enable-derivation",
+        dest="enable_derivation",
+        action="store_true",
+        default=True,
+        help="Allow analytical-derivation probes via drvloop (default).",
+    )
+    research_enable_derivation_group.add_argument(
+        "--no-enable-derivation",
+        dest="enable_derivation",
+        action="store_false",
+        help="Disable analytical-derivation probes.",
+    )
+    research_allow_pivot_group = research_parser.add_mutually_exclusive_group(
+        required=False
+    )
+    research_allow_pivot_group.add_argument(
+        "--allow-pivot",
+        dest="allow_pivot",
+        action="store_true",
+        default=True,
+        help=(
+            "Allow reflection to change approach or pivot the hypothesis between "
+            "phases (default)."
+        ),
+    )
+    research_allow_pivot_group.add_argument(
+        "--no-allow-pivot",
+        dest="allow_pivot",
+        action="store_false",
+        help="Forbid approach/hypothesis pivots; reflection may only deepen or converge.",
     )
     research_post_task_audit_group = research_parser.add_mutually_exclusive_group(
         required=False

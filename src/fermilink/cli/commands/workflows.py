@@ -33,6 +33,17 @@ from fermilink.cli.workflow_prompts import (
     RESEARCH_PLAN_TAG,
     RESEARCH_PLAN_TOKEN_RE,
     RESEARCH_PLANNER_PROMPT_PREFIX,
+    RESEARCH_CHARTER_AUDITOR_PROMPT_PREFIX,
+    RESEARCH_CHARTER_FILENAME,
+    RESEARCH_CHARTER_GENERATOR_PROMPT_PREFIX,
+    RESEARCH_FINDINGS_DIRNAME,
+    RESEARCH_PAPER_AUDITOR_PROMPT_PREFIX,
+    RESEARCH_PAPER_FILENAME,
+    RESEARCH_PAPER_GENERATOR_PROMPT_PREFIX,
+    RESEARCH_PAPER_PDF_FILENAME,
+    RESEARCH_PAPER_TEX_FILENAME,
+    RESEARCH_REFLECT_PROMPT_PREFIX,
+    RESEARCH_REFLECTION_TOKEN_RE,
     WORKFLOW_DATA_AUDITOR_PROMPT_PREFIX,
     WORKFLOW_DATA_DIRNAME,
     WORKFLOW_DATA_MANIFEST_FULL_FILENAME,
@@ -6682,6 +6693,1904 @@ def cmd_plan_workflow(
         return code
 
 
+# =========================================================================
+# Research workflow (v2): exploratory charter -> phase loop -> paper.
+#
+# Everything below is ADDITIVE and self-contained. `cmd_research_workflow`
+# reuses shared plumbing (run-dir/resume, state I/O, data/HPC context,
+# `_materialize_mode_plan`, `_apply_remaining_task_updates`,
+# `_run_reproduce_exec_turn`) by CALLING it, but never mutates the behavior
+# of `reproduce`, `loop`, `drvloop`, `exploop`, or any other mode.
+# =========================================================================
+
+RESEARCH_EXECUTORS = ("loop", "code", "drvloop", "exploop")
+RESEARCH_REFLECTION_DECISIONS = frozenset(
+    {
+        "advance",
+        "revise_approach",
+        "pivot_hypothesis",
+        "deepen",
+        "escalate_resources",
+        "declare_negative_result",
+        "converge_to_paper",
+        "abort",
+    }
+)
+RESEARCH_TERMINAL_DECISIONS = frozenset(
+    {"converge_to_paper", "declare_negative_result", "abort"}
+)
+RESEARCH_PIVOT_DECISIONS = frozenset({"revise_approach", "pivot_hypothesis"})
+RESEARCH_MAX_NO_PROGRESS_ROUNDS = 2
+
+
+def _research_enabled_executors(args: argparse.Namespace) -> set[str]:
+    """Compute the set of executors the research run is allowed to use."""
+
+    enabled = {"loop"}
+    if bool(getattr(args, "enable_code", True)):
+        enabled.add("code")
+    if bool(getattr(args, "enable_derivation", True)):
+        enabled.add("drvloop")
+    if bool(getattr(args, "enable_exploop", False)):
+        enabled.add("exploop")
+    return enabled
+
+
+def _coerce_research_executor(raw: object, enabled_executors: set[str]) -> str:
+    """Normalize an executor value, falling back to `loop` when unknown/disabled."""
+
+    value = str(raw or "loop").strip().lower()
+    if value not in RESEARCH_EXECUTORS:
+        value = "loop"
+    if value not in enabled_executors:
+        # Never silently run a disabled backend (especially real-hardware
+        # `exploop`); fall back to the simulation loop.
+        return "loop"
+    return value
+
+
+def _render_research_task_prompt(
+    task: dict[str, object],
+    *,
+    hpc_context: dict[str, object] | None = None,
+) -> str:
+    """Render a self-contained probe prompt from a normalized research task."""
+
+    task_id = str(task.get("id") or "task")
+    title = str(task.get("title") or "Research probe").strip() or task_id
+    executor = str(task.get("executor") or "loop").strip().lower()
+    objective = str(task.get("objective") or "").strip()
+    probe_question = str(task.get("probe_question") or "").strip()
+    methods = _normalize_string_list(task.get("methods"))
+    parameter_constraints = _normalize_string_list(task.get("parameter_constraints"))
+    expected_evidence = _normalize_string_list(task.get("expected_evidence"))
+    success_checks = _normalize_string_list(task.get("success_checks"))
+    kill_checks = _normalize_string_list(task.get("kill_checks"))
+    plot_requirements = _normalize_string_list(task.get("plot_requirements"))
+
+    lines: list[str] = [
+        f"# Research Probe {task_id}: {title}",
+        "",
+        "## Objective",
+        objective or "Advance the research question for this probe.",
+    ]
+    if probe_question:
+        lines.extend(["", "## Probe question", probe_question])
+    lines.extend(["", "## Executor", f"- {executor}"])
+    if methods:
+        lines.extend(["", "## Methods", *[f"- {item}" for item in methods]])
+    if parameter_constraints:
+        lines.extend(
+            [
+                "",
+                "## Parameter constraints",
+                *[f"- {item}" for item in parameter_constraints],
+            ]
+        )
+    if expected_evidence:
+        lines.extend(
+            ["", "## Expected evidence", *[f"- {item}" for item in expected_evidence]]
+        )
+    if success_checks:
+        lines.extend(
+            ["", "## Success checks", *[f"- {item}" for item in success_checks]]
+        )
+    if kill_checks:
+        lines.extend(
+            [
+                "",
+                "## Kill checks (stop this approach if hit)",
+                *[f"- {item}" for item in kill_checks],
+            ]
+        )
+    if plot_requirements:
+        lines.extend(
+            ["", "## Plot requirements", *[f"- {item}" for item in plot_requirements]]
+        )
+    lines.extend(["", "## Execution target", *_build_hpc_prompt_lines(hpc_context)])
+    lines.extend(
+        [
+            "",
+            "## Execution notes",
+            "- This is exploratory research: a probe may succeed OR yield an "
+            "informative negative result. Both outcomes are valuable.",
+            "- Record what you tried, what worked, what failed, and artifact paths "
+            "in projects/memory.md.",
+            "- Do not fabricate results; if a probe cannot be completed, record why "
+            "and stop cleanly.",
+        ]
+    )
+    return "\n".join(lines).strip() + "\n"
+
+
+def _normalize_research_hypotheses(raw: object) -> list[dict[str, object]]:
+    hypotheses: list[dict[str, object]] = []
+    if not isinstance(raw, list):
+        return hypotheses
+    used: set[str] = set()
+    for index, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            continue
+        hid = str(item.get("id") or f"h{index}").strip() or f"h{index}"
+        if hid in used:
+            hid = f"{hid}_{index}"
+        used.add(hid)
+        status = str(item.get("status") or "open").strip().lower()
+        if status not in {"open", "supported", "refuted"}:
+            status = "open"
+        hypotheses.append(
+            {
+                "id": hid,
+                "statement": str(item.get("statement") or "").strip(),
+                "status": status,
+            }
+        )
+    return hypotheses
+
+
+def _normalize_research_approaches(raw: object) -> list[dict[str, object]]:
+    approaches: list[dict[str, object]] = []
+    if not isinstance(raw, list):
+        return approaches
+    used: set[str] = set()
+    for index, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            continue
+        aid = str(item.get("id") or f"a{index}").strip() or f"a{index}"
+        if aid in used:
+            aid = f"{aid}_{index}"
+        used.add(aid)
+        status = str(item.get("status") or "candidate").strip().lower()
+        if status not in {"candidate", "active", "abandoned", "succeeded"}:
+            status = "candidate"
+        approaches.append(
+            {
+                "id": aid,
+                "summary": str(item.get("summary") or "").strip(),
+                "rationale": str(item.get("rationale") or "").strip(),
+                "risks": _normalize_string_list(item.get("risks")),
+                "mitigations": _normalize_string_list(item.get("mitigations")),
+                "fallback": str(item.get("fallback") or "").strip(),
+                "status": status,
+            }
+        )
+    return approaches
+
+
+def _normalize_research_task(
+    raw_task: object,
+    index: int,
+    used_ids: set[str],
+    *,
+    enabled_executors: set[str],
+    default_phase: int,
+    hpc_context: dict[str, object] | None = None,
+) -> dict[str, object]:
+    cli = _cli()
+    if not isinstance(raw_task, dict):
+        raise cli.PackageError(f"Research task {index} is not an object.")
+    task_id = _sanitize_task_id(raw_task.get("id"), index, used_ids)
+    title = str(raw_task.get("title") or f"Probe {index}").strip() or task_id
+    executor = _coerce_research_executor(raw_task.get("executor"), enabled_executors)
+    try:
+        phase_value = int(raw_task.get("phase") or default_phase)
+    except (TypeError, ValueError):
+        phase_value = default_phase
+    normalized: dict[str, object] = {
+        "id": task_id,
+        "phase": phase_value,
+        "title": title,
+        "executor": executor,
+        "approach_id": str(raw_task.get("approach_id") or "").strip(),
+        "objective": str(raw_task.get("objective") or "").strip(),
+        "probe_question": str(raw_task.get("probe_question") or "").strip(),
+        "methods": _normalize_string_list(raw_task.get("methods")),
+        "parameter_constraints": _normalize_string_list(
+            raw_task.get("parameter_constraints")
+        ),
+        "expected_evidence": _normalize_string_list(raw_task.get("expected_evidence")),
+        "success_checks": _normalize_string_list(raw_task.get("success_checks")),
+        "kill_checks": _normalize_string_list(raw_task.get("kill_checks")),
+        "plot_requirements": _normalize_string_list(raw_task.get("plot_requirements")),
+    }
+    prompt_markdown = str(raw_task.get("prompt_markdown") or "").strip()
+    if not prompt_markdown:
+        prompt_markdown = _render_research_task_prompt(
+            normalized, hpc_context=hpc_context
+        ).strip()
+    normalized["prompt_markdown"] = prompt_markdown
+    return normalized
+
+
+def _normalize_research_charter(
+    raw_plan: object,
+    *,
+    source_description: str,
+    enabled_executors: set[str],
+    hpc_context: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Validate + normalize a research charter into a plan dict with flat tasks."""
+
+    cli = _cli()
+    if not isinstance(raw_plan, dict):
+        raise cli.PackageError("Research charter must be a JSON object.")
+    central_question = str(raw_plan.get("central_question") or "").strip()
+    if not central_question:
+        raise cli.PackageError("Research charter must include a `central_question`.")
+    raw_tasks = raw_plan.get("phase_1_tasks")
+    if not isinstance(raw_tasks, list) or not raw_tasks:
+        raise cli.PackageError(
+            "Research charter must include a non-empty `phase_1_tasks` list."
+        )
+
+    hypotheses = _normalize_research_hypotheses(raw_plan.get("hypotheses"))
+    approaches = _normalize_research_approaches(raw_plan.get("approaches"))
+    used_ids: set[str] = set()
+    tasks: list[dict[str, object]] = []
+    for task_index, raw_task in enumerate(raw_tasks, start=1):
+        tasks.append(
+            _normalize_research_task(
+                raw_task,
+                task_index,
+                used_ids,
+                enabled_executors=enabled_executors,
+                default_phase=1,
+                hpc_context=hpc_context,
+            )
+        )
+
+    deliverable_kind = str(raw_plan.get("deliverable_kind") or "paper").strip().lower()
+    if deliverable_kind not in {"paper", "negative_result_paper"}:
+        deliverable_kind = "paper"
+    default_approach = approaches[0]["id"] if approaches else ""
+    phase_one = {
+        "index": 1,
+        "goal": str(raw_plan.get("phase_1_goal") or central_question).strip(),
+        "approach_id": str(
+            raw_plan.get("phase_1_approach_id") or default_approach
+        ).strip(),
+        "task_ids": [str(task["id"]) for task in tasks],
+        "status": "planned",
+        "findings_file": "",
+        "decision": "",
+    }
+    return {
+        "version": 2,
+        "mode": "research",
+        "paper_source": str(raw_plan.get("paper_source") or source_description).strip()
+        or source_description,
+        "central_question": central_question,
+        "hypotheses": hypotheses,
+        "approaches": approaches,
+        "success_criteria": _normalize_string_list(raw_plan.get("success_criteria")),
+        "kill_criteria": _normalize_string_list(raw_plan.get("kill_criteria")),
+        "deliverable_kind": deliverable_kind,
+        "assumptions": _normalize_string_list(raw_plan.get("assumptions")),
+        "phases": [phase_one],
+        "tasks": tasks,
+    }
+
+
+def _write_research_charter_markdown(
+    *, run_dir: Path, plan: dict[str, object]
+) -> Path:
+    """Render a human-readable charter.md from the normalized plan dict."""
+
+    lines: list[str] = ["# Research charter", ""]
+    lines.extend(["## Central question", str(plan.get("central_question") or ""), ""])
+    hypotheses = plan.get("hypotheses")
+    if isinstance(hypotheses, list) and hypotheses:
+        lines.append("## Hypotheses")
+        for item in hypotheses:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- **{item.get('id', '')}** ({item.get('status', 'open')}): "
+                f"{item.get('statement', '')}"
+            )
+        lines.append("")
+    approaches = plan.get("approaches")
+    if isinstance(approaches, list) and approaches:
+        lines.append("## Candidate approaches")
+        for item in approaches:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"### {item.get('id', '')}: {item.get('summary', '')} "
+                f"({item.get('status', 'candidate')})"
+            )
+            if item.get("rationale"):
+                lines.append(f"- Rationale: {item.get('rationale')}")
+            for risk in _normalize_string_list(item.get("risks")):
+                lines.append(f"- Risk: {risk}")
+            for mitigation in _normalize_string_list(item.get("mitigations")):
+                lines.append(f"- Mitigation: {mitigation}")
+            if item.get("fallback"):
+                lines.append(f"- Fallback: {item.get('fallback')}")
+            lines.append("")
+    success = _normalize_string_list(plan.get("success_criteria"))
+    if success:
+        lines.extend(["## Success criteria", *[f"- {item}" for item in success], ""])
+    kill = _normalize_string_list(plan.get("kill_criteria"))
+    if kill:
+        lines.extend(["## Kill criteria", *[f"- {item}" for item in kill], ""])
+    assumptions = _normalize_string_list(plan.get("assumptions"))
+    if assumptions:
+        lines.extend(["## Assumptions", *[f"- {item}" for item in assumptions], ""])
+    lines.extend(
+        [
+            "## Deliverable",
+            f"- {plan.get('deliverable_kind', 'paper')}",
+            "",
+            "> This charter is intentionally general. Later phases are decided by "
+            "reflection after each exploration phase runs.",
+            "",
+        ]
+    )
+    charter_path = run_dir / RESEARCH_CHARTER_FILENAME
+    try:
+        charter_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
+    except OSError as exc:
+        cli = _cli()
+        raise cli.PackageError(
+            f"Failed to write research charter file: {charter_path}: {exc}"
+        ) from exc
+    return charter_path
+
+
+def _generate_research_charter(
+    *,
+    repo_dir: Path,
+    run_dir: Path | None,
+    source_text: str,
+    source_description: str,
+    requested_package_id: str | None,
+    sandbox_override: str | None,
+    provider_bin_override: str,
+    planner_max_tries: int,
+    auditor_max_tries: int,
+    enabled_executors: set[str],
+    data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
+) -> dict[str, object]:
+    """Generate + audit a research charter (self-contained; no data mapping)."""
+
+    cli = _cli()
+    log_tag = "research"
+    enabled_line = "Enabled executors: " + ", ".join(sorted(enabled_executors))
+
+    def _run_stage(prompt: str, *, max_tries: int, stage: str) -> dict[str, object]:
+        result_plan: dict[str, object] | None = None
+        _emit_workflow_status(workflow_status_hook, f"{log_tag} {stage}")
+        for attempt in range(1, max_tries + 1):
+            cli._print_tagged(log_tag, f"charter {stage} attempt {attempt}/{max_tries}")
+            run_result = _run_reproduce_exec_turn(
+                repo_dir=repo_dir,
+                prompt=prompt,
+                requested_package_id=requested_package_id,
+                sandbox_override=sandbox_override,
+                provider_bin_override=provider_bin_override,
+                data_context=data_context,
+            )
+            return_code = int(run_result.get("return_code") or 0)
+            if return_code != 0:
+                raise cli.PackageError(
+                    f"Research charter {stage} agent run failed with exit code "
+                    f"{return_code}."
+                )
+            assistant_text = str(run_result.get("assistant_text") or "")
+            raw_payload = _extract_research_plan_payload(assistant_text)
+            if raw_payload is None:
+                cli._print_tagged(
+                    log_tag,
+                    f"charter {stage} response missing <{RESEARCH_PLAN_TAG}> JSON block.",
+                    stderr=True,
+                )
+                continue
+            try:
+                result_plan = _normalize_research_charter(
+                    raw_payload,
+                    source_description=source_description,
+                    enabled_executors=enabled_executors,
+                    hpc_context=hpc_context,
+                )
+            except cli.PackageError as exc:
+                cli._print_tagged(
+                    log_tag, f"charter {stage} response invalid: {exc}", stderr=True
+                )
+                continue
+            break
+        if result_plan is None:
+            raise cli.PackageError(
+                f"Unable to generate a valid research charter from {stage} response."
+            )
+        return result_plan
+
+    generator_prompt = (
+        f"{RESEARCH_CHARTER_GENERATOR_PROMPT_PREFIX}\n\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
+        f"Paper source: {source_description}\n\n"
+        "Research request:\n"
+        f"{source_text.strip()}\n"
+        "\nExecution target constraints:\n"
+        + "\n".join(_build_hpc_prompt_lines(hpc_context))
+        + "\n\n"
+        f"{enabled_line}\n"
+    )
+    planner_plan = _run_stage(
+        generator_prompt, max_tries=planner_max_tries, stage="generation"
+    )
+
+    auditor_prompt = (
+        f"{RESEARCH_CHARTER_AUDITOR_PROMPT_PREFIX}\n\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
+        f"Paper source: {source_description}\n\n"
+        "Original research request:\n"
+        f"{source_text.strip()}\n\n"
+        "Candidate charter JSON:\n"
+        f"{json.dumps(planner_plan, indent=2)}\n"
+        "\nExecution target constraints:\n"
+        + "\n".join(_build_hpc_prompt_lines(hpc_context))
+        + "\n\n"
+        f"{enabled_line}\n"
+    )
+    audited_plan = _run_stage(
+        auditor_prompt, max_tries=auditor_max_tries, stage="audit"
+    )
+    return audited_plan
+
+
+def _extract_research_reflection_payload(
+    assistant_text: str,
+) -> dict[str, object] | None:
+    return _extract_tagged_json_payload(
+        assistant_text, token_re=RESEARCH_REFLECTION_TOKEN_RE
+    )
+
+
+def _fallback_research_reflection(
+    *, phase_index: int, reason: str
+) -> dict[str, object]:
+    return {
+        "version": 1,
+        "phase_index": phase_index,
+        "decision": "converge_to_paper",
+        "reason": str(reason or "reflection produced no valid decision"),
+        "findings_markdown": "",
+        "belief_updates": [],
+        "approach_updates": [],
+        "deliverable_kind": "paper",
+        "next_phase": {"goal": "", "approach_id": "", "tasks": []},
+    }
+
+
+def _normalize_research_reflection(
+    raw: object,
+    *,
+    phase_index: int,
+    allow_pivot: bool,
+    enabled_executors: set[str],
+    completed_ids: set[str],
+    hpc_context: dict[str, object] | None = None,
+) -> dict[str, object]:
+    cli = _cli()
+    if not isinstance(raw, dict):
+        raise cli.PackageError("Research reflection must be a JSON object.")
+    decision = str(raw.get("decision") or "").strip().lower()
+    if decision not in RESEARCH_REFLECTION_DECISIONS:
+        raise cli.PackageError(
+            f"Research reflection has invalid decision: {decision!r}"
+        )
+    note_suffix = ""
+    if not allow_pivot and decision in RESEARCH_PIVOT_DECISIONS:
+        note_suffix = (
+            f" (requested {decision}, downgraded to deepen because pivots are "
+            "disabled)"
+        )
+        decision = "deepen"
+
+    deliverable_kind = str(raw.get("deliverable_kind") or "paper").strip().lower()
+    if deliverable_kind not in {"paper", "negative_result_paper"}:
+        deliverable_kind = "paper"
+    if decision == "declare_negative_result":
+        deliverable_kind = "negative_result_paper"
+
+    next_tasks: list[dict[str, object]] = []
+    next_phase_raw = raw.get("next_phase")
+    next_goal = ""
+    next_approach = ""
+    if decision not in RESEARCH_TERMINAL_DECISIONS and isinstance(next_phase_raw, dict):
+        next_goal = str(next_phase_raw.get("goal") or "").strip()
+        next_approach = str(next_phase_raw.get("approach_id") or "").strip()
+        raw_tasks = next_phase_raw.get("tasks")
+        if isinstance(raw_tasks, list):
+            used_ids = set(completed_ids)
+            for task_index, raw_task in enumerate(raw_tasks, start=1):
+                next_tasks.append(
+                    _normalize_research_task(
+                        raw_task,
+                        task_index,
+                        used_ids,
+                        enabled_executors=enabled_executors,
+                        default_phase=phase_index + 1,
+                        hpc_context=hpc_context,
+                    )
+                )
+
+    belief_updates = [
+        item for item in (raw.get("belief_updates") or []) if isinstance(item, dict)
+    ]
+    approach_updates = [
+        item for item in (raw.get("approach_updates") or []) if isinstance(item, dict)
+    ]
+    return {
+        "version": 1,
+        "phase_index": phase_index,
+        "decision": decision,
+        "reason": (str(raw.get("reason") or "").strip() + note_suffix).strip(),
+        "findings_markdown": str(raw.get("findings_markdown") or "").strip(),
+        "belief_updates": belief_updates,
+        "approach_updates": approach_updates,
+        "deliverable_kind": deliverable_kind,
+        "next_phase": {
+            "goal": next_goal,
+            "approach_id": next_approach,
+            "tasks": next_tasks,
+        },
+    }
+
+
+def _run_research_reflection(
+    *,
+    repo_dir: Path,
+    run_dir: Path,
+    source_description: str,
+    state: dict[str, object],
+    phase_index: int,
+    phase_task_ids: list[str],
+    completed_ids: set[str],
+    requested_package_id: str | None,
+    sandbox_override: str | None,
+    provider_bin_override: str,
+    max_tries: int,
+    max_phases: int,
+    allow_pivot: bool,
+    enabled_executors: set[str],
+    data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
+) -> dict[str, object]:
+    """Run the empowered reflection stage and persist phase findings."""
+
+    cli = _cli()
+    plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+    plan_payload = _load_json_if_exists(plan_path) or {}
+    findings_dir = run_dir / RESEARCH_FINDINGS_DIRNAME
+    findings_dir.mkdir(parents=True, exist_ok=True)
+
+    def _display_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(repo_dir))
+        except ValueError:
+            return str(path)
+
+    tasks_state = state.get("tasks")
+    task_status_lines: list[str] = []
+    if isinstance(tasks_state, list):
+        for task in tasks_state:
+            if not isinstance(task, dict):
+                continue
+            tid = str(task.get("id") or "")
+            if tid in set(phase_task_ids):
+                task_status_lines.append(
+                    f"- {tid}: {task.get('status', 'unknown')} "
+                    f"(executor={task.get('executor', 'loop')})"
+                )
+
+    pivot_line = (
+        "- Pivots are ENABLED: you may revise_approach or pivot_hypothesis."
+        if allow_pivot
+        else "- Pivots are DISABLED: avoid revise_approach/pivot_hypothesis; prefer "
+        "deepen, converge_to_paper, declare_negative_result, or abort."
+    )
+    reflect_prompt = (
+        f"{RESEARCH_REFLECT_PROMPT_PREFIX}\n\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
+        f"Source description: {source_description}\n"
+        f"Completed phase index: {phase_index} (of at most {max_phases}).\n"
+        f"Central question: {plan_payload.get('central_question', '')}\n"
+        "\nSuccess criteria:\n"
+        + "\n".join(
+            f"- {item}"
+            for item in _normalize_string_list(plan_payload.get("success_criteria"))
+        )
+        + "\nKill criteria:\n"
+        + "\n".join(
+            f"- {item}"
+            for item in _normalize_string_list(plan_payload.get("kill_criteria"))
+        )
+        + "\n\nApproaches (current status):\n"
+        + json.dumps(plan_payload.get("approaches") or [], indent=2)
+        + "\n\nHypotheses (current status):\n"
+        + json.dumps(plan_payload.get("hypotheses") or [], indent=2)
+        + "\n\nTasks just completed in this phase:\n"
+        + ("\n".join(task_status_lines) or "- (no task status recorded)")
+        + "\n\nRead for evidence:\n"
+        f"- Persistent memory: projects/memory.md\n"
+        f"- Full plan JSON: {_display_path(plan_path)}\n"
+        f"- Run logs directory: {_display_path(run_dir / REPRODUCE_LOGS_DIRNAME)}\n"
+        f"- Prior findings directory: {_display_path(findings_dir)}\n"
+        "\nConstraints:\n"
+        f"{pivot_line}\n"
+        f"- Enabled executors: {', '.join(sorted(enabled_executors))}\n"
+        f"- This is phase {phase_index}; if it reaches {max_phases}, the workflow will "
+        "converge to a paper regardless.\n"
+    )
+
+    reflection: dict[str, object] | None = None
+    last_error = ""
+    _emit_workflow_status(workflow_status_hook, f"research reflect phase {phase_index}")
+    for attempt in range(1, max_tries + 1):
+        cli._print_tagged(
+            "research", f"reflection attempt {attempt}/{max_tries} (phase {phase_index})"
+        )
+        run_result = _run_reproduce_exec_turn(
+            repo_dir=repo_dir,
+            prompt=reflect_prompt,
+            requested_package_id=requested_package_id,
+            sandbox_override=sandbox_override,
+            provider_bin_override=provider_bin_override,
+            data_context=data_context,
+        )
+        return_code = int(run_result.get("return_code") or 0)
+        if return_code != 0:
+            last_error = (
+                f"research reflection agent run failed with exit code {return_code}."
+            )
+            cli._print_tagged("research", last_error, stderr=True)
+            continue
+        raw_payload = _extract_research_reflection_payload(
+            str(run_result.get("assistant_text") or "")
+        )
+        if raw_payload is None:
+            last_error = "reflection response missing <research_reflection> JSON block."
+            cli._print_tagged("research", last_error, stderr=True)
+            continue
+        try:
+            reflection = _normalize_research_reflection(
+                raw_payload,
+                phase_index=phase_index,
+                allow_pivot=allow_pivot,
+                enabled_executors=enabled_executors,
+                completed_ids=completed_ids,
+                hpc_context=hpc_context,
+            )
+        except cli.PackageError as exc:
+            last_error = f"reflection response invalid: {exc}"
+            cli._print_tagged("research", last_error, stderr=True)
+            continue
+        break
+
+    if reflection is None:
+        reflection = _fallback_research_reflection(
+            phase_index=phase_index,
+            reason=last_error or "no valid reflection produced",
+        )
+
+    findings_name = f"phase_{phase_index:02d}_findings.md"
+    findings_path = findings_dir / findings_name
+    findings_body = str(reflection.get("findings_markdown") or "").strip()
+    findings_doc = (
+        f"# Phase {phase_index} findings\n\n"
+        f"- Decision: {reflection.get('decision')}\n"
+        f"- Reason: {reflection.get('reason')}\n\n"
+        + (findings_body or "_No detailed findings were recorded for this phase._")
+        + "\n"
+    )
+    try:
+        findings_path.write_text(findings_doc, encoding="utf-8")
+    except OSError as exc:
+        cli._print_tagged(
+            "research", f"failed to write findings file: {findings_path}: {exc}", stderr=True
+        )
+    reflection["findings_file"] = f"{RESEARCH_FINDINGS_DIRNAME}/{findings_name}"
+    return reflection
+
+
+def _apply_research_belief_updates(
+    *, run_dir: Path, reflection: dict[str, object]
+) -> list[str]:
+    """Apply hypothesis/approach status updates to plan.json; return newly-supported ids."""
+
+    plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+    plan_payload = _load_json_if_exists(plan_path)
+    if not isinstance(plan_payload, dict):
+        return []
+    newly_supported: list[str] = []
+
+    hypotheses = plan_payload.get("hypotheses")
+    if isinstance(hypotheses, list):
+        by_id = {
+            str(item.get("id")): item
+            for item in hypotheses
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        for update in reflection.get("belief_updates") or []:
+            if not isinstance(update, dict):
+                continue
+            hid = str(update.get("hypothesis_id") or "").strip()
+            new_status = str(update.get("new_status") or "").strip().lower()
+            if hid in by_id and new_status in {"open", "supported", "refuted"}:
+                previous = str(by_id[hid].get("status") or "open").strip().lower()
+                by_id[hid]["status"] = new_status
+                if new_status == "supported" and previous != "supported":
+                    newly_supported.append(hid)
+
+    approaches = plan_payload.get("approaches")
+    if isinstance(approaches, list):
+        by_id = {
+            str(item.get("id")): item
+            for item in approaches
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        for update in reflection.get("approach_updates") or []:
+            if not isinstance(update, dict):
+                continue
+            aid = str(update.get("approach_id") or "").strip()
+            new_status = str(update.get("new_status") or "").strip().lower()
+            if aid in by_id and new_status in {
+                "candidate",
+                "active",
+                "abandoned",
+                "succeeded",
+            }:
+                by_id[aid]["status"] = new_status
+
+    deliverable_kind = str(reflection.get("deliverable_kind") or "").strip().lower()
+    if deliverable_kind == "negative_result_paper":
+        plan_payload["deliverable_kind"] = "negative_result_paper"
+
+    _write_json_atomic(plan_path, plan_payload)
+    return newly_supported
+
+
+def _research_progress_fingerprint(
+    next_phase: dict[str, object], decision: str
+) -> str:
+    approach_id = str(next_phase.get("approach_id") or "")
+    tasks = next_phase.get("tasks")
+    task_count = len(tasks) if isinstance(tasks, list) else 0
+    return f"{decision}|{approach_id}|{task_count}"
+
+
+def _classify_loop_result(
+    code: int,
+    outcome_payload: object,
+    completion_commit: dict[str, str],
+) -> tuple[int, str, str, int | None, dict[str, str]]:
+    """Map an executor exit code / loop outcome into a (status, reason) tuple."""
+
+    loop_status = ""
+    loop_reason = ""
+    provider_exit_code: int | None = None
+    if isinstance(outcome_payload, dict):
+        loop_status = str(outcome_payload.get("status") or "").strip()
+        loop_reason = str(outcome_payload.get("reason") or "").strip()
+        raw_provider = outcome_payload.get("provider_exit_code")
+        if isinstance(raw_provider, int):
+            provider_exit_code = raw_provider
+    if not loop_status:
+        if code == 0:
+            loop_status = "done"
+            loop_reason = loop_reason or "exit_code_0"
+        elif code == 1:
+            loop_status = "incomplete_max_iterations"
+            loop_reason = loop_reason or "exit_code_1"
+        else:
+            loop_status = "provider_failure"
+            loop_reason = loop_reason or f"exit_code_{code}"
+            provider_exit_code = code
+    return code, loop_status, loop_reason, provider_exit_code, completion_commit
+
+
+def _research_task_preamble(
+    executor: str, hpc_context: dict[str, object] | None
+) -> str:
+    lines = [
+        "Workflow preflight (research mode):",
+        "- Before acting, read short/long term memory at `projects/memory.md`.",
+        "- Before acting, read the workflow plan referenced under `## Workflow "
+        "context` in `projects/memory.md`.",
+        "",
+        "Execution target constraints:",
+        *_build_hpc_prompt_lines(hpc_context),
+        "",
+    ]
+    if executor == "code":
+        lines.extend(
+            [
+                "Code-authoring policy:",
+                "- Write and validate software from scratch to answer the probe; you "
+                "are NOT required to rely on a pre-existing scientific package.",
+                "- Provide a reproducible entrypoint and tests; record commands in "
+                "projects/memory.md.",
+                "- A probe may end in an informative negative result; that is acceptable.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "Simulation policy:",
+                "- Execute the simulations required by the probe and record "
+                "reproducible results.",
+                "- A probe may end in an informative negative result; that is acceptable.",
+            ]
+        )
+    return "\n".join(lines).strip()
+
+
+def _research_folded_prompt(
+    *,
+    executor: str,
+    base_prompt: str,
+    hpc_context: dict[str, object] | None,
+) -> str:
+    """Fold the workflow preamble into the prompt for backends without a preamble hook."""
+
+    if executor == "drvloop":
+        policy = (
+            "You are executing one analytical-derivation probe within a FermiLink "
+            "research workflow. Read `projects/memory.md` first. A probe may end in an "
+            "informative negative result; that is acceptable."
+        )
+    else:  # exploop
+        policy = (
+            "You are executing one experimental-measurement probe within a FermiLink "
+            "research workflow. Read `projects/memory.md` and the local `AGENTS.md` "
+            "first. A probe may end in an informative negative result; that is "
+            "acceptable."
+        )
+    target_lines = "\n".join(_build_hpc_prompt_lines(hpc_context))
+    return (
+        f"{policy}\n\nExecution target constraints:\n{target_lines}\n\n"
+        f"{base_prompt.strip()}\n"
+    )
+
+
+def _run_research_task_via_executor(
+    *,
+    repo_dir: Path,
+    run_dir: Path,
+    args: argparse.Namespace,
+    task: dict[str, object],
+    executor: str,
+    prompt_path: Path,
+    max_iterations: int,
+    wait_seconds: float,
+    max_wait_seconds: float,
+    pid_stall_seconds: float,
+    proof_depth: str,
+    hpc_context: dict[str, object] | None,
+    workflow_status_hook: WorkflowStatusHook | None,
+    workflow_name: str,
+    task_ordinal: int,
+    total_task_count: int,
+) -> tuple[int, str, str, int | None, dict[str, str]]:
+    """Dispatch a single research probe to the executor named by the task."""
+
+    cli = _cli()
+
+    def _iteration_hook(iteration: int, max_loop_iterations: int) -> None:
+        _emit_workflow_status(
+            workflow_status_hook,
+            (
+                f"{workflow_name} phase task {task_ordinal}/{total_task_count} "
+                f"[{executor}] loop {iteration}/{max_loop_iterations}"
+            ),
+        )
+
+    if executor in {"loop", "code"}:
+        preamble = _research_task_preamble(executor, hpc_context)
+        loop_args = argparse.Namespace(
+            command="loop",
+            prompt=[str(prompt_path)],
+            package_id=getattr(args, "package_id", None),
+            sandbox=getattr(args, "sandbox", None),
+            max_iterations=max_iterations,
+            wait_seconds=wait_seconds,
+            max_wait_seconds=max_wait_seconds,
+            pid_stall_seconds=pid_stall_seconds,
+            init_git=getattr(args, "init_git", False),
+            no_init_git=getattr(args, "no_init_git", False),
+            workflow_prompt_preamble=preamble,
+            _fermilink_loop_iteration_hook=_iteration_hook,
+        )
+        code = cli._cmd_loop(loop_args)
+        completion_commit = _normalize_checkpoint_payload(
+            getattr(loop_args, "_fermilink_completion_commit", None)
+        )
+        outcome_payload = getattr(loop_args, "_fermilink_loop_outcome", None)
+        return _classify_loop_result(code, outcome_payload, completion_commit)
+
+    try:
+        base_prompt = prompt_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise cli.PackageError(
+            f"Failed to read task prompt file: {prompt_path}: {exc}"
+        ) from exc
+    folded_prompt = _research_folded_prompt(
+        executor=executor, base_prompt=base_prompt, hpc_context=hpc_context
+    )
+    _emit_workflow_status(
+        workflow_status_hook,
+        f"{workflow_name} phase task {task_ordinal}/{total_task_count} [{executor}]",
+    )
+    if executor == "drvloop":
+        exec_args = argparse.Namespace(
+            command="drvloop",
+            prompt=[folded_prompt],
+            sandbox=getattr(args, "sandbox", None),
+            max_iterations=max_iterations,
+            proof_depth=proof_depth,
+        )
+        code = cli._cmd_drvloop(exec_args)
+    else:  # exploop
+        exec_args = argparse.Namespace(
+            command="exploop",
+            prompt=[folded_prompt],
+            sandbox=getattr(args, "sandbox", None),
+            max_iterations=max_iterations,
+            wait_seconds=max(wait_seconds, 1.0),
+            max_wait_seconds=max_wait_seconds,
+        )
+        code = cli._cmd_exploop(exec_args)
+    return _classify_loop_result(code, None, _default_checkpoint_payload())
+
+
+def _finalize_research_paper(
+    *,
+    repo_dir: Path,
+    run_dir: Path,
+    workflow_name: str,
+    source_description: str,
+    requested_package_id: str | None,
+    sandbox_override: str | None,
+    provider_bin_override: str,
+    data_context: dict[str, object] | None = None,
+    hpc_context: dict[str, object] | None = None,
+    workflow_status_hook: WorkflowStatusHook | None = None,
+) -> dict[str, object]:
+    """Generate + audit a submission-ready research paper (Markdown + RevTeX + PDF)."""
+
+    cli = _cli()
+    plan_path = run_dir / REPRODUCE_PLAN_FILENAME
+    plan_payload = _load_json_if_exists(plan_path) or {}
+    paper_path = run_dir / RESEARCH_PAPER_FILENAME
+    tex_path = run_dir / RESEARCH_PAPER_TEX_FILENAME
+    pdf_path = run_dir / RESEARCH_PAPER_PDF_FILENAME
+    charter_path = run_dir / RESEARCH_CHARTER_FILENAME
+    findings_dir = run_dir / RESEARCH_FINDINGS_DIRNAME
+    run_id = run_dir.name
+    gen_marker = f"<!-- FERMILINK_PAPER_STAGE:generated run_id={run_id} -->"
+    audit_marker = f"<!-- FERMILINK_PAPER_STAGE:audited run_id={run_id} -->"
+
+    def _display_path(path: Path) -> str:
+        try:
+            return str(path.relative_to(repo_dir))
+        except ValueError:
+            return str(path)
+
+    findings_files = (
+        sorted(findings_dir.glob("phase_*_findings.md"))
+        if findings_dir.is_dir()
+        else []
+    )
+    deliverable_kind = str(plan_payload.get("deliverable_kind") or "paper")
+    execution_target_block = "\n".join(_build_hpc_prompt_lines(hpc_context))
+    findings_block = (
+        "- Phase findings:\n"
+        + "\n".join(f"  - {_display_path(item)}" for item in findings_files)
+        + "\n"
+        if findings_files
+        else "- Phase findings: (none recorded)\n"
+    )
+
+    def _run_paper_stage(*, stage_label: str, prompt: str, marker: str) -> None:
+        _emit_workflow_status(workflow_status_hook, stage_label)
+        last_error = ""
+        for attempt in range(1, 3):
+            cli._print_tagged(workflow_name, f"{stage_label} attempt {attempt}/2")
+            before_signature = _capture_file_signature(paper_path)
+            run_result = _run_reproduce_exec_turn(
+                repo_dir=repo_dir,
+                prompt=prompt,
+                requested_package_id=requested_package_id,
+                sandbox_override=sandbox_override,
+                provider_bin_override=provider_bin_override,
+                data_context=data_context,
+            )
+            return_code = int(run_result.get("return_code") or 0)
+            if return_code != 0:
+                last_error = f"{stage_label} failed with exit code {return_code}."
+                cli._print_tagged(workflow_name, last_error, stderr=True)
+                continue
+            validation_error = _validate_report_stage_artifacts(
+                stage_label=f"{workflow_name} {stage_label}",
+                report_path=paper_path,
+                summary_paths=[],
+                before_report_signature=before_signature,
+                before_summary_signatures={},
+                required_marker=marker,
+                required_files=[],
+                before_required_signatures={},
+            )
+            if not validation_error:
+                return
+            last_error = validation_error
+            cli._print_tagged(workflow_name, validation_error, stderr=True)
+        raise cli.PackageError(last_error or f"{workflow_name} {stage_label} failed.")
+
+    generator_prompt = (
+        f"{RESEARCH_PAPER_GENERATOR_PROMPT_PREFIX}\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
+        f"Workflow: {workflow_name}\n"
+        f"Source description: {source_description}\n"
+        f"Deliverable kind: {deliverable_kind}\n"
+        "\n"
+        "Use these artifacts:\n"
+        f"- Research charter: {_display_path(charter_path)}\n"
+        f"- Plan JSON (question, hypotheses, approaches, phases): "
+        f"{_display_path(plan_path)}\n"
+        f"{findings_block}"
+        f"- Run logs directory: {_display_path(run_dir / REPRODUCE_LOGS_DIRNAME)}\n"
+        "- Persistent memory: projects/memory.md\n"
+        "\n"
+        "Execution target constraints:\n"
+        f"{execution_target_block}\n"
+        "\n"
+        "Write/overwrite the manuscript at:\n"
+        f"- {_display_path(paper_path)}\n"
+        "\n"
+        "Requirements:\n"
+        "1) Frame the actual contribution/novelty; do not present it as a task log.\n"
+        "2) Ground every result in performed work and linked artifacts; mark gaps.\n"
+        "3) Insert Markdown image links to figures that exist.\n"
+        "4) If the study is a negative/null result, write it honestly as such.\n"
+        "5) Include this exact marker line anywhere in the manuscript:\n"
+        f"{gen_marker}\n"
+    )
+    _run_paper_stage(
+        stage_label="paper generation", prompt=generator_prompt, marker=gen_marker
+    )
+
+    auditor_prompt = (
+        f"{RESEARCH_PAPER_AUDITOR_PROMPT_PREFIX}\n"
+        f"{WORKFLOW_UNIFIED_MEMORY_STAGE_INSTRUCTIONS}\n"
+        "\n"
+        f"Workflow: {workflow_name}\n"
+        f"Source description: {source_description}\n"
+        "\n"
+        "Start from scratch as an independent referee.\n"
+        "Read and audit these files:\n"
+        f"- Manuscript to audit in place: {_display_path(paper_path)}\n"
+        f"- Research charter: {_display_path(charter_path)}\n"
+        f"- Plan JSON: {_display_path(plan_path)}\n"
+        f"{findings_block}"
+        "\n"
+        "Required actions:\n"
+        "1) Improve clarity/correctness; verify results against artifacts.\n"
+        "2) Keep/repair figure links and explain missing figures explicitly.\n"
+        "3) Update the same manuscript file in place.\n"
+        f"4) Produce a RevTeX 4.1 preprint at {_display_path(tex_path)}.\n"
+        "5) If pdflatex is installed, compile it to "
+        f"{_display_path(pdf_path)} as an artifact.\n"
+        "6) Ensure the manuscript contains this exact marker line:\n"
+        f"{audit_marker}\n"
+    )
+    _run_paper_stage(
+        stage_label="paper audit", prompt=auditor_prompt, marker=audit_marker
+    )
+
+    result: dict[str, object] = {
+        "report_path": str(paper_path),
+        "paper_path": str(paper_path),
+        "deliverable_kind": deliverable_kind,
+        "findings_count": len(findings_files),
+    }
+    if tex_path.is_file():
+        result["paper_tex_path"] = str(tex_path)
+    if pdf_path.is_file():
+        result["paper_pdf_path"] = str(pdf_path)
+    return result
+
+
+def cmd_research_workflow(args: argparse.Namespace) -> int:
+    """Exploratory research orchestration: charter -> phase loop -> paper.
+
+    Dependency note:
+    - `research` delegates probe execution to `loop`, `drvloop`, or `exploop`
+      depending on each task's executor.
+    - This orchestrator is additive and never alters `reproduce` behavior.
+    """
+
+    cli = _cli()
+    repo_dir = Path.cwd().resolve()
+    cli._ensure_exec_repo_ready(repo_dir, args)
+
+    workflow_name = "research"
+    runs_dir_name = cli.RESEARCH_RUNS_DIR
+    user_prompt, prompt_file = cli._resolve_exec_like_user_prompt(args)
+    source_description = prompt_file or "inline prompt"
+
+    charter_only = bool(getattr(args, "charter_only", False)) or bool(
+        getattr(args, "plan_only", False)
+    )
+    report_only = bool(getattr(args, "report_only", False))
+    skip_report = bool(getattr(args, "skip_report", False))
+    allow_pivot = bool(getattr(args, "allow_pivot", True))
+    if charter_only and report_only:
+        raise cli.PackageError("Cannot combine --charter-only and --report-only.")
+    if report_only and skip_report:
+        raise cli.PackageError("Cannot combine --report-only and --skip-report.")
+
+    enabled_executors = _research_enabled_executors(args)
+
+    def _int_arg(name: str, default: int, flag: str) -> int:
+        raw = getattr(args, name, default)
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise cli.PackageError(f"{flag} must be an integer.") from exc
+        if value < 1:
+            raise cli.PackageError(f"{flag} must be >= 1.")
+        return value
+
+    def _float_arg(name: str, default: float, flag: str) -> float:
+        raw = getattr(args, name, default)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise cli.PackageError(f"{flag} must be a number.") from exc
+        if value < 0:
+            raise cli.PackageError(f"{flag} must be >= 0.")
+        return value
+
+    task_max_runs = _int_arg("task_max_runs", 5, "--task-max-runs")
+    planner_max_tries = _int_arg("planner_max_tries", 2, "--planner-max-tries")
+    auditor_max_tries = _int_arg("auditor_max_tries", 2, "--auditor-max-tries")
+    max_iterations = _int_arg("max_iterations", 10, "--max-iterations")
+    max_phases = _int_arg("max_phases", 6, "--max-phases")
+    wait_seconds = _float_arg("wait_seconds", 0.0, "--wait-seconds")
+    max_wait_seconds = _float_arg("max_wait_seconds", 600.0, "--max-wait-seconds")
+    pid_stall_seconds = _float_arg("pid_stall_seconds", 900.0, "--pid-stall-seconds")
+    proof_depth = str(getattr(args, "proof_depth", "standard") or "standard").strip().lower()
+    if proof_depth not in {"quick", "standard", "publication"}:
+        proof_depth = "standard"
+    workflow_status_hook_raw = getattr(args, "_fermilink_workflow_status_hook", None)
+    workflow_status_hook: WorkflowStatusHook | None = (
+        workflow_status_hook_raw if callable(workflow_status_hook_raw) else None
+    )
+
+    if report_only:
+        cli._ensure_loop_memory(
+            repo_dir=repo_dir,
+            user_prompt=user_prompt,
+            prompt_file=prompt_file,
+            overwrite=False,
+        )
+    else:
+        cli._reset_loop_short_term_memory(
+            repo_dir=repo_dir,
+            user_prompt=user_prompt,
+            prompt_file=prompt_file,
+            workflow_context_lines=[
+                f"- workflow: {workflow_name}",
+                "- stage: workflow_entry",
+                "- research_mode: exploratory (charter -> phases -> paper)",
+            ],
+        )
+
+    projects_dir = repo_dir / cli.LOOP_MEMORY_DIRNAME
+    runs_root = projects_dir / runs_dir_name
+    latest_path = runs_root / cli.REPRODUCE_LATEST_RUN_FILENAME
+    runs_root.mkdir(parents=True, exist_ok=True)
+
+    source_fingerprint = hashlib.sha256(user_prompt.strip().encode("utf-8")).hexdigest()
+    resume_enabled = bool(getattr(args, "resume", True))
+    if report_only and not resume_enabled:
+        raise cli.PackageError("--report-only requires --resume (do not use --restart).")
+
+    run_dir: Path | None = None
+    state: dict[str, object] | None = None
+    if resume_enabled and latest_path.is_file():
+        try:
+            latest_run_id = latest_path.read_text(encoding="utf-8").strip()
+            if latest_run_id:
+                candidate = runs_root / latest_run_id
+                candidate_state_path = candidate / cli.REPRODUCE_STATE_FILENAME
+                if candidate_state_path.is_file():
+                    loaded = json.loads(candidate_state_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        same_source = (
+                            str(loaded.get("source_fingerprint") or "")
+                            == source_fingerprint
+                        )
+                        status = str(loaded.get("status") or "")
+                        if same_source and (status not in {"completed"} or report_only):
+                            run_dir = candidate
+                            state = loaded
+        except (OSError, json.JSONDecodeError):
+            run_dir = None
+            state = None
+
+    created_new_run = run_dir is None or state is None
+    if created_new_run:
+        if report_only:
+            raise cli.PackageError(
+                "--report-only requires an existing resumable research run for this prompt."
+            )
+        run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        run_dir = runs_root / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "version": 2,
+            "run_id": run_id,
+            "mode": "research",
+            "status": "planning",
+            "created_at_utc": cli._utc_now_z(),
+            "updated_at_utc": cli._utc_now_z(),
+            "source_fingerprint": source_fingerprint,
+            "source_description": source_description,
+            "source_prompt_file": prompt_file,
+            "source_prompt_preview": user_prompt[:400],
+            "current_task_index": 0,
+            "tasks": [],
+            "task_runs": {},
+            "task_executors": {},
+            "phases": [],
+            "phase_index": 1,
+            "reflections": [],
+            "charter": {},
+            "decision": "",
+            "no_progress_rounds": 0,
+            "last_progress_fingerprint": "",
+            "last_error": "",
+        }
+    else:
+        cli._print_tagged(workflow_name, f"resuming run: {run_dir.name}")
+
+    if report_only and not created_new_run:
+        # Report-only runs finalize from existing config; do not block on
+        # invocation-time HPC/data drift from the saved run.
+        state_data_context = _coerce_saved_data_context(state)
+        state_hpc_context = _coerce_saved_hpc_context(state)
+        state["data_context"] = state_data_context
+        state["hpc_context"] = state_hpc_context
+    else:
+        invocation_data_context = _resolve_invocation_data_context(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            workflow_name=workflow_name,
+            args=args,
+        )
+        invocation_hpc_context = _resolve_invocation_hpc_context(
+            repo_dir=repo_dir, args=args
+        )
+        state_data_context = invocation_data_context
+        state["data_context"] = state_data_context
+        if created_new_run:
+            state_hpc_context = invocation_hpc_context
+        else:
+            saved_hpc_context = _coerce_saved_hpc_context(state)
+            _assert_hpc_context_compatible(
+                run_id=str(state.get("run_id") or run_dir.name),
+                workflow_name=workflow_name,
+                state_hpc_context=saved_hpc_context,
+                invocation_hpc_context=invocation_hpc_context,
+            )
+            state_hpc_context = invocation_hpc_context
+        state["hpc_context"] = state_hpc_context
+
+    if created_new_run:
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        try:
+            latest_path.write_text(run_dir.name + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise cli.PackageError(
+                f"Failed to write latest research run file: {latest_path}: {exc}"
+            ) from exc
+
+    prompts_dir = run_dir / cli.REPRODUCE_PROMPTS_DIRNAME
+    logs_dir = run_dir / cli.REPRODUCE_LOGS_DIRNAME
+    findings_dir = run_dir / RESEARCH_FINDINGS_DIRNAME
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    findings_dir.mkdir(parents=True, exist_ok=True)
+    if _is_data_context_enabled(state_data_context):
+        (run_dir / WORKFLOW_DATA_DIRNAME).mkdir(parents=True, exist_ok=True)
+        state_data_context = _prepare_workflow_data_artifacts(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            data_context=state_data_context,
+        )
+        state["data_context"] = state_data_context
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+
+    cli._print_tagged(workflow_name, f"run dir: {run_dir.relative_to(repo_dir)}")
+    if _is_hpc_context_enabled(state_hpc_context):
+        cli._print_tagged(workflow_name, "execution target: hpc_slurm")
+    else:
+        cli._print_tagged(workflow_name, "execution target: local")
+    cli._print_tagged(
+        workflow_name, "enabled executors: " + ", ".join(sorted(enabled_executors))
+    )
+
+    def _print_research_artifacts(report_payload: object) -> None:
+        if not isinstance(report_payload, dict):
+            return
+        for key, label in (
+            ("paper_path", "paper (markdown)"),
+            ("paper_tex_path", "paper (revtex)"),
+            ("paper_pdf_path", "paper (pdf)"),
+        ):
+            raw_path = str(report_payload.get(key) or "").strip()
+            if not raw_path:
+                continue
+            try:
+                relative = str(Path(raw_path).relative_to(repo_dir))
+            except Exception:
+                relative = raw_path
+            cli._print_tagged(workflow_name, f"{label}: {relative}")
+
+    # --- report-only shortcut ---------------------------------------------
+    if report_only:
+        tasks_state_raw = state.get("tasks")
+        if not (isinstance(tasks_state_raw, list) and tasks_state_raw):
+            raise cli.PackageError(
+                "--report-only requires an existing research run with generated tasks."
+            )
+        try:
+            report_info = cli._finalize_research_paper(
+                repo_dir=repo_dir,
+                run_dir=run_dir,
+                workflow_name=workflow_name,
+                source_description=source_description,
+                requested_package_id=args.package_id,
+                sandbox_override=args.sandbox,
+                provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+                data_context=state_data_context,
+                hpc_context=state_hpc_context,
+                workflow_status_hook=workflow_status_hook,
+            )
+        except cli.PackageError as exc:
+            state["last_error"] = str(exc)
+            state["updated_at_utc"] = cli._utc_now_z()
+            cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+            cli._print_tagged(workflow_name, str(exc), stderr=True)
+            return 1
+        state["report"] = report_info
+        state["last_error"] = ""
+        state["updated_at_utc"] = cli._utc_now_z()
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        _print_research_artifacts(report_info)
+        return 0
+
+    # --- charter stage ----------------------------------------------------
+    state_status = str(state.get("status") or "planning")
+    tasks_state_raw = state.get("tasks")
+    has_existing_tasks = isinstance(tasks_state_raw, list) and bool(tasks_state_raw)
+    if state_status == "completed":
+        cli._print_tagged(workflow_name, "run already completed")
+        print(cli.LOOP_DONE_TOKEN)
+        return 0
+    if state_status == "planning" or not has_existing_tasks:
+        plan = cli._generate_research_charter(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            source_text=user_prompt,
+            source_description=source_description,
+            requested_package_id=args.package_id,
+            sandbox_override=args.sandbox,
+            provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+            planner_max_tries=planner_max_tries,
+            auditor_max_tries=auditor_max_tries,
+            enabled_executors=enabled_executors,
+            data_context=state_data_context,
+            hpc_context=state_hpc_context,
+            workflow_status_hook=workflow_status_hook,
+        )
+        cli._materialize_mode_plan(
+            run_dir=run_dir,
+            plan=plan,
+            state=state,
+            workflow_name=workflow_name,
+        )
+        _write_research_charter_markdown(run_dir=run_dir, plan=plan)
+        state["charter"] = {
+            "central_question": str(plan.get("central_question") or ""),
+            "deliverable_kind": str(plan.get("deliverable_kind") or "paper"),
+        }
+        state["phases"] = plan.get("phases") or []
+        state["phase_index"] = 1
+        state["reflections"] = []
+        state["decision"] = ""
+        state["no_progress_rounds"] = 0
+        state["last_progress_fingerprint"] = ""
+        state["task_executors"] = {
+            str(task.get("id")): str(task.get("executor") or "loop")
+            for task in (plan.get("tasks") or [])
+            if isinstance(task, dict) and str(task.get("id") or "").strip()
+        }
+        state["status"] = "charter_ready" if charter_only else "running_tasks"
+        state["updated_at_utc"] = cli._utc_now_z()
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        cli._print_tagged(
+            workflow_name,
+            f"charter ready with {len(state.get('tasks') or [])} phase-1 probes",
+        )
+        if charter_only:
+            cli._print_tagged(
+                workflow_name, f"charter-only mode: {run_dir.relative_to(repo_dir)}"
+            )
+            return 0
+    else:
+        # Resumed run: ensure the executor map exists (older runs may lack it).
+        if not isinstance(state.get("task_executors"), dict) or not state.get(
+            "task_executors"
+        ):
+            plan_payload = _load_json_if_exists(run_dir / REPRODUCE_PLAN_FILENAME) or {}
+            state["task_executors"] = {
+                str(task.get("id")): str(task.get("executor") or "loop")
+                for task in (plan_payload.get("tasks") or [])
+                if isinstance(task, dict) and str(task.get("id") or "").strip()
+            }
+
+    # --- explore -> reflect -> re-plan loop -------------------------------
+    while True:
+        tasks_state = state.get("tasks") if isinstance(state.get("tasks"), list) else []
+        task_runs_state = (
+            state.get("task_runs") if isinstance(state.get("task_runs"), dict) else {}
+        )
+        state["task_runs"] = task_runs_state
+        task_executors = (
+            state.get("task_executors")
+            if isinstance(state.get("task_executors"), dict)
+            else {}
+        )
+        state["task_executors"] = task_executors
+        total_task_count = len(tasks_state)
+
+        try:
+            current_index = int(state.get("current_task_index") or 0)
+        except (TypeError, ValueError):
+            current_index = 0
+        if current_index < 0:
+            current_index = 0
+
+        # Phase boundary: all currently-materialized tasks are done -> reflect.
+        if current_index >= total_task_count:
+            phase_index = int(state.get("phase_index") or 1)
+            if str(state.get("decision") or "") in RESEARCH_TERMINAL_DECISIONS:
+                break
+
+            # `completed_ids` is the cumulative set (used to keep new task ids
+            # unique across the whole run). `phase_task_ids` must be only the
+            # probes from the phase that just finished, so the reflection prompt
+            # reports "tasks just completed in this phase" accurately.
+            completed_ids = {
+                str(task.get("id") or "")
+                for task in tasks_state
+                if isinstance(task, dict) and str(task.get("id") or "").strip()
+            }
+            phase_task_ids: list[str] = []
+            phases_meta = state.get("phases")
+            if isinstance(phases_meta, list):
+                for phase_entry in phases_meta:
+                    if (
+                        isinstance(phase_entry, dict)
+                        and int(phase_entry.get("index") or 0) == phase_index
+                    ):
+                        phase_task_ids = [
+                            str(tid)
+                            for tid in (phase_entry.get("task_ids") or [])
+                            if str(tid).strip()
+                        ]
+                        break
+            if not phase_task_ids:
+                # Fallback for legacy/edited state without phase metadata.
+                phase_task_ids = list(completed_ids)
+            reflection = cli._run_research_reflection(
+                repo_dir=repo_dir,
+                run_dir=run_dir,
+                source_description=source_description,
+                state=state,
+                phase_index=phase_index,
+                phase_task_ids=phase_task_ids,
+                completed_ids=completed_ids,
+                requested_package_id=args.package_id,
+                sandbox_override=args.sandbox,
+                provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+                max_tries=auditor_max_tries,
+                max_phases=max_phases,
+                allow_pivot=allow_pivot,
+                enabled_executors=enabled_executors,
+                data_context=state_data_context,
+                hpc_context=state_hpc_context,
+                workflow_status_hook=workflow_status_hook,
+            )
+            decision = str(reflection.get("decision") or "converge_to_paper")
+            newly_supported = _apply_research_belief_updates(
+                run_dir=run_dir, reflection=reflection
+            )
+            reflections_log = state.get("reflections")
+            if not isinstance(reflections_log, list):
+                reflections_log = []
+            reflections_log.append(
+                {
+                    "phase_index": phase_index,
+                    "decision": decision,
+                    "reason": str(reflection.get("reason") or ""),
+                    "findings_file": str(reflection.get("findings_file") or ""),
+                }
+            )
+            state["reflections"] = reflections_log
+            phases_log = state.get("phases")
+            if isinstance(phases_log, list):
+                for phase_entry in phases_log:
+                    if (
+                        isinstance(phase_entry, dict)
+                        and int(phase_entry.get("index") or 0) == phase_index
+                    ):
+                        phase_entry["status"] = "reflected"
+                        phase_entry["decision"] = decision
+                        phase_entry["findings_file"] = str(
+                            reflection.get("findings_file") or ""
+                        )
+            cli._print_tagged(
+                workflow_name,
+                f"phase {phase_index} reflection decision: {decision}",
+            )
+
+            if decision in RESEARCH_TERMINAL_DECISIONS:
+                state["decision"] = decision
+                state["updated_at_utc"] = cli._utc_now_z()
+                cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+                break
+
+            next_phase = reflection.get("next_phase")
+            next_tasks = (
+                next_phase.get("tasks")
+                if isinstance(next_phase, dict)
+                else []
+            )
+            if not isinstance(next_tasks, list) or not next_tasks:
+                state["decision"] = "converge_to_paper"
+                state["last_error"] = (
+                    f"phase {phase_index} reflection produced no next-phase tasks; "
+                    "converging to paper."
+                )
+                state["updated_at_utc"] = cli._utc_now_z()
+                cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+                break
+            if phase_index >= max_phases:
+                state["decision"] = "converge_to_paper"
+                state["last_error"] = (
+                    f"reached --max-phases ({max_phases}); converging to paper."
+                )
+                state["updated_at_utc"] = cli._utc_now_z()
+                cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+                cli._print_tagged(workflow_name, str(state["last_error"]))
+                break
+
+            fingerprint = _research_progress_fingerprint(
+                next_phase if isinstance(next_phase, dict) else {}, decision
+            )
+            if (
+                fingerprint == str(state.get("last_progress_fingerprint") or "")
+                and not newly_supported
+            ):
+                no_progress_rounds = int(state.get("no_progress_rounds") or 0) + 1
+            else:
+                no_progress_rounds = 0
+            state["no_progress_rounds"] = no_progress_rounds
+            state["last_progress_fingerprint"] = fingerprint
+            if no_progress_rounds >= RESEARCH_MAX_NO_PROGRESS_ROUNDS:
+                state["decision"] = "converge_to_paper"
+                state["last_error"] = (
+                    "no measurable progress across consecutive phases; converging "
+                    "to paper."
+                )
+                state["updated_at_utc"] = cli._utc_now_z()
+                cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+                cli._print_tagged(workflow_name, str(state["last_error"]))
+                break
+
+            cli._apply_remaining_task_updates(
+                repo_dir=repo_dir,
+                run_dir=run_dir,
+                state=state,
+                workflow_name=workflow_name,
+                source_description=source_description,
+                completed_or_failed_count=total_task_count,
+                remaining_tasks=next_tasks,
+                data_context=state_data_context,
+                hpc_context=state_hpc_context,
+            )
+            executor_map = state.get("task_executors")
+            if not isinstance(executor_map, dict):
+                executor_map = {}
+                state["task_executors"] = executor_map
+            for task in next_tasks:
+                if isinstance(task, dict) and str(task.get("id") or "").strip():
+                    executor_map[str(task["id"])] = str(task.get("executor") or "loop")
+            new_phase_index = phase_index + 1
+            state["phase_index"] = new_phase_index
+            phases_log = state.get("phases")
+            if not isinstance(phases_log, list):
+                phases_log = []
+            phases_log.append(
+                {
+                    "index": new_phase_index,
+                    "goal": str(next_phase.get("goal") or "")
+                    if isinstance(next_phase, dict)
+                    else "",
+                    "approach_id": str(next_phase.get("approach_id") or "")
+                    if isinstance(next_phase, dict)
+                    else "",
+                    "task_ids": [
+                        str(task.get("id"))
+                        for task in next_tasks
+                        if isinstance(task, dict)
+                    ],
+                    "status": "planned",
+                    "findings_file": "",
+                    "decision": "",
+                }
+            )
+            state["phases"] = phases_log
+            state["last_error"] = ""
+            state["updated_at_utc"] = cli._utc_now_z()
+            cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+            cli._print_tagged(
+                workflow_name,
+                f"phase {new_phase_index} planned with {len(next_tasks)} probes",
+            )
+            continue
+
+        # Run the probe at current_index.
+        task = tasks_state[current_index]
+        if not isinstance(task, dict):
+            raise cli.PackageError(
+                f"Task index {current_index} in research state is invalid."
+            )
+        task_id = str(task.get("id") or f"task_{current_index + 1:03d}").strip()
+        prompt_rel = str(task.get("prompt_file") or "").strip()
+        if not prompt_rel:
+            raise cli.PackageError(
+                f"Task {task_id} is missing `prompt_file` in research state."
+            )
+        prompt_path = run_dir / prompt_rel
+        if not prompt_path.is_file():
+            raise cli.PackageError(f"Task prompt file does not exist: {prompt_path}")
+        executor = _coerce_research_executor(
+            task_executors.get(task_id), enabled_executors
+        )
+
+        task_runs = int(task_runs_state.get(task_id, 0) or 0)
+        if task_runs == 0:
+            try:
+                task_prompt_text = prompt_path.read_text(
+                    encoding="utf-8", errors="replace"
+                )
+            except OSError as exc:
+                raise cli.PackageError(
+                    f"Failed to read task prompt file: {prompt_path}: {exc}"
+                ) from exc
+            cli._reset_loop_short_term_memory(
+                repo_dir=repo_dir,
+                user_prompt=task_prompt_text,
+                prompt_file=str(prompt_path),
+                workflow_context_lines=[
+                    f"- workflow: {workflow_name}",
+                    f"- phase: {state.get('phase_index', 1)}",
+                    f"- executor: {executor}",
+                    "- research_mode: a probe may end in an informative negative result",
+                    f"- plan_json: {_memory_relpath_research(repo_dir, run_dir / REPRODUCE_PLAN_FILENAME)}",
+                ],
+            )
+
+        run_number = task_runs + 1
+        task_ordinal = current_index + 1
+        cli._print_tagged(
+            workflow_name,
+            (
+                f"phase {state.get('phase_index', 1)} probe {task_ordinal}/"
+                f"{total_task_count} {task_id} [{executor}] run "
+                f"{run_number}/{task_max_runs}"
+            ),
+        )
+        started_at = cli._utc_now_z()
+        (
+            code,
+            loop_status,
+            loop_reason,
+            provider_exit_code,
+            completion_commit,
+        ) = _run_research_task_via_executor(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            args=args,
+            task=task,
+            executor=executor,
+            prompt_path=prompt_path,
+            max_iterations=max_iterations,
+            wait_seconds=wait_seconds,
+            max_wait_seconds=max_wait_seconds,
+            pid_stall_seconds=pid_stall_seconds,
+            proof_depth=proof_depth,
+            hpc_context=state_hpc_context,
+            workflow_status_hook=workflow_status_hook,
+            workflow_name=workflow_name,
+            task_ordinal=task_ordinal,
+            total_task_count=total_task_count,
+        )
+        finished_at = cli._utc_now_z()
+        task_runs_state[task_id] = run_number
+        state["updated_at_utc"] = finished_at
+        try:
+            (logs_dir / f"{task_id}_run_{run_number:02d}.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "task_index": current_index + 1,
+                        "phase_index": state.get("phase_index", 1),
+                        "executor": executor,
+                        "run_number": run_number,
+                        "started_at_utc": started_at,
+                        "finished_at_utc": finished_at,
+                        "loop_exit_code": code,
+                        "loop_status": loop_status,
+                        "loop_reason": loop_reason,
+                        "provider_exit_code": provider_exit_code,
+                        "completion_commit_status": str(
+                            completion_commit.get("status") or ""
+                        ),
+                        "completion_commit_sha": str(
+                            completion_commit.get("sha") or ""
+                        ),
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
+
+        if loop_status == "done":
+            task["status"] = "done"
+            task["completed_at_utc"] = finished_at
+            state["current_task_index"] = current_index + 1
+            state["last_error"] = ""
+            cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+            continue
+
+        if loop_status == "incomplete_max_iterations" and run_number < task_max_runs:
+            state["last_error"] = (
+                f"probe {task_id} did not reach {cli.LOOP_DONE_TOKEN}; retrying "
+                f"({run_number}/{task_max_runs})."
+            )
+            cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+            continue
+
+        # Research is failure-tolerant at the probe level: mark failed and advance so
+        # reflection can re-scope, rather than aborting the whole study.
+        task["status"] = "failed"
+        task["failed_at_utc"] = finished_at
+        if loop_status == "provider_failure" and provider_exit_code is not None:
+            failure_note = (
+                f"probe {task_id} failed with provider exit code {provider_exit_code}"
+            )
+        else:
+            failure_note = (
+                f"probe {task_id} did not complete after {run_number} run(s) "
+                f"(status {loop_status or 'unknown'})"
+            )
+        state["current_task_index"] = current_index + 1
+        state["last_error"] = f"{failure_note}; reflection will re-scope."
+        state["updated_at_utc"] = cli._utc_now_z()
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        cli._print_tagged(workflow_name, str(state["last_error"]), stderr=True)
+        continue
+
+    # --- paper stage ------------------------------------------------------
+    final_decision = str(state.get("decision") or "converge_to_paper")
+    if final_decision == "abort":
+        state["status"] = "failed"
+        if not str(state.get("last_error") or "").strip():
+            state["last_error"] = "research aborted by reflection."
+        state["updated_at_utc"] = cli._utc_now_z()
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        cli._print_tagged(workflow_name, str(state["last_error"]), stderr=True)
+        return 1
+
+    if skip_report:
+        state["report"] = {
+            "skipped": True,
+            "reason": "skip_report_flag",
+            "updated_at_utc": cli._utc_now_z(),
+        }
+        cli._print_tagged(workflow_name, "skipping paper generation (--skip-report)")
+        state["status"] = "completed"
+        state["last_error"] = ""
+        state["updated_at_utc"] = cli._utc_now_z()
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        print(cli.LOOP_DONE_TOKEN)
+        return 0
+
+    try:
+        report_info = cli._finalize_research_paper(
+            repo_dir=repo_dir,
+            run_dir=run_dir,
+            workflow_name=workflow_name,
+            source_description=source_description,
+            requested_package_id=args.package_id,
+            sandbox_override=args.sandbox,
+            provider_bin_override=cli.DEFAULT_PROVIDER_BINARY_OVERRIDE,
+            data_context=state_data_context,
+            hpc_context=state_hpc_context,
+            workflow_status_hook=workflow_status_hook,
+        )
+    except cli.PackageError as exc:
+        state["status"] = "failed"
+        state["last_error"] = str(exc)
+        state["updated_at_utc"] = cli._utc_now_z()
+        cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+        cli._print_tagged(workflow_name, str(exc), stderr=True)
+        return 1
+
+    state["report"] = report_info
+    state["status"] = "completed"
+    state["last_error"] = ""
+    state["updated_at_utc"] = cli._utc_now_z()
+    cli._write_json_atomic(run_dir / cli.REPRODUCE_STATE_FILENAME, state)
+    _print_research_artifacts(report_info)
+    print(cli.LOOP_DONE_TOKEN)
+    return 0
+
+
+def _memory_relpath_research(repo_dir: Path, path: Path) -> str:
+    try:
+        return str(path.relative_to(repo_dir))
+    except ValueError:
+        return str(path)
+
+
 def cmd_reproduce(args: argparse.Namespace) -> int:
     """Run publication reproduction orchestration.
 
@@ -6708,22 +8617,17 @@ def cmd_reproduce(args: argparse.Namespace) -> int:
 
 
 def cmd_research(args: argparse.Namespace) -> int:
-    """Run multi-task autonomous research orchestration.
+    """Run exploratory research orchestration (charter -> phase loop -> paper).
 
     Dependency note:
-    - `research` delegates task execution to `loop`.
-    - `loop` depends on the same execution/routing stack used by `exec`.
+    - `research` delegates each probe to `loop`, `drvloop`, or `exploop`
+      depending on the task's executor.
+    - This path is additive and does not affect `reproduce`.
     """
 
-    cli = _cli()
     repo_dir = Path.cwd().resolve()
     try:
-        return cmd_plan_workflow(
-            args,
-            workflow_name="research",
-            runs_dir_name=cli.RESEARCH_RUNS_DIR,
-            generate_plan=cli._generate_research_plan,
-        )
+        return cmd_research_workflow(args)
     finally:
         _attempt_mode_completion_commit(
             repo_dir=repo_dir,

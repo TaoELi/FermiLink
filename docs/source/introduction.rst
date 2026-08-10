@@ -47,15 +47,27 @@ Three autonomous simulation workflows
 - **loop** -- autonomous iteration with persistent memory, local PID or SLURM job monitoring. 
   Best for tasks that run for hours or days with iterative job submissions.
 
-- **research / reproduce** -- planner + auditor + task-loop orchestration for
-  publication-scale campaigns with multiple interdependent tasks
+- **reproduce** -- *deterministic* planner + auditor + task-loop orchestration
+  for publication-scale campaigns whose target is known up front
   (e.g., reproducing all figures from a paper, running a full parameter sweep).
+
+- **research** -- *exploratory* orchestration for open-ended questions where the
+  right approach is not known in advance. It generates a general research
+  **charter** (central question, competing approaches, risks and fallbacks,
+  success/kill criteria), then runs an explore → reflect → re-plan phase loop
+  that may pivot the approach or hypothesis (or declare an honest negative
+  result) between phases, and finally writes a submission-ready paper
+  (Markdown + RevTeX + PDF). Probes may run as scientific simulations
+  (``loop``), write-code-from-scratch (``loop``), analytical derivations
+  (``drvloop``), or, when explicitly enabled with ``--enable-exploop``,
+  experimental measurements (``exploop``).
 
 Choose based on timescale and complexity:
 
 1. Can it finish in one agent turn? Use ``exec``.
 2. Does it need iteration or long waits? Use ``loop``.
-3. Does it span multiple independent tasks? Use ``research`` or ``reproduce``.
+3. Is the target known and you want it reproduced deterministically? Use ``reproduce``.
+4. Is the question open-ended and exploratory? Use ``research``.
 
 
 Scientific package knowledge bases

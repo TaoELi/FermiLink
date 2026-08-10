@@ -2124,8 +2124,9 @@ def test_resolve_workflow_report_markdown_path_uses_latest_run_pointer(
     new_run = runs_root / "20260223-222222"
     old_run.mkdir(parents=True, exist_ok=True)
     new_run.mkdir(parents=True, exist_ok=True)
-    old_report = old_run / "report.md"
-    new_report = new_run / "report.md"
+    # `research` workflow writes its manuscript as paper.md.
+    old_report = old_run / "paper.md"
+    new_report = new_run / "paper.md"
     old_report.write_text("# old\n", encoding="utf-8")
     new_report.write_text("# new\n", encoding="utf-8")
     (runs_root / "latest_run.txt").write_text("20260223-222222\n", encoding="utf-8")
@@ -2190,11 +2191,12 @@ def test_send_run_media_reply_sends_workflow_pdf_when_available(
         encoding="utf-8",
     )
     (run_dir / "plot.png").write_bytes(b"\x89PNG\r\n\x1a\nplot")
-    (run_dir / "report.md").write_text(
-        "# Research report\n\n![Main plot](plot.png)\n",
+    # research writes its final manuscript as paper.md / paper.pdf
+    (run_dir / "paper.md").write_text(
+        "# Research paper\n\n![Main plot](plot.png)\n",
         encoding="utf-8",
     )
-    (run_dir / "report.pdf").write_bytes(b"%PDF-1.4\nfake\n")
+    (run_dir / "paper.pdf").write_bytes(b"%PDF-1.4\nfake\n")
 
     class _FakeClient:
         def __init__(self) -> None:
@@ -2232,8 +2234,30 @@ def test_send_run_media_reply_sends_workflow_pdf_when_available(
     second_path, second_caption = fake_client.documents[1]
     assert first_path.name == "report.embedded.html"
     assert "embedded figures" in str(first_caption or "")
-    assert second_path.name == "report.pdf"
+    assert second_path.name == "paper.pdf"
     assert "PDF report" in str(second_caption or "")
+
+
+def test_workflow_report_filenames_are_mode_aware(tmp_path: Path) -> None:
+    # research -> paper.md/paper.pdf; reproduce -> report.md/report.pdf.
+    assert gateway_commands._workflow_report_markdown_filename("research") == "paper.md"
+    assert (
+        gateway_commands._workflow_report_markdown_filename("reproduce") == "report.md"
+    )
+    research_md = tmp_path / "paper.md"
+    research_pdf = tmp_path / "paper.pdf"
+    research_md.write_text("# p\n", encoding="utf-8")
+    research_pdf.write_bytes(b"%PDF-1.4\n")
+    assert (
+        gateway_commands._resolve_workflow_report_pdf_path(research_md) == research_pdf
+    )
+    reproduce_md = tmp_path / "report.md"
+    reproduce_pdf = tmp_path / "report.pdf"
+    reproduce_md.write_text("# r\n", encoding="utf-8")
+    reproduce_pdf.write_bytes(b"%PDF-1.4\n")
+    assert (
+        gateway_commands._resolve_workflow_report_pdf_path(reproduce_md) == reproduce_pdf
+    )
 
 
 def test_send_run_media_reply_prefers_workflow_embedded_report_html(
