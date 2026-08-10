@@ -6938,6 +6938,19 @@ def _normalize_research_charter(
     if not central_question:
         raise cli.PackageError("Research charter must include a `central_question`.")
     raw_tasks = raw_plan.get("phase_1_tasks")
+    normalized_phase: dict[str, object] = {}
+    if not isinstance(raw_tasks, list) or not raw_tasks:
+        # Be tolerant of an auditor returning the normalized internal v2 plan
+        # shape (``tasks``/``phases``) instead of the external charter prompt
+        # shape (``phase_1_tasks``/``phase_1_*``).
+        internal_tasks = raw_plan.get("tasks")
+        internal_phases = raw_plan.get("phases")
+        if isinstance(internal_tasks, list) and internal_tasks:
+            raw_tasks = internal_tasks
+            if isinstance(internal_phases, list):
+                normalized_phase = next(
+                    (item for item in internal_phases if isinstance(item, dict)), {}
+                )
     if not isinstance(raw_tasks, list) or not raw_tasks:
         raise cli.PackageError(
             "Research charter must include a non-empty `phase_1_tasks` list."
@@ -6965,9 +6978,15 @@ def _normalize_research_charter(
     default_approach = approaches[0]["id"] if approaches else ""
     phase_one = {
         "index": 1,
-        "goal": str(raw_plan.get("phase_1_goal") or central_question).strip(),
+        "goal": str(
+            raw_plan.get("phase_1_goal")
+            or normalized_phase.get("goal")
+            or central_question
+        ).strip(),
         "approach_id": str(
-            raw_plan.get("phase_1_approach_id") or default_approach
+            raw_plan.get("phase_1_approach_id")
+            or normalized_phase.get("approach_id")
+            or default_approach
         ).strip(),
         "task_ids": [str(task["id"]) for task in tasks],
         "status": "planned",
@@ -6988,6 +7007,30 @@ def _normalize_research_charter(
         "assumptions": _normalize_string_list(raw_plan.get("assumptions")),
         "phases": [phase_one],
         "tasks": tasks,
+    }
+
+
+def _research_charter_audit_payload(plan: dict[str, object]) -> dict[str, object]:
+    """Convert an internal normalized plan back to the public charter schema."""
+
+    phase_one: dict[str, object] = {}
+    phases = plan.get("phases")
+    if isinstance(phases, list):
+        phase_one = next((item for item in phases if isinstance(item, dict)), {})
+    tasks = plan.get("tasks")
+    return {
+        "version": 2,
+        "paper_source": plan.get("paper_source") or "",
+        "central_question": plan.get("central_question") or "",
+        "hypotheses": plan.get("hypotheses") or [],
+        "approaches": plan.get("approaches") or [],
+        "success_criteria": plan.get("success_criteria") or [],
+        "kill_criteria": plan.get("kill_criteria") or [],
+        "deliverable_kind": plan.get("deliverable_kind") or "paper",
+        "assumptions": plan.get("assumptions") or [],
+        "phase_1_goal": phase_one.get("goal") or plan.get("central_question") or "",
+        "phase_1_approach_id": phase_one.get("approach_id") or "",
+        "phase_1_tasks": tasks if isinstance(tasks, list) else [],
     }
 
 
@@ -7142,6 +7185,7 @@ def _generate_research_charter(
     planner_plan = _run_stage(
         generator_prompt, max_tries=planner_max_tries, stage="generation"
     )
+    auditor_candidate = _research_charter_audit_payload(planner_plan)
 
     auditor_prompt = (
         f"{RESEARCH_CHARTER_AUDITOR_PROMPT_PREFIX}\n\n"
@@ -7151,7 +7195,7 @@ def _generate_research_charter(
         "Original research request:\n"
         f"{source_text.strip()}\n\n"
         "Candidate charter JSON:\n"
-        f"{json.dumps(planner_plan, indent=2)}\n"
+        f"{json.dumps(auditor_candidate, indent=2)}\n"
         "\nExecution target constraints:\n"
         + "\n".join(_build_hpc_prompt_lines(hpc_context))
         + "\n\n"

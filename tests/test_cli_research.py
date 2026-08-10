@@ -319,6 +319,32 @@ def test_normalize_research_charter_requires_question_and_tasks() -> None:
         )
 
 
+def test_normalize_research_charter_accepts_internal_audit_shape() -> None:
+    plan = workflow_commands._normalize_research_charter(
+        {
+            "central_question": "Does X hold?",
+            "approaches": [{"id": "a1", "summary": "s"}],
+            "phases": [
+                {"index": 1, "goal": "Test X cheaply", "approach_id": "a1"}
+            ],
+            "tasks": [
+                {
+                    "id": "task_001",
+                    "title": "t",
+                    "executor": "loop",
+                    "prompt_markdown": "go",
+                }
+            ],
+        },
+        source_description="idea.md",
+        enabled_executors={"loop"},
+    )
+
+    assert plan["tasks"][0]["id"] == "task_001"
+    assert plan["phases"][0]["goal"] == "Test X cheaply"
+    assert plan["phases"][0]["approach_id"] == "a1"
+
+
 def test_normalize_research_reflection_decisions() -> None:
     downgraded = workflow_commands._normalize_research_reflection(
         {
@@ -380,11 +406,18 @@ def test_generate_research_charter_uses_charter_prompts(
     }
 
     def fake_exec_turn(**kwargs) -> dict[str, object]:
-        prompts.append(str(kwargs.get("prompt") or ""))
+        prompt = str(kwargs.get("prompt") or "")
+        prompts.append(prompt)
+        response_payload = charter_payload
+        if "Candidate charter JSON:\n" in prompt:
+            candidate_text = prompt.split("Candidate charter JSON:\n", 1)[1].split(
+                "\n\nExecution target constraints:", 1
+            )[0]
+            response_payload = json.loads(candidate_text)
         return {
             "return_code": 0,
             "assistant_text": "<research_plan>"
-            + json.dumps(charter_payload)
+            + json.dumps(response_payload)
             + "</research_plan>",
             "stderr": "",
         }
@@ -408,6 +441,14 @@ def test_generate_research_charter_uses_charter_prompts(
     assert "research charter mode" in prompts[0]
     assert "research charter audit mode" in prompts[1]
     assert "Enabled executors:" in prompts[0]
+    auditor_candidate = json.loads(
+        prompts[1].split("Candidate charter JSON:\n", 1)[1].split(
+            "\n\nExecution target constraints:", 1
+        )[0]
+    )
+    assert "phase_1_tasks" in auditor_candidate
+    assert "tasks" not in auditor_candidate
+    assert "phases" not in auditor_candidate
 
 
 def test_research_charter_only_writes_charter_without_running(
