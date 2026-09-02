@@ -1792,6 +1792,53 @@ body.mxl-landing.mxl-landing-simple .mxl-simple-hero h1 {
   box-shadow: none;
 }
 
+/* ── Lightweight Codex usage ── */
+.mxl-lightweight__prompt {
+  margin-top: 0.25rem !important;
+  color: var(--mxl-simple-text);
+  font-weight: 600;
+}
+
+.mxl-lightweight .mxl-install-block--lightweight {
+  max-width: 31rem;
+  margin: 0.2rem auto 0;
+}
+
+.mxl-install-command--multiline {
+  align-items: flex-start;
+}
+
+.mxl-install-command--multiline code {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.mxl-install-line {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.mxl-cap__caption.mxl-lightweight__hint {
+  margin: 0.1rem auto 0;
+}
+
+.mxl-cap__demo.mxl-lightweight__figure {
+  max-width: 28rem;
+  margin-top: 1.6rem;
+}
+
+.mxl-lightweight__figure .mxl-cap__caption {
+  margin-top: 0.65rem;
+}
+
+.mxl-standalone-install .mxl-install-block {
+  margin-top: 0.4rem;
+}
+
 /* ── Install command block ── */
 .mxl-install-block {
   margin: 2.2rem auto 0;

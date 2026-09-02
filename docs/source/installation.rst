@@ -17,8 +17,34 @@ running, see the :doc:`quickstart`.
 For detailed guidance on choosing the right provider for your needs, see :doc:`choosing_agent`.
 
 
+Light-weighted usage of **FermiLink**
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+A light-weight way for using **FermiLink** is available now. 
+
+**codex-fermilink** now brings the FermiLink harness within codex, so we can run FermiLink workflows with the same user experience as the original Codex CLI.
+
+Install and try it now:
+
+.. code-block:: bash
+
+   npm install -g @tel-research/codex-fermilink
+   codex-fermilink      # then type /profile for using scientific workflows. 
+
+
+.. figure:: _static/img/codex-fermilink-profile-demo.gif
+   :alt: Open codex-fermilink and type /profile for using FermiLink scientific workflows.
+   :align: center
+   :width: 95%
+
+
+
 Prerequisites
 ~~~~~~~~~~~~~~~~
+
+Beyond this light-weighted usage, here are the steps to install and use the 
+full **FermiLink** harness.
 
 **FermiLink** assumes a standard local developer environment:
 

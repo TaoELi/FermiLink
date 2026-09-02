@@ -41,25 +41,77 @@
         <div class="mxl-hero-wrapper">
           {# ── Hero section ── #}
           <section class="mxl-simple-hero">
-            <h1>The autonomous scientific computing agent</h1>
+            <h1>A scientific computing agent</h1>
             <p class="mxl-simple-lead">
               Write a <code>goal.md</code>, <b>FermiLink</b> runs it autonomously on your laptop or HPC cluster.
             </p>
+          </section>
 
-            <div class="mxl-install-block" aria-label="Install FermiLink">
-              <div class="mxl-install-tabs" role="tablist" aria-label="Install options">
-                <button type="button" role="tab" aria-selected="true">pip</button>
+          {# ── Capability: Lightweight Codex usage ── #}
+          <section class="mxl-cap mxl-lightweight" aria-labelledby="mxl-lightweight-title">
+            <div class="mxl-cap__head">
+              <h2 class="mxl-cap__title" id="mxl-lightweight-title">
+                <span>Lightweight usage of <b>FermiLink</b></span>
+                <span class="mxl-cap__badge">new</span>
+              </h2>
+              <p class="mxl-cap__desc">A lightweight way to use <b>FermiLink</b> is now available. <b>codex-fermilink</b> brings the FermiLink harness into Codex, so you can run FermiLink workflows with the same user experience as the original Codex CLI.</p>
+              <p class="mxl-cap__desc mxl-lightweight__prompt">Install and try it now:</p>
+
+              <div class="mxl-install-block mxl-install-block--lightweight" aria-label="Install codex-fermilink">
+                <div class="mxl-install-tabs" role="tablist" aria-label="Install options">
+                  <button type="button" role="tab" aria-selected="true">npm</button>
+                </div>
+                <div class="mxl-install-panel">
+                  <button
+                    type="button"
+                    class="mxl-install-command mxl-install-command--multiline mxl-install-copy"
+                    data-copy="npm install -g @tel-research/codex-fermilink&#10;codex-fermilink"
+                    aria-label="Copy codex-fermilink install and launch commands"
+                  >
+                    <code>
+                      <span class="mxl-install-line"><span class="mxl-install-prompt" aria-hidden="true">$</span> npm install -g <span class="mxl-install-highlight">@tel-research/codex-fermilink</span></span>
+                      <span class="mxl-install-line"><span class="mxl-install-prompt" aria-hidden="true">$</span> <span class="mxl-install-highlight">codex-fermilink</span></span>
+                    </code>
+                    <span class="mxl-install-copy-label" aria-hidden="true">Copy</span>
+                  </button>
+                </div>
               </div>
-              <div class="mxl-install-panel">
-                <button
-                  type="button"
-                  class="mxl-install-command mxl-install-copy"
-                  data-copy="pip install fermilink"
-                  aria-label="Copy install command"
-                >
-                  <code><span class="mxl-install-prompt" aria-hidden="true">$</span> pip install <span class="mxl-install-highlight">fermilink</span></code>
-                  <span class="mxl-install-copy-label" aria-hidden="true">Copy</span>
-                </button>
+
+              <p class="mxl-cap__caption mxl-lightweight__hint">Then type <code>/profile</code> to use the scientific workflows.</p>
+            </div>
+
+            <figure class="mxl-cap__demo mxl-lightweight__figure">
+              <img
+                class="mxl-cap__image"
+                src="{{ pathto('_static/img/codex-fermilink-profile-demo.gif', 1) }}"
+                alt="Open codex-fermilink and type /profile to use FermiLink scientific workflows."
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption class="mxl-cap__caption">Open <code>codex-fermilink</code>, then type <code>/profile</code>.</figcaption>
+            </figure>
+          </section>
+
+          {# ── Standalone installation ── #}
+          <section class="mxl-cap mxl-standalone-install">
+            <div class="mxl-cap__head">
+              <h2 class="mxl-cap__title"><span>Standalone <b>FermiLink</b></span></h2>
+              <p class="mxl-cap__desc">Install the full standalone harness for local and HPC workflows.</p>
+              <div class="mxl-install-block" aria-label="Install FermiLink">
+                <div class="mxl-install-tabs" role="tablist" aria-label="Install options">
+                  <button type="button" role="tab" aria-selected="true">pip</button>
+                </div>
+                <div class="mxl-install-panel">
+                  <button
+                    type="button"
+                    class="mxl-install-command mxl-install-copy"
+                    data-copy="pip install fermilink"
+                    aria-label="Copy install command"
+                  >
+                    <code><span class="mxl-install-prompt" aria-hidden="true">$</span> pip install <span class="mxl-install-highlight">fermilink</span></code>
+                    <span class="mxl-install-copy-label" aria-hidden="true">Copy</span>
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -264,18 +316,20 @@
 
     <script>
     (function () {
-      // Copy-to-clipboard for the hero install command.
-      var copyBtn = document.querySelector(".mxl-install-copy");
-      if (copyBtn && navigator.clipboard) {
-        copyBtn.addEventListener("click", function () {
-          var text = copyBtn.getAttribute("data-copy") || "";
-          navigator.clipboard.writeText(text).then(function () {
-            var label = copyBtn.querySelector(".mxl-install-copy-label");
-            if (!label) return;
-            var prev = label.textContent;
-            label.textContent = "Copied";
-            setTimeout(function () { label.textContent = prev; }, 1400);
-          }).catch(function () {});
+      // Copy-to-clipboard for the hero install commands.
+      var copyBtns = document.querySelectorAll(".mxl-install-copy");
+      if (navigator.clipboard) {
+        copyBtns.forEach(function (copyBtn) {
+          copyBtn.addEventListener("click", function () {
+            var text = copyBtn.getAttribute("data-copy") || "";
+            navigator.clipboard.writeText(text).then(function () {
+              var label = copyBtn.querySelector(".mxl-install-copy-label");
+              if (!label) return;
+              var prev = label.textContent;
+              label.textContent = "Copied";
+              setTimeout(function () { label.textContent = prev; }, 1400);
+            }).catch(function () {});
+          });
         });
       }
 

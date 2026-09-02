@@ -18,6 +18,25 @@ then autonomously runs multi-job multi-day simulations on your laptop or HPC clu
 
 ---
 
+
+## codex-fermilink
+
+A light-weight way for using **FermiLink** is available now. 
+
+**codex-fermilink** now brings the FermiLink harness within codex, so we can run FermiLink workflows with the same user experience as the original Codex CLI.
+
+Install and try it now:
+
+```bash
+npm install -g @tel-research/codex-fermilink
+codex-fermilink      # then type /profile for using scientific workflows. 
+```
+
+
+![design](./docs/source/_static/img/codex-fermilink-profile-demo.gif)
+
+---
+
 ## Key Features
 
 #### [Package Knowledge Base Manager](https://fermilink.org/tutorial_knowledge_base.html)
