@@ -7,6 +7,15 @@ from collections.abc import Callable
 CommandHandler = Callable[[argparse.Namespace], int]
 
 
+def _parse_bool_option(value: str) -> bool:
+    normalized = str(value).strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise argparse.ArgumentTypeError("expected True or False")
+
+
 def register_optimize_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],  # type: ignore[attr-defined]
     *,
@@ -57,6 +66,18 @@ def register_optimize_parser(
         help=(
             "How to ensure `skills/` exists before optimization: `existing`, "
             "`channel`, `compile`, or `auto` (default)."
+        ),
+    )
+    optimize_parser.add_argument(
+        "--compile-agent-skills",
+        "--compile_agent_skills",
+        dest="compile_agent_skills",
+        type=_parse_bool_option,
+        default=True,
+        metavar="{True,False}",
+        help=(
+            "Whether optimize may create a missing `skills/` directory. Set to "
+            "False to continue without bootstrapping skills (default: True)."
         ),
     )
     optimize_parser.add_argument(
