@@ -160,6 +160,7 @@ def test_optimize_python_launcher_defaults_to_repo_root_and_branch_venv(
             "--",
             "--max-iterations",
             "12",
+            "--compile_agent_skills=False",
         ],
         cwd=str(repo_dir),
         text=True,
@@ -183,6 +184,7 @@ def test_optimize_python_launcher_defaults_to_repo_root_and_branch_venv(
     assert (
         f"  {true_bin} optimize {goal_path} --goal --branch "
         "fermilink-optimize/mockpkg-feature --max-iterations 12 "
+        "--compile_agent_skills=False "
     ) in completed.stdout
 
     worktree_dir = tmp_path / "mockpkg-feature"
